@@ -1,0 +1,78 @@
+\documentclass[12pt]{report}
+
+% ---------------------------------------------------------------
+% 字型與中文排版（和 C++ 演算法解題 1、2 相同）
+% ---------------------------------------------------------------
+% 作者在 macOS 上用 Times New Roman／Songti TC／PingFang TC；
+% 其他系統（例如 Linux）找不到這些字型時，改用 TeX Gyre Termes 與
+% Noto Serif／Sans CJK TC，同一份原始碼兩邊都能編。
+\usepackage{fontspec}
+\usepackage{xeCJK}
+\IfFontExistsTF{Times New Roman}
+    {\setmainfont{Times New Roman}}
+    {\setmainfont{TeX Gyre Termes}}
+\IfFontExistsTF{Songti TC}
+    {\setCJKmainfont{Songti TC}}
+    {\setCJKmainfont{Noto Serif CJK TC}}
+\IfFontExistsTF{PingFang TC}
+    {\setCJKsansfont{PingFang TC}}
+    {\setCJKsansfont{Noto Sans CJK TC}}
+% 等寬字用 Latin Modern Mono（只在 TeX Live 樹裡，用檔名讓 kpathsea 找）。
+\setmonofont{lmmono10-regular}[
+    Extension = .otf,
+    AutoFakeBold = 2.5,
+]
+
+% ---------------------------------------------------------------
+% 本書排版套件（packages/ 目錄）
+% ---------------------------------------------------------------
+\usepackage{sleek}
+\usepackage{sleek-code}
+\usepackage{sleek-diagrams}
+\usepackage{sleek-recap}
+\usepackage{sleek-aki}
+\usepackage{sleek-pseudo}   % CLRS 風格的虛擬碼框（algpseudocode）
+\usepackage{sleek-math}     % 定義、定理、證明（amsthm）
+% 注意：sleek-theorems.sty 不載入，原因見 sleek-math.sty 開頭。
+% 注意：sleek-listings.sty 不載入，程式碼一律用 sleek-code.sty 的 minted 環境。
+
+% 章節標題中文化：「第 N 章」
+\usepackage{titlesec}
+\titleformat{\chapter}{\normalfont\huge\bfseries}{第~\thechapter~章}{1em}{}
+\titlespacing*{\chapter}{0pt}{-20pt}{20pt}
+% 頁首寫「第 N 章 章名」，不用英文的 CHAPTER。
+\renewcommand{\chaptermark}[1]{\markboth{第~\thechapter~章\quad #1}{}}
+
+% 行內程式碼（\texttt）不能斷行，允許 TeX 多拉開一點字距。
+\setlength{\emergencystretch}{3em}
+
+\hypersetup{
+    pdftitle={資料結構與演算法：C 語言、虛擬碼與研究所考試},
+    pdfauthor={林子祐},
+    pdfsubject={註解 Annotated 演算法系列 第 4 本},
+}
+
+\title{資料結構與演算法\\[0.3em]{\LARGE C 語言、虛擬碼與研究所考試}\\[1.2em]{\large 註解 Annotated 演算法系列}}
+\author{林子祐}
+\date{\today}
+
+\begin{document}
+
+\maketitle
+\romantableofcontents
+
+% ---------------------------------------------------------------
+% 各章內容放在 "chapters/<單元>/chapter.tex"。章號一開始就定好，
+% 還沒寫的章先註解掉，已寫的章前面用 \setcounter{chapter}{N - 1} 定章號。
+% （Makefile 編單章時會自己從目錄名稱算章號。）
+% ---------------------------------------------------------------
+
+% 第一部：基礎
+\input{chapters/01_Analysis/chapter}
+% \input{chapters/02_Recurrences/chapter}
+% \input{chapters/03_Amortized/chapter}
+
+% 書末（不編章號）
+% \input{chapters/99_References/chapter}
+
+\end{document}

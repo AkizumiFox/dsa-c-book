@@ -1,0 +1,1464 @@
+\chapter{演算法分析與漸近符號}
+\label{ch:analysis}
+
+% 本章的圖共用的樣式
+\tikzset{
+    sortedcell/.style={cell, fill=coreFill, draw=coreStroke},
+    growth/.style={thick, smooth},
+    glabel/.style={font=\scriptsize, anchor=west},
+}
+% 插入排序追蹤圖的一列：\insrow{y}{左邊的說明}{數值串列}{已排好的格數}{剛插入的格子}
+\newcommand{\insrow}[5]{%
+    \node[anchor=east, font=\small] at (0.3, #1) {#2};
+    \foreach \v [count=\k] in {#3} {
+        \ifnum\k=#5\relax
+            \node[hlcell] at (\k*0.9, #1) {\v};
+        \else\ifnum\k>#4\relax
+            \node[cell] at (\k*0.9, #1) {\v};
+        \else
+            \node[sortedcell] at (\k*0.9, #1) {\v};
+        \fi\fi
+    }
+}
+
+系辦公室收到一批暑期實習的申請，每份申請寫著一個九位數的學號。 有些同學怕沒
+送到，同一份申請送了兩次，助理想先知道這批申請裡有沒有重複的學號。 第一種做
+法是拿每一份去和其他每一份比對學號；第二種做法是準備一張很大的表，學號每出現一
+次就在表上對應的格子打勾，打勾前發現格子已經勾過，就是重複。 申請從 $1000$ 份變
+成 $8000$ 份時，兩種做法各要多做幾倍的工作？ 往下讀之前，先估計一下。
+
+這一章講怎麼回答這種問題。 我們不用碼錶量秒數，改成數一個演算法做了多少個基本
+步驟，把步數寫成輸入大小 $n$ 的函數，再用\textbf{漸近符號}（asymptotic notation）
+$O$、$\Omega$、$\Theta$ 只留下 $n$ 很大時決定快慢的那一項。 中間會用插入排序當例
+子，示範三件之後每一章都會用到的事：逐行算出執行次數、用迴圈不變量說明程式為什麼
+對、分別討論最好、最壞和平均的情況。
+
+這一章用到《C 程式設計基礎》第~9~章的指標參數（用指標把計數帶回呼叫的地方）和
+第~19~章的 \texttt{malloc}、\texttt{calloc}、\texttt{free}，用到時會先在框裡複習。
+數學上只需要高中的指數、對數和數列求和；書末附錄會整理本書用到的求和公式。
+
+\section{演算法和它的成本}
+\label{sec:ana-cost}
+
+\textbf{演算法}（algorithm）是一串定義清楚的步驟，把\textbf{輸入}（input）變成
+\textbf{輸出}（output）。 「定義清楚」的意思是每一步都沒有歧義，任何人照著做都
+得到一樣的結果；而且對每一個合法的輸入，它都會在有限步之後停下來，給出正確的輸
+出。 一個\textbf{問題}（problem）規定了輸入和輸出的關係，例如「給 $n$ 個學號，回
+答有沒有兩個相同」；把具體的一批學號交給它，叫做這個問題的一個\textbf{實例}
+（instance）。
+
+\subsection{數步驟，不量秒數}
+
+同一支程式在不同電腦、不同編譯器上跑，秒數可以差好幾倍；同一台電腦上，秒數也會
+受到其他程式影響。 我們想要的是一個只和演算法本身有關的量，所以改成數步驟。 數
+法建立在一個簡化的電腦模型上，叫\textbf{隨機存取機}（random-access machine，簡稱
+RAM 模型）：
+
+\begin{itemize}
+\item 一個\textbf{基本運算}花固定的時間：整數的加減乘除和取餘數、比較兩個數、
+指定一個變數、讀寫陣列的一格、呼叫函式和返回。
+\item 讀寫記憶體的任何一個位置都花一樣的時間，不管位置在哪裡。
+\item 一次只做一個運算，沒有平行。
+\item 一個整數放得進一個「字組」（word），大小足以存下 $n$ 這個量級的數。 不能把
+任意大的數塞進一個字組，假裝運算還是固定時間；第~\ref{sec:ana-input-size}~節會
+看到這件事為什麼重要。
+\end{itemize}
+
+這個模型和真正的電腦不完全一樣（真正的電腦有快取，讀相鄰的記憶體比較快），但用它
+算出來的步數，在 $n$ 變大時的變化趨勢通常和實際的秒數一致。 這本書說「時間」
+或「執行時間」（running time），指的都是在這個模型下的步數。
+
+步數會隨輸入變多而變多，所以要先說好怎麼量輸入的大小。 對大部分問題，\textbf{輸
+入大小}（input size）就是資料的個數：排序 $n$ 個數，大小是 $n$；圖的問題要用兩個
+數，點數 $n$ 和邊數 $m$（第~21~章）。 有些問題的輸入只有一兩個整數，這時要改用
+位元數來量，第~\ref{sec:ana-input-size}~節再講。
+
+\subsection{例子：找重複的學號}
+
+章首的兩種做法寫成虛擬碼如下。 學號都在 $[\mathit{base}, \mathit{base} + M)$ 這
+個範圍裡，第二種做法用一個長度 $M$ 的陣列 $\mathit{seen}$ 打勾。
+
+\begin{pseudo}[label=alg:dup-pairs]{兩兩比較}
+\Function{Has-Dup-Pairs}{$A, n$}
+    \For{$i \gets 1$ \To $n - 1$}
+        \For{$j \gets i + 1$ \To $n$}
+            \If{$A[i] = A[j]$}
+                \State \Return \TRUE
+            \EndIf
+        \EndFor
+    \EndFor
+    \State \Return \FALSE
+\EndFunction
+\end{pseudo}
+
+\begin{pseudo}[label=alg:dup-marks]{在表上打勾}
+\Function{Has-Dup-Marks}{$A, n, \mathit{base}, M$}
+    \State 建立陣列 $\mathit{seen}[0..M-1]$，每一格都設成 \FALSE
+    \For{$i \gets 1$ \To $n$}
+        \State $k \gets A[i] - \mathit{base}$
+        \If{$\mathit{seen}[k]$}
+            \State \Return \TRUE
+        \EndIf
+        \State $\mathit{seen}[k] \gets \TRUE$
+    \EndFor
+    \State \Return \FALSE
+\EndFunction
+\end{pseudo}
+
+沒有重複的時候，第一種做法把每一對都比過一次。 $i = 1$ 時比 $n - 1$ 次，$i = 2$
+時比 $n - 2$ 次……最後 $i = n - 1$ 時比 $1$ 次，總共
+\[
+(n - 1) + (n - 2) + \cdots + 1 = \frac{n(n-1)}{2}
+\]
+次。 第二種做法每個學號查一次表，共 $n$ 次，但開始前要把 $M$ 格都設成
+\FALSE，這也要 $M$ 步。
+
+下面的 C 程式把兩種做法各寫成一個函式，用指標參數把「比較了幾次」「查了幾次表」
+帶回 \texttt{main}。 學號用 \texttt{BASE + i * 7919 \% RANGE} 產生，$7919$ 和
+$10^6$ 沒有公因數，所以 $n \le 10^6$ 時產生的學號都不同，這是兩種做法最花時間的
+情況（找到重複就可以提早結束）。
+
+\begin{cbookrecap}[第~9~章 9.2 節、第~19~章 19.3 節]
+函式只能回傳一個值。 想多帶回一個數，就多傳一個指標參數，在函式裡透過
+\texttt{*cmp} 改它指到的變數，例如下面的 \texttt{has\_dup\_pairs(id, n, \&a)}。
+
+\texttt{malloc(n * sizeof *id)} 向系統要一塊能放 $n$ 個 \texttt{int} 的記憶體，
+要不到時回傳 \texttt{NULL}。 \texttt{calloc(count, size)} 一樣要記憶體，但會把整
+塊設成 $0$。 用完要 \texttt{free}，同一塊不能 \texttt{free} 兩次。 本書所有的程式
+都用 \texttt{-fsanitize=address} 檢查過，忘了 \texttt{free} 或是讀寫超出範圍都會
+被抓出來。
+\end{cbookrecap}
+
+\begin{example}[label=ex:dup-check]{c}{(dup\_check.c) 找重複學號的兩種做法}
+#include <stdio.h>
+#include <stdlib.h>
+
+#define BASE 115000000          // 學號的最小值
+#define RANGE 1000000           // 學號落在 [BASE, BASE + RANGE)
+
+// 方法一：兩兩比較。*cmp 記錄比較了幾次。
+int has_dup_pairs(const int *id, int n, long long *cmp)
+{
+    *cmp = 0;
+    for (int i = 0; i < n; i++) {
+        for (int j = i + 1; j < n; j++) {
+            (*cmp)++;
+            if (id[i] == id[j]) {
+                return 1;
+            }
+        }
+    }
+    return 0;
+}
+
+// 方法二：用一個長度 RANGE 的陣列做記號。*look 記錄查了幾次記號。
+int has_dup_marks(const int *id, int n, long long *look)
+{
+    char *seen = calloc(RANGE, 1);   // 全部設成 0，代表都還沒看過
+    if (seen == NULL) {
+        return -1;
+    }
+    int found = 0;
+    *look = 0;
+    for (int i = 0; i < n && !found; i++) {
+        (*look)++;
+        int k = id[i] - BASE;
+        if (seen[k]) {
+            found = 1;
+        }
+        seen[k] = 1;
+    }
+    free(seen);
+    return found;
+}
+
+int main(void)
+{
+    printf("n pairs marks result\n");
+    for (int n = 1000; n <= 8000; n *= 2) {
+        int *id = malloc(n * sizeof *id);
+        if (id == NULL) {
+            return 1;
+        }
+        for (int i = 0; i < n; i++) {   // 產生 n 個互不相同的學號
+            id[i] = BASE + (int)((i * 7919LL) % RANGE);
+        }
+        long long a, b;
+        int r1 = has_dup_pairs(id, n, &a);
+        int r2 = has_dup_marks(id, n, &b);
+        printf("%d %lld %lld %s\n", n, a, b,
+               (r1 == 0 && r2 == 0) ? "no-dup" : "dup");
+        free(id);
+    }
+    return 0;
+}
+\end{example}
+\iosample{}{n pairs marks result \\ 1000 499500 1000 no-dup \\ 2000 1999000 2000 no-dup \\ 4000 7998000 4000 no-dup \\ 8000 31996000 8000 no-dup}
+
+$n$ 每變成兩倍，兩兩比較的次數大約變成四倍，查表的次數剛好變成兩倍。 從 $1000$ 份
+到 $8000$ 份，第一種做法多做了大約 $64$ 倍的工作，第二種只多了 $8$ 倍。 章首的問
+題答案就是這兩個數。
+
+第二種做法的代價在別的地方：不管 $n$ 多小，它都要先準備 $M = 10^6$ 格的表，花
+$M$ 個位元組的記憶體，\texttt{calloc} 把它們設成 $0$ 也要時間，所以它的總步數比
+較像 $n + M$。 學號如果是任意的 $64$ 位元整數，$M$ 會大到根本開不出這張表。 這時
+要改用第~12~章的雜湊，或是第~14~章的「先排序，再比相鄰的兩個」。 一個演算法好不
+好，要同時看時間、記憶體，以及它對輸入做了什麼假設。
+
+\section{本書的虛擬碼和 C 程式}
+\label{sec:ana-conventions}
+
+這本書每個演算法都會給兩種寫法：虛擬碼和 C 程式。 虛擬碼的寫法和多數演算法教科
+書、考卷上的寫法相近，用來講道理、算次數、手算追蹤；C 程式用來實際執行，驗證書上
+說的結果。 兩種寫法有幾個地方不同，下表整理在一起，之後各章不再重複。
+
+\begin{center}
+\begin{tabular}{p{0.20\linewidth}p{0.34\linewidth}p{0.34\linewidth}}
+\toprule
+項目 & 虛擬碼 & C \\
+\midrule
+陣列編號 & 從 $1$ 開始：$A[1..n]$ & 從 $0$ 開始：\texttt{a[0..n-1]} \\
+指定 & $x \gets x + 1$ & \texttt{x = x + 1} \\
+比較相等 & $x = y$、不等 $x \ne y$ & \texttt{x == y}、\texttt{x != y} \\
+計數迴圈 & \textbf{for} $i \gets 2$ \textbf{to} $n$（包含 $n$）&
+\texttt{for (int i = 1; i < n; i++)} \\
+往下數 & \textbf{for} $i \gets n$ \textbf{downto} $1$ &
+\texttt{for (int i = n - 1; i >= 0; i--)} \\
+且、或 & \textbf{and}、\textbf{or}，左邊決定結果時右邊不算 & \texttt{\&\&}、\texttt{||}，
+一樣不算右邊 \\
+空指標 & \NIL & \texttt{NULL} \\
+物件的欄位 & $x.\mathit{key}$，$x$ 是指向物件的指標 & \texttt{x->key} \\
+區塊 & 用縮排表示，不寫 \textbf{end} & 用大括號 \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+另外幾個約定：
+
+\begin{itemize}
+\item 虛擬碼的變數都是區域變數；陣列和物件傳進程序時，傳的是指標，程序裡改了內
+容，呼叫的人看得到。 C 也一樣，陣列參數其實是指標。
+\item 虛擬碼裡的數學運算不會溢位，除法要寫明是 $\lfloor a / b \rfloor$ 還是
+$\lceil a / b \rceil$。 C 程式要自己注意溢位，會超過 \texttt{int} 的計數一律用
+\texttt{long long}。
+\item 虛擬碼可以寫一句中文代替一段細節，例如「建立陣列 $\mathit{seen}[0..M-1]$，
+每一格都設成 \FALSE」，只要那一句的成本清楚。
+\item $\lg n$ 表示 $\log_2 n$，$\ln n$ 表示自然對數。
+\end{itemize}
+
+把虛擬碼翻成 C 時最容易錯的地方是編號差 $1$。 這本書的做法是：C 程式的陣列一律從
+$0$ 開始，虛擬碼的 $A[i]$ 對應 \texttt{a[i - 1]}，翻譯時整段一起改，不要一行一行
+加減 $1$。 例如虛擬碼的 \textbf{for} $i \gets 2$ \textbf{to} $n$ 處理第 $2$ 到第
+$n$ 個元素，翻成 C 是 \texttt{for (i = 1; i < n; i++)}，迴圈裡的 $A[i]$ 直接寫
+\texttt{a[i]}。
+
+\section{插入排序：逐行計算成本}
+\label{sec:ana-insertion}
+
+\textbf{排序}（sorting）的問題是：輸入 $n$ 個數 $a_1, a_2, \ldots, a_n$，輸出它們由
+小到大的排列。 第~14~章會講十種左右的排序方法；這一節先用最簡單的一種，示範怎麼
+逐行算出執行次數。
+
+\textbf{插入排序}（insertion sort）的想法是讓陣列左邊有一段已經排好。 一開始這段
+只有第一個數。 每一輪把這段右邊的下一個數拿出來，叫它 $\mathit{key}$，從這段的最
+右邊往左看，比 $\mathit{key}$ 大的數都往右挪一格，直到遇到不比它大的數，或是走到
+最左邊，再把 $\mathit{key}$ 放進空出來的位置。 這樣排好的一段就多了一個數。
+
+\begin{pseudo}[label=alg:insertion]{插入排序}
+\Procedure{Insertion-Sort}{$A, n$}
+    \For{$i \gets 2$ \To $n$}
+        \State $\mathit{key} \gets A[i]$
+        \State $j \gets i - 1$
+        \While{$j \ge 1$ \AND $A[j] > \mathit{key}$}
+            \State $A[j + 1] \gets A[j]$ \Comment{往右挪一格}
+            \State $j \gets j - 1$
+        \EndWhile
+        \State $A[j + 1] \gets \mathit{key}$
+    \EndFor
+\EndProcedure
+\end{pseudo}
+
+\subsection{手算追蹤}
+
+用 $A = \langle 27, 12, 35, 6, 19, 8 \rangle$ 跑一次。 下圖每一列是外層迴圈做完一
+輪之後的陣列，藍底是已經排好的一段，橘框是這一輪插進去的 $\mathit{key}$。
+
+\begin{center}
+\begin{tikzpicture}
+\insrow{0}{開始}{27,12,35,6,19,8}{1}{0}
+\insrow{-1.1}{$i = 2$，$\mathit{key} = 12$}{12,27,35,6,19,8}{2}{1}
+\insrow{-2.2}{$i = 3$，$\mathit{key} = 35$}{12,27,35,6,19,8}{3}{3}
+\insrow{-3.3}{$i = 4$，$\mathit{key} = 6$}{6,12,27,35,19,8}{4}{1}
+\insrow{-4.4}{$i = 5$，$\mathit{key} = 19$}{6,12,19,27,35,8}{5}{3}
+\insrow{-5.5}{$i = 6$，$\mathit{key} = 8$}{6,8,12,19,27,35}{6}{2}
+\foreach \k in {1,...,6} { \node[idxlbl] at (\k*0.9, -6.2) {\k}; }
+\end{tikzpicture}
+\diagcaption{插入排序每一輪之後的陣列。 藍底是已排好的前段，橘框是這一輪的
+$\mathit{key}$ 最後放的位置。}
+\label{fig:ana-insertion-trace}
+\end{center}
+
+每一輪的細節列成下表。 「比較」是第 4 行 $A[j] > \mathit{key}$ 實際比了幾次（$j$
+已經變成 $0$ 時，因為 \textbf{and} 左邊已經不成立，右邊不算），「挪動」是第 5 行
+執行的次數。
+
+\begin{center}
+\begin{tabular}{cccccl}
+\toprule
+$i$ & $\mathit{key}$ & 比較 & 挪動 & 停下的原因 & 這一輪之後 \\
+\midrule
+2 & 12 & 1 & 1 & $j = 0$ & 12 27 35 6 19 8 \\
+3 & 35 & 1 & 0 & $A[2] = 27 \le 35$ & 12 27 35 6 19 8 \\
+4 & 6 & 3 & 3 & $j = 0$ & 6 12 27 35 19 8 \\
+5 & 19 & 3 & 2 & $A[2] = 12 \le 19$ & 6 12 19 27 35 8 \\
+6 & 8 & 5 & 4 & $A[1] = 6 \le 8$ & 6 8 12 19 27 35 \\
+\midrule
+合計 & & 13 & 10 & & \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\begin{examnote}
+考卷上的追蹤題，通常要求寫出「每一輪之後」的陣列，像上表最右欄那樣一輪一列。 先
+看清楚題目要的是每一輪之後，還是每一次交換、挪動之後，兩者的列數不同。 題目問
+比較次數時，記得 $j$ 走到 $0$ 那一次不算比較。
+\end{examnote}
+
+\subsection{C 程式}
+
+下面的程式從輸入讀進好幾組陣列，每組排序之後印出結果，以及比較和挪動的次數。
+C 的陣列從 $0$ 開始，所以外層從 \texttt{i = 1} 開始，內層的條件 $j \ge 1$ 變成
+\texttt{j >= 0}。 為了數比較次數，把 \textbf{and} 的兩半拆開：\texttt{j >= 0}
+寫在 \texttt{while} 的條件，\texttt{a[j] <= key} 寫在迴圈裡面，比之前先加一。
+
+\begin{example}[label=ex:insertion-count]{c}{(insertion\_count.c) 插入排序並計算比較和挪動的次數}
+#include <stdio.h>
+#include <stdlib.h>
+
+// 插入排序，a[0..n-1] 由小到大。*cmp 記錄 a[j] > key 比較了幾次，
+// *shift 記錄往右搬了幾次。
+void insertion_sort(int *a, int n, long long *cmp, long long *shift)
+{
+    *cmp = 0;
+    *shift = 0;
+    for (int i = 1; i < n; i++) {
+        int key = a[i];
+        int j = i - 1;
+        while (j >= 0) {
+            (*cmp)++;
+            if (a[j] <= key) {
+                break;
+            }
+            a[j + 1] = a[j];
+            (*shift)++;
+            j--;
+        }
+        a[j + 1] = key;
+    }
+}
+
+int main(void)
+{
+    int t;
+    if (scanf("%d", &t) != 1) {
+        return 1;
+    }
+    while (t--) {
+        int n;
+        if (scanf("%d", &n) != 1 || n <= 0) {
+            return 1;
+        }
+        int *a = malloc(n * sizeof *a);
+        if (a == NULL) {
+            return 1;
+        }
+        for (int i = 0; i < n; i++) {
+            if (scanf("%d", &a[i]) != 1) {
+                free(a);
+                return 1;
+            }
+        }
+        long long cmp, shift;
+        insertion_sort(a, n, &cmp, &shift);
+        for (int i = 0; i < n; i++) {
+            printf("%d%c", a[i], i + 1 < n ? ' ' : '\n');
+        }
+        printf("comparisons = %lld, shifts = %lld\n", cmp, shift);
+        free(a);
+    }
+    return 0;
+}
+\end{example}
+\iosample{3 \\ 6 \\ 4 9 13 21 30 38 \\ 6 \\ 38 30 21 13 9 4 \\ 6 \\ 27 12 35 6 19 8}{4 9 13 21 30 38 \\ comparisons = 5, shifts = 0 \\ 4 9 13 21 30 38 \\ comparisons = 15, shifts = 15 \\ 6 8 12 19 27 35 \\ comparisons = 13, shifts = 10}
+
+三組輸入都是 $6$ 個數，比較次數卻從 $5$ 到 $15$。 已經排好的陣列每一輪只比一次就
+停；完全相反的陣列每一輪都要一路挪到最左邊。 執行時間不只和 $n$ 有關，也和輸入
+長什麼樣子有關，這一點在第~\ref{sec:ana-cases}~節會再整理。
+
+\subsection{逐行計算}
+\label{sec:ana-line-cost}
+
+現在對一般的 $n$ 算出虛擬碼~\ref{alg:insertion} 的執行時間。 假設第 $k$ 行執行一
+次花 $c_k$ 的時間（$c_k$ 是常數，第 1 行到第 7 行各自不同），再數每一行執行幾次。
+外層的 $i$ 跑 $2$ 到 $n$。 對固定的 $i$，令 $t_i$ 是第 4 行 \textbf{while} 的條件
+被檢查的次數：挪了幾次就檢查幾次，再加上最後讓迴圈停下來的那一次，所以挪動
+$t_i - 1$ 次。
+
+\begin{center}
+\begin{tabular}{clcc}
+\toprule
+行 & 內容 & 每次的成本 & 執行次數 \\
+\midrule
+1 & \textbf{for} $i \gets 2$ \textbf{to} $n$ & $c_1$ & $n$ \\
+2 & $\mathit{key} \gets A[i]$ & $c_2$ & $n - 1$ \\
+3 & $j \gets i - 1$ & $c_3$ & $n - 1$ \\
+4 & \textbf{while} $j \ge 1$ \textbf{and} $A[j] > \mathit{key}$ & $c_4$ &
+$\sum_{i=2}^{n} t_i$ \\
+5 & $A[j + 1] \gets A[j]$ & $c_5$ & $\sum_{i=2}^{n} (t_i - 1)$ \\
+6 & $j \gets j - 1$ & $c_6$ & $\sum_{i=2}^{n} (t_i - 1)$ \\
+7 & $A[j + 1] \gets \mathit{key}$ & $c_7$ & $n - 1$ \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+第 1 行執行 $n$ 次：$i = 2, 3, \ldots, n$ 各檢查一次，再加上 $i = n + 1$ 時發現超過
+而離開的那一次。 把每一行的成本乘上次數加起來，得到
+\[
+T(n) = c_1 n + (c_2 + c_3 + c_7)(n - 1) + c_4 \sum_{i=2}^{n} t_i
++ (c_5 + c_6) \sum_{i=2}^{n} (t_i - 1).
+\]
+
+\textbf{最好的情況}：陣列本來就排好了。 每一輪第一次檢查就發現 $A[i-1] \le
+\mathit{key}$，$t_i = 1$，挪動 $0$ 次。
+\[
+T(n) = c_1 n + (c_2 + c_3 + c_4 + c_7)(n - 1) = (c_1 + c_2 + c_3 + c_4 + c_7)\, n
+- (c_2 + c_3 + c_4 + c_7).
+\]
+這是 $an + b$ 的形式，$a$、$b$ 是由各個 $c_k$ 決定的常數，執行時間是 $n$ 的一次
+函數。
+
+\textbf{最壞的情況}：陣列由大到小排。 第 $i$ 輪的 $\mathit{key}$ 比前面每一個數都
+小，要挪 $i - 1$ 次，最後在 $j = 0$ 時停下，$t_i = i$。 用
+\[
+\sum_{i=2}^{n} i = \frac{n(n+1)}{2} - 1, \qquad
+\sum_{i=2}^{n} (i - 1) = \frac{n(n-1)}{2}
+\]
+代進去：
+\[
+T(n) = \left(\frac{c_4 + c_5 + c_6}{2}\right) n^2
++ \left(c_1 + c_2 + c_3 + c_7 + \frac{c_4 - c_5 - c_6}{2}\right) n
+- (c_2 + c_3 + c_4 + c_7).
+\]
+這是 $an^2 + bn + c$ 的形式，執行時間是 $n$ 的二次函數。
+
+這些 $c_k$ 是多少，要看機器和編譯器，算不出來，也不重要。 $n$ 很大時，$an^2$ 這一
+項會遠遠超過其他項，係數 $a$ 只影響「大多少倍」，不影響「$n$ 變兩倍時時間變幾
+倍」。 下一節介紹的漸近符號，就是把這種「只看最高次項、不看係數」的說法寫得精確。
+
+\subsection{挪動次數和逆序數}
+
+在陣列裡，如果 $i < j$ 而 $A[i] > A[j]$，就說 $(i, j)$ 是一個\textbf{逆序對}
+（inversion）。 插入排序每挪動一次，剛好消掉一個逆序對：$A[j]$ 往右越過
+$\mathit{key}$，原本 $A[j]$ 在 $\mathit{key}$ 左邊而且比較大，挪完之後兩者的順序對
+了，而其他數對的前後關係都沒有變。 排好的陣列沒有逆序對，所以
+\[
+\text{插入排序的挪動次數} = \text{輸入陣列的逆序對個數}.
+\]
+例如 $\langle 27, 12, 35, 6, 19, 8 \rangle$ 的逆序對有 $(27,12)$、$(27,6)$、
+$(27,19)$、$(27,8)$、$(12,6)$、$(12,8)$、$(35,6)$、$(35,19)$、$(35,8)$、$(19,8)$，
+共 $10$ 個（這裡直接寫數值，不寫位置），和程式印出的 \texttt{shifts = 10} 一樣。
+$n$ 個數最多有 $\binom{n}{2} = n(n-1)/2$ 個逆序對，發生在完全相反的時候。
+
+\section{迴圈不變量}
+\label{sec:ana-invariant}
+
+算完執行時間，還要說明插入排序真的會把陣列排好。 測幾組輸入只能說明那幾組是對
+的；要說明每一組都對，常用的工具是\textbf{迴圈不變量}（loop invariant）：一個和迴
+圈變數有關的敘述，每一輪開始時都成立。 證明分成三步。
+
+\begin{enumerate}
+\item \textbf{初始}：第一輪開始之前，敘述成立。
+\item \textbf{維持}：如果某一輪開始時敘述成立，那麼這一輪做完、下一輪開始時，敘述
+仍然成立。
+\item \textbf{結束}：迴圈停下來時，把敘述和「讓迴圈停下來的條件」合在一起，可以推
+出我們要的結論。
+\end{enumerate}
+
+前兩步和數學歸納法一樣，第三步是歸納法沒有的：歸納法證明對所有正整數都成立，迴
+圈卻會停，停的時候要把不變量用起來。
+
+\textbf{插入排序的不變量}：外層迴圈每一輪開始時（$i$ 是這一輪的值），$A[1..i-1]$
+裡的數就是原本放在 $A[1..i-1]$ 的那些數，而且已經由小到大排好。
+
+\begin{itemize}
+\item \textbf{初始}：第一輪 $i = 2$，$A[1..1]$ 只有一個數，就是原本的 $A[1]$，一
+個數一定排好了。
+\item \textbf{維持}：這一輪把 $\mathit{key} = A[i]$ 存起來，內層迴圈把
+$A[i-1], A[i-2], \ldots$ 之中比 $\mathit{key}$ 大的數依序往右挪一格，停在第一個
+不比 $\mathit{key}$ 大的 $A[j]$（或 $j = 0$）。 因為 $A[1..i-1]$ 原本排好了，被
+挪的是最右邊連續的一段，也就是所有比 $\mathit{key}$ 大的數；它們挪動後順序不
+變。 $\mathit{key}$ 放進 $A[j+1]$ 之後，左邊的數都不大於它，右邊的數都大於它，
+所以 $A[1..i]$ 排好了，而且裡面的數正是原本 $A[1..i]$ 的那些數。 下一輪的 $i$
+加一，不變量成立。（嚴格的寫法要對內層迴圈另外寫一個不變量，這裡用文字帶過。）
+\item \textbf{結束}：外層迴圈在 $i = n + 1$ 時停下。 代進不變量：$A[1..n]$ 是原本
+的 $n$ 個數，而且排好了，這正是排序要的結果。
+\end{itemize}
+
+\begin{examnote}
+用迴圈不變量證明時，三步都要寫出來，而且不變量要寫成和迴圈變數有關的具體敘述
+（「$A[1..i-1]$ 排好了」），不能只寫「陣列越來越有序」。 結束那一步要明白寫出迴
+圈停下時變數的值（這裡是 $i = n + 1$），再代進不變量。
+\end{examnote}
+
+不變量要選得剛好：太弱推不出結論，太強維持不住。 例如只寫「$A[1..i-1]$ 排好了」，
+少了「是原本的那些數」，那麼一個把整個陣列都改成 $0$ 的程式也滿足它。 觀念題第 11 題
+的二分搜尋、第~14~章快速排序的分割（partition）都會再用到這個工具。
+
+\section{漸近符號}
+\label{sec:ana-notation}
+
+第~\ref{sec:ana-line-cost}~節算出插入排序最壞的情況是 $an^2 + bn + c$。 $n = 10^4$
+時，$an^2$ 比 $bn$ 大了大約 $10^4 \cdot a/b$ 倍，只要 $a/b$ 不是非常小，低次項
+幾乎沒有影響。 所以我們只想說「它是 $n^2$ 這一級的」。 這一節把這句話定義清楚。
+
+這一節的函數都定義在正整數 $n$ 上，而且 $n$ 夠大以後取值不是負的（執行時間不會是
+負的）。
+
+\subsection{$\Theta$、$O$、$\Omega$}
+
+\begin{definition}[$\Theta$]
+\label{def:theta}
+$\Theta(g(n))$ 是所有滿足下面條件的函數 $f(n)$ 組成的集合：存在正的常數 $c_1$、
+$c_2$ 和 $n_0$，使得所有 $n \ge n_0$ 都有
+\[
+0 \le c_1 g(n) \le f(n) \le c_2 g(n).
+\]
+\end{definition}
+
+白話是：$n$ 夠大以後，$f(n)$ 被夾在 $g(n)$ 的兩個常數倍之間。 $n_0$ 以前怎麼樣都
+不管。 $f(n) \in \Theta(g(n))$ 習慣寫成 $f(n) = \Theta(g(n))$，這裡的等號意思是
+「屬於」，不能左右對調：寫 $\Theta(g(n)) = f(n)$ 沒有意義。
+
+\begin{center}
+\begin{tikzpicture}[x=0.85cm, y=0.7cm]
+\draw[-{Stealth[length=2mm]}] (0,0) -- (8.6,0) node[right, font=\small] {$n$};
+\draw[-{Stealth[length=2mm]}] (0,0) -- (0,8.2);
+\draw[thick, coreStroke, domain=0:8, samples=40] plot (\x, {1.4*(0.08*\x*\x+0.5)})
+    node[right, font=\small] {$c_2 g(n)$};
+\draw[thick, coreStroke, dashed, domain=0:8, samples=40] plot (\x, {0.6*(0.08*\x*\x+0.5)})
+    node[right, font=\small] {$c_1 g(n)$};
+\draw[thick, memStroke] plot[smooth] coordinates {(0.2,2.0) (1,1.6) (2,0.95) (3,1.3)
+    (4,1.9) (5,2.3) (6,3.6) (7,4.2) (8,5.6)} node[right, font=\small] {$f(n)$};
+\draw[densely dotted] (2,0) -- (2,7.6);
+\node[below, font=\small] at (2,0) {$n_0$};
+\end{tikzpicture}
+\diagcaption{$f(n) = \Theta(g(n))$：在 $n_0$ 右邊，$f(n)$ 一直落在 $c_1 g(n)$ 和
+$c_2 g(n)$ 之間。 $n_0$ 左邊的部分不影響結論。}
+\label{fig:ana-theta}
+\end{center}
+
+只要上界或只要下界時，分別用 $O$ 和 $\Omega$。
+
+\begin{definition}[$O$ 和 $\Omega$]
+\label{def:big-o}
+$O(g(n))$ 是所有滿足下面條件的 $f(n)$：存在正的常數 $c$ 和 $n_0$，使得所有
+$n \ge n_0$ 都有 $0 \le f(n) \le c\, g(n)$。
+
+$\Omega(g(n))$ 是所有滿足下面條件的 $f(n)$：存在正的常數 $c$ 和 $n_0$，使得所有
+$n \ge n_0$ 都有 $0 \le c\, g(n) \le f(n)$。
+\end{definition}
+
+直接從定義可以得到：
+
+\begin{theorem}
+\label{thm:theta-iff}
+$f(n) = \Theta(g(n))$ 的充分必要條件是 $f(n) = O(g(n))$ 而且 $f(n) = \Omega(g(n))$。
+\end{theorem}
+
+\begin{proof}
+如果 $f(n) = \Theta(g(n))$，定義裡的 $c_2$、$n_0$ 就是 $O$ 要的常數，$c_1$、$n_0$
+就是 $\Omega$ 要的常數。 反過來，假設 $O$ 的常數是 $c$、$n_1$，$\Omega$ 的常數是
+$c'$、$n_2$，取 $c_1 = c'$、$c_2 = c$、$n_0 = \max(n_1, n_2)$，$n \ge n_0$ 時兩個
+不等式同時成立。
+\end{proof}
+
+\subsection{用定義證明}
+
+\textbf{例 1}：證明 $4n^2 + 7n - 30 = \Theta(n^2)$。
+
+上界：$n \ge 1$ 時 $7n \le 7n^2$，而 $-30 < 0$，所以
+$4n^2 + 7n - 30 \le 4n^2 + 7n^2 = 11n^2$。 取 $c_2 = 11$。
+
+下界：想要 $4n^2 + 7n - 30 \ge 3n^2$，也就是 $n^2 + 7n \ge 30$。 $n = 3$ 時左邊是
+$30$，剛好成立，$n$ 更大時左邊更大，所以 $n \ge 3$ 時成立。 取 $c_1 = 3$。
+
+兩邊都要成立，取 $n_0 = 3$。 另外 $n \ge 3$ 時 $3n^2 \ge 0$，定義裡的 $0 \le$ 也滿
+足。 所以 $c_1 = 3$、$c_2 = 11$、$n_0 = 3$ 符合定義~\ref{def:theta}。
+
+常數的選法不只一組。 下界也可以取 $c_1 = 1$，這時需要 $3n^2 + 7n \ge 30$，
+$n \ge 2$ 就成立。 證明只要找到一組，並且說清楚每個不等式從哪一個 $n$ 開始成立。
+
+\begin{examnote}
+用定義證明 $\Theta$、$O$、$\Omega$ 時，答案裡要明白寫出 $c_1$、$c_2$（或 $c$）
+和 $n_0$ 的數值，並驗證「所有 $n \ge n_0$」都成立，不能只代一兩個 $n$ 檢查。 常
+用的手法是把負的項丟掉得到上界，把低次項併進最高次項的一部分得到下界。
+\end{examnote}
+
+\textbf{例 2}：證明 $n^3 \ne O(n^2)$。
+
+用反證法。 假設有正的 $c$、$n_0$，使得所有 $n \ge n_0$ 都有 $n^3 \le c\,n^2$，兩
+邊除以 $n^2$ 得到 $n \le c$。 但取 $n = \max(n_0, \lceil c \rceil + 1)$，這個 $n$
+大於等於 $n_0$，卻比 $c$ 大，矛盾。
+
+要證明「不是 $O$」，就要說明不管常數怎麼選都不行，所以通常用反證法：假設常數存
+在，再找一個夠大的 $n$ 推出矛盾。
+
+\textbf{例 3}：多項式只看最高次。 設
+$p(n) = a_d n^d + a_{d-1} n^{d-1} + \cdots + a_0$，$a_d > 0$。 令
+$A = |a_{d-1}| + \cdots + |a_0|$。 $n \ge 1$ 時每個 $|a_k| n^k \le |a_k| n^{d-1}$，所以
+\[
+a_d n^d - A n^{d-1} \le p(n) \le a_d n^d + A n^{d-1}.
+\]
+右邊不超過 $(a_d + A) n^d$；左邊在 $n \ge 2A / a_d$ 時至少是 $\frac{a_d}{2} n^d$。
+所以 $p(n) = \Theta(n^d)$。 插入排序最壞情況的 $an^2 + bn + c$（$a > 0$）是
+$\Theta(n^2)$，最好情況的 $an + b$ 是 $\Theta(n)$。
+
+\subsection{$O$ 只是上界}
+
+$O$ 只說「不會比這個大太多」，沒有說「差不多這麼大」。 $5n = O(n^2)$、
+$5n = O(n^3)$ 都對，因為 $n \ge 5$ 時 $5n \le n^2 \le n^3$。 所以「插入排序的執行
+時間是 $O(n^3)$」是一句對的話，只是不夠精確。
+
+考卷上的選擇題常常利用這一點。 讀到 $O$ 時，先問自己：這句話說的是上界，題目給
+的函數有沒有超過這個上界？ 不要把 $O$ 讀成「剛好是」。 想說「剛好是這一級」時用
+$\Theta$。
+
+\subsection{$o$ 和 $\omega$}
+
+$O$ 允許 $f$ 和 $g$ 同一級，例如 $2n^2 = O(n^2)$。 想說「$f$ 嚴格比 $g$ 小一級」時，
+用小寫的 $o$。
+
+\begin{definition}[$o$ 和 $\omega$]
+\label{def:little-o}
+$o(g(n))$ 是所有滿足下面條件的 $f(n)$：\textbf{對每一個}正的常數 $c$，都存在
+$n_0$，使得所有 $n \ge n_0$ 都有 $0 \le f(n) < c\, g(n)$。
+
+$\omega(g(n))$ 是所有滿足下面條件的 $f(n)$：\textbf{對每一個}正的常數 $c$，都存在
+$n_0$，使得所有 $n \ge n_0$ 都有 $0 \le c\, g(n) < f(n)$。
+\end{definition}
+
+和 $O$ 的差別在「存在一個 $c$」換成了「每一個 $c$」：$c$ 再小，$n$ 夠大以後
+$f(n)$ 都比 $c\,g(n)$ 小。 例如 $2n = o(n^2)$：給定 $c$，取 $n_0 > 2/c$，$n \ge n_0$
+時 $2n < c\,n^2$。 但 $2n^2 \ne o(n^2)$：取 $c = 1$，$2n^2 < n^2$ 永遠不成立。
+
+用極限判斷常常比較快。
+
+\begin{theorem}
+\label{thm:limit}
+設 $g(n) > 0$，而且極限 $L = \lim_{n \to \infty} f(n)/g(n)$ 存在（可以是 $\infty$）。
+\begin{enumerate}
+\item $L = 0$：$f(n) = o(g(n))$，因此 $f(n) = O(g(n))$，但 $f(n) \ne \Omega(g(n))$。
+\item $0 < L < \infty$：$f(n) = \Theta(g(n))$。
+\item $L = \infty$：$f(n) = \omega(g(n))$，因此 $f(n) = \Omega(g(n))$，但 $f(n) \ne O(g(n))$。
+\end{enumerate}
+\end{theorem}
+
+第 2 點的理由：$n$ 夠大以後 $f(n)/g(n)$ 落在 $[L/2, 2L]$ 之間，取 $c_1 = L/2$、
+$c_2 = 2L$。 第 1、3 點直接是極限的定義。
+
+要注意這個定理只有一個方向：極限不存在時，什麼都不能說，要回到定義。 例如
+\[
+f(n) = \begin{cases} n^2, & n \text{ 是偶數} \\ n, & n \text{ 是奇數} \end{cases}
+\]
+和 $g(n) = n^2$ 相比，$f(n)/g(n)$ 在 $1$ 和 $1/n$ 之間跳，極限不存在。 但 $f(n) \le
+n^2$ 對所有 $n$ 成立，所以 $f(n) = O(n^2)$；奇數的 $n$ 讓 $f(n) = n$，所以 $f(n) \ne
+\Omega(n^2)$。
+
+\subsection{性質}
+
+下面幾條性質直接從定義推得，之後會常常用到。 $f$、$g$、$h$ 都是夠大以後非負的函數。
+
+\begin{itemize}
+\item \textbf{遞移}：$f = O(g)$ 而且 $g = O(h)$，則 $f = O(h)$。 $\Theta$、$\Omega$、
+$o$、$\omega$ 也一樣。
+\item \textbf{自反}：$f = \Theta(f)$，也就是 $f = O(f)$、$f = \Omega(f)$。
+\item \textbf{對稱}：$f = \Theta(g)$ 的充分必要條件是 $g = \Theta(f)$。
+\item \textbf{轉置}：$f = O(g)$ 的充分必要條件是 $g = \Omega(f)$；$f = o(g)$ 的充分
+必要條件是 $g = \omega(f)$。
+\item \textbf{加法}：$f + g = \Theta(\max(f, g))$。 例如兩段程式接在一起，總時間
+由比較慢的那一段決定。
+\end{itemize}
+
+這些性質很像數字的大小關係（$O$ 像 $\le$，$\Theta$ 像 $=$，$o$ 像 $<$），但有一點
+不一樣：任兩個數一定比得出大小，兩個函數卻不一定。 例如 $g(n) = n^2$，而
+$f(n)$ 在偶數時是 $n$、奇數時是 $n^3$。 偶數的 $n$ 讓 $f$ 遠小於 $g$，奇數的 $n$
+讓 $f$ 遠大於 $g$，所以 $f \ne O(g)$，$f \ne \Omega(g)$。
+
+\subsection{等式裡的漸近符號}
+
+漸近符號出現在式子的一部分時，代表「某一個屬於這個集合的函數」。 例如
+\[
+T(n) = 2n^2 + \Theta(n)
+\]
+是說 $T(n) = 2n^2 + h(n)$，其中 $h(n)$ 是某個 $\Theta(n)$ 的函數。 這種寫法可以保
+留關心的部分（最高次的係數 $2$），把不關心的細節收起來。 第~2~章寫遞迴式
+$T(n) = 2T(n/2) + \Theta(n)$ 也是這個意思。
+
+式子兩邊都有漸近符號時，例如 $2n^2 + \Theta(n) = \Theta(n^2)$，意思是：左邊不管
+$\Theta(n)$ 換成哪一個函數，右邊都找得到一個 $\Theta(n^2)$ 的函數讓等式成立。 這仍
+然是單向的，右邊比左邊粗。
+
+\section{常見函數的成長速度}
+\label{sec:ana-functions}
+
+分析演算法時，最常出現的函數是對數、多項式、指數和階乘。 這一節整理它們之間的
+大小關係，最後給一張由慢到快的表。
+
+\subsection{對數}
+
+$\lg n = \log_2 n$。 換底公式 $\log_a n = \log_b n / \log_b a$ 說明不同底的對數只差
+一個常數倍，所以在 $O$、$\Theta$ 裡面寫 $\log n$ 不用寫底：$\log_{10} n =
+\Theta(\lg n) = \Theta(\ln n)$。
+
+底數在指數上就不能省了。 $4^n = 2^{2n} = (2^n)^2$，比 $2^n$ 大了 $2^n$ 倍，所以
+$4^n \ne O(2^n)$。 另外幾個常用的換算：
+\[
+2^{\lg n} = n, \qquad 4^{\lg n} = n^2, \qquad a^{\log_b n} = n^{\log_b a}.
+\]
+最後一個等式兩邊取 $\log_b$ 就看得出來，第~2~章的主定理會一直用到它。
+
+\subsection{對數、多項式、指數}
+
+三條常用的結論，$a$、$b$、$\varepsilon$ 是常數：
+
+\begin{enumerate}
+\item 任何次方的對數都比任何正次方的多項式慢：$(\lg n)^a = o(n^{\varepsilon})$，
+$a > 0$，$\varepsilon > 0$。
+\item 任何多項式都比任何底大於 $1$ 的指數慢：$n^a = o(b^n)$，$b > 1$。
+\item 多項式之間只看次方：$a < b$ 時 $n^a = o(n^b)$。
+\end{enumerate}
+
+第 1 點可以用定理~\ref{thm:limit}：令 $n = 2^m$，$(\lg n)^a / n^{\varepsilon} =
+m^a / 2^{\varepsilon m}$，這是第 2 點的情形（以 $m$ 為變數，底是 $2^{\varepsilon}$），
+所以極限是 $0$。 第 2 點可以對 $n^a / b^n$ 用羅必達法則 $\lceil a \rceil$ 次。
+
+這幾條結論的數量感要記住。 $(\lg n)^3$ 在 $n = 10^6$ 時大約是 $7900$，比
+$\sqrt{n} = 1000$ 還大；可是 $n = 2^{100}$ 時，$(\lg n)^3 = 10^6$，$\sqrt n = 2^{50}
+\approx 10^{15}$。 漸近的比較說的是 $n$ 夠大以後，「夠大」可能非常大。
+
+\subsection{階乘}
+
+$n!$ 比任何 $b^n$ 都快，又比 $n^n$ 慢。 比較精確的估計是\textbf{斯特林公式}
+（Stirling's approximation）：
+\[
+n! = \sqrt{2\pi n}\left(\frac{n}{e}\right)^n \left(1 + \Theta\!\left(\frac{1}{n}\right)\right).
+\]
+排序的下界（第~15~章）要用到 $\lg(n!)$。 它其實不需要斯特林公式也能估：
+\[
+n! = 1 \cdot 2 \cdots n \le n^n,
+\qquad
+n! \ge \left\lceil \tfrac{n}{2} \right\rceil \cdot \left(\left\lceil \tfrac{n}{2} \right\rceil + 1\right) \cdots n
+\ge \left(\frac{n}{2}\right)^{n/2}.
+\]
+第二個式子只留下後半段的乘數，每個都至少 $n/2$，個數至少 $n/2$。 兩邊取 $\lg$：
+\[
+\frac{n}{2} \lg \frac{n}{2} \le \lg(n!) \le n \lg n,
+\]
+左邊在 $n \ge 4$ 時至少是 $\frac{n}{4}\lg n$（因為 $\lg(n/2) = \lg n - 1 \ge
+\frac{1}{2}\lg n$）。 所以 $\lg(n!) = \Theta(n \lg n)$。
+
+\subsection{級數}
+
+逐行分析時最常出現下面幾種和。
+
+\begin{itemize}
+\item \textbf{等差}：$\displaystyle\sum_{i=1}^{n} i = \frac{n(n+1)}{2} = \Theta(n^2)$。 一
+般地，$\displaystyle\sum_{i=1}^{n} i^k = \Theta(n^{k+1})$，$k \ge 0$ 是常數。
+\item \textbf{等比}：$r \ne 1$ 時
+$\displaystyle\sum_{i=0}^{m} r^i = \frac{r^{m+1} - 1}{r - 1}$。 $0 < r < 1$ 時，不管
+$m$ 多大，和都小於 $\frac{1}{1-r}$，是 $\Theta(1)$；$r > 1$ 時，和是
+$\Theta(r^m)$，由最後一項決定。
+\item \textbf{調和}：$H_n = \displaystyle\sum_{i=1}^{n} \frac{1}{i}$。 拿 $1/x$ 的
+積分上下夾，得到 $\ln(n+1) \le H_n \le \ln n + 1$，所以 $H_n = \Theta(\lg n)$。
+\end{itemize}
+
+等比級數的兩個結論要特別記住：公比小於 $1$ 時，總和和第一項同一級；公比大於 $1$ 時，
+總和和最後一項同一級。 下一節分析「每次減半」「每次加倍」的迴圈，都是用這兩句話。
+
+\subsection{由慢到快}
+
+\begin{center}
+\begin{tikzpicture}[x=0.42cm, y=0.075cm]
+\begin{scope}
+\clip (0,0) rectangle (21,62);
+\draw[growth, black!60, domain=1:20, samples=60] plot (\x, {ln(\x)/ln(2)});
+\draw[growth, coreStroke, domain=1:20, samples=60] plot (\x, {\x});
+\draw[growth, greenStroke, domain=1:20, samples=60] plot (\x, {\x*ln(\x)/ln(2)});
+\draw[growth, memStroke, domain=1:20, samples=60] plot (\x, {\x*\x});
+\draw[growth, optStroke, domain=1:6, samples=60] plot (\x, {pow(2,\x)});
+\end{scope}
+\draw[-{Stealth[length=2mm]}] (0,0) -- (21.5,0) node[right, font=\small] {$n$};
+\draw[-{Stealth[length=2mm]}] (0,0) -- (0,64);
+\foreach \t in {5,10,15,20} { \draw (\t,0) -- (\t,-1) node[below, font=\scriptsize] {\t}; }
+\foreach \t in {20,40,60} { \draw (0,\t) -- (-0.3,\t) node[left, font=\scriptsize] {\t}; }
+\node[glabel, text=black!60] at (20.1,4.3) {$\lg n$};
+\node[glabel, text=coreStroke] at (20.1,20) {$n$};
+\node[glabel, text=greenStroke] at (15.4,60) {$n \lg n$};
+\node[glabel, text=memStroke] at (7.9,60) {$n^2$};
+\node[glabel, text=optStroke] at (6.0,60) {$2^n$};
+\end{tikzpicture}
+\diagcaption{$n \le 20$ 時幾個常見函數的大小（縱軸只畫到 $60$）。 $2^n$ 在
+$n = 6$ 左右就超出圖外，$n^2$ 在 $n = 8$ 左右，$n \lg n$ 在 $n = 15$ 左右。}
+\label{fig:ana-growth}
+\end{center}
+
+\begin{center}
+\begin{tabular}{lrrrl}
+\toprule
+函數 & $n = 10$ & $n = 10^3$ & $n = 10^6$ & 常見的來源 \\
+\midrule
+$1$ & 1 & 1 & 1 & 陣列取值、堆疊的推入 \\
+$\lg n$ & 3.3 & 10.0 & 19.9 & 二分搜尋、平衡樹的一次操作 \\
+$\sqrt{n}$ & 3.2 & 31.6 & 1000 & 試除法判斷質數 \\
+$n$ & 10 & 1000 & $10^6$ & 掃過陣列一次 \\
+$n \lg n$ & 33 & 9966 & $2.0 \times 10^7$ & 合併排序、堆積排序 \\
+$n^2$ & 100 & $10^6$ & $10^{12}$ & 兩兩比較、插入排序最壞情況 \\
+$n^3$ & 1000 & $10^9$ & $10^{18}$ & 三層迴圈、Floyd--Warshall \\
+$2^n$ & 1024 & $1.1 \times 10^{301}$ & 約 $10^{301030}$ & 枚舉所有子集合 \\
+$n!$ & $3.6 \times 10^6$ & 約 $10^{2568}$ & 約 $10^{5565709}$ & 枚舉所有排列 \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+在一般的電腦上，一秒大約能做 $10^8$ 到 $10^9$ 個基本運算。 對照上表，$n = 10^6$ 時
+$n \lg n$ 的演算法一瞬間就跑完，$n^2$ 要十幾分鐘到幾個小時，指數的演算法連 $n = 100$
+都跑不完。 演算法課關心的，主要就是能不能從表的下半部換到上半部。
+
+\section{分析程式片段}
+\label{sec:ana-fragments}
+
+考題和作業常常給一段迴圈，問某一行執行幾次，或問時間複雜度。 做法是從最內層往外
+寫成和，再化簡。 下面五段迴圈各自示範一種情況，都數 \texttt{c++} 執行的次數。
+
+\begin{code}{c}{五段迴圈}
+// (a) 內層上界跟著外層變
+for (int i = 0; i < n; i++)
+    for (int j = 0; j < i; j++)
+        c++;
+
+// (b) 每次加倍
+for (long long i = 1; i < n; i *= 2)
+    c++;
+
+// (c) 內層的步長跟著外層變
+for (int i = 1; i <= n; i++)
+    for (int j = i; j <= n; j += i)
+        c++;
+
+// (d) 內層跑到根號
+for (int i = 1; i <= n; i++)
+    for (long long j = 1; j * j <= i; j++)
+        c++;
+
+// (e) 外層每次減半，內層跑 i 次
+for (int i = n; i > 0; i /= 2)
+    for (int j = 0; j < i; j++)
+        c++;
+\end{code}
+
+\textbf{(a)} 外層的 $i$ 固定時，內層跑 $i$ 次。 總次數
+$\sum_{i=0}^{n-1} i = \frac{n(n-1)}{2} = \Theta(n^2)$。 這和第~\ref{sec:ana-cost}~節的兩
+兩比較是同一個和。
+
+\textbf{(b)} $i$ 依序是 $1, 2, 4, \ldots$，只要 $2^k < n$ 就會再跑一次。 執行次數是
+滿足 $2^k < n$ 的 $k \ge 0$ 的個數，$n \ge 2$ 時等於 $\lceil \lg n \rceil$，是
+$\Theta(\lg n)$。 每次乘以任何大於 $1$ 的常數（例如乘 $3$）都一樣是 $\Theta(\lg n)$，
+只差對數的底。
+
+\textbf{(c)} 外層是 $i$ 時，$j$ 是 $i, 2i, 3i, \ldots$，不超過 $n$ 的有 $\lfloor n/i
+\rfloor$ 個。 總次數
+\[
+\sum_{i=1}^{n} \left\lfloor \frac{n}{i} \right\rfloor.
+\]
+因為 $\frac{n}{i} - 1 < \lfloor \frac{n}{i} \rfloor \le \frac{n}{i}$，總和夾在
+$n H_n - n$ 和 $n H_n$ 之間，而 $H_n = \Theta(\lg n)$，所以是 $\Theta(n \lg n)$。 兩
+層迴圈不一定是 $n^2$，要看內層實際跑幾次。
+
+\textbf{(d)} 外層是 $i$ 時內層跑 $\lfloor \sqrt{i} \rfloor$ 次。 上界：每一項都不超過
+$\sqrt{n}$，總和不超過 $n\sqrt{n}$。 下界：只看 $i \ge n/2$ 的那一半，每一項至少
+$\lfloor \sqrt{n/2} \rfloor$，大約有 $n/2$ 項，總和至少是 $n^{3/2}$ 的常數倍。 所以
+是 $\Theta(n^{3/2})$。 精確一點的估計是 $\frac{2}{3} n^{3/2}$，來自積分
+$\int_0^n \sqrt{x}\,dx$。
+
+「只看後半」是求下界的常用手法：前半的項丟掉，後半的每一項都用最小的那一項代替。
+上一節估 $\lg(n!)$ 也是這樣做的。
+
+\textbf{(e)} 外層的 $i$ 依序是 $n, \lfloor n/2 \rfloor, \lfloor n/4 \rfloor, \ldots,
+1$，內層跑 $i$ 次，總次數不超過
+\[
+n + \frac{n}{2} + \frac{n}{4} + \cdots < 2n.
+\]
+又至少是 $n$（第一輪），所以是 $\Theta(n)$。 這是公比 $1/2$ 的等比級數，和第一項同
+一級。 外層雖然跑了 $\Theta(\lg n)$ 輪，但不能直接寫成 $n \lg n$：每一輪的工作量在
+減半。
+
+\subsection{實際數一次}
+
+把五段迴圈各包成一個函式，對幾個 $n$ 實際數出次數。 程式很短，用它檢查自己推出來
+的公式是很好的習慣。
+
+\begin{example}[label=ex:loop-counts]{c}{(loop\_counts.c) 五段迴圈的執行次數}
+#include <stdio.h>
+
+// 五段迴圈，各自回傳最內層執行的次數。
+long long frag_a(int n)
+{
+    long long c = 0;
+    for (int i = 0; i < n; i++)
+        for (int j = 0; j < i; j++)
+            c++;
+    return c;
+}
+
+long long frag_b(int n)
+{
+    long long c = 0;
+    for (long long i = 1; i < n; i *= 2)
+        c++;
+    return c;
+}
+
+long long frag_c(int n)
+{
+    long long c = 0;
+    for (int i = 1; i <= n; i++)
+        for (int j = i; j <= n; j += i)
+            c++;
+    return c;
+}
+
+long long frag_d(int n)
+{
+    long long c = 0;
+    for (int i = 1; i <= n; i++)
+        for (long long j = 1; j * j <= i; j++)
+            c++;
+    return c;
+}
+
+long long frag_e(int n)
+{
+    long long c = 0;
+    for (int i = n; i > 0; i /= 2)
+        for (int j = 0; j < i; j++)
+            c++;
+    return c;
+}
+
+int main(void)
+{
+    int ns[] = {16, 100, 1000, 10000};
+    printf("n a b c d e\n");
+    for (int k = 0; k < 4; k++) {
+        int n = ns[k];
+        printf("%d %lld %lld %lld %lld %lld\n", n, frag_a(n),
+               frag_b(n), frag_c(n), frag_d(n), frag_e(n));
+    }
+    return 0;
+}
+\end{example}
+\iosample{}{n a b c d e \\ 16 120 4 50 38 31 \\ 100 4950 7 482 625 197 \\ 1000 499500 10 7069 20615 1994 \\ 10000 49995000 14 93668 661750 19995}
+
+和公式對照（$n = 10^4$）：(a) $n(n-1)/2 = 49{,}995{,}000$，完全一樣；(b)
+$\lceil \lg 10^4 \rceil = 14$；(c) 落在 $nH_n - n \approx 87{,}876$ 和
+$nH_n \approx 97{,}876$ 之間；(d) 接近 $\frac{2}{3} n^{3/2} \approx 666{,}667$；(e) 小於
+$2n = 20{,}000$。 $n$ 從 $10^3$ 變成 $10^4$ 時，(a) 變成 $100$ 倍，(c) 大約 $13$
+倍，(d) 大約 $32$ 倍（$10^{1.5} \approx 31.6$），(e) 大約 $10$ 倍，各自符合
+$n^2$、$n \lg n$、$n^{1.5}$、$n$ 的成長方式。
+
+\begin{examnote}
+問「某一行執行幾次」時，先寫出和（例如 $\sum_{i=1}^{n} \lfloor n/i \rfloor$），再化
+成封閉形式或給出上下界，最後才寫 $\Theta$。 寫完後代一個小的 $n$（例如 $n = 4$）
+手數一次，和公式比對，可以抓到大部分差 $1$ 的錯誤，例如 $<$ 和 $\le$ 搞混。
+\end{examnote}
+
+\section{最好、最壞和平均的情況}
+\label{sec:ana-cases}
+
+插入排序的例子說明，同樣大小的輸入，步數可以差很多。 所以談執行時間時，要說清楚
+是哪一種：
+
+\begin{itemize}
+\item \textbf{最壞情況}（worst case）：所有大小為 $n$ 的輸入裡，步數的最大值。 它
+是一個保證：不管輸入是什麼，都不會比這個慢。 這本書沒有特別說明時，執行時間指的
+都是最壞情況。
+\item \textbf{最好情況}（best case）：步數的最小值。 用處不大，因為輸入通常不會剛
+好是最好的那一種，但常出現在選擇題。
+\item \textbf{平均情況}（average case）：先假設輸入怎麼分布，再算步數的期望值。
+排序常用的假設是：$n$ 個不同的數，$n!$ 種排列出現的機會都一樣。
+\end{itemize}
+
+\subsection{插入排序的平均情況}
+
+在「每種排列機會一樣」的假設下，插入排序平均挪動幾次？ 挪動次數等於逆序對的個數，
+所以要算逆序對個數的期望值。
+
+任取兩個位置 $i < j$。 把一個排列的第 $i$、$j$ 個數對調，得到另一個排列；這樣兩兩
+配成一對，每一對裡剛好一個在 $(i, j)$ 是逆序。 所以 $(i, j)$ 是逆序的排列剛好佔一
+半，機率是 $1/2$。 一共有 $\binom{n}{2}$ 對位置，期望值可以一對一對加起來（期望值
+的線性），得到
+\[
+\text{平均挪動次數} = \binom{n}{2} \cdot \frac{1}{2} = \frac{n(n-1)}{4}.
+\]
+這剛好是最壞情況的一半，仍然是 $\Theta(n^2)$。
+
+$n$ 很小時，可以把 $n!$ 種排列全部列出來，直接驗證這個公式。 下面的程式用遞迴產
+生 $0, 1, \ldots, n-1$ 的所有排列（《C 程式設計基礎》第~15~章回溯法的寫法），對每
+一個排列跑一次插入排序，加總挪動次數。
+
+\begin{example}[label=ex:avg-shift]{c}{(avg\_shift.c) 所有排列的平均挪動次數}
+#include <stdio.h>
+
+#define MAXN 8
+
+int perm[MAXN];
+int used[MAXN];
+long long total;        // 所有排列的搬移次數總和
+long long count;        // 排列個數
+
+// 插入排序搬移的次數，等於 a[0..n-1] 裡 i < j 且 a[i] > a[j] 的對數。
+// 這裡直接把插入排序跑一次來數，不用這個性質。
+long long shifts(const int *src, int n)
+{
+    int a[MAXN];
+    long long s = 0;
+    for (int i = 0; i < n; i++)
+        a[i] = src[i];
+    for (int i = 1; i < n; i++) {
+        int key = a[i];
+        int j = i - 1;
+        while (j >= 0 && a[j] > key) {
+            a[j + 1] = a[j];
+            s++;
+            j--;
+        }
+        a[j + 1] = key;
+    }
+    return s;
+}
+
+// 依序填 perm[pos..n-1]，填滿時算一次。
+void gen(int pos, int n)
+{
+    if (pos == n) {
+        total += shifts(perm, n);
+        count++;
+        return;
+    }
+    for (int v = 0; v < n; v++) {
+        if (!used[v]) {
+            used[v] = 1;
+            perm[pos] = v;
+            gen(pos + 1, n);
+            used[v] = 0;
+        }
+    }
+}
+
+int main(void)
+{
+    printf("n n! total average n(n-1)/4\n");
+    for (int n = 1; n <= MAXN; n++) {
+        total = 0;
+        count = 0;
+        gen(0, n);
+        printf("%d %lld %lld %.2f %.2f\n", n, count, total,
+               (double)total / count, n * (n - 1) / 4.0);
+    }
+    return 0;
+}
+\end{example}
+\iosample{}{n n! total average n(n-1)/4 \\ 1 1 0 0.00 0.00 \\ 2 2 1 0.50 0.50 \\ 3 6 9 1.50 1.50 \\ 4 24 72 3.00 3.00 \\ 5 120 600 5.00 5.00 \\ 6 720 5400 7.50 7.50 \\ 7 5040 52920 10.50 10.50 \\ 8 40320 564480 14.00 14.00}
+
+八個 $n$ 都和公式一致。 這種「小範圍全部列舉」的程式證明不了公式，但公式推錯時
+通常馬上會露出來。
+
+\subsection{「插入排序是 $\Theta(n^2)$」對不對}
+
+這句話常在考卷的是非題出現，答案要看它指的是什麼。
+
+\begin{itemize}
+\item 「插入排序最壞情況的執行時間是 $\Theta(n^2)$」：對。
+\item 「插入排序的執行時間是 $O(n^2)$」：對。 每一種輸入都不超過最壞情況，所以
+$O(n^2)$ 是對所有輸入都成立的上界。
+\item 「插入排序的執行時間是 $\Omega(n)$」：對。 每一種輸入至少要把每個數看一次。
+\item 「插入排序的執行時間是 $\Theta(n^2)$」，沒有說哪一種情況：不對。 排好的輸入
+只要 $\Theta(n)$，所以不是每一種輸入都至少 $n^2$ 的常數倍。
+\item 「插入排序的執行時間是 $\Omega(n^2)$」：同上，不對。
+\end{itemize}
+
+整理成一句：對所有輸入成立的上界，看最壞情況；對所有輸入成立的下界，看最好情況。
+「演算法 X 是 $\Theta(f(n))$」只有在最好和最壞情況同一級時才能不加說明。
+
+\section{輸入大小要用位元數來算的時候}
+\label{sec:ana-input-size}
+
+前面的例子輸入是 $n$ 個數，大小就是 $n$。 如果輸入只有一個整數 $x$，問 $x$ 是不是
+質數呢？ 試除法從 $2$ 開始試，試到 $\sqrt{x}$ 為止，步數大約是 $\sqrt{x}$。 這看起
+來比線性還快，但輸入的大小並不是 $x$。 把 $x$ 寫下來只需要 $b = \lfloor \lg x
+\rfloor + 1$ 個位元（或 $d$ 個十進位位數），輸入大小應該是 $b$。 用 $b$ 來寫，
+步數是 $\sqrt{x} \approx 2^{b/2}$，是 $b$ 的指數函數。
+
+\begin{example}[label=ex:trial-div]{c}{(trial\_div.c) 試除法的步數和位數}
+#include <stdio.h>
+
+// 試除法判斷質數。*steps 記錄做了幾次除法（取餘數）。
+int is_prime(long long x, long long *steps)
+{
+    *steps = 0;
+    if (x < 2) {
+        return 0;
+    }
+    for (long long d = 2; d * d <= x; d++) {
+        (*steps)++;
+        if (x % d == 0) {
+            return 0;
+        }
+    }
+    return 1;
+}
+
+int main(void)
+{
+    long long xs[] = {101, 10007, 1000003, 100000007, 10000000019LL,
+                      1000000000039LL};
+    printf("x digits prime steps\n");
+    for (int k = 0; k < 6; k++) {
+        long long steps;
+        int p = is_prime(xs[k], &steps);
+        int digits = 0;
+        for (long long t = xs[k]; t > 0; t /= 10)
+            digits++;
+        printf("%lld %d %s %lld\n", xs[k], digits, p ? "yes" : "no", steps);
+    }
+    return 0;
+}
+\end{example}
+\iosample{}{x digits prime steps \\ 101 3 yes 9 \\ 10007 5 yes 99 \\ 1000003 7 yes 999 \\ 100000007 9 yes 9999 \\ 10000000019 11 yes 99999 \\ 1000000000039 13 yes 999999}
+
+六個數都是質數，所以每次都要試到最後。 位數每多 $2$，步數就變成 $10$ 倍：輸入只
+長了一點，工作量卻乘上一個固定倍數，這是指數成長的樣子。 $30$ 位數的質數，試除法
+要試大約 $10^{15}$ 次。
+
+像這樣執行時間是輸入\textbf{數值}的多項式、卻是輸入\textbf{位元數}的指數的演算
+法，叫做\textbf{擬多項式時間}（pseudo-polynomial time）演算法。 第~18~章的 0/1 背
+包動態規劃要 $\Theta(nW)$ 的時間，$W$ 是背包容量的數值，也是擬多項式；第~28~章談
+NP 完備時，會說明為什麼這個區別很重要。
+
+RAM 模型假設一個字組放得下 $n$ 這個量級的數，所以排序 $n$ 個 \texttt{int} 時，比
+較兩個數算一步是合理的。 但如果數字本身有幾千位（例如密碼學裡的大整數），加法和
+乘法就不能算一步，要另外數位元運算的次數。
+
+\section{本章常見錯誤}
+\label{sec:ana-pitfalls}
+
+\begin{center}
+\begin{tabular}{p{0.24\linewidth}p{0.50\linewidth}p{0.16\linewidth}}
+\toprule
+錯誤 & 例子 & 見 \\
+\midrule
+把 $O$ 當成「剛好是」 & 以為 $n = O(n^2)$ 是錯的；以為「$O(n^2)$ 的演算法一定比
+$O(n)$ 的慢」 & 第~\ref{sec:ana-notation}~節 \\
+沒說是哪一種情況 & 「插入排序是 $\Theta(n^2)$」不加說明 &
+第~\ref{sec:ana-cases}~節 \\
+證明只代幾個 $n$ & 用定義證明 $\Theta$ 時沒有寫出 $c_1$、$c_2$、$n_0$，或只驗證
+$n = 1, 2, 3$ & 第~\ref{sec:ana-notation}~節 \\
+兩層迴圈就寫 $n^2$ & 內層步長是 $i$ 的迴圈（$n \lg n$），外層減半的迴圈（$n$）&
+第~\ref{sec:ana-fragments}~節 \\
+指數的底當成常數丟掉 & 以為 $4^n = O(2^n)$；以為 $2^{2\lg n} = \Theta(n)$ &
+第~\ref{sec:ana-functions}~節 \\
+極限不存在就下結論 & 用 $\lim f/g$ 判斷，卻沒檢查極限存在 &
+第~\ref{sec:ana-notation}~節 \\
+輸入大小量錯 & 說試除法是 $O(\sqrt{x})$ 所以是「多項式時間」 &
+第~\ref{sec:ana-input-size}~節 \\
+C 和虛擬碼的編號差 $1$ & 虛擬碼的 $j \ge 1$ 翻成 \texttt{j >= 1}，少處理了
+\texttt{a[0]} & 第~\ref{sec:ana-conventions}~節 \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\section{觀念題}
+\label{sec:ana-exercises}
+
+題型和研究所考試、期中期末考的筆試相近，有選擇、計算、追蹤和證明。 解答在本章最後。
+
+\begin{enumerate}
+\item （選擇，可能不只一個答案）下列哪些敘述正確？
+\begin{enumerate}
+\item $100 n \lg n = O(n^2)$
+\item $n^2 = O(100 n \lg n)$
+\item $2^{n+3} = \Theta(2^n)$
+\item $3^n = O(2^n)$
+\item $\lg(n^5) = \Theta(\lg n)$
+\end{enumerate}
+
+\item （計算）求下面的程式片段中 \texttt{x++} 執行的確切次數，以 $n$ 表示，並寫出
+$\Theta$。
+\begin{code}{c}{觀念題 2}
+for (int i = 1; i <= n; i++)
+    for (int j = 1; j <= i; j++)
+        for (int k = j; k <= i; k++)
+            x++;
+\end{code}
+
+\item （計算）求下面的程式片段的時間複雜度，以 $\Theta$ 表示，並說明理由。
+\begin{code}{c}{觀念題 3}
+for (int i = n; i >= 1; i /= 3)
+    for (long long j = 1; j <= (long long)i * i; j++)
+        x++;
+\end{code}
+
+\item （計算）$n$ 是 $2$ 的次方。 求 \texttt{x++} 執行的確切次數。
+\begin{code}{c}{觀念題 4}
+for (int i = 1; i <= n; i *= 2)
+    for (int j = 1; j <= i; j++)
+        x++;
+\end{code}
+
+\item （排序）把下列函數依成長速度由慢到快排列。 同一級（彼此是 $\Theta$）的用
+等號連起來。
+\[
+n^{1.5},\quad n^{\lg 3},\quad (\lg n)^{\lg n},\quad 2^{\lg n},\quad \lg(n!),\quad
+4^{\lg n},\quad n^{1/\lg n},\quad \sqrt{n}\,\lg n,\quad n \lg n,\quad (1.5)^n
+\]
+
+\item （證明）用定義證明 $5n^2 - 12n + 4 = \Theta(n^2)$，寫出 $c_1$、$c_2$、$n_0$。
+
+\item （證明或反例）$f$、$g$、$h$ 都是正的函數。 下列敘述對的請證明，錯的請給反例。
+\begin{enumerate}
+\item 若 $f(n) = O(g(n))$，則 $f(n)^2 = O(g(n)^2)$。
+\item 若 $f(n) = O(h(n))$ 且 $g(n) = O(h(n))$，則 $f(n) \cdot g(n) = O(h(n)^2)$。
+\item 若 $f(n) = O(g(n))$，則 $\lim_{n \to \infty} f(n)/g(n)$ 存在。
+\item 若 $f(n) = O(g(n))$，則 $f(n) - g(n) = O(1)$。
+\end{enumerate}
+
+\item （證明）用定義~\ref{def:little-o} 或定理~\ref{thm:limit} 證明
+$n \lg n = o(n^{1.1})$，並說明為什麼 $n^{1.1} \ne O(n \lg n)$。
+
+\item （追蹤）用插入排序（虛擬碼~\ref{alg:insertion}）排序
+$\langle 50, 20, 40, 10, 70, 30, 60 \rangle$。 寫出外層迴圈每一輪之後的陣列，以及
+$A[j] > \mathit{key}$ 的總比較次數和總挪動次數。
+
+\item （計算）插入排序排一個長度 $n$、有 $k$ 個逆序對的陣列。 證明比較次數
+（只數 $A[j] > \mathit{key}$）等於 $k + (n - 1) - z$，其中 $z$ 是「$\mathit{key}$
+被放到第 $1$ 格」的輪數。 用第 9 題的結果驗證這個公式。
+
+\item （證明）下面的程序在已經由小到大排好的 $A[1..n]$ 裡，回傳第一個大於等於
+$x$ 的位置；全部都小於 $x$ 時回傳 $n + 1$。 寫出 \textbf{while} 迴圈的不變量，用
+它證明程序正確，並說明迴圈一定會停。
+\begin{pseudo}{第一個大於等於 $x$ 的位置}
+\Function{Lower-Bound}{$A, n, x$}
+    \State $lo \gets 1$
+    \State $hi \gets n + 1$
+    \While{$lo < hi$}
+        \State $mid \gets \lfloor (lo + hi) / 2 \rfloor$
+        \If{$A[mid] < x$}
+            \State $lo \gets mid + 1$
+        \Else
+            \State $hi \gets mid$
+        \EndIf
+    \EndWhile
+    \State \Return $lo$
+\EndFunction
+\end{pseudo}
+
+\item （選擇）在 $n$ 個互不相同的數裡從左到右找 $x$，找到就停。 已知 $x$ 一定在
+裡面，而且在每個位置的機率都是 $1/n$。 平均比較幾次？
+(A) $n/2$ \quad (B) $(n+1)/2$ \quad (C) $n$ \quad (D) $\lg n$ \quad (E) $(n-1)/2$
+
+\item （是非）下面的函數用迴圈算 $1 + 2 + \cdots + x$，迴圈跑 $x$ 次。 「因為執行
+時間是 $\Theta(x)$，所以它是多項式時間的演算法。」 這句話對嗎？ 說明理由。
+\begin{code}{c}{觀念題 13}
+long long sum_to(long long x)
+{
+    long long s = 0;
+    for (long long i = 1; i <= x; i++)
+        s += i;
+    return s;
+}
+\end{code}
+
+\item （證明）證明 $f(n) + g(n) = \Theta(\max(f(n), g(n)))$ 不一定能推廣到
+「$n$ 個函數」：給一個例子，$f_1, f_2, \ldots$ 都是 $\Theta(1)$，但
+$\sum_{i=1}^{n} f_i(n)$ 不是 $\Theta(1)$。 再說明這和第~\ref{sec:ana-fragments}~節
+(e) 不能寫成「$\Theta(\lg n)$ 輪，每輪 $O(n)$，所以 $\Theta(n \lg n)$」有什麼關係。
+\end{enumerate}
+
+\section{實作練習}
+\label{sec:ana-practice}
+
+下面是 Aki-Judge 上和本章相關的題目。 這一章的重點是分析，能寫成程式題的不多，
+其他練習請以觀念題為主。
+
+\begin{center}
+\begin{tabular}{llc}
+\toprule
+小節 & 題目 & 難度 \\
+\midrule
+分析程式片段 & \akiref{count-nested-loop-executions}{計算巢狀迴圈執行次數} & 暖身 \\
+插入排序 & \akiref{insertion-sort-function}{插入排序函式} & 基本 \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+「插入排序函式」只要交排序函式，不寫 \texttt{main}。 交之前先用
+範例~\ref{ex:insertion-count} 的三組輸入自己測一次，特別是已經排好和完全相反的兩組。
+
+\section{讀完你應該會}
+\label{sec:ana-checklist}
+
+\begin{itemize}
+\item 看到一段虛擬碼或 C 程式，能逐行寫出執行次數，化成封閉形式或上下界，再寫成
+$\Theta$。
+\item 能用定義證明 $f(n) = \Theta(g(n))$，寫出 $c_1$、$c_2$、$n_0$；能用反證法說明
+$f(n) \ne O(g(n))$；能用極限判斷，並知道極限不存在時要回到定義。
+\item 能把對數、多項式、指數、階乘混在一起的一串函數依成長速度排好，包括
+$a^{\log_b n} = n^{\log_b a}$ 和 $\lg(n!) = \Theta(n \lg n)$ 這類換算。
+\item 能用迴圈不變量的三步（初始、維持、結束）證明一個迴圈的正確性。
+\item 能分別說出插入排序最好、最壞、平均情況的次數，並判斷「某演算法是
+$\Theta(f(n))$」這類敘述在哪一種意義下成立。
+\item 輸入是一個整數時，能用位元數判斷一個演算法是不是多項式時間。
+\end{itemize}
+
+\textbf{延伸閱讀}（書末會整理完整的參考資料）
+
+\begin{itemize}
+\item Thomas H. Cormen 等，\textit{Introduction to Algorithms}，第 4 版，第 2、3
+章與附錄 A：插入排序的逐行分析、迴圈不變量、漸近符號的完整定義；附錄 A 整理了求
+和的技巧。
+\item Steven S. Skiena，\textit{The Algorithm Design Manual}，第 3 版，第 2 章：
+用較少的符號講 RAM 模型和成長速度，例子偏向實務。
+\item Antti Laaksonen，\textit{Competitive Programmer's Handbook}，第 2 章：幾頁
+就講完常見的複雜度和「資料量對應可接受的複雜度」，適合快速複習。
+\end{itemize}
+
+\addcontentsline{toc}{section}{觀念題解答}
+\section*{觀念題解答}
+
+\begin{enumerate}
+\item (a)、(c)、(e) 正確。 (a)：$\lg n \le n$，所以 $100n\lg n \le 100n^2$。
+(b)：$n^2 / (100 n \lg n) = n / (100 \lg n) \to \infty$，不是 $O$。 (c)：
+$2^{n+3} = 8 \cdot 2^n$，常數倍。 (d)：$3^n / 2^n = 1.5^n \to \infty$。 (e)：
+$\lg(n^5) = 5\lg n$。
+
+\item 固定 $i$、$j$ 時，最內層跑 $i - j + 1$ 次。 固定 $i$ 時，
+$\sum_{j=1}^{i} (i - j + 1) = 1 + 2 + \cdots + i = \frac{i(i+1)}{2}$。 總次數
+\[
+\sum_{i=1}^{n} \frac{i(i+1)}{2}
+= \frac{1}{2}\left(\frac{n(n+1)(2n+1)}{6} + \frac{n(n+1)}{2}\right)
+= \frac{n(n+1)(n+2)}{6}.
+\]
+是 $\Theta(n^3)$。 驗算 $n = 2$：$i = 1$ 時 $1$ 次，$i = 2$ 時 $j = 1$ 有 $2$ 次、
+$j = 2$ 有 $1$ 次，共 $4 = \frac{2 \cdot 3 \cdot 4}{6}$。
+
+\item 外層的 $i$ 是 $n, \lfloor n/3 \rfloor, \lfloor n/9 \rfloor, \ldots$，內層跑
+$i^2$ 次。 總和不超過 $n^2 + n^2/9 + n^2/81 + \cdots = n^2 \cdot \frac{1}{1 - 1/9} =
+\frac{9}{8}n^2$，又至少是第一輪的 $n^2$，所以是 $\Theta(n^2)$。 公比 $1/9 < 1$，總
+和和第一項同一級。
+
+\item 設 $n = 2^m$。 $i = 1, 2, 4, \ldots, 2^m$，內層跑 $i$ 次，總次數
+$1 + 2 + \cdots + 2^m = 2^{m+1} - 1 = 2n - 1$，是 $\Theta(n)$。
+
+\item 先化簡：$2^{\lg n} = n$，$4^{\lg n} = n^2$，$n^{1/\lg n} = 2^{\lg n / \lg n} = 2$，
+$(\lg n)^{\lg n} = 2^{\lg n \cdot \lg\lg n} = n^{\lg \lg n}$，$\lg(n!) = \Theta(n \lg n)$，
+$n^{\lg 3} \approx n^{1.585}$。 由慢到快：
+\[
+n^{1/\lg n} < \sqrt{n}\,\lg n < 2^{\lg n} < \lg(n!) = n\lg n < n^{1.5} < n^{\lg 3}
+< 4^{\lg n} < (\lg n)^{\lg n} < (1.5)^n.
+\]
+$(\lg n)^{\lg n} = n^{\lg\lg n}$ 的次方 $\lg \lg n$ 會無限變大，所以比任何多項式都快；
+和 $(1.5)^n$ 比，取 $\lg$ 後是 $\lg n \cdot \lg \lg n$ 對 $n \lg 1.5$，後者大。
+
+\item 上界：$n \ge 1$ 時 $-12n + 4 \le -8 < 0$，所以 $5n^2 - 12n + 4 \le 5n^2$，取
+$c_2 = 5$。 下界：要 $5n^2 - 12n + 4 \ge 2n^2$，即 $3n^2 - 12n + 4 \ge 0$。 這個二次
+式的較大根是 $\frac{12 + \sqrt{96}}{6} \approx 3.63$，所以 $n \ge 4$ 時成立（$n = 4$：
+$48 - 48 + 4 = 4 \ge 0$）。 取 $c_1 = 2$、$c_2 = 5$、$n_0 = 4$，此時 $2n^2 \ge 0$ 也
+成立。
+
+\item
+\begin{enumerate}
+\item 對。 $n \ge n_0$ 時 $0 \le f(n) \le c\,g(n)$，兩邊平方得
+$f(n)^2 \le c^2 g(n)^2$，取常數 $c^2$。
+\item 對。 $f \le c_1 h$（$n \ge n_1$），$g \le c_2 h$（$n \ge n_2$），相乘得
+$fg \le c_1 c_2 h^2$，$n \ge \max(n_1, n_2)$。
+\item 錯。 $g(n) = n$，$f(n)$ 在偶數時是 $n$、奇數時是 $1$。 $f(n) \le g(n)$，所以
+$f = O(g)$；但 $f/g$ 在 $1$ 和 $1/n$ 之間跳，沒有極限。
+\item 錯。 $f(n) = 2n$，$g(n) = n$。 $f = O(g)$（取 $c = 2$），但 $f(n) - g(n) = n$
+不是 $O(1)$。 $O$ 允許差一個常數倍，不是差一個常數。
+\end{enumerate}
+
+\item $\dfrac{n \lg n}{n^{1.1}} = \dfrac{\lg n}{n^{0.1}}$。 用羅必達法則（把 $\lg n$
+寫成 $\ln n / \ln 2$）：$\dfrac{1/(n \ln 2)}{0.1\, n^{-0.9}} = \dfrac{10}{\ln 2 \cdot
+n^{0.1}} \to 0$。 由定理~\ref{thm:limit}，$n \lg n = o(n^{1.1})$。 同一個定理的第 1 點
+也說明 $n \lg n \ne \Omega(n^{1.1})$，由轉置性質，$n^{1.1} \ne O(n \lg n)$。 注意
+$n = 2^{60}$ 時 $\lg n = 60$，$n^{0.1} = 64$，兩者才差不多大；$n^{1.1}$ 要在非常
+大的 $n$ 才明顯超過 $n \lg n$。
+
+\item 每一輪之後的陣列：
+\begin{center}
+\begin{tabular}{cccl}
+\toprule
+$i$ & 比較 & 挪動 & 這一輪之後 \\
+\midrule
+2 & 1 & 1 & 20 50 40 10 70 30 60 \\
+3 & 2 & 1 & 20 40 50 10 70 30 60 \\
+4 & 3 & 3 & 10 20 40 50 70 30 60 \\
+5 & 1 & 0 & 10 20 40 50 70 30 60 \\
+6 & 4 & 3 & 10 20 30 40 50 70 60 \\
+7 & 2 & 1 & 10 20 30 40 50 60 70 \\
+\midrule
+合計 & 13 & 9 & \\
+\bottomrule
+\end{tabular}
+\end{center}
+可以把範例~\ref{ex:insertion-count} 的輸入改成 \texttt{1}、\texttt{7}、
+\texttt{50 20 40 10 70 30 60} 驗證，程式印出 \texttt{comparisons = 13, shifts = 9}。
+
+\item 第 $i$ 輪挪動 $s_i$ 次。 如果這一輪因為某個 $A[j] \le \mathit{key}$ 而停下，
+比較了 $s_i + 1$ 次；如果因為 $j = 0$ 停下（$\mathit{key}$ 放到第 $1$ 格），最後那
+次沒有比較，比較了 $s_i$ 次。 把 $n - 1$ 輪加起來：比較次數 $= \sum s_i + (n - 1) - z
+= k + (n - 1) - z$，因為挪動總次數等於逆序對個數 $k$。 第 9 題 $k = 9$、$n = 7$，
+$\mathit{key}$ 被放到第 $1$ 格的是 $i = 2$（20）和 $i = 4$（10），$z = 2$，
+$9 + 6 - 2 = 13$，和表上一樣。
+
+\item 不變量：每次檢查 \textbf{while} 條件時，$1 \le lo \le hi \le n + 1$，而且
+$A[1..lo-1]$ 的每個數都小於 $x$，$A[hi..n]$ 的每個數都大於等於 $x$。
+
+初始：$lo = 1$、$hi = n + 1$，兩段都是空的，成立。
+
+維持：$lo < hi$ 時 $lo \le mid < hi$，所以 $A[mid]$ 存在。 若 $A[mid] < x$，因為陣
+列排好了，$A[lo..mid]$ 都小於 $x$，設 $lo \gets mid + 1$ 後第一段仍然都小於 $x$，而
+且 $lo \le hi$。 否則 $A[mid] \ge x$，$A[mid..n]$ 都大於等於 $x$，設 $hi \gets mid$
+後第二段仍然成立，而且 $lo \le mid = hi$。
+
+結束：迴圈停在 $lo = hi$。 這時 $A[1..lo-1]$ 都小於 $x$、$A[lo..n]$ 都大於等於
+$x$，所以 $lo$ 正是第一個大於等於 $x$ 的位置（$lo = n + 1$ 表示全部都小於 $x$）。
+
+會停：每一輪 $hi - lo$ 都嚴格變小（$lo$ 變成 $mid + 1 > lo$，或 $hi$ 變成
+$mid < hi$），而它是非負整數，所以有限輪後一定變成 $0$。 每一輪大約減半，共
+$\Theta(\lg n)$ 輪。
+
+\item (B)。 $x$ 在第 $k$ 個位置時比較 $k$ 次，平均
+$\frac{1}{n}\sum_{k=1}^{n} k = \frac{n+1}{2}$。
+
+\item 不對。 輸入是一個整數 $x$，大小是它的位元數 $b \approx \lg x$。 執行時間
+$\Theta(x) = \Theta(2^b)$，是輸入大小的指數，這是擬多項式時間。 （用公式
+$x(x+1)/2$ 可以在 $O(1)$ 次算術運算內算完，$x$ 很大時要算大整數的乘法，時間是
+$b$ 的多項式。）
+
+\item 取 $f_i(n) = 1$。 每一個都是 $\Theta(1)$，但 $\sum_{i=1}^{n} f_i(n) = n$ 不是
+$\Theta(1)$。 「加法」性質只對固定個數的函數成立；項數跟著 $n$ 變多時，要真的把和
+算出來。 (e) 的情況相反：輪數 $\Theta(\lg n)$，每一輪的上界 $O(n)$ 都對，所以
+$O(n \lg n)$ 是對的上界，但每一輪的實際工作量在減半，把和算出來只有 $\Theta(n)$。
+「輪數乘上每輪的上界」只能得到上界，要得到 $\Theta$ 必須算和。
+\end{enumerate}
