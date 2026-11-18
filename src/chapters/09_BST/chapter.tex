@@ -67,9 +67,9 @@ $5$ 的右子節點是 $8$，$8$ 的左子節點是 $4$，每一對父子都沒�
 「鍵值＋序號」這種不會重複的組合（第~\ref{sec:bst-rank}~節的例子會用到）。 有些課
 本允許相等的鍵值放在右邊，定義裡的 $>$ 改成 $\ge$；考卷上遇到時，照題目的規定。
 
-本章的\textbf{深度}和\textbf{高度}都用邊數算：根的深度是 $0$，節點的深度是它到根的
-路徑上有幾條邊；樹高 $h$ 是所有節點深度的最大值。 只有一個節點的樹高度是 $0$，空樹
-的高度記成 $-1$。 有些課本用「層數」，根在第 $1$ 層，算出來會比這裡多 $1$。
+\textbf{深度}和\textbf{高度}照第~7~章的定義：深度數邊，根的深度是 $0$，節點的深度是
+它到根的路徑上有幾條邊；高度數節點，樹高 $h$ 是樹的層數，也就是最大深度加 $1$。 只有
+一個節點的樹高度是 $1$，空樹的高度是 $0$。 CLRS 的高度數邊，算出來會比這裡少 $1$。
 
 下面是本章前兩節一直用的例子：依序加入 $52,\allowbreak 27,\allowbreak 74,\allowbreak 15,\allowbreak 40,\allowbreak 63,\allowbreak 88,\allowbreak 33,\allowbreak 46,\allowbreak 58,\allowbreak 70,\allowbreak 95,\allowbreak 36$ 這 $13$ 位會員（編號只寫末兩碼），得到的樹。 第~\ref{sec:bst-modify}~節會一
 步一步插入；這裡先看結果。
@@ -92,7 +92,7 @@ $5$ 的右子節點是 $8$，$8$ 的左子節點是 $4$，每一對父子都沒�
       child[missing]
       child {node {95}}}};
 \end{tikzpicture}
-\diagcaption{$13$ 個會員編號組成的二元搜尋樹 $T$，高度 $4$（最深的是 $36$）。 根
+\diagcaption{$13$ 個會員編號組成的二元搜尋樹 $T$，高度 $5$（最深的是 $36$，深度 $4$）。 根
 $52$ 的左子樹都比 $52$ 小，右子樹都比 $52$ 大；每一棵子樹也都是這樣。}
 \label{fig:bst-T}
 \end{center}
@@ -174,8 +174,8 @@ $\Theta(n)$。
 \EndFunction
 \end{pseudo}
 
-兩個版本走過的節點完全一樣，都在一條從根往下的路徑上，所以最多比較 $h + 1$ 個節
-點，時間 $O(h)$，$h$ 是樹高。 下表是在圖~\ref{fig:bst-T} 上搜尋 $46$ 和 $60$ 的過程。
+兩個版本走過的節點完全一樣，都在一條從根往下的路徑上，每層最多一個，所以最多比較
+$h$ 個節點，時間 $O(h)$，$h$ 是樹高。 下表是在圖~\ref{fig:bst-T} 上搜尋 $46$ 和 $60$ 的過程。
 
 \begin{center}
 \begin{tabular}{cccl}
@@ -375,7 +375,7 @@ $z$ 的位置。 走的時候讓 $y$ 跟在 $x$ 後面一層，$x$ 變成 \NIL �
 
 新節點永遠接成葉節點，原本的節點一個都不動，所以插入之後樹仍然滿足
 定義~\ref{def:bst}：$z$ 走過的每個節點，$z$ 都放在正確的那一邊。 走過的節點最多
-$h + 1$ 個，時間 $O(h)$。 節點有父指標時，在第 10 行之前加一行 $z.p \gets y$。
+$h$ 個（$h$ 是插入前的樹高），時間 $O(h)$。 節點有父指標時，在第 10 行之前加一行 $z.p \gets y$。
 
 第~\ref{sec:bst-query}~節的例子就是對空樹依序插入 $52,\allowbreak 27,\allowbreak 74,\allowbreak 15,\allowbreak 40,\allowbreak 63,\allowbreak 88,\allowbreak 33,\allowbreak 46,\allowbreak 58,\allowbreak 70,\allowbreak 95,\allowbreak 36$。 考卷上常要求寫出每一次插入的比較過程，下表一列寫一個鍵值。
 
@@ -751,15 +751,16 @@ $74$ 時，\texttt{slink} 一開始就是 \texttt{\&z->right}，迴圈一次都�
 
 \subsection{最好與最壞}
 
-$n$ 個節點的二元樹，高度最少是 $\lfloor \lg n \rfloor$，最多是 $n - 1$（第~7~章）。
+$n$ 個節點的二元樹，高度最少是 $\lceil \lg(n + 1) \rceil$，最多是 $n$（第~7~章）。
 兩個極端都會出現在 BST 上。 鍵值由小到大插入時，每個新鍵值都比樹上所有的大，從根一
-路往右走到底，接在最右邊，樹變成一條往右的鏈，高度 $n - 1$；由大到小插入是往左的
+路往右走到底，接在最右邊，樹變成一條往右的鏈，高度 $n$；由大到小插入是往左的
 鏈。 這時 BST 和排好的串列一樣，搜尋要 $\Theta(n)$，依序插入 $n$ 個鍵值總共比較
 \[
 0 + 1 + 2 + \cdots + (n - 1) = \frac{n(n-1)}{2}
 \]
 次，是 $\Theta(n^2)$。 反過來，如果每次都先插入中間的鍵值（像圖~\ref{fig:bst-binsearch}
-那樣），樹是完全二元樹，高度 $\lfloor \lg n \rfloor$。
+那樣），可以讓每一層除了最後一層都填滿，高度是最矮的 $\lceil \lg(n + 1) \rceil$，
+也就是 $\lfloor \lg n \rfloor + 1$。
 
 \begin{center}
 \begin{minipage}{0.45\linewidth}\centering
@@ -777,7 +778,7 @@ $n$ 個節點的二元樹，高度最少是 $\lfloor \lg n \rfloor$，最多是 
         child {node {52}}}}};
 \end{tikzpicture}
 
-{\footnotesize (a) 依 $15,\allowbreak 27,\allowbreak 33,\allowbreak 40,\allowbreak 52$ 插入，高度 $4$}
+{\footnotesize (a) 依 $15,\allowbreak 27,\allowbreak 33,\allowbreak 40,\allowbreak 52$ 插入，高度 $5$}
 \end{minipage}\hfill
 \begin{minipage}{0.45\linewidth}\centering
 \begin{tikzpicture}[bsts, level 1/.style={sibling distance=20mm},
@@ -787,7 +788,7 @@ $n$ 個節點的二元樹，高度最少是 $\lfloor \lg n \rfloor$，最多是 
   child {node {40} child[missing] child {node {52}}};
 \end{tikzpicture}
 
-{\footnotesize (b) 依 $33,\allowbreak 27,\allowbreak 40,\allowbreak 15,\allowbreak 52$ 插入，高度 $2$}
+{\footnotesize (b) 依 $33,\allowbreak 27,\allowbreak 40,\allowbreak 15,\allowbreak 52$ 插入，高度 $3$}
 \end{minipage}
 \diagcaption{同一組鍵值，插入順序不同，樹高可以差很多。}
 \label{fig:bst-shapes}
@@ -858,7 +859,7 @@ $j$ 的深度等於它的祖先個數。 用第~1~章計算插入排序平均情
 拿實際的數字對照：$n = 1000$ 時公式給出平均深度約 $11.0$，$n = 10^5$ 時約 $20.2$；
 $n$ 變成 $100$ 倍，平均深度只多了大約 $9$。 由小到大插入時，平均深度是 $(n-1)/2$，
 $n = 1000$ 時已經是 $499.5$。 用亂數洗牌建樹量出來的平均高度，$n = 1000$ 時大約
-$21$、$n = 10^5$ 時大約 $38$，是 $\lg n$ 的 $2$ 倍多一點；定理說的 $2.99$ 倍是 $n$ 趨
+$22$、$n = 10^5$ 時大約 $41$，是 $\lg n$ 的 $2.2$ 到 $2.5$ 倍；定理說的 $2.99$ 倍是 $n$ 趨
 近無限大時的比值，$n$ 不大時還有一個成長得很慢的負項把它壓低。
 
 最後要提醒兩件事。 第一，定理只保證「插入順序隨機」時的期望值，資料本身的順序我們
@@ -1016,7 +1017,7 @@ $212$ 從 $10$ 減成 $9$。 後繼是右子樹 $\{199, 193\}$ 的最小值 $193
 找到，經過的 $199$ 從 $2$ 減成 $1$。 $193$ 坐到 $187$ 的位置，$\mathit{size} = 5 - 1
 = 4$。 其他節點的子樹沒有變，$\mathit{size}$ 不動。
 
-路徑長度不超過 $h + 1$，所以多記 $\mathit{size}$ 不會讓插入和刪除變慢，仍然是
+路徑上最多 $h$ 個節點，所以多記 $\mathit{size}$ 不會讓插入和刪除變慢，仍然是
 $O(h)$。 這個想法可以推廣：一個欄位只要能從「自己的資料」和「兩個子節點的同一個欄
 位」算出來（例如子樹的鍵值總和、子樹的最大值），插入和刪除時就只有路徑上的節點要重
 算，都能在 $O(h)$ 內維護。 反例是「節點在整棵樹裡的名次」：插入一個很小的鍵值，所有
@@ -1150,7 +1151,8 @@ $\mathit{size}$、往哪裡走。 題目只給樹、沒給 $\mathit{size}$ 時�
 \midrule
 只比較父子兩個節點 & 以為每個節點比左子節點大、比右子節點小就是 BST；$4$ 在 $5$
 的右子樹裡卻比 $5$ 小 & 第~\ref{sec:bst-query}~節 \\
-高度、深度差 1 & 用層數算（根在第 $1$ 層）卻套用以邊數算的公式，或反過來 &
+高度、深度差 1 & 題目的高度數邊（CLRS），卻套用本書數節點的公式，或反過來；把深度
+和層數混用 &
 第~\ref{sec:bst-query}~節 \\
 以為最小值一定是葉節點 & 最小值沒有左子節點，但可能有右子樹；刪除最小值時忘了把右
 子樹接回去 & 第~\ref{sec:bst-query}~節 \\
@@ -1177,8 +1179,8 @@ malloc(...)}，呼叫端的樹沒有變 & 第~\ref{sec:bst-modify}~節 \\
 \label{sec:bst-exercises}
 
 題型和研究所考試、期中期末考的筆試相近，有選擇、計算、追蹤、證明和寫程式。 解答在
-本章最後。 除非題目另外說明，鍵值都不相同，高度以邊數計算，刪除兩個子節點的節點時
-用後繼取代。
+本章最後。 除非題目另外說明，鍵值都不相同，高度以節點數計算（第~7~章的定義），刪除
+兩個子節點的節點時用後繼取代。
 
 \begin{enumerate}
 \item （選擇，可能不只一個答案）$T$ 是有 $n \ge 2$ 個節點的二元搜尋樹。 下列哪些敘述
@@ -1188,7 +1190,7 @@ malloc(...)}，呼叫端的樹沒有變 & 第~\ref{sec:bst-modify}~節 \\
 \item 最小鍵值所在的節點是葉節點。
 \item 如果根有右子節點，根的後繼在根的右子樹裡。
 \item 前序走訪的第一個鍵值是最小值。
-\item 高度為 $h$ 的 BST 最少有 $h + 1$ 個節點，最多有 $2^{h+1} - 1$ 個節點。
+\item 高度為 $h$ 的 BST 最少有 $h$ 個節點，最多有 $2^h - 1$ 個節點。
 \end{enumerate}
 
 \item （追蹤）依序把 $61,\allowbreak 34,\allowbreak 80,\allowbreak 12,\allowbreak 47,\allowbreak 70,\allowbreak 93,\allowbreak 25,\allowbreak 40,\allowbreak 55,\allowbreak 88,\allowbreak 43$ 插入空的二元
@@ -1213,7 +1215,7 @@ malloc(...)}，呼叫端的樹沒有變 & 第~\ref{sec:bst-modify}~節 \\
 插入順序裡，有幾種會得到形狀和鍵值位置都完全相同的樹？
 \item 設 $T$ 的根是 $x$，左、右子樹分別有 $a$、$b$ 個節點，能產生它們的插入順序各有
 $f_L$、$f_R$ 種。 寫出能產生 $T$ 的插入順序個數，並說明理由。
-\item $1, 2, \ldots, n$ 的 $n!$ 種插入順序裡，有幾種得到的樹高度是 $n - 1$？
+\item $1, 2, \ldots, n$ 的 $n!$ 種插入順序裡，有幾種得到的樹高度是 $n$？
 \end{enumerate}
 
 \item （追蹤）在第 2 題 (a) 的樹上，每個節點加上 $\mathit{size}$。
@@ -1337,7 +1339,7 @@ $O(h)$。
 找祖先」兩種情況，也會不用父指標從根往下找。
 \item 能判斷刪除屬於哪一種情況，用後繼或前驅畫出刪除之後的樹，並用 \texttt{Node **}
 寫出沒有特殊情況、不會漏放記憶體的 C 版插入和刪除。
-\item 能說明 BST 最壞高度 $n - 1$ 的成因，說出隨機插入的期望高度 $O(\lg n)$，並用祖
+\item 能說明 BST 最壞高度 $n$ 的成因，說出隨機插入的期望高度 $O(\lg n)$，並用祖
 先的引理算出平均深度。
 \item 能在節點加上 $\mathit{size}$，追蹤第 $k$ 小和排名，說明插入、刪除時哪些節點的
 $\mathit{size}$ 要改。
@@ -1367,13 +1369,13 @@ BST 的實作與「BST 到底好不好」的討論，偏重實務。
 \begin{enumerate}
 \item (a)、(c)、(e)。 (a)：有左子節點就有更小的鍵值。 (b) 不對：最小值可以有右子
 樹，例如依序插入 $1, 2$。 (c)：根有右子樹，後繼是右子樹的最小值。 (d) 不對：前序的
-第一個是根，根不一定最小。 (e)：高度 $h$ 表示有一條 $h + 1$ 個節點的路徑，所以至少
-$h + 1$ 個；第 $d$ 層最多 $2^d$ 個節點，$d = 0, \ldots, h$ 加起來最多 $2^{h+1} - 1$
-個。
+第一個是根，根不一定最小。 (e)：高度 $h$ 表示有 $h$ 層，從根到第 $h$ 層的某個節點
+有一條 $h$ 個節點的路徑，所以至少 $h$ 個；第 $i$ 層最多 $2^{i-1}$ 個節點，
+$i = 1, \ldots, h$ 加起來最多 $2^h - 1$ 個。
 
 \item
 \begin{enumerate}
-\item 樹如下，高度 $4$（$61 \to 34 \to 47 \to 40 \to 43$）。 後序走訪：$25,\allowbreak 12,\allowbreak 43,\allowbreak 40,\allowbreak 55,\allowbreak 47,\allowbreak 34,\allowbreak 70,\allowbreak 88,\allowbreak 93,\allowbreak 80,\allowbreak 61$。
+\item 樹如下，高度 $5$（$61 \to 34 \to 47 \to 40 \to 43$，$5$ 個節點）。 後序走訪：$25,\allowbreak 12,\allowbreak 43,\allowbreak 40,\allowbreak 55,\allowbreak 47,\allowbreak 34,\allowbreak 70,\allowbreak 88,\allowbreak 93,\allowbreak 80,\allowbreak 61$。
 \begin{center}
 \begin{tikzpicture}[bsts]
 \node[bnodes] {61}
@@ -1428,9 +1430,9 @@ $81 \sim 87$、$89 \sim 92$。
 以一個插入順序產生 $T$，若且唯若根在最前面，而且把它拆成「左子樹的鍵值」和「右子樹
 的鍵值」兩個子序列時，各自產生左、右子樹。 左右兩個子序列各有 $f_L$、$f_R$ 種，在
 後面 $a + b$ 個位置裡，選 $a$ 個位置放左子樹的鍵值，有 $\binom{a+b}{a}$ 種選法。
-\item 高度 $n - 1$ 表示每個節點最多一個子節點，樹是一條鏈。 這時每一步插入的都必須是
-剩下的鍵值裡最小或最大的那個，否則剩下的鍵值會分到它的兩邊。 前 $n - 1$ 步各有 $2$ 種
-選擇，最後一步只剩一個，共 $2^{n-1}$ 種。 例如 $n = 7$ 時是 $64$ 種。
+\item 高度 $n$ 表示 $n$ 層各一個節點，每個節點最多一個子節點，樹是一條鏈。 這時每一
+步插入的都必須是剩下的鍵值裡最小或最大的那個，否則剩下的鍵值會分到它的兩邊。 前
+$n - 1$ 步各有 $2$ 種選擇，最後一步只剩一個，共 $2^{n-1}$ 種。 例如 $n = 7$ 時是 $64$ 種。
 \end{enumerate}
 
 \item
@@ -1536,8 +1538,8 @@ key)}。
 
 \item
 \begin{enumerate}
-\item $2$ 先插入的兩種順序（$2, 1, 3$ 和 $2, 3, 1$）得到高度 $1$；其他四種（$1$ 或 $3$
-先插入）都是一條鏈，高度 $2$。 期望高度 $(2 \cdot 1 + 4 \cdot 2)/6 = 5/3$。
+\item $2$ 先插入的兩種順序（$2, 1, 3$ 和 $2, 3, 1$）得到高度 $2$；其他四種（$1$ 或 $3$
+先插入）都是一條鏈，高度 $3$。 期望高度 $(2 \cdot 2 + 4 \cdot 3)/6 = 8/3$。
 \item $2$ 最先插入時深度 $0$（$2$ 種）。 $1, 2, 3$ 和 $3, 2, 1$ 時深度 $1$；$1, 3, 2$
 和 $3, 1, 2$ 時深度 $2$。 期望深度 $(0 + 0 + 1 + 1 + 2 + 2)/6 = 1$。 公式：$j = 2$，
 $n = 3$，$H_2 + H_2 - 2 = \frac32 + \frac32 - 2 = 1$，相同。

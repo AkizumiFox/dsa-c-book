@@ -1,0 +1,2287 @@
+\chapter{多路搜尋樹：2-3 樹、2-3-4 樹、B 樹與 \texorpdfstring{B$^{+}$}{B+} 樹}
+\label{ch:multiway}
+
+% 本章的圖共用的樣式。樹的圖由模擬程式依照本章的演算法產生，每一步都和演算法一致。
+\definecolor{mwRed}{HTML}{C8102E}
+\tikzset{
+    mwk/.style={rectangle, draw=black!65, minimum width=0.5cm, minimum height=0.42cm,
+        inner sep=0pt, outer sep=0pt, font=\small},
+    mwkN/.style={fill=coreFill},                          % 剛插入的鍵
+    mwkM/.style={fill=greenFill},                         % 剛移動的鍵（上升、下降、借來）
+    mwkB/.style={fill=memFill},                           % 鍵太多或太少的節點
+    mwbad/.style={draw=memStroke, very thick},
+    mwempty/.style={draw=memStroke, very thick, dashed, fill=memFill},
+    mwe/.style={draw=black!60},
+    mwlink/.style={-{Stealth[length=1.6mm]}, draw=black!60},
+    mwlab/.style={font=\footnotesize},
+    mwB/.style={circle, draw=black, fill=black!85, text=white, minimum size=0.52cm,
+        inner sep=0pt, font=\small},
+    mwR/.style={circle, draw=mwRed, fill=mwRed, text=white, minimum size=0.52cm,
+        inner sep=0pt, font=\small},
+    mwgrp/.style={rounded corners=2.5mm, fill=black!8, draw=black!25, inner sep=1.5pt},
+    mwsub/.style={font=\scriptsize, text=black!70},
+}
+
+學校圖書館的館藏目錄有幾百萬筆，存在硬碟上。 從硬碟讀一次資料，比在記憶體裡比較
+兩個數慢上萬倍，而且每次讀進來的是一整塊，例如 4096 個位元組，不是一筆。 第~10~章
+的紅黑樹每個節點只放一個鍵，查一本書要從根往下走二十幾層，每走一層就讀一次硬碟。
+如果每次讀進來的那一整塊可以放幾百個鍵，樹應該長成什麼樣子？ 查一本書要讀幾次硬
+碟？ 往下讀之前，先想一想。
+
+這一章的樹，每個節點放好幾個鍵、有好幾個子節點，而且\textbf{所有的葉子都在同一層}。
+節點太滿就\textbf{分裂}，太空就向兄弟\textbf{借}一個鍵或和兄弟\textbf{合併}，樹只會
+從根長高、從根變矮，所以葉子永遠同一層，高度永遠是 $O(\log n)$。 第~\ref{sec:mw-23}~節
+先用最小的兩種，2-3 樹和 2-3-4 樹，把分裂、借、合併三個動作練熟，並說明 2-3-4 樹和
+第~10~章紅黑樹的對應；第~\ref{sec:mw-btree}~節推廣成任意階數的 B 樹，證明高度的
+上下界，寫出搜尋與插入的 C 程式，插入和刪除各做一次完整的追蹤；
+第~\ref{sec:mw-bplus}~節講資料庫和檔案系統實際用的 B$^{+}$ 樹，以及怎麼估計讀幾次
+磁碟。
+
+這一章用到《C 程式設計基礎》第~14~章的結構和結構指標、第~19~章的
+\texttt{malloc}、\texttt{free}。 樹的名詞見第~7~章，二元搜尋樹見第~9~章，紅黑樹見
+第~10~章。 高度照全書的定義數節點：只有根的樹高度是 $1$，根在第 $1$ 層。
+
+\section{2-3 樹與 2-3-4 樹}
+\label{sec:mw-23}
+
+\subsection{多路搜尋樹}
+
+二元搜尋樹的節點放一個鍵，把鍵的範圍切成兩段，各交給一棵子樹。 把它推廣：一個節點
+放 $k$ 個由小到大的鍵 $a_1 < a_2 < \cdots < a_k$，就把範圍切成 $k + 1$ 段，接
+$k + 1$ 棵子樹 $T_0, T_1, \ldots, T_k$。 $T_0$ 的鍵都小於 $a_1$，$T_i$ 的鍵都在
+$a_i$ 和 $a_{i+1}$ 之間，$T_k$ 的鍵都大於 $a_k$（圖~\ref{fig:mw-node}）。 每個節點
+最多 $m$ 棵子樹的這種樹叫做 \textbf{$m$ 路搜尋樹}（$m$-way search tree）。 有 $d$ 棵
+子樹（$d - 1$ 個鍵）的節點叫 \textbf{$d$-節點}，例如 2-節點就是二元搜尋樹的節點，
+3-節點放兩個鍵、接三棵子樹。
+
+\begin{center}
+\begin{tikzpicture}[mwk/.append style={minimum width=0.62cm}]
+\node[mwk] at (0.31,0) {$a_1$};
+\node[mwk] at (0.93,0) {$a_2$};
+\draw[mwe] (0,-0.21) -- (-1.4,-1.0);
+\draw[mwe] (0.62,-0.21) -- (0.62,-1.0);
+\draw[mwe] (1.24,-0.21) -- (2.6,-1.0);
+\draw[black!60, fill=black!4] (-1.4,-1.0) -- (-2.0,-2.0) -- (-0.8,-2.0) -- cycle;
+\draw[black!60, fill=black!4] (0.62,-1.0) -- (0.02,-2.0) -- (1.22,-2.0) -- cycle;
+\draw[black!60, fill=black!4] (2.6,-1.0) -- (2.0,-2.0) -- (3.2,-2.0) -- cycle;
+\node[mwsub] at (-1.4,-1.65) {$T_0$};
+\node[mwsub] at (0.62,-1.65) {$T_1$};
+\node[mwsub] at (2.6,-1.65) {$T_2$};
+\node[mwsub] at (-1.4,-2.35) {$< a_1$};
+\node[mwsub] at (0.62,-2.35) {$a_1 \sim a_2$ 之間};
+\node[mwsub] at (2.6,-2.35) {$> a_2$};
+\end{tikzpicture}
+\diagcaption{一個 3-節點：兩個鍵把範圍切成三段，三棵子樹各管一段。 圖上的子指標從兩
+個鍵之間的縫往下畫，本章的樹都這樣畫。}
+\label{fig:mw-node}
+\end{center}
+
+搜尋 $k$ 時，在目前的節點裡從左到右找第一個 $\ge k$ 的鍵 $a_i$。 $a_i = k$ 就找到
+了；否則 $k$ 落在 $a_{i-1}$ 和 $a_i$ 之間，往 $T_{i-1}$ 走（$k$ 比所有鍵都大時往
+$T_k$ 走）。 走到空的子樹就是找不到。 每個節點要比較最多 $m - 1$ 次，但往下走的層數
+少了。
+
+只規定「每個節點最多 $m$ 棵子樹」不夠，多路搜尋樹一樣可能長成一條鏈。 這一節的兩種
+樹再加上兩條規定：每個節點要\textbf{夠滿}，而且\textbf{所有葉子在同一層}。
+
+\subsection{2-3 樹}
+
+\begin{definition}[2-3 樹]
+\label{def:mw-23}
+一棵多路搜尋樹，滿足：
+\begin{enumerate}
+\item 每個內部節點是 2-節點（$1$ 個鍵、$2$ 個子節點）或 3-節點（$2$ 個鍵、$3$ 個子
+節點）。
+\item 每片葉子放 $1$ 或 $2$ 個鍵。
+\item 所有的葉子在同一層。
+\end{enumerate}
+\end{definition}
+
+高度 $h$ 的 2-3 樹，鍵最少時每個節點都是 2-節點，有 $2^h - 1$ 個鍵；最多時每個節點都
+是 3-節點，有 $2(1 + 3 + \cdots + 3^{h-1}) = 3^h - 1$ 個鍵。 所以 $n$ 個鍵的 2-3 樹
+$\log_3(n + 1) \le h \le \lg(n + 1)$。
+
+\subsection{插入：分裂}
+\label{sec:mw-23-insert}
+
+插入 $k$ 時，先照搜尋的路線走到一片葉子，把 $k$ 依大小放進去。 葉子原本只有一個鍵，
+放進去變成兩個，結束。 葉子原本有兩個鍵，放進去就有三個，超過上限，叫做\textbf{溢位}
+（overflow）。 這時把它\textbf{分裂}（split）：
+\begin{itemize}
+\item 最小的鍵留在原來的節點，最大的鍵放進一個新節點；
+\item 中間的鍵\textbf{往上}放進父節點，夾在這兩個節點中間，當它們的分隔鍵。
+\end{itemize}
+父節點多了一個鍵和一個子節點，也可能溢位，就用同樣的方法往上分裂。 根溢位時，中間
+的鍵自己成為新的根，樹高加 $1$。 樹只在根長高，每一片葉子到根的距離同時加 $1$，所以
+葉子永遠在同一層。
+
+圖~\ref{fig:mw-23-ins} 把 $47, 82, 15, 63, 29, 91, 54, 38, 70, 21$ 依序插入空的 2-3
+樹。 藍底是剛插入的鍵，綠底是剛移動（上升、下降、借來）的鍵，橘框是鍵太多或太少的
+節點；本章其他的圖也用同樣的顏色。 沒有分裂的插入合併成一張。
+
+\begin{center}
+\begin{tikzpicture}[baseline=(current bounding box.north), mwk/.append style={minimum width=0.5cm, minimum height=0.42cm}]
+\node[mwk,mwkN] at (0.25,0) {47};
+\node[mwk,mwkN] at (0.75,0) {82};
+\node[mwlab] at (0.5,-1.28) {(a) 插入 47、82};
+\end{tikzpicture}\hspace{0.55cm}\begin{tikzpicture}[baseline=(current bounding box.north), mwk/.append style={minimum width=0.5cm, minimum height=0.42cm}]
+\node[mwk,mwkN] at (0.25,0) {15};
+\node[mwk,mwkB] at (0.75,0) {47};
+\node[mwk,mwkB] at (1.25,0) {82};
+\draw[mwbad] (0,-0.21) rectangle (1.5,0.21);
+\node[mwlab] at (0.75,-1.28) {(b) 插入 15：溢位};
+\end{tikzpicture}\hspace{0.55cm}\begin{tikzpicture}[baseline=(current bounding box.north), mwk/.append style={minimum width=0.5cm, minimum height=0.42cm}]
+\draw[mwe] (0.375,-0.21) -- (0.25,-0.59);
+\draw[mwe] (0.875,-0.21) -- (1,-0.59);
+\node[mwk] at (0.25,-0.8) {15};
+\node[mwk] at (1,-0.8) {82};
+\node[mwk,mwkM] at (0.625,0) {47};
+\node[mwlab] at (0.625,-1.28) {(c) 分裂，47 上升};
+\end{tikzpicture}\hspace{0.55cm}\begin{tikzpicture}[baseline=(current bounding box.north), mwk/.append style={minimum width=0.5cm, minimum height=0.42cm}]
+\draw[mwe] (0.875,-0.21) -- (0.5,-0.59);
+\draw[mwe] (1.375,-0.21) -- (1.75,-0.59);
+\node[mwk] at (0.25,-0.8) {15};
+\node[mwk,mwkN] at (0.75,-0.8) {29};
+\node[mwk,mwkN] at (1.5,-0.8) {63};
+\node[mwk] at (2,-0.8) {82};
+\node[mwk] at (1.125,0) {47};
+\node[mwlab] at (1.125,-1.28) {(d) 插入 63、29};
+\end{tikzpicture}\\*[0.45em]
+\begin{tikzpicture}[baseline=(current bounding box.north), mwk/.append style={minimum width=0.5cm, minimum height=0.42cm}]
+\draw[mwe] (1,-0.21) -- (0.5,-0.59);
+\draw[mwe] (1.5,-0.21) -- (2,-0.59);
+\node[mwk] at (0.25,-0.8) {15};
+\node[mwk] at (0.75,-0.8) {29};
+\node[mwk,mwkB] at (1.5,-0.8) {63};
+\node[mwk,mwkB] at (2,-0.8) {82};
+\node[mwk,mwkN] at (2.5,-0.8) {91};
+\draw[mwbad] (1.25,-1.01) rectangle (2.75,-0.59);
+\node[mwk] at (1.25,0) {47};
+\node[mwlab] at (1.375,-1.28) {(e) 插入 91：溢位};
+\end{tikzpicture}\hspace{0.55cm}\begin{tikzpicture}[baseline=(current bounding box.north), mwk/.append style={minimum width=0.5cm, minimum height=0.42cm}]
+\draw[mwe] (0.875,-0.21) -- (0.5,-0.59);
+\draw[mwe] (1.375,-0.21) -- (1.5,-0.59);
+\draw[mwe] (1.875,-0.21) -- (2.25,-0.59);
+\node[mwk] at (0.25,-0.8) {15};
+\node[mwk] at (0.75,-0.8) {29};
+\node[mwk] at (1.5,-0.8) {63};
+\node[mwk] at (2.25,-0.8) {91};
+\node[mwk] at (1.125,0) {47};
+\node[mwk,mwkM] at (1.625,0) {82};
+\node[mwlab] at (1.25,-1.28) {(f) 分裂，82 上升};
+\end{tikzpicture}\hspace{0.55cm}\begin{tikzpicture}[baseline=(current bounding box.north), mwk/.append style={minimum width=0.5cm, minimum height=0.42cm}]
+\draw[mwe] (1.5,-0.21) -- (0.75,-0.59);
+\draw[mwe] (2,-0.21) -- (2.25,-0.59);
+\draw[mwe] (2.5,-0.21) -- (3.25,-0.59);
+\node[mwk,mwkB] at (0.25,-0.8) {15};
+\node[mwk,mwkB] at (0.75,-0.8) {29};
+\node[mwk,mwkN] at (1.25,-0.8) {38};
+\draw[mwbad] (0,-1.01) rectangle (1.5,-0.59);
+\node[mwk,mwkN] at (2,-0.8) {54};
+\node[mwk] at (2.5,-0.8) {63};
+\node[mwk] at (3.25,-0.8) {91};
+\node[mwk] at (1.75,0) {47};
+\node[mwk] at (2.25,0) {82};
+\node[mwlab] at (1.75,-1.28) {(g) 插入 54；插入 38 溢位};
+\end{tikzpicture}\\*[0.45em]
+\begin{tikzpicture}[baseline=(current bounding box.north), mwk/.append style={minimum width=0.5cm, minimum height=0.42cm}]
+\draw[mwe] (0.875,-0.21) -- (0.25,-0.59);
+\draw[mwe] (1.375,-0.21) -- (1,-0.59);
+\draw[mwe] (1.875,-0.21) -- (2,-0.59);
+\draw[mwe] (2.375,-0.21) -- (3,-0.59);
+\node[mwk] at (0.25,-0.8) {15};
+\node[mwk] at (1,-0.8) {38};
+\node[mwk] at (1.75,-0.8) {54};
+\node[mwk] at (2.25,-0.8) {63};
+\node[mwk] at (3,-0.8) {91};
+\node[mwk,mwkM] at (1.125,0) {29};
+\node[mwk,mwkB] at (1.625,0) {47};
+\node[mwk,mwkB] at (2.125,0) {82};
+\draw[mwbad] (0.875,-0.21) rectangle (2.375,0.21);
+\node[mwlab] at (1.625,-2.08) {(h) 分裂，29 上升};
+\end{tikzpicture}\hspace{0.55cm}\begin{tikzpicture}[baseline=(current bounding box.north), mwk/.append style={minimum width=0.5cm, minimum height=0.42cm}]
+\draw[mwe] (0.375,-1.01) -- (0.25,-1.39);
+\draw[mwe] (0.875,-1.01) -- (1,-1.39);
+\draw[mwe] (2.25,-1.01) -- (2,-1.39);
+\draw[mwe] (2.75,-1.01) -- (3,-1.39);
+\draw[mwe] (1.312,-0.21) -- (0.625,-0.59);
+\draw[mwe] (1.812,-0.21) -- (2.5,-0.59);
+\node[mwk] at (0.25,-1.6) {15};
+\node[mwk] at (1,-1.6) {38};
+\node[mwk] at (0.625,-0.8) {29};
+\node[mwk] at (1.75,-1.6) {54};
+\node[mwk] at (2.25,-1.6) {63};
+\node[mwk] at (3,-1.6) {91};
+\node[mwk] at (2.5,-0.8) {82};
+\node[mwk,mwkM] at (1.562,0) {47};
+\node[mwlab] at (1.625,-2.08) {(i) 根分裂，47 上升};
+\end{tikzpicture}\hspace{0.55cm}\begin{tikzpicture}[baseline=(current bounding box.north), mwk/.append style={minimum width=0.5cm, minimum height=0.42cm}]
+\draw[mwe] (0.375,-1.01) -- (0.25,-1.39);
+\draw[mwe] (0.875,-1.01) -- (1,-1.39);
+\draw[mwe] (2.625,-1.01) -- (2.25,-1.39);
+\draw[mwe] (3.125,-1.01) -- (3.5,-1.39);
+\draw[mwe] (1.5,-0.21) -- (0.625,-0.59);
+\draw[mwe] (2,-0.21) -- (2.875,-0.59);
+\node[mwk] at (0.25,-1.6) {15};
+\node[mwk] at (1,-1.6) {38};
+\node[mwk] at (0.625,-0.8) {29};
+\node[mwk,mwkB] at (1.75,-1.6) {54};
+\node[mwk,mwkB] at (2.25,-1.6) {63};
+\node[mwk,mwkN] at (2.75,-1.6) {70};
+\draw[mwbad] (1.5,-1.81) rectangle (3,-1.39);
+\node[mwk] at (3.5,-1.6) {91};
+\node[mwk] at (2.875,-0.8) {82};
+\node[mwk] at (1.75,0) {47};
+\node[mwlab] at (1.875,-2.08) {(j) 插入 70：溢位};
+\end{tikzpicture}\\*[0.45em]
+\begin{tikzpicture}[baseline=(current bounding box.north), mwk/.append style={minimum width=0.5cm, minimum height=0.42cm}]
+\draw[mwe] (0.375,-1.01) -- (0.25,-1.39);
+\draw[mwe] (0.875,-1.01) -- (1,-1.39);
+\draw[mwe] (2,-1.01) -- (1.75,-1.39);
+\draw[mwe] (2.5,-1.01) -- (2.5,-1.39);
+\draw[mwe] (3,-1.01) -- (3.25,-1.39);
+\draw[mwe] (1.312,-0.21) -- (0.625,-0.59);
+\draw[mwe] (1.812,-0.21) -- (2.5,-0.59);
+\node[mwk] at (0.25,-1.6) {15};
+\node[mwk] at (1,-1.6) {38};
+\node[mwk] at (0.625,-0.8) {29};
+\node[mwk] at (1.75,-1.6) {54};
+\node[mwk] at (2.5,-1.6) {70};
+\node[mwk] at (3.25,-1.6) {91};
+\node[mwk,mwkM] at (2.25,-0.8) {63};
+\node[mwk] at (2.75,-0.8) {82};
+\node[mwk] at (1.562,0) {47};
+\node[mwlab] at (1.75,-2.08) {(k) 分裂，63 上升};
+\end{tikzpicture}\hspace{0.55cm}\begin{tikzpicture}[baseline=(current bounding box.north), mwk/.append style={minimum width=0.5cm, minimum height=0.42cm}]
+\draw[mwe] (0.75,-1.01) -- (0.5,-1.39);
+\draw[mwe] (1.25,-1.01) -- (1.5,-1.39);
+\draw[mwe] (2.5,-1.01) -- (2.25,-1.39);
+\draw[mwe] (3,-1.01) -- (3,-1.39);
+\draw[mwe] (3.5,-1.01) -- (3.75,-1.39);
+\draw[mwe] (1.75,-0.21) -- (1,-0.59);
+\draw[mwe] (2.25,-0.21) -- (3,-0.59);
+\node[mwk] at (0.25,-1.6) {15};
+\node[mwk,mwkN] at (0.75,-1.6) {21};
+\node[mwk] at (1.5,-1.6) {38};
+\node[mwk] at (1,-0.8) {29};
+\node[mwk] at (2.25,-1.6) {54};
+\node[mwk] at (3,-1.6) {70};
+\node[mwk] at (3.75,-1.6) {91};
+\node[mwk] at (2.75,-0.8) {63};
+\node[mwk] at (3.25,-0.8) {82};
+\node[mwk] at (2,0) {47};
+\node[mwlab] at (2,-2.08) {(l) 插入 21};
+\end{tikzpicture}
+\diagcaption{依序插入 $47, 82, 15, 63, 29, 91, 54, 38, 70, 21$。 (g) 的 $38$ 讓葉子
+$\{15, 29\}$ 溢位，(h) 分裂後 $29$ 上升，根變成三個鍵，又溢位；(i) 根分裂，$47$ 成為
+新的根，高度從 $2$ 變成 $3$。}
+\label{fig:mw-23-ins}
+\end{center}
+
+(h) 到 (i) 是\textbf{連鎖分裂}：一次插入可能讓從葉子到根路上的每個節點都分裂，但每層
+最多分裂一次，所以插入的時間是 $O(h) = O(\lg n)$。
+
+\subsection{刪除：借與合併}
+\label{sec:mw-23-delete}
+
+刪除要先處理一件事：被刪的鍵如果在內部節點，不能直接拿掉，否則它兩邊的子樹會少一個
+分隔鍵。 做法和第~9~章的二元搜尋樹一樣，用\textbf{後繼}（右邊子樹裡最小的鍵）取代
+它，再改成刪除那個後繼。 從右邊的子樹一路往最左邊走，最後停在一片葉子上，後繼就是
+那片葉子最左邊的鍵。 所以不管刪哪個鍵，真正拿掉鍵的地方都是一片葉子。
+
+葉子原本有兩個鍵，拿掉一個還剩一個，結束。 原本只有一個鍵，拿掉就空了，叫做
+\textbf{不足}（underflow），要從旁邊補：
+
+\begin{itemize}
+\item \textbf{借}：相鄰的兄弟是 3-節點，有多的鍵。 父節點裡夾在兩人中間的分隔鍵
+\textbf{下來}放進空的節點，兄弟靠近這一邊的鍵\textbf{上去}補分隔鍵的位置。 如果是內
+部節點在借，兄弟靠近這一邊的那棵子樹也跟著搬過來。 父節點的鍵數不變，結束。
+\item \textbf{合併}：相鄰的兄弟都是 2-節點，沒有多的鍵可借。 把空的節點、父節點裡的
+分隔鍵、兄弟三者合成一個 3-節點。 父節點少了一個鍵，可能變空，就在父節點用同樣的
+方法往上處理。 根變空時把它拿掉，它唯一的子節點成為新的根，樹高減 $1$。
+\end{itemize}
+
+借只看\textbf{相鄰}的兄弟，也就是和不足的節點共用一個分隔鍵的那一個或兩個。 兩個兄
+弟都可能時，本書固定的順序是：先看右兄弟能不能借，再看左兄弟；都不能借就合併，有右
+兄弟就和右兄弟合併，沒有才和左兄弟合併。 這個順序只是一種約定，換一種順序得到的樹
+也合法，但會不一樣。
+
+圖~\ref{fig:mw-23-del} 從圖~\ref{fig:mw-23-ins}(l) 的樹依序刪除 $21, 38, 63, 47$。
+
+\begin{center}
+\begin{tikzpicture}[baseline=(current bounding box.north), mwk/.append style={minimum width=0.5cm, minimum height=0.42cm}]
+\draw[mwe] (0.375,-1.01) -- (0.25,-1.39);
+\draw[mwe] (0.875,-1.01) -- (1,-1.39);
+\draw[mwe] (2,-1.01) -- (1.75,-1.39);
+\draw[mwe] (2.5,-1.01) -- (2.5,-1.39);
+\draw[mwe] (3,-1.01) -- (3.25,-1.39);
+\draw[mwe] (1.312,-0.21) -- (0.625,-0.59);
+\draw[mwe] (1.812,-0.21) -- (2.5,-0.59);
+\node[mwk] at (0.25,-1.6) {15};
+\node[mwk] at (1,-1.6) {38};
+\node[mwk] at (0.625,-0.8) {29};
+\node[mwk] at (1.75,-1.6) {54};
+\node[mwk] at (2.5,-1.6) {70};
+\node[mwk] at (3.25,-1.6) {91};
+\node[mwk] at (2.25,-0.8) {63};
+\node[mwk] at (2.75,-0.8) {82};
+\node[mwk] at (1.562,0) {47};
+\node[mwlab] at (1.75,-2.08) {(a) 刪除 21};
+\end{tikzpicture}\hspace{0.55cm}\begin{tikzpicture}[baseline=(current bounding box.north), mwk/.append style={minimum width=0.5cm, minimum height=0.42cm}]
+\draw[mwe] (0.375,-1.01) -- (0.25,-1.39);
+\draw[mwe] (0.875,-1.01) -- (1,-1.39);
+\draw[mwe] (2,-1.01) -- (1.75,-1.39);
+\draw[mwe] (2.5,-1.01) -- (2.5,-1.39);
+\draw[mwe] (3,-1.01) -- (3.25,-1.39);
+\draw[mwe] (1.312,-0.21) -- (0.625,-0.59);
+\draw[mwe] (1.812,-0.21) -- (2.5,-0.59);
+\node[mwk] at (0.25,-1.6) {15};
+\draw[mwempty] (0.75,-1.81) rectangle (1.25,-1.39);
+\node[mwk] at (0.625,-0.8) {29};
+\node[mwk] at (1.75,-1.6) {54};
+\node[mwk] at (2.5,-1.6) {70};
+\node[mwk] at (3.25,-1.6) {91};
+\node[mwk] at (2.25,-0.8) {63};
+\node[mwk] at (2.75,-0.8) {82};
+\node[mwk] at (1.562,0) {47};
+\node[mwlab] at (1.75,-2.08) {(b) 刪除 38：葉子變空};
+\end{tikzpicture}\hspace{0.55cm}\begin{tikzpicture}[baseline=(current bounding box.north), mwk/.append style={minimum width=0.5cm, minimum height=0.42cm}]
+\draw[mwe] (0.5,-1.01) -- (0.5,-1.39);
+\draw[mwe] (1.75,-1.01) -- (1.5,-1.39);
+\draw[mwe] (2.25,-1.01) -- (2.25,-1.39);
+\draw[mwe] (2.75,-1.01) -- (3,-1.39);
+\draw[mwe] (1.125,-0.21) -- (0.5,-0.59);
+\draw[mwe] (1.625,-0.21) -- (2.25,-0.59);
+\node[mwk] at (0.25,-1.6) {15};
+\node[mwk,mwkM] at (0.75,-1.6) {29};
+\draw[mwempty] (0.25,-1.01) rectangle (0.75,-0.59);
+\node[mwk] at (1.5,-1.6) {54};
+\node[mwk] at (2.25,-1.6) {70};
+\node[mwk] at (3,-1.6) {91};
+\node[mwk] at (2,-0.8) {63};
+\node[mwk] at (2.5,-0.8) {82};
+\node[mwk] at (1.375,0) {47};
+\node[mwlab] at (1.625,-2.08) {(c) 和左兄弟合併};
+\end{tikzpicture}\hspace{0.55cm}\begin{tikzpicture}[baseline=(current bounding box.north), mwk/.append style={minimum width=0.5cm, minimum height=0.42cm}]
+\draw[mwe] (0.75,-1.01) -- (0.5,-1.39);
+\draw[mwe] (1.25,-1.01) -- (1.5,-1.39);
+\draw[mwe] (2.375,-1.01) -- (2.25,-1.39);
+\draw[mwe] (2.875,-1.01) -- (3,-1.39);
+\draw[mwe] (1.562,-0.21) -- (1,-0.59);
+\draw[mwe] (2.062,-0.21) -- (2.625,-0.59);
+\node[mwk] at (0.25,-1.6) {15};
+\node[mwk] at (0.75,-1.6) {29};
+\node[mwk] at (1.5,-1.6) {54};
+\node[mwk,mwkM] at (1,-0.8) {47};
+\node[mwk] at (2.25,-1.6) {70};
+\node[mwk] at (3,-1.6) {91};
+\node[mwk] at (2.625,-0.8) {82};
+\node[mwk,mwkM] at (1.812,0) {63};
+\node[mwlab] at (1.625,-2.08) {(d) 向右兄弟借};
+\end{tikzpicture}\\*[0.45em]
+\begin{tikzpicture}[baseline=(current bounding box.north), mwk/.append style={minimum width=0.5cm, minimum height=0.42cm}]
+\draw[mwe] (0.75,-1.01) -- (0.5,-1.39);
+\draw[mwe] (1.25,-1.01) -- (1.5,-1.39);
+\draw[mwe] (2.375,-1.01) -- (2.25,-1.39);
+\draw[mwe] (2.875,-1.01) -- (3,-1.39);
+\draw[mwe] (1.562,-0.21) -- (1,-0.59);
+\draw[mwe] (2.062,-0.21) -- (2.625,-0.59);
+\node[mwk] at (0.25,-1.6) {15};
+\node[mwk] at (0.75,-1.6) {29};
+\node[mwk] at (1.5,-1.6) {54};
+\node[mwk] at (1,-0.8) {47};
+\draw[mwempty] (2,-1.81) rectangle (2.5,-1.39);
+\node[mwk] at (3,-1.6) {91};
+\node[mwk] at (2.625,-0.8) {82};
+\node[mwk,mwkM] at (1.812,0) {70};
+\node[mwlab] at (1.625,-2.08) {(e) 刪除 63：換成後繼 70};
+\end{tikzpicture}\hspace{0.55cm}\begin{tikzpicture}[baseline=(current bounding box.north), mwk/.append style={minimum width=0.5cm, minimum height=0.42cm}]
+\draw[mwe] (0.75,-1.01) -- (0.5,-1.39);
+\draw[mwe] (1.25,-1.01) -- (1.5,-1.39);
+\draw[mwe] (2.5,-1.01) -- (2.5,-1.39);
+\draw[mwe] (1.5,-0.21) -- (1,-0.59);
+\draw[mwe] (2,-0.21) -- (2.5,-0.59);
+\node[mwk] at (0.25,-1.6) {15};
+\node[mwk] at (0.75,-1.6) {29};
+\node[mwk] at (1.5,-1.6) {54};
+\node[mwk] at (1,-0.8) {47};
+\node[mwk,mwkM] at (2.25,-1.6) {82};
+\node[mwk] at (2.75,-1.6) {91};
+\draw[mwempty] (2.25,-1.01) rectangle (2.75,-0.59);
+\node[mwk] at (1.75,0) {70};
+\node[mwlab] at (1.5,-2.08) {(f) 和右兄弟合併};
+\end{tikzpicture}\hspace{0.55cm}\begin{tikzpicture}[baseline=(current bounding box.north), mwk/.append style={minimum width=0.5cm, minimum height=0.42cm}]
+\draw[mwe] (1,-1.01) -- (0.5,-1.39);
+\draw[mwe] (1.5,-1.01) -- (1.5,-1.39);
+\draw[mwe] (2,-1.01) -- (2.5,-1.39);
+\draw[mwe] (1.5,-0.21) -- (1.5,-0.59);
+\node[mwk] at (0.25,-1.6) {15};
+\node[mwk] at (0.75,-1.6) {29};
+\node[mwk] at (1.5,-1.6) {54};
+\node[mwk] at (2.25,-1.6) {82};
+\node[mwk] at (2.75,-1.6) {91};
+\node[mwk] at (1.25,-0.8) {47};
+\node[mwk,mwkM] at (1.75,-0.8) {70};
+\draw[mwempty] (1.25,-0.21) rectangle (1.75,0.21);
+\node[mwlab] at (1.5,-2.08) {(g) 和左兄弟合併};
+\end{tikzpicture}\hspace{0.55cm}\begin{tikzpicture}[baseline=(current bounding box.north), mwk/.append style={minimum width=0.5cm, minimum height=0.42cm}]
+\draw[mwe] (1,-0.21) -- (0.5,-0.59);
+\draw[mwe] (1.5,-0.21) -- (1.5,-0.59);
+\draw[mwe] (2,-0.21) -- (2.5,-0.59);
+\node[mwk] at (0.25,-0.8) {15};
+\node[mwk] at (0.75,-0.8) {29};
+\node[mwk] at (1.5,-0.8) {54};
+\node[mwk] at (2.25,-0.8) {82};
+\node[mwk] at (2.75,-0.8) {91};
+\node[mwk] at (1.25,0) {47};
+\node[mwk] at (1.75,0) {70};
+\node[mwlab] at (1.5,-2.08) {(h) 拿掉空的根};
+\end{tikzpicture}\\*[0.45em]
+\begin{tikzpicture}[baseline=(current bounding box.north), mwk/.append style={minimum width=0.5cm, minimum height=0.42cm}]
+\draw[mwe] (1,-0.21) -- (0.5,-0.59);
+\draw[mwe] (1.5,-0.21) -- (1.5,-0.59);
+\draw[mwe] (2,-0.21) -- (2.5,-0.59);
+\node[mwk] at (0.25,-0.8) {15};
+\node[mwk] at (0.75,-0.8) {29};
+\draw[mwempty] (1.25,-1.01) rectangle (1.75,-0.59);
+\node[mwk] at (2.25,-0.8) {82};
+\node[mwk] at (2.75,-0.8) {91};
+\node[mwk,mwkM] at (1.25,0) {54};
+\node[mwk] at (1.75,0) {70};
+\node[mwlab] at (1.5,-1.28) {(i) 刪除 47：換成後繼 54};
+\end{tikzpicture}\hspace{0.55cm}\begin{tikzpicture}[baseline=(current bounding box.north), mwk/.append style={minimum width=0.5cm, minimum height=0.42cm}]
+\draw[mwe] (0.875,-0.21) -- (0.5,-0.59);
+\draw[mwe] (1.375,-0.21) -- (1.5,-0.59);
+\draw[mwe] (1.875,-0.21) -- (2.25,-0.59);
+\node[mwk] at (0.25,-0.8) {15};
+\node[mwk] at (0.75,-0.8) {29};
+\node[mwk,mwkM] at (1.5,-0.8) {70};
+\node[mwk] at (2.25,-0.8) {91};
+\node[mwk] at (1.125,0) {54};
+\node[mwk,mwkM] at (1.625,0) {82};
+\node[mwlab] at (1.25,-1.28) {(j) 向右兄弟借};
+\end{tikzpicture}
+\diagcaption{依序刪除 $21, 38, 63, 47$。 虛線框是變空的節點。}
+\label{fig:mw-23-del}
+\end{center}
+
+刪除 $21$ 之後葉子還剩 $15$，結束。 其他三次：
+\begin{itemize}
+\item 刪除 $38$：葉子變空。 它是父節點 $\{29\}$ 的最後一個子節點，沒有右兄弟；左兄
+弟 $\{15\}$ 只有一個鍵，不能借。 和左兄弟合併：$15$、分隔鍵 $29$ 合成 $\{15, 29\}$。
+父節點 $\{29\}$ 因此變空，它的右兄弟 $\{63, 82\}$ 有兩個鍵，可以借：根的 $47$ 下來，
+$63$ 上去當根，$63$ 原本左邊的子樹 $\{54\}$ 改接到 $\{47\}$ 的右邊。
+\item 刪除 $63$：它是根，後繼是右子樹最左的葉子裡的 $70$。 $70$ 移上去取代 $63$，葉
+子 $\{70\}$ 變空。 它沒有左兄弟，右兄弟 $\{91\}$ 不能借，合併成 $\{82, 91\}$；父節點
+變空，左兄弟 $\{47\}$ 也不能借，再合併成 $\{47, 70\}$；根變空，拿掉。
+\item 刪除 $47$：後繼 $54$ 上去，葉子變空。 右兄弟 $\{82, 91\}$ 可以借：$70$ 下來，
+$82$ 上去。
+\end{itemize}
+
+刪除和插入一樣，每層最多處理一次，時間 $O(\lg n)$。 合併只發生在兄弟都不能借的時
+候，借一次之後就結束，不會再往上。
+
+\subsection{2-3-4 樹}
+\label{sec:mw-234}
+
+\textbf{2-3-4 樹}（2-3-4 tree）把定義~\ref{def:mw-23} 放寬一點：內部節點可以是
+2-節點、3-節點或 4-節點（$3$ 個鍵、$4$ 個子節點），葉子放 $1$ 到 $3$ 個鍵，所有葉子
+同一層。 和 2-3 樹一樣算，$n$ 個鍵的 2-3-4 樹高度滿足
+$\log_4(n + 1) \le h \le \lg(n + 1)$。
+
+插入可以照 2-3 樹的做法，葉子放到 $4$ 個鍵時分裂。 但 $4$ 個鍵沒有正中間的那一個，
+要先約定往上送第 $2$ 個還是第 $3$ 個。 2-3-4 樹更常用的是\textbf{由上而下}
+（top-down）的插入：從根往下走的路上，遇到 4-節點就\textbf{先}把它分裂，中間的鍵
+（$3$ 個鍵的第 $2$ 個）送進父節點。 父節點在上一步已經處理過，不會是 4-節點，放得
+下。 走到葉子時，葉子一定不是 4-節點，直接放進去就好，不用再往回走。
+
+\begin{pseudo}[label=alg:mw-234-insert]{2-3-4 樹由上而下的插入（樹不是空的）}
+\Procedure{Insert-234}{$T, k$}
+    \If{$T.\mathit{root}$ 有 $3$ 個鍵}
+        \State 根的中間鍵自己成為新的根，左右兩個鍵各成一個 2-節點
+    \EndIf
+    \State $x \gets T.\mathit{root}$
+    \While{$x$ 不是葉子}
+        \State $i \gets$ $k$ 應該往下走的子樹編號
+        \If{$x.c[i]$ 有 $3$ 個鍵}
+            \State $x.c[i]$ 的中間鍵插進 $x$，$x.c[i]$ 分成兩個 2-節點
+            \If{$k >$ 剛插進 $x$ 的那個鍵}
+                \State $i \gets i + 1$
+            \EndIf
+        \EndIf
+        \State $x \gets x.c[i]$
+    \EndWhile
+    \State 把 $k$ 依大小放進葉子 $x$
+\EndProcedure
+\end{pseudo}
+
+第 3 行是唯一讓樹長高的地方。 第 8 行分裂之後，原本的 $x.c[i]$ 變成兩個節點，要看
+$k$ 在上來的鍵的哪一邊，決定走左半還是右半（第 9、10 行）。
+圖~\ref{fig:mw-234-ins} 把 $36, 72, 18, 55, 90, 27, 64, 81, 45, 9, 50, 99$ 依序插入
+空的 2-3-4 樹。
+
+\begin{center}
+\begin{tikzpicture}[baseline=(current bounding box.north), mwk/.append style={minimum width=0.5cm, minimum height=0.42cm}]
+\node[mwk,mwkN] at (0.25,0) {18};
+\node[mwk,mwkN] at (0.75,0) {36};
+\node[mwk,mwkN] at (1.25,0) {72};
+\node[mwlab] at (0.75,-1.28) {(a) 插入 36、72、18};
+\end{tikzpicture}\hspace{0.55cm}\begin{tikzpicture}[baseline=(current bounding box.north), mwk/.append style={minimum width=0.5cm, minimum height=0.42cm}]
+\draw[mwe] (0.5,-0.21) -- (0.25,-0.59);
+\draw[mwe] (1,-0.21) -- (1.25,-0.59);
+\node[mwk] at (0.25,-0.8) {18};
+\node[mwk,mwkN] at (1,-0.8) {55};
+\node[mwk] at (1.5,-0.8) {72};
+\node[mwk,mwkM] at (0.75,0) {36};
+\node[mwlab] at (0.875,-1.28) {(b) 根先分裂，再插入 55};
+\end{tikzpicture}\hspace{0.55cm}\begin{tikzpicture}[baseline=(current bounding box.north), mwk/.append style={minimum width=0.5cm, minimum height=0.42cm}]
+\draw[mwe] (1,-0.21) -- (0.5,-0.59);
+\draw[mwe] (1.5,-0.21) -- (2,-0.59);
+\node[mwk] at (0.25,-0.8) {18};
+\node[mwk,mwkN] at (0.75,-0.8) {27};
+\node[mwk] at (1.5,-0.8) {55};
+\node[mwk] at (2,-0.8) {72};
+\node[mwk,mwkN] at (2.5,-0.8) {90};
+\node[mwk] at (1.25,0) {36};
+\node[mwlab] at (1.375,-1.28) {(c) 插入 90、27};
+\end{tikzpicture}\\*[0.45em]
+\begin{tikzpicture}[baseline=(current bounding box.north), mwk/.append style={minimum width=0.5cm, minimum height=0.42cm}]
+\draw[mwe] (1.125,-0.21) -- (0.5,-0.59);
+\draw[mwe] (1.625,-0.21) -- (1.75,-0.59);
+\draw[mwe] (2.125,-0.21) -- (2.75,-0.59);
+\node[mwk] at (0.25,-0.8) {18};
+\node[mwk] at (0.75,-0.8) {27};
+\node[mwk] at (1.5,-0.8) {55};
+\node[mwk,mwkN] at (2,-0.8) {64};
+\node[mwk] at (2.75,-0.8) {90};
+\node[mwk] at (1.375,0) {36};
+\node[mwk,mwkM] at (1.875,0) {72};
+\node[mwlab] at (1.5,-1.28) {(d) 先分裂，再插入 64};
+\end{tikzpicture}\hspace{0.55cm}\begin{tikzpicture}[baseline=(current bounding box.north), mwk/.append style={minimum width=0.5cm, minimum height=0.42cm}]
+\draw[mwe] (1.875,-0.21) -- (0.75,-0.59);
+\draw[mwe] (2.375,-0.21) -- (2.5,-0.59);
+\draw[mwe] (2.875,-0.21) -- (4,-0.59);
+\node[mwk,mwkN] at (0.25,-0.8) {9};
+\node[mwk] at (0.75,-0.8) {18};
+\node[mwk] at (1.25,-0.8) {27};
+\node[mwk,mwkN] at (2,-0.8) {45};
+\node[mwk] at (2.5,-0.8) {55};
+\node[mwk] at (3,-0.8) {64};
+\node[mwk,mwkN] at (3.75,-0.8) {81};
+\node[mwk] at (4.25,-0.8) {90};
+\node[mwk] at (2.125,0) {36};
+\node[mwk] at (2.625,0) {72};
+\node[mwlab] at (2.25,-1.28) {(e) 插入 81、45、9};
+\end{tikzpicture}\hspace{0.55cm}\begin{tikzpicture}[baseline=(current bounding box.north), mwk/.append style={minimum width=0.5cm, minimum height=0.42cm}]
+\draw[mwe] (1.75,-0.21) -- (0.75,-0.59);
+\draw[mwe] (2.25,-0.21) -- (2.25,-0.59);
+\draw[mwe] (2.75,-0.21) -- (3.25,-0.59);
+\draw[mwe] (3.25,-0.21) -- (4.25,-0.59);
+\node[mwk] at (0.25,-0.8) {9};
+\node[mwk] at (0.75,-0.8) {18};
+\node[mwk] at (1.25,-0.8) {27};
+\node[mwk] at (2,-0.8) {45};
+\node[mwk,mwkN] at (2.5,-0.8) {50};
+\node[mwk] at (3.25,-0.8) {64};
+\node[mwk] at (4,-0.8) {81};
+\node[mwk] at (4.5,-0.8) {90};
+\node[mwk] at (2,0) {36};
+\node[mwk,mwkM] at (2.5,0) {55};
+\node[mwk] at (3,0) {72};
+\node[mwlab] at (2.375,-1.28) {(f) 先分裂，再插入 50};
+\end{tikzpicture}\\*[0.45em]
+\begin{tikzpicture}[baseline=(current bounding box.north), mwk/.append style={minimum width=0.5cm, minimum height=0.42cm}]
+\draw[mwe] (1.25,-1.01) -- (0.75,-1.39);
+\draw[mwe] (1.75,-1.01) -- (2.25,-1.39);
+\draw[mwe] (3.5,-1.01) -- (3.25,-1.39);
+\draw[mwe] (4,-1.01) -- (4.25,-1.39);
+\draw[mwe] (2.375,-0.21) -- (1.5,-0.59);
+\draw[mwe] (2.875,-0.21) -- (3.75,-0.59);
+\node[mwk] at (0.25,-1.6) {9};
+\node[mwk] at (0.75,-1.6) {18};
+\node[mwk] at (1.25,-1.6) {27};
+\node[mwk] at (2,-1.6) {45};
+\node[mwk] at (2.5,-1.6) {50};
+\node[mwk] at (1.5,-0.8) {36};
+\node[mwk] at (3.25,-1.6) {64};
+\node[mwk] at (4,-1.6) {81};
+\node[mwk] at (4.5,-1.6) {90};
+\node[mwk] at (3.75,-0.8) {72};
+\node[mwk,mwkM] at (2.625,0) {55};
+\node[mwlab] at (2.375,-2.08) {(g) 插入 99 之前，根先分裂};
+\end{tikzpicture}\hspace{0.55cm}\begin{tikzpicture}[baseline=(current bounding box.north), mwk/.append style={minimum width=0.5cm, minimum height=0.42cm}]
+\draw[mwe] (1.25,-1.01) -- (0.75,-1.39);
+\draw[mwe] (1.75,-1.01) -- (2.25,-1.39);
+\draw[mwe] (3.625,-1.01) -- (3.25,-1.39);
+\draw[mwe] (4.125,-1.01) -- (4.5,-1.39);
+\draw[mwe] (2.438,-0.21) -- (1.5,-0.59);
+\draw[mwe] (2.938,-0.21) -- (3.875,-0.59);
+\node[mwk] at (0.25,-1.6) {9};
+\node[mwk] at (0.75,-1.6) {18};
+\node[mwk] at (1.25,-1.6) {27};
+\node[mwk] at (2,-1.6) {45};
+\node[mwk] at (2.5,-1.6) {50};
+\node[mwk] at (1.5,-0.8) {36};
+\node[mwk] at (3.25,-1.6) {64};
+\node[mwk] at (4,-1.6) {81};
+\node[mwk] at (4.5,-1.6) {90};
+\node[mwk,mwkN] at (5,-1.6) {99};
+\node[mwk] at (3.875,-0.8) {72};
+\node[mwk] at (2.688,0) {55};
+\node[mwlab] at (2.625,-2.08) {(h) 插入 99};
+\end{tikzpicture}
+\diagcaption{2-3-4 樹由上而下的插入。 (b) 插入 $55$ 時根 $\{18, 36, 72\}$ 是 4-節點，先
+分裂（$36$ 上升）再往下走。 (d)、(f) 分裂的是路上的子節點。 (g) 插入 $99$ 時，要去的
+葉子 $\{81, 90\}$ 明明放得下，但路上的根是 4-節點，照規則還是先分裂，高度變成 $3$。}
+\label{fig:mw-234-ins}
+\end{center}
+
+(g) 顯示了兩種做法的差別。 同樣十二個鍵改用由下而上的做法（溢位時送第 $2$ 個鍵，即
+第~\ref{sec:mw-insert}~節的規則），最後得到的是高度 $2$ 的
+$\{36, 64, 81\}$，下面接 $\{9, 18, 27\}$、$\{45, 50, 55\}$、$\{72\}$、$\{90, 99\}$。
+兩棵樹都是合法的 2-3-4 樹。 由上而下的做法可能比較早分裂，換來的好處是只走一趟，不
+用記住回去的路。
+
+刪除和 2-3 樹的規則完全一樣，只是 3-節點和 4-節點都有多的鍵可以借。
+圖~\ref{fig:mw-234-del} 從圖~\ref{fig:mw-234-ins}(h) 依序刪除 $99, 64, 72$。
+
+\begin{center}
+\begin{tikzpicture}[baseline=(current bounding box.north), mwk/.append style={minimum width=0.5cm, minimum height=0.42cm}]
+\draw[mwe] (1.25,-1.01) -- (0.75,-1.39);
+\draw[mwe] (1.75,-1.01) -- (2.25,-1.39);
+\draw[mwe] (3.5,-1.01) -- (3.25,-1.39);
+\draw[mwe] (4,-1.01) -- (4.25,-1.39);
+\draw[mwe] (2.375,-0.21) -- (1.5,-0.59);
+\draw[mwe] (2.875,-0.21) -- (3.75,-0.59);
+\node[mwk] at (0.25,-1.6) {9};
+\node[mwk] at (0.75,-1.6) {18};
+\node[mwk] at (1.25,-1.6) {27};
+\node[mwk] at (2,-1.6) {45};
+\node[mwk] at (2.5,-1.6) {50};
+\node[mwk] at (1.5,-0.8) {36};
+\node[mwk] at (3.25,-1.6) {64};
+\node[mwk] at (4,-1.6) {81};
+\node[mwk] at (4.5,-1.6) {90};
+\node[mwk] at (3.75,-0.8) {72};
+\node[mwk] at (2.625,0) {55};
+\node[mwlab] at (2.375,-2.08) {(a) 刪除 99};
+\end{tikzpicture}\hspace{0.55cm}\begin{tikzpicture}[baseline=(current bounding box.north), mwk/.append style={minimum width=0.5cm, minimum height=0.42cm}]
+\draw[mwe] (1.25,-1.01) -- (0.75,-1.39);
+\draw[mwe] (1.75,-1.01) -- (2.25,-1.39);
+\draw[mwe] (3.375,-1.01) -- (3.25,-1.39);
+\draw[mwe] (3.875,-1.01) -- (4,-1.39);
+\draw[mwe] (2.312,-0.21) -- (1.5,-0.59);
+\draw[mwe] (2.812,-0.21) -- (3.625,-0.59);
+\node[mwk] at (0.25,-1.6) {9};
+\node[mwk] at (0.75,-1.6) {18};
+\node[mwk] at (1.25,-1.6) {27};
+\node[mwk] at (2,-1.6) {45};
+\node[mwk] at (2.5,-1.6) {50};
+\node[mwk] at (1.5,-0.8) {36};
+\node[mwk,mwkM] at (3.25,-1.6) {72};
+\node[mwk] at (4,-1.6) {90};
+\node[mwk,mwkM] at (3.625,-0.8) {81};
+\node[mwk] at (2.562,0) {55};
+\node[mwlab] at (2.125,-2.08) {(b) 刪除 64：向右兄弟借};
+\end{tikzpicture}\hspace{0.55cm}\begin{tikzpicture}[baseline=(current bounding box.north), mwk/.append style={minimum width=0.5cm, minimum height=0.42cm}]
+\draw[mwe] (1.25,-1.01) -- (0.75,-1.39);
+\draw[mwe] (1.75,-1.01) -- (2.25,-1.39);
+\draw[mwe] (3.5,-1.01) -- (3.5,-1.39);
+\draw[mwe] (2.25,-0.21) -- (1.5,-0.59);
+\draw[mwe] (2.75,-0.21) -- (3.5,-0.59);
+\node[mwk] at (0.25,-1.6) {9};
+\node[mwk] at (0.75,-1.6) {18};
+\node[mwk] at (1.25,-1.6) {27};
+\node[mwk] at (2,-1.6) {45};
+\node[mwk] at (2.5,-1.6) {50};
+\node[mwk] at (1.5,-0.8) {36};
+\node[mwk,mwkM] at (3.25,-1.6) {81};
+\node[mwk] at (3.75,-1.6) {90};
+\draw[mwempty] (3.25,-1.01) rectangle (3.75,-0.59);
+\node[mwk] at (2.5,0) {55};
+\node[mwlab] at (2,-2.08) {(c) 刪除 72：和右兄弟合併};
+\end{tikzpicture}\\*[0.45em]
+\begin{tikzpicture}[baseline=(current bounding box.north), mwk/.append style={minimum width=0.5cm, minimum height=0.42cm}]
+\draw[mwe] (1.625,-0.21) -- (0.75,-0.59);
+\draw[mwe] (2.125,-0.21) -- (2.25,-0.59);
+\draw[mwe] (2.625,-0.21) -- (3.5,-0.59);
+\node[mwk] at (0.25,-0.8) {9};
+\node[mwk] at (0.75,-0.8) {18};
+\node[mwk] at (1.25,-0.8) {27};
+\node[mwk] at (2,-0.8) {45};
+\node[mwk] at (2.5,-0.8) {50};
+\node[mwk] at (3.25,-0.8) {81};
+\node[mwk] at (3.75,-0.8) {90};
+\node[mwk] at (1.875,0) {36};
+\node[mwk] at (2.375,0) {55};
+\node[mwlab] at (2,-1.28) {(d) 再合併，拿掉空的根};
+\end{tikzpicture}
+\diagcaption{2-3-4 樹的刪除。 (b) 刪除 $64$，葉子變空，右兄弟 $\{81, 90\}$ 可以借：
+$72$ 下來，$81$ 上去。 (c) 刪除 $72$，右兄弟 $\{90\}$ 只有一個鍵，合併成
+$\{81, 90\}$，父節點變空。 (d) 父節點只有左兄弟 $\{36\}$，不能借，合併成
+$\{36, 55\}$，根變空後拿掉。}
+\label{fig:mw-234-del}
+\end{center}
+
+\subsection{2-3-4 樹和紅黑樹}
+\label{sec:mw-rb}
+
+第~10~章最後提到，把紅黑樹的每個黑色節點和它的紅色子節點合成一個大節點，就得到一棵
+2-3-4 樹。 反過來，每棵 2-3-4 樹都可以這樣存成紅黑樹：
+\begin{itemize}
+\item 2-節點 $\{a\}$：一個黑色節點 $a$。
+\item 3-節點 $\{a, b\}$：黑色的 $a$ 加上紅色的右子節點 $b$；或者黑色的 $b$ 加上紅色
+的左子節點 $a$，兩種都可以。
+\item 4-節點 $\{a, b, c\}$：黑色的 $b$，左右兩個子節點 $a$、$c$ 都是紅色。
+\end{itemize}
+原本 2-3-4 樹的子樹，依照鍵的範圍接到這幾個二元節點底下。 圖~\ref{fig:mw-234-rb}
+是圖~\ref{fig:mw-234-ins}(h) 的 2-3-4 樹和它對應的一棵紅黑樹，灰底框起來的就是同一
+個 2-3-4 節點。
+
+\begin{center}
+\begin{tikzpicture}[baseline=(current bounding box.north), mwk/.append style={minimum width=0.5cm, minimum height=0.42cm}]
+\draw[mwe] (1.275,-1.11) -- (0.75,-1.59);
+\draw[mwe] (1.775,-1.11) -- (2.3,-1.59);
+\draw[mwe] (3.75,-1.11) -- (3.35,-1.59);
+\draw[mwe] (4.25,-1.11) -- (4.65,-1.59);
+\draw[mwe] (2.512,-0.21) -- (1.525,-0.69);
+\draw[mwe] (3.012,-0.21) -- (4,-0.69);
+\node[mwk] at (0.25,-1.8) {9};
+\node[mwk] at (0.75,-1.8) {18};
+\node[mwk] at (1.25,-1.8) {27};
+\node[mwk] at (2.05,-1.8) {45};
+\node[mwk] at (2.55,-1.8) {50};
+\node[mwk] at (1.525,-0.9) {36};
+\node[mwk] at (3.35,-1.8) {64};
+\node[mwk] at (4.15,-1.8) {81};
+\node[mwk] at (4.65,-1.8) {90};
+\node[mwk] at (5.15,-1.8) {99};
+\node[mwk] at (4,-0.9) {72};
+\node[mwk] at (2.762,0) {55};
+\node[mwlab] at (2.7,-2.28) {(a) 2-3-4 樹};
+\end{tikzpicture}\hspace{1.0cm}\begin{tikzpicture}[baseline=(current bounding box.north)]
+\node[mwR] (rb9) at (0.00,-2.46) {9};
+\node[mwB] (rb18) at (0.58,-1.64) {18};
+\node[mwR] (rb27) at (1.16,-2.46) {27};
+\node[mwB] (rb36) at (1.74,-0.82) {36};
+\node[mwB] (rb45) at (2.32,-1.64) {45};
+\node[mwR] (rb50) at (2.90,-2.46) {50};
+\node[mwB] (rb55) at (3.48,0.00) {55};
+\node[mwB] (rb64) at (4.06,-1.64) {64};
+\node[mwB] (rb72) at (4.64,-0.82) {72};
+\node[mwR] (rb81) at (5.22,-2.46) {81};
+\node[mwB] (rb90) at (5.80,-1.64) {90};
+\node[mwR] (rb99) at (6.38,-2.46) {99};
+\draw[mwe] (rb55) -- (rb36);
+\draw[mwe] (rb36) -- (rb18);
+\draw[mwe] (rb18) -- (rb9);
+\draw[mwe] (rb18) -- (rb27);
+\draw[mwe] (rb36) -- (rb45);
+\draw[mwe] (rb45) -- (rb50);
+\draw[mwe] (rb55) -- (rb72);
+\draw[mwe] (rb72) -- (rb64);
+\draw[mwe] (rb72) -- (rb90);
+\draw[mwe] (rb90) -- (rb81);
+\draw[mwe] (rb90) -- (rb99);
+\begin{scope}[on background layer]
+\node[mwgrp, fit=(rb9) (rb18) (rb27)] {};
+\node[mwgrp, fit=(rb45) (rb50)] {};
+\node[mwgrp, fit=(rb81) (rb90) (rb99)] {};
+\end{scope}
+\node[mwlab] at (3.19,-3.21) {(b) 對應的紅黑樹};
+\end{tikzpicture}
+\diagcaption{同一棵樹的兩種畫法。 4-節點 $\{9, 18, 27\}$ 變成黑色的 $18$ 帶兩個紅色
+子節點；3-節點 $\{45, 50\}$ 這裡選了黑色的 $45$ 帶紅色的右子節點 $50$。 紅黑樹的黑
+高是 $3$，等於 2-3-4 樹的高度。}
+\label{fig:mw-234-rb}
+\end{center}
+
+檢查第~10~章的五條性質：紅色節點只出現在黑色節點底下、和它同一組，所以不會有兩個紅
+色相連；從根往下每經過 2-3-4 樹的一層，剛好經過一個黑色節點，所有葉子同層，所以每
+條路徑的黑色個數一樣，而且（照第~10~章不算自己、算 NIL 的數法）根的黑高就是 2-3-4
+樹的高度。 一棵紅黑樹只對應一棵 2-3-4 樹；一棵 2-3-4 樹有幾個 3-節點，就有 $2$ 的
+那麼多次方種紅黑樹。
+
+這個對應也給了第~10~章高度上界的另一個證明：2-3-4 樹的高度不超過 $\lg(n+1)$，每一層
+在紅黑樹裡最多佔兩層（黑色加紅色），所以紅黑樹的高度不超過 $2\lg(n+1)$。
+
+兩邊的操作也一一對應。 下表的情況編號是第~10~章的編號。
+
+\begin{center}
+\begin{tabular}{p{0.40\linewidth}p{0.50\linewidth}}
+\toprule
+紅黑樹 & 2-3-4 樹 \\
+\midrule
+新節點塗紅 & 新鍵放進葉子節點，不增加層數 \\
+插入情況 1：叔叔是紅的，$p$、$u$ 改黑，$g$ 改紅 & $g$、$p$、$u$ 是一個 4-節點，加進
+新鍵後分裂：中間的 $g$ 變紅，就是往上併進父節點，$p$、$u$ 各成一個節點 \\
+插入情況 2、3：叔叔是黑的，旋轉 & 新鍵放進一個 3-節點，變成 4-節點；旋轉只是把三個
+鍵換成「中間黑、兩邊紅」的排法 \\
+刪除情況 2：兄弟和它的子節點都是黑的，兄弟改紅 & 兄弟是 2-節點，不能借，合併：
+父節點的鍵下來（$p$ 的雙重黑往上傳，就是父節點少了一個鍵） \\
+刪除情況 3、4：兄弟有紅色的子節點 & 兄弟是 3- 或 4-節點，向它借一個鍵 \\
+刪除情況 1：兄弟是紅的 & 父節點是 3-節點，換一種二元的排法，2-3-4 樹沒有變 \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+要注意，紅黑樹插入時遇到 4-節點，往上送的是原本三個鍵中間的那一個（$g$），新鍵留在
+分出去的其中一邊。 這和本節由上而下插入時往上送的鍵相同，但紅黑樹是插入之後才往上
+修，所以兩邊畫出來的樹不一定每一步都一樣。
+
+\section{B 樹}
+\label{sec:mw-btree}
+
+\subsection{定義}
+
+2-3 樹和 2-3-4 樹只是子節點數上限不同。 把上限寫成參數 $m$，就是 B 樹。
+
+\begin{definition}[$m$ 階 B 樹]
+\label{def:mw-btree}
+設 $m \ge 3$。 一棵\textbf{$m$ 階 B 樹}（B-tree of order $m$）是一棵 $m$ 路搜尋樹，
+滿足：
+\begin{enumerate}
+\item 每個節點最多 $m$ 個子節點，也就是最多 $m - 1$ 個鍵。
+\item 根如果不是葉子，至少有 $2$ 個子節點。
+\item 根以外的內部節點，至少有 $\lceil m/2 \rceil$ 個子節點。
+\item 根以外的每個節點（包括葉子），至少有 $\lceil m/2 \rceil - 1$ 個鍵。
+\item 有 $k$ 個鍵的內部節點剛好有 $k + 1$ 個子節點。
+\item 所有的葉子在同一層。
+\end{enumerate}
+\end{definition}
+
+第 3 條和第 5 條合起來等於第 4 條對內部節點的要求；第 4 條另外規定了葉子。 根是例外，
+只要至少一個鍵。
+
+\begin{center}
+\begin{tabular}{ccccc}
+\toprule
+階數 $m$ & 非根節點的鍵數 & 非根內部節點的子節點數 & 根的鍵數 & 別名 \\
+\midrule
+$3$ & $1 \sim 2$ & $2 \sim 3$ & $1 \sim 2$ & 2-3 樹 \\
+$4$ & $1 \sim 3$ & $2 \sim 4$ & $1 \sim 3$ & 2-3-4 樹 \\
+$5$ & $2 \sim 4$ & $3 \sim 5$ & $1 \sim 4$ & \\
+$m$ & $\lceil m/2 \rceil - 1 \sim m - 1$ & $\lceil m/2 \rceil \sim m$ & $1 \sim m - 1$ & \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+有些書在葉子底下再畫一層方塊，叫\textbf{外部節點}或\textbf{失敗節點}（failure
+node），代表搜尋失敗時會走到的地方，第 6 條就改說「所有外部節點在同一層」。 有 $n$
+個鍵的 B 樹剛好有 $n + 1$ 個外部節點（觀念題第 9 題），因為 $n$ 個鍵把數線切成
+$n + 1$ 段。 本章的圖不畫外部節點，高度也不算這一層。
+
+\begin{examnote}
+「階數」有兩種常見的定義，作答前先看清楚題目用哪一種。 本書（以及多數資料結構課本）
+的 $m$ 階是\textbf{最多 $m$ 個子節點}。 CLRS 用\textbf{最小分支度}（minimum degree）
+$t$：非根節點有 $t - 1$ 到 $2t - 1$ 個鍵、$t$ 到 $2t$ 個子節點，換成本書的說法就是
+$m = 2t$ 階。 所以 CLRS 的 $t = 2$ 是 2-3-4 樹（$4$ 階），而奇數階（例如 $3$ 階、
+$5$ 階）在 CLRS 的定義裡寫不出來。 另外，B 樹最早的論文說的「$k$ 階」是每個非根節點
+有 $k$ 到 $2k$ 個鍵，對應本書的 $m = 2k + 1$。
+\end{examnote}
+
+\subsection{高度}
+\label{sec:mw-height}
+
+\begin{theorem}
+\label{thm:mw-height}
+有 $n \ge 1$ 個鍵、高度 $h$ 的 $m$ 階 B 樹，令 $c = \lceil m/2 \rceil$，則
+\[
+2c^{h-1} - 1 \;\le\; n \;\le\; m^h - 1,
+\qquad\text{也就是}\qquad
+\log_m(n + 1) \;\le\; h \;\le\; 1 + \log_c \frac{n + 1}{2}.
+\]
+\end{theorem}
+
+\begin{proof}
+\textbf{上界 $n \le m^h - 1$。} 每個節點最多 $m$ 個子節點，第 $i$ 層最多 $m^{i-1}$
+個節點，每個節點最多 $m - 1$ 個鍵，所以
+\[
+n \le (m - 1)(1 + m + m^2 + \cdots + m^{h-1}) = (m - 1) \cdot \frac{m^h - 1}{m - 1}
+= m^h - 1.
+\]
+
+\textbf{下界 $n \ge 2c^{h-1} - 1$。} 數每一層\textbf{最少}有幾個節點。 第 $1$ 層是根，
+$1$ 個。 $h \ge 2$ 時根至少有 $2$ 個子節點，第 $2$ 層至少 $2$ 個節點；從第 $2$ 層起，
+每個節點都是非根節點，第 $h$ 層以外的都是內部節點，各至少有 $c$ 個子節點，所以第
+$i$ 層（$2 \le i \le h$）至少有 $2c^{i-2}$ 個節點。 根至少 $1$ 個鍵，其他節點至少
+$c - 1$ 個鍵：
+\[
+n \;\ge\; 1 + (c - 1) \sum_{i=2}^{h} 2c^{i-2}
+\;=\; 1 + 2(c - 1) \cdot \frac{c^{h-1} - 1}{c - 1}
+\;=\; 2c^{h-1} - 1.
+\]
+$h = 1$ 時右邊是 $1$，也成立。 兩個不等式分別取對數，得到 $h$ 的範圍。
+\end{proof}
+
+下界可以達到：每個非根節點剛好 $c - 1$ 個鍵、根剛好 $1$ 個鍵的樹就是。
+圖~\ref{fig:mw-b-ins}(o) 那棵 $5$ 階 B 樹有 $17$ 個鍵、高度 $3$，正好是
+$2 \cdot 3^2 - 1 = 17$。 上界也可以達到：每個節點都放滿 $m - 1$ 個鍵。
+
+$m$ 是常數時，兩邊都是 $\Theta(\log n)$。 但底數差很多：$m = 200$ 時下界的底數是
+$200$，上界的底數是 $100$，高度大約只有二元樹的 $1/6.6$（$\lg 100 \approx 6.6$）。 B 樹
+的好處就在這裡。
+
+\begin{examnote}
+本書的高度數節點，CLRS 數邊，CLRS 的高度比本書少 $1$。 例如定理~\ref{thm:mw-height}
+的上界，用 CLRS 的高度 $h' = h - 1$ 和 $m = 2t$ 寫，就是 CLRS 的
+$h' \le \log_t \frac{n+1}{2}$，同一件事。 計算題要先看題目的高度怎麼定義（「只有根的樹
+高度是 $0$ 還是 $1$」），答案差 $1$；題目沒說時，寫出你用的定義再算。
+\end{examnote}
+
+考卷上的高度題，用定理的兩個不等式直接算，不要用對數的近似值，邊界很容易差一格。
+
+\textbf{例 1.} $5$ 階 B 樹有 $1000$ 個鍵，高度可能是多少？ 這裡 $c = 3$。 最矮：要
+$5^h - 1 \ge 1000$，$5^4 = 625$ 不夠，$5^5 = 3125$ 夠，所以 $h \ge 5$。 最高：要
+$2 \cdot 3^{h-1} - 1 \le 1000$，也就是 $3^{h-1} \le 500.5$；$3^5 = 243$ 可以，
+$3^6 = 729$ 不行，所以 $h - 1 \le 5$，$h \le 6$。 答案是 $5$ 或 $6$。
+
+\textbf{例 2.} 高度 $4$ 的 $5$ 階 B 樹最少、最多有幾個鍵？ 最少 $2 \cdot 3^3 - 1 = 53$，
+最多 $5^4 - 1 = 624$。
+
+
+\subsection{搜尋}
+
+搜尋和多路搜尋樹一樣。 虛擬碼的節點 $x$ 有 $x.n$ 個鍵
+$x.\mathit{key}[1..x.n]$，內部節點有 $x.n + 1$ 個子指標 $x.c[1..x.n+1]$，
+$x.\mathit{leaf}$ 表示是不是葉子。
+
+\begin{pseudo}[label=alg:mw-search]{在以 $x$ 為根的子樹裡找 $k$，回傳節點和位置}
+\Function{B-Tree-Search}{$x, k$}
+    \State $i \gets 1$
+    \While{$i \le x.n$ \AND $k > x.\mathit{key}[i]$}
+        \State $i \gets i + 1$
+    \EndWhile
+    \If{$i \le x.n$ \AND $k = x.\mathit{key}[i]$}
+        \State \Return $(x, i)$
+    \EndIf
+    \If{$x.\mathit{leaf}$}
+        \State \Return \NIL
+    \EndIf
+    \State 從磁碟讀入節點 $x.c[i]$
+    \State \Return \Call{B-Tree-Search}{$x.c[i], k$}
+\EndFunction
+\end{pseudo}
+
+走過的節點最多 $h$ 個，第 9 行讀磁碟最多 $h = O(\log_c n)$ 次。 第 3 行在節點裡循序找，
+CPU 時間 $O(m \log_c n)$；改用二分搜尋是 $O(\lg m \cdot \log_c n) = O(\lg n)$。 磁碟上
+的 B 樹，瓶頸是讀取次數。
+
+\subsection{插入}
+\label{sec:mw-insert}
+
+插入照 2-3 樹的做法：放進葉子，溢位就分裂，一路往上。 節點溢位時有 $m$ 個鍵
+$k_1 < k_2 < \cdots < k_m$，令 $p = \lceil m/2 \rceil$：
+\begin{itemize}
+\item $k_1, \ldots, k_{p-1}$ 留在原節點，共 $p - 1 = \lceil m/2 \rceil - 1$ 個；
+\item $k_p$ 往上送進父節點；
+\item $k_{p+1}, \ldots, k_m$ 放進新節點，共 $m - p = \lfloor m/2 \rfloor$ 個。
+\end{itemize}
+兩邊都至少有 $\lceil m/2 \rceil - 1$ 個鍵，符合定義的第 4 條（觀念題第 8 題）。 $m$ 是
+奇數時 $k_p$ 正好在中間；$m$ 是偶數時左邊比右邊少一個。
+
+虛擬碼用遞迴寫：\proc{Insert-Down} 把 $k$ 插進 $x$ 的子樹，如果 $x$ 因此分裂，就把
+「上升的鍵」和「分出來的右半節點」交回給呼叫它的父節點。 節點的陣列要多留一格，讓它
+可以暫時放 $m$ 個鍵。
+
+\begin{pseudo}[label=alg:mw-insert]{B 樹的插入}
+\Procedure{B-Tree-Insert}{$T, k$}
+    \If{$T.\mathit{root} = \NIL$}
+        \State $T.\mathit{root} \gets$ 只放 $k$ 的新葉子
+        \State \Return
+    \EndIf
+    \State $(u, r) \gets$ \Call{Insert-Down}{$T.\mathit{root}, k$}
+    \If{$r \ne \NIL$} \Comment{根分裂了}
+        \State $s \gets$ 新節點，$s.n \gets 1$，$s.\mathit{key}[1] \gets u$
+        \State $s.c[1] \gets T.\mathit{root}$，$s.c[2] \gets r$
+        \State $T.\mathit{root} \gets s$
+    \EndIf
+\EndProcedure
+\end{pseudo}
+
+\begin{pseudo}[label=alg:mw-insdown]{把 $k$ 插進 $x$ 的子樹；$x$ 分裂時回傳上升的鍵和新的右半節點}
+\Function{Insert-Down}{$x, k$}
+    \State $i \gets 1$
+    \While{$i \le x.n$ \AND $k > x.\mathit{key}[i]$}
+        \State $i \gets i + 1$
+    \EndWhile
+    \If{$x.\mathit{leaf}$}
+        \State $x.\mathit{key}[i..x.n]$ 往後移一格，$x.\mathit{key}[i] \gets k$
+        \State $x.n \gets x.n + 1$
+    \Else
+        \State $(u, r) \gets$ \Call{Insert-Down}{$x.c[i], k$}
+        \If{$r = \NIL$}
+            \State \Return $(\NIL, \NIL)$
+        \EndIf
+        \State $x.\mathit{key}[i..x.n]$、$x.c[i+1..x.n+1]$ 往後移一格
+        \State $x.\mathit{key}[i] \gets u$，$x.c[i+1] \gets r$，$x.n \gets x.n + 1$
+    \EndIf
+    \If{$x.n < m$}
+        \State \Return $(\NIL, \NIL)$
+    \EndIf
+    \State \Return \Call{Split}{$x$}
+\EndFunction
+\end{pseudo}
+
+\begin{pseudo}[label=alg:mw-split]{分裂有 $m$ 個鍵的節點 $x$}
+\Function{Split}{$x$}
+    \State $p \gets \lceil m/2 \rceil$
+    \State $r \gets$ 新節點，$r.\mathit{leaf} \gets x.\mathit{leaf}$
+    \State $r.\mathit{key}[1..m-p] \gets x.\mathit{key}[p+1..m]$
+    \If{$x$ 不是葉子}
+        \State $r.c[1..m-p+1] \gets x.c[p+1..m+1]$
+    \EndIf
+    \State $r.n \gets m - p$，$x.n \gets p - 1$
+    \State \Return $(x.\mathit{key}[p], r)$
+\EndFunction
+\end{pseudo}
+
+\proc{Insert-Down} 第 3 行找到 $k$ 該去的位置；葉子就在第 6 行放進去，內部節點就在第
+9 行往下遞迴，下面分裂時在第 12、13 行把上升的鍵 $u$ 和右半節點 $r$ 接進來。 第 14
+行檢查自己有沒有溢位，溢位就在第 16 行分裂。 \proc{Split} 的第 5、6 行：內部節點分裂時，右邊的 $m - p$
+個鍵帶著它們周圍的 $m - p + 1$ 個子指標一起搬走，左邊留下 $p - 1$ 個鍵和 $p$ 個子
+指標，加起來剛好是原本的 $m + 1$ 個。
+
+\textbf{成本。} 往下走 $h$ 層，回程每層最多分裂一次，每次分裂搬 $O(m)$ 個鍵和指標，
+讀寫磁碟 $O(h)$ 次，CPU 時間 $O(mh) = O(m \log_c n)$。 分裂其實很少：每次分裂多出一
+個節點，而每個非根節點至少有 $c - 1$ 個鍵，所以從空樹插入 $n$ 個鍵，總共的分裂次數
+不超過節點數，約 $n / (c - 1)$。 用第~3~章的說法，每次插入平攤只有 $O(1/m)$ 次分裂。
+
+\subsection{插入的完整追蹤}
+\label{sec:mw-b-trace}
+
+把 $40, 57, 65, 56, 29, 12, 53, 23, 50, 14, 28, 16, 81, 48, 96, 72, 47$ 依序插入空
+的 $5$ 階 B 樹。 每個節點最多 $4$ 個鍵，放到第 $5$ 個就溢位，分裂時第 $3$ 個鍵
+（$p = 3$）上升，左右各留 $2$ 個。
+
+\begin{center}
+\begin{tikzpicture}[baseline=(current bounding box.north), mwk/.append style={minimum width=0.46cm, minimum height=0.42cm}]
+\node[mwk,mwkN] at (0.23,0) {40};
+\node[mwk,mwkN] at (0.69,0) {56};
+\node[mwk,mwkN] at (1.15,0) {57};
+\node[mwk,mwkN] at (1.61,0) {65};
+\node[mwlab] at (0.92,-1.28) {(a) 插入 40、57、65、56};
+\end{tikzpicture}\hspace{0.55cm}\begin{tikzpicture}[baseline=(current bounding box.north), mwk/.append style={minimum width=0.46cm, minimum height=0.42cm}]
+\node[mwk,mwkN] at (0.23,0) {29};
+\node[mwk,mwkB] at (0.69,0) {40};
+\node[mwk,mwkB] at (1.15,0) {56};
+\node[mwk,mwkB] at (1.61,0) {57};
+\node[mwk,mwkB] at (2.07,0) {65};
+\draw[mwbad] (0,-0.21) rectangle (2.3,0.21);
+\node[mwlab] at (1.15,-1.28) {(b) 插入 29：溢位};
+\end{tikzpicture}\hspace{0.55cm}\begin{tikzpicture}[baseline=(current bounding box.north), mwk/.append style={minimum width=0.46cm, minimum height=0.42cm}]
+\draw[mwe] (0.84,-0.21) -- (0.46,-0.59);
+\draw[mwe] (1.3,-0.21) -- (1.68,-0.59);
+\node[mwk] at (0.23,-0.8) {29};
+\node[mwk] at (0.69,-0.8) {40};
+\node[mwk] at (1.45,-0.8) {57};
+\node[mwk] at (1.91,-0.8) {65};
+\node[mwk,mwkM] at (1.07,0) {56};
+\node[mwlab] at (1.07,-1.28) {(c) 分裂，56 上升成新根};
+\end{tikzpicture}\\*[0.45em]
+\begin{tikzpicture}[baseline=(current bounding box.north), mwk/.append style={minimum width=0.46cm, minimum height=0.42cm}]
+\draw[mwe] (1.53,-0.21) -- (0.92,-0.59);
+\draw[mwe] (1.99,-0.21) -- (2.6,-0.59);
+\node[mwk,mwkN] at (0.23,-0.8) {12};
+\node[mwk] at (0.69,-0.8) {29};
+\node[mwk] at (1.15,-0.8) {40};
+\node[mwk,mwkN] at (1.61,-0.8) {53};
+\node[mwk] at (2.37,-0.8) {57};
+\node[mwk] at (2.83,-0.8) {65};
+\node[mwk] at (1.76,0) {56};
+\node[mwlab] at (1.53,-1.28) {(d) 插入 12、53};
+\end{tikzpicture}\hspace{0.55cm}\begin{tikzpicture}[baseline=(current bounding box.north), mwk/.append style={minimum width=0.46cm, minimum height=0.42cm}]
+\draw[mwe] (1.875,-0.21) -- (1.15,-0.59);
+\draw[mwe] (2.335,-0.21) -- (3.06,-0.59);
+\node[mwk,mwkB] at (0.23,-0.8) {12};
+\node[mwk,mwkN] at (0.69,-0.8) {23};
+\node[mwk,mwkB] at (1.15,-0.8) {29};
+\node[mwk,mwkB] at (1.61,-0.8) {40};
+\node[mwk,mwkB] at (2.07,-0.8) {53};
+\draw[mwbad] (0,-1.01) rectangle (2.3,-0.59);
+\node[mwk] at (2.83,-0.8) {57};
+\node[mwk] at (3.29,-0.8) {65};
+\node[mwk] at (2.105,0) {56};
+\node[mwlab] at (1.76,-1.28) {(e) 插入 23：溢位};
+\end{tikzpicture}\hspace{0.55cm}\begin{tikzpicture}[baseline=(current bounding box.north), mwk/.append style={minimum width=0.46cm, minimum height=0.42cm}]
+\draw[mwe] (1.22,-0.21) -- (0.46,-0.59);
+\draw[mwe] (1.68,-0.21) -- (1.68,-0.59);
+\draw[mwe] (2.14,-0.21) -- (2.9,-0.59);
+\node[mwk] at (0.23,-0.8) {12};
+\node[mwk] at (0.69,-0.8) {23};
+\node[mwk] at (1.45,-0.8) {40};
+\node[mwk] at (1.91,-0.8) {53};
+\node[mwk] at (2.67,-0.8) {57};
+\node[mwk] at (3.13,-0.8) {65};
+\node[mwk,mwkM] at (1.45,0) {29};
+\node[mwk] at (1.91,0) {56};
+\node[mwlab] at (1.68,-1.28) {(f) 分裂，29 上升};
+\end{tikzpicture}\\*[0.45em]
+\begin{tikzpicture}[baseline=(current bounding box.north), mwk/.append style={minimum width=0.46cm, minimum height=0.42cm}]
+\draw[mwe] (2.14,-0.21) -- (0.92,-0.59);
+\draw[mwe] (2.6,-0.21) -- (2.83,-0.59);
+\draw[mwe] (3.06,-0.21) -- (4.28,-0.59);
+\node[mwk] at (0.23,-0.8) {12};
+\node[mwk,mwkN] at (0.69,-0.8) {14};
+\node[mwk] at (1.15,-0.8) {23};
+\node[mwk,mwkN] at (1.61,-0.8) {28};
+\node[mwk] at (2.37,-0.8) {40};
+\node[mwk,mwkN] at (2.83,-0.8) {50};
+\node[mwk] at (3.29,-0.8) {53};
+\node[mwk] at (4.05,-0.8) {57};
+\node[mwk] at (4.51,-0.8) {65};
+\node[mwk] at (2.37,0) {29};
+\node[mwk] at (2.83,0) {56};
+\node[mwlab] at (2.37,-1.28) {(g) 插入 50、14、28};
+\end{tikzpicture}\hspace{0.55cm}\begin{tikzpicture}[baseline=(current bounding box.north), mwk/.append style={minimum width=0.46cm, minimum height=0.42cm}]
+\draw[mwe] (2.485,-0.21) -- (1.15,-0.59);
+\draw[mwe] (2.945,-0.21) -- (3.29,-0.59);
+\draw[mwe] (3.405,-0.21) -- (4.74,-0.59);
+\node[mwk,mwkB] at (0.23,-0.8) {12};
+\node[mwk,mwkB] at (0.69,-0.8) {14};
+\node[mwk,mwkN] at (1.15,-0.8) {16};
+\node[mwk,mwkB] at (1.61,-0.8) {23};
+\node[mwk,mwkB] at (2.07,-0.8) {28};
+\draw[mwbad] (0,-1.01) rectangle (2.3,-0.59);
+\node[mwk] at (2.83,-0.8) {40};
+\node[mwk] at (3.29,-0.8) {50};
+\node[mwk] at (3.75,-0.8) {53};
+\node[mwk] at (4.51,-0.8) {57};
+\node[mwk] at (4.97,-0.8) {65};
+\node[mwk] at (2.715,0) {29};
+\node[mwk] at (3.175,0) {56};
+\node[mwlab] at (2.6,-1.28) {(h) 插入 16：溢位};
+\end{tikzpicture}\\*[0.45em]
+\begin{tikzpicture}[baseline=(current bounding box.north), mwk/.append style={minimum width=0.46cm, minimum height=0.42cm}]
+\draw[mwe] (1.83,-0.21) -- (0.46,-0.59);
+\draw[mwe] (2.29,-0.21) -- (1.68,-0.59);
+\draw[mwe] (2.75,-0.21) -- (3.13,-0.59);
+\draw[mwe] (3.21,-0.21) -- (4.58,-0.59);
+\node[mwk] at (0.23,-0.8) {12};
+\node[mwk] at (0.69,-0.8) {14};
+\node[mwk] at (1.45,-0.8) {23};
+\node[mwk] at (1.91,-0.8) {28};
+\node[mwk] at (2.67,-0.8) {40};
+\node[mwk] at (3.13,-0.8) {50};
+\node[mwk] at (3.59,-0.8) {53};
+\node[mwk] at (4.35,-0.8) {57};
+\node[mwk] at (4.81,-0.8) {65};
+\node[mwk,mwkM] at (2.06,0) {16};
+\node[mwk] at (2.52,0) {29};
+\node[mwk] at (2.98,0) {56};
+\node[mwlab] at (2.52,-1.28) {(i) 分裂，16 上升};
+\end{tikzpicture}\hspace{0.55cm}\begin{tikzpicture}[baseline=(current bounding box.north), mwk/.append style={minimum width=0.46cm, minimum height=0.42cm}]
+\draw[mwe] (2.29,-0.21) -- (0.46,-0.59);
+\draw[mwe] (2.75,-0.21) -- (1.68,-0.59);
+\draw[mwe] (3.21,-0.21) -- (3.36,-0.59);
+\draw[mwe] (3.67,-0.21) -- (5.5,-0.59);
+\node[mwk] at (0.23,-0.8) {12};
+\node[mwk] at (0.69,-0.8) {14};
+\node[mwk] at (1.45,-0.8) {23};
+\node[mwk] at (1.91,-0.8) {28};
+\node[mwk] at (2.67,-0.8) {40};
+\node[mwk,mwkN] at (3.13,-0.8) {48};
+\node[mwk] at (3.59,-0.8) {50};
+\node[mwk] at (4.05,-0.8) {53};
+\node[mwk] at (4.81,-0.8) {57};
+\node[mwk] at (5.27,-0.8) {65};
+\node[mwk,mwkN] at (5.73,-0.8) {81};
+\node[mwk,mwkN] at (6.19,-0.8) {96};
+\node[mwk] at (2.52,0) {16};
+\node[mwk] at (2.98,0) {29};
+\node[mwk] at (3.44,0) {56};
+\node[mwlab] at (3.21,-1.28) {(j) 插入 81、48、96};
+\end{tikzpicture}\\*[0.45em]
+\begin{tikzpicture}[baseline=(current bounding box.north), mwk/.append style={minimum width=0.46cm, minimum height=0.42cm}]
+\draw[mwe] (2.405,-0.21) -- (0.46,-0.59);
+\draw[mwe] (2.865,-0.21) -- (1.68,-0.59);
+\draw[mwe] (3.325,-0.21) -- (3.36,-0.59);
+\draw[mwe] (3.785,-0.21) -- (5.73,-0.59);
+\node[mwk] at (0.23,-0.8) {12};
+\node[mwk] at (0.69,-0.8) {14};
+\node[mwk] at (1.45,-0.8) {23};
+\node[mwk] at (1.91,-0.8) {28};
+\node[mwk] at (2.67,-0.8) {40};
+\node[mwk] at (3.13,-0.8) {48};
+\node[mwk] at (3.59,-0.8) {50};
+\node[mwk] at (4.05,-0.8) {53};
+\node[mwk,mwkB] at (4.81,-0.8) {57};
+\node[mwk,mwkB] at (5.27,-0.8) {65};
+\node[mwk,mwkN] at (5.73,-0.8) {72};
+\node[mwk,mwkB] at (6.19,-0.8) {81};
+\node[mwk,mwkB] at (6.65,-0.8) {96};
+\draw[mwbad] (4.58,-1.01) rectangle (6.88,-0.59);
+\node[mwk] at (2.635,0) {16};
+\node[mwk] at (3.095,0) {29};
+\node[mwk] at (3.555,0) {56};
+\node[mwlab] at (3.44,-1.28) {(k) 插入 72：溢位};
+\end{tikzpicture}\hspace{0.55cm}\begin{tikzpicture}[baseline=(current bounding box.north), mwk/.append style={minimum width=0.46cm, minimum height=0.42cm}]
+\draw[mwe] (2.44,-0.21) -- (0.46,-0.59);
+\draw[mwe] (2.9,-0.21) -- (1.68,-0.59);
+\draw[mwe] (3.36,-0.21) -- (3.36,-0.59);
+\draw[mwe] (3.82,-0.21) -- (5.04,-0.59);
+\draw[mwe] (4.28,-0.21) -- (6.26,-0.59);
+\node[mwk] at (0.23,-0.8) {12};
+\node[mwk] at (0.69,-0.8) {14};
+\node[mwk] at (1.45,-0.8) {23};
+\node[mwk] at (1.91,-0.8) {28};
+\node[mwk] at (2.67,-0.8) {40};
+\node[mwk] at (3.13,-0.8) {48};
+\node[mwk] at (3.59,-0.8) {50};
+\node[mwk] at (4.05,-0.8) {53};
+\node[mwk] at (4.81,-0.8) {57};
+\node[mwk] at (5.27,-0.8) {65};
+\node[mwk] at (6.03,-0.8) {81};
+\node[mwk] at (6.49,-0.8) {96};
+\node[mwk] at (2.67,0) {16};
+\node[mwk] at (3.13,0) {29};
+\node[mwk] at (3.59,0) {56};
+\node[mwk,mwkM] at (4.05,0) {72};
+\node[mwlab] at (3.36,-1.28) {(l) 分裂，72 上升};
+\end{tikzpicture}\\*[0.45em]
+\begin{tikzpicture}[baseline=(current bounding box.north), mwk/.append style={minimum width=0.46cm, minimum height=0.42cm}]
+\draw[mwe] (2.67,-0.21) -- (0.46,-0.59);
+\draw[mwe] (3.13,-0.21) -- (1.68,-0.59);
+\draw[mwe] (3.59,-0.21) -- (3.59,-0.59);
+\draw[mwe] (4.05,-0.21) -- (5.5,-0.59);
+\draw[mwe] (4.51,-0.21) -- (6.72,-0.59);
+\node[mwk] at (0.23,-0.8) {12};
+\node[mwk] at (0.69,-0.8) {14};
+\node[mwk] at (1.45,-0.8) {23};
+\node[mwk] at (1.91,-0.8) {28};
+\node[mwk,mwkB] at (2.67,-0.8) {40};
+\node[mwk,mwkN] at (3.13,-0.8) {47};
+\node[mwk,mwkB] at (3.59,-0.8) {48};
+\node[mwk,mwkB] at (4.05,-0.8) {50};
+\node[mwk,mwkB] at (4.51,-0.8) {53};
+\draw[mwbad] (2.44,-1.01) rectangle (4.74,-0.59);
+\node[mwk] at (5.27,-0.8) {57};
+\node[mwk] at (5.73,-0.8) {65};
+\node[mwk] at (6.49,-0.8) {81};
+\node[mwk] at (6.95,-0.8) {96};
+\node[mwk] at (2.9,0) {16};
+\node[mwk] at (3.36,0) {29};
+\node[mwk] at (3.82,0) {56};
+\node[mwk] at (4.28,0) {72};
+\node[mwlab] at (3.59,-1.28) {(m) 插入 47：溢位};
+\end{tikzpicture}\hspace{0.55cm}\begin{tikzpicture}[baseline=(current bounding box.north), mwk/.append style={minimum width=0.46cm, minimum height=0.42cm}]
+\draw[mwe] (2.36,-0.21) -- (0.46,-0.59);
+\draw[mwe] (2.82,-0.21) -- (1.68,-0.59);
+\draw[mwe] (3.28,-0.21) -- (2.9,-0.59);
+\draw[mwe] (3.74,-0.21) -- (4.12,-0.59);
+\draw[mwe] (4.2,-0.21) -- (5.34,-0.59);
+\draw[mwe] (4.66,-0.21) -- (6.56,-0.59);
+\node[mwk] at (0.23,-0.8) {12};
+\node[mwk] at (0.69,-0.8) {14};
+\node[mwk] at (1.45,-0.8) {23};
+\node[mwk] at (1.91,-0.8) {28};
+\node[mwk] at (2.67,-0.8) {40};
+\node[mwk] at (3.13,-0.8) {47};
+\node[mwk] at (3.89,-0.8) {50};
+\node[mwk] at (4.35,-0.8) {53};
+\node[mwk] at (5.11,-0.8) {57};
+\node[mwk] at (5.57,-0.8) {65};
+\node[mwk] at (6.33,-0.8) {81};
+\node[mwk] at (6.79,-0.8) {96};
+\node[mwk,mwkB] at (2.59,0) {16};
+\node[mwk,mwkB] at (3.05,0) {29};
+\node[mwk,mwkM] at (3.51,0) {48};
+\node[mwk,mwkB] at (3.97,0) {56};
+\node[mwk,mwkB] at (4.43,0) {72};
+\draw[mwbad] (2.36,-0.21) rectangle (4.66,0.21);
+\node[mwlab] at (3.51,-1.28) {(n) 分裂，48 上升，父節點溢位};
+\end{tikzpicture}\\*[0.45em]
+\begin{tikzpicture}[baseline=(current bounding box.north), mwk/.append style={minimum width=0.46cm, minimum height=0.42cm}]
+\draw[mwe] (1.22,-1.01) -- (0.46,-1.39);
+\draw[mwe] (1.68,-1.01) -- (1.68,-1.39);
+\draw[mwe] (2.14,-1.01) -- (2.9,-1.39);
+\draw[mwe] (4.88,-1.01) -- (4.12,-1.39);
+\draw[mwe] (5.34,-1.01) -- (5.34,-1.39);
+\draw[mwe] (5.8,-1.01) -- (6.56,-1.39);
+\draw[mwe] (3.28,-0.21) -- (1.68,-0.59);
+\draw[mwe] (3.74,-0.21) -- (5.34,-0.59);
+\node[mwk] at (0.23,-1.6) {12};
+\node[mwk] at (0.69,-1.6) {14};
+\node[mwk] at (1.45,-1.6) {23};
+\node[mwk] at (1.91,-1.6) {28};
+\node[mwk] at (2.67,-1.6) {40};
+\node[mwk] at (3.13,-1.6) {47};
+\node[mwk] at (1.45,-0.8) {16};
+\node[mwk] at (1.91,-0.8) {29};
+\node[mwk] at (3.89,-1.6) {50};
+\node[mwk] at (4.35,-1.6) {53};
+\node[mwk] at (5.11,-1.6) {57};
+\node[mwk] at (5.57,-1.6) {65};
+\node[mwk] at (6.33,-1.6) {81};
+\node[mwk] at (6.79,-1.6) {96};
+\node[mwk] at (5.11,-0.8) {56};
+\node[mwk] at (5.57,-0.8) {72};
+\node[mwk,mwkM] at (3.51,0) {48};
+\node[mwlab] at (3.51,-2.08) {(o) 根分裂，48 上升成新根};
+\end{tikzpicture}
+\diagcaption{$5$ 階 B 樹的插入。 每次溢位畫一張，分裂之後再畫一張；沒有分裂的插入合
+併成一張。 (m) 到 (o) 是連鎖分裂：葉子分裂後 $48$ 上升，根變成 $5$ 個鍵，再分裂一
+次，$48$ 又上升成為新的根。}
+\label{fig:mw-b-ins}
+\end{center}
+
+五次分裂分別發生在插入 $29, 23, 16, 72, 47$ 時；最後一次是連鎖分裂，兩次上升的都是
+$48$：它先從葉子升到根，剛好又是根裡的第 $3$ 個鍵。
+
+\begin{examnote}
+B 樹的追蹤題，每次分裂（或借、合併）都要畫出整棵樹，並寫出哪個節點溢位或不足、哪個
+鍵上升或下降。 規則有選擇的地方，答案開頭先寫一句你用的約定：偶數階溢位時上升第
+$m/2$ 個還是第 $m/2 + 1$ 個鍵；刪除內部節點的鍵用後繼還是前驅；先向哪一邊的兄弟借、
+和哪一邊合併。 題目有指定就照題目。 畫完檢查三件事：每個節點的鍵數在範圍內、所有葉
+子同層、由左到右讀出來是排好的。
+\end{examnote}
+
+\subsection{C 程式}
+\label{sec:mw-c}
+
+C 程式照虛擬碼~\ref{alg:mw-insert} 到 \ref{alg:mw-split} 寫，階數用 \texttt{M} 固定成
+$5$，陣列從 $0$ 開始。 \texttt{key} 開 \texttt{M} 格，比上限多一格，給溢位時暫放。
+\texttt{insert\_down} 回傳分裂出來的右半節點（沒有分裂時是 \texttt{NULL}），上升的
+鍵透過指標參數 \texttt{up} 帶回；遞迴呼叫時把 \texttt{\&k} 當成 \texttt{up} 傳下去，
+子節點分裂時 \texttt{k} 就換成上升的鍵，接下來插進 \texttt{x} 的正是它。
+\texttt{main} 跑第~\ref{sec:mw-b-trace}~節的例子，印出有分裂的插入和最後每一層的節
+點，再找三個鍵。
+
+\begin{cbookrecap}[第~14~章 14.2、14.5 節，第~19~章 19.3 節]
+結構裡可以放陣列，例如 \texttt{int key[M]}，整個陣列跟著結構一起配置，
+\texttt{malloc(sizeof *x)} 一次就要到整個節點。 \texttt{struct Node *child[M + 1]}
+是「指標的陣列」，每一格指向一個子節點。 \texttt{x->key[i]} 是 \texttt{(*x).key[i]}
+的簡寫。 釋放一棵樹要先釋放所有子節點，最後才釋放自己。
+\end{cbookrecap}
+
+\begin{example}[label=ex:mw-btree]{c}{(btree\_insert.c) B 樹的搜尋與插入}
+#include <stdio.h>
+#include <stdlib.h>
+
+#define M 5                         // 階數：每個節點最多 M 個子節點
+
+typedef struct Node {
+    int n, leaf;                    // 鍵的個數；是不是葉子
+    int key[M];                     // 最多 M-1 個，溢位時暫時 M 個
+    struct Node *child[M + 1];
+} Node;
+
+static int splits;                  // 統計分裂的次數
+
+static Node *new_node(int leaf)
+{
+    Node *x = malloc(sizeof *x);
+    if (x == NULL) {
+        exit(1);
+    }
+    x->n = 0;
+    x->leaf = leaf;
+    return x;
+}
+
+static int find_pos(const Node *x, int k)      // 第一個 >= k 的位置
+{
+    int i = 0;
+    while (i < x->n && k > x->key[i]) {
+        i++;
+    }
+    return i;
+}
+
+// 回傳 k 所在的節點（找不到是 NULL），*visits 是讀了幾個節點。
+Node *bt_search(Node *x, int k, int *visits)
+{
+    *visits = 0;
+    while (x != NULL) {
+        (*visits)++;
+        int i = find_pos(x, k);
+        if (i < x->n && x->key[i] == k) {
+            return x;
+        }
+        x = x->leaf ? NULL : x->child[i];
+    }
+    return NULL;
+}
+
+// x 有 M 個鍵：前 p-1 個留下，第 p 個上升（放進 *up），其餘搬到新節點。
+static Node *split(Node *x, int *up)
+{
+    int p = (M + 1) / 2;            // ceil(M/2)
+    Node *r = new_node(x->leaf);
+    r->n = M - p;
+    for (int j = 0; j < r->n; j++) {
+        r->key[j] = x->key[p + j];
+    }
+    for (int j = 0; !x->leaf && j <= r->n; j++) {
+        r->child[j] = x->child[p + j];
+    }
+    *up = x->key[p - 1];
+    x->n = p - 1;
+    splits++;
+    return r;
+}
+
+// 把 k 插進 x 的子樹。x 分裂時回傳右半節點，否則回傳 NULL。
+static Node *insert_down(Node *x, int k, int *up)
+{
+    int i = find_pos(x, k);
+    if (i < x->n && x->key[i] == k) {
+        return NULL;                // 已經有了，不插
+    }
+    Node *r = NULL;
+    if (!x->leaf) {
+        r = insert_down(x->child[i], k, &k);   // 子節點分裂時，k 換成上升的鍵
+        if (r == NULL) {
+            return NULL;
+        }
+    }
+    for (int j = x->n; j > i; j--) {            // 騰出位置 i
+        x->key[j] = x->key[j - 1];
+        if (!x->leaf) {
+            x->child[j + 1] = x->child[j];
+        }
+    }
+    x->key[i] = k;
+    if (!x->leaf) {
+        x->child[i + 1] = r;
+    }
+    x->n++;
+    return x->n < M ? NULL : split(x, up);
+}
+
+Node *bt_insert(Node *root, int k)  // 回傳新的根
+{
+    if (root == NULL) {
+        root = new_node(1);
+        root->key[0] = k;
+        root->n = 1;
+        return root;
+    }
+    int up;
+    Node *r = insert_down(root, k, &up);
+    if (r == NULL) {
+        return root;
+    }
+    Node *s = new_node(0);          // 根分裂，長出新的根
+    s->n = 1;
+    s->key[0] = up;
+    s->child[0] = root;
+    s->child[1] = r;
+    return s;
+}
+
+int height(const Node *x)           // 數節點：只有根時是 1
+{
+    return x == NULL ? 0 : 1 + (x->leaf ? 0 : height(x->child[0]));
+}
+
+static void print_level(const Node *x, int level)   // 根是第 1 層
+{
+    if (level > 1) {
+        for (int j = 0; j <= x->n; j++) {
+            print_level(x->child[j], level - 1);
+        }
+        return;
+    }
+    printf(" [");
+    for (int j = 0; j < x->n; j++) {
+        printf(j == 0 ? "%d" : " %d", x->key[j]);
+    }
+    putchar(']');
+}
+
+void free_tree(Node *x)
+{
+    for (int j = 0; !x->leaf && j <= x->n; j++) {
+        free_tree(x->child[j]);
+    }
+    free(x);
+}
+
+int main(void)
+{
+    int keys[] = {40, 57, 65, 56, 29, 12, 53, 23, 50,
+                  14, 28, 16, 81, 48, 96, 72, 47};
+    Node *root = NULL;
+    for (int i = 0; i < 17; i++) {
+        int before = splits;
+        root = bt_insert(root, keys[i]);
+        if (splits > before) {
+            printf("insert %d: %d split(s), height %d\n",
+                   keys[i], splits - before, height(root));
+        }
+    }
+    for (int lv = 1; lv <= height(root); lv++) {
+        printf("level %d:", lv);
+        print_level(root, lv);
+        putchar('\n');
+    }
+    int probe[] = {48, 50, 44};
+    for (int i = 0; i < 3; i++) {
+        int v;
+        Node *x = bt_search(root, probe[i], &v);
+        printf("search %d: %s, %d node(s) read\n",
+               probe[i], x != NULL ? "found" : "not found", v);
+    }
+    free_tree(root);
+    return 0;
+}
+\end{example}
+\iosample{}{insert 29: 1 split(s), height 2 \\ insert 23: 1 split(s), height 2 \\ insert 16: 1 split(s), height 2 \\ insert 72: 1 split(s), height 2 \\ insert 47: 2 split(s), height 3 \\ level 1: [48] \\ level 2: [16 29] [56 72] \\ level 3: [12 14] [23 28] [40 47] [50 53] [57 65] [81 96] \\ search 48: found, 1 node(s) read \\ search 50: found, 3 node(s) read \\ search 44: not found, 3 node(s) read}
+
+輸出和圖~\ref{fig:mw-b-ins} 一致：五次有分裂的插入，最後一次分裂兩次。 找 $48$ 只讀
+了根；找 $50$ 和找不到的 $44$ 都走到葉子，讀了 $3$ 個節點，等於樹高。
+\texttt{split} 裡 \texttt{p = (M + 1) / 2} 就是 $\lceil m/2 \rceil$。 左半留下
+\texttt{key[0..p-2]}，上升的是 \texttt{key[p-1]}，右半從 \texttt{key[p]} 開始；0 起
+算和虛擬碼的 1 起算差一格，這裡最容易寫錯。 把 \texttt{M} 改成 $3$ 或 $4$，同一支程
+式就是 2-3 樹或（由下而上的）2-3-4 樹。
+
+\subsection{刪除}
+\label{sec:mw-delete}
+
+刪除照 2-3 樹的做法，只是「不足」的門檻從 $0$ 個鍵變成少於 $\lceil m/2 \rceil - 1$
+個。 令 $\ell = \lceil m/2 \rceil - 1$，是非根節點最少的鍵數。
+\begin{enumerate}
+\item 要刪的鍵在內部節點：換成後繼，改刪葉子裡的後繼。
+\item 從葉子拿掉鍵。 剩下的鍵 $\ge \ell$，或這片葉子就是根，結束。
+\item 節點不足（剩 $\ell - 1$ 個鍵）時：右兄弟有多於 $\ell$ 個鍵，向它借；否則左兄弟有多於
+$\ell$ 個鍵，向它借；都沒有就合併，有右兄弟和右兄弟合併，否則和左兄弟合併。
+\item 合併讓父節點少一個鍵；父節點不足時回到第 3 步處理父節點。 根變成 $0$ 個鍵時，拿
+掉它，高度減 $1$。
+\end{enumerate}
+
+\proc{B-Tree-Delete}$(T, k)$ 呼叫 \proc{Delete-Down}$(T.\mathit{root}, k)$；回來之後如果根
+沒有鍵了，根是葉子就讓樹變空，否則把根換成它唯一的子節點 $T.\mathit{root}.c[1]$，高度
+減 $1$。 不足的情況在父節點那一層處理，所以 \proc{Delete-Down} 處理的是 $x$ 的子節點。
+
+\begin{pseudo}[label=alg:mw-deldown]{從 $x$ 的子樹刪除 $k$；$x$ 自己不足時交給父節點處理}
+\Procedure{Delete-Down}{$x, k$}
+    \State $i \gets 1$
+    \While{$i \le x.n$ \AND $k > x.\mathit{key}[i]$}
+        \State $i \gets i + 1$
+    \EndWhile
+    \If{$x.\mathit{leaf}$}
+        \If{$i \le x.n$ \AND $k = x.\mathit{key}[i]$}
+            \State 刪掉 $x.\mathit{key}[i]$，後面的鍵往前移一格，$x.n \gets x.n - 1$
+        \EndIf
+        \State \Return
+    \EndIf
+    \If{$i \le x.n$ \AND $k = x.\mathit{key}[i]$} \Comment{$k$ 在內部節點}
+        \State $y \gets x.c[i+1]$，再一路往最左邊的子節點走到葉子
+        \State $x.\mathit{key}[i] \gets y.\mathit{key}[1]$ \Comment{換成後繼}
+        \State $k \gets y.\mathit{key}[1]$
+        \State $i \gets i + 1$ \Comment{改到右子樹刪後繼}
+    \EndIf
+    \State \Call{Delete-Down}{$x.c[i], k$}
+    \If{$x.c[i].n < \lceil m/2 \rceil - 1$}
+        \State \Call{Fix-Child}{$x, i$}
+    \EndIf
+\EndProcedure
+\end{pseudo}
+
+\begin{pseudo}[label=alg:mw-fix]{$x.c[i]$ 的鍵太少：借或合併}
+\Procedure{Fix-Child}{$x, i$}
+    \State $\ell \gets \lceil m/2 \rceil - 1$
+    \If{$i \le x.n$ \AND $x.c[i+1].n > \ell$} \Comment{向右兄弟借}
+        \State $x.\mathit{key}[i]$ 移到 $x.c[i]$ 的最後面
+        \State $x.c[i+1]$ 最小的鍵移上來，當新的 $x.\mathit{key}[i]$
+        \State $x.c[i+1]$ 最左的子指標（如果有）移到 $x.c[i]$ 的最右邊
+    \ElsIf{$i > 1$ \AND $x.c[i-1].n > \ell$} \Comment{向左兄弟借}
+        \State 第 4 到 6 行左右對調：$x.\mathit{key}[i-1]$ 下來，$x.c[i-1]$ 最大的鍵上去
+    \Else \Comment{合併}
+        \If{$i > x.n$}
+            \State $i \gets i - 1$ \Comment{沒有右兄弟，改和左兄弟合併}
+        \EndIf
+        \State $x.\mathit{key}[i]$ 和 $x.c[i+1]$ 的鍵、子指標依序接到 $x.c[i]$ 後面
+        \State 從 $x$ 刪掉 $x.\mathit{key}[i]$ 和 $x.c[i+1]$，$x.n \gets x.n - 1$
+        \State 釋放原本的 $x.c[i+1]$
+    \EndIf
+\EndProcedure
+\end{pseudo}
+
+\proc{Delete-Down} 第 11 行換成後繼之後，第 14 行到右子樹刪掉它；後繼是右子樹最小的
+鍵，往下的每一層都走最左邊，最後在第 7 行從葉子拿掉。 每一層遞迴回來時，第 15 行檢
+查剛剛處理的子節點有沒有不足。 \proc{Fix-Child} 第 10、11 行處理最右邊的子節點：它
+沒有右兄弟，把 $i$ 減 $1$ 之後，合併的是左兄弟 $x.c[i]$ 和它自己 $x.c[i+1]$。
+
+\begin{whybox}[借和合併之後仍然是 B 樹]
+不足的節點有 $\ell - 1$ 個鍵（$\ell = \lceil m/2 \rceil - 1$）。 \textbf{借}：兄弟原本多於 $\ell$
+個鍵，借出一個還有至少 $\ell$ 個；不足的節點拿到一個，變成 $\ell$ 個。 分隔鍵換成兄弟最靠
+近的鍵，大小關係不變：例如向右兄弟借，下來的 $x.\mathit{key}[i]$ 比右兄弟所有的鍵小、
+比不足的節點所有的鍵大，放在最後面；上去的是右兄弟最小的鍵，比留在右兄弟的都小。
+搬過去的子樹，裡面的鍵也剛好落在新的範圍裡。 \textbf{合併}：兄弟剛好 $\ell$ 個鍵，合起
+來有 $(\ell - 1) + 1 + \ell = 2\ell = 2\lceil m/2 \rceil - 2 \le (m + 1) - 2 = m - 1$ 個，沒有超
+過上限。 借和合併都只在同一層搬鍵，不改變任何葉子的深度；唯一改變高度的是拿掉空的
+根，所有葉子一起上升一層。 所以第 6 條「葉子同層」一直成立。
+\end{whybox}
+
+刪除的成本和插入一樣：往下 $h$ 層，回程每層最多一次借或合併，每次 $O(m)$，讀寫磁碟
+$O(h)$ 次。 CLRS 用的是另一種寫法：往下走的時候，先確定要進去的子節點至少有 $\ell + 1$
+個鍵（不夠就先借或合併），這樣到了葉子拿掉一個鍵也不會不足，不必回頭。 兩種做法得到
+的樹可能不同；本書的追蹤都用上面這種由下而上的做法。
+
+\subsection{刪除的完整追蹤}
+\label{sec:mw-b-deltrace}
+
+從圖~\ref{fig:mw-b-ins}(o) 的樹出發，再插入 $20, 33, 60$（都沒有分裂），得到
+圖~\ref{fig:mw-b-del}(a)。 接著依序刪除 $12, 96, 48$。 $5$ 階 B 樹的非根節點至少要
+$2$ 個鍵。
+
+\begin{center}
+\begin{tikzpicture}[baseline=(current bounding box.north), mwk/.append style={minimum width=0.46cm, minimum height=0.42cm}]
+\draw[mwe] (1.565,-1.01) -- (0.46,-1.39);
+\draw[mwe] (2.025,-1.01) -- (1.91,-1.39);
+\draw[mwe] (2.485,-1.01) -- (3.59,-1.39);
+\draw[mwe] (6.03,-1.01) -- (5.04,-1.39);
+\draw[mwe] (6.49,-1.01) -- (6.49,-1.39);
+\draw[mwe] (6.95,-1.01) -- (7.94,-1.39);
+\draw[mwe] (4.027,-0.21) -- (2.025,-0.59);
+\draw[mwe] (4.487,-0.21) -- (6.49,-0.59);
+\node[mwk] at (0.23,-1.6) {12};
+\node[mwk] at (0.69,-1.6) {14};
+\node[mwk,mwkN] at (1.45,-1.6) {20};
+\node[mwk] at (1.91,-1.6) {23};
+\node[mwk] at (2.37,-1.6) {28};
+\node[mwk,mwkN] at (3.13,-1.6) {33};
+\node[mwk] at (3.59,-1.6) {40};
+\node[mwk] at (4.05,-1.6) {47};
+\node[mwk] at (1.795,-0.8) {16};
+\node[mwk] at (2.255,-0.8) {29};
+\node[mwk] at (4.81,-1.6) {50};
+\node[mwk] at (5.27,-1.6) {53};
+\node[mwk] at (6.03,-1.6) {57};
+\node[mwk,mwkN] at (6.49,-1.6) {60};
+\node[mwk] at (6.95,-1.6) {65};
+\node[mwk] at (7.71,-1.6) {81};
+\node[mwk] at (8.17,-1.6) {96};
+\node[mwk] at (6.26,-0.8) {56};
+\node[mwk] at (6.72,-0.8) {72};
+\node[mwk] at (4.258,0) {48};
+\node[mwlab] at (4.2,-2.08) {(a) 開始的樹};
+\end{tikzpicture}\\*[0.45em]
+\begin{tikzpicture}[baseline=(current bounding box.north), mwk/.append style={minimum width=0.46cm, minimum height=0.42cm}]
+\draw[mwe] (1.22,-1.01) -- (0.23,-1.39);
+\draw[mwe] (1.68,-1.01) -- (1.45,-1.39);
+\draw[mwe] (2.14,-1.01) -- (3.13,-1.39);
+\draw[mwe] (5.57,-1.01) -- (4.58,-1.39);
+\draw[mwe] (6.03,-1.01) -- (6.03,-1.39);
+\draw[mwe] (6.49,-1.01) -- (7.48,-1.39);
+\draw[mwe] (3.625,-0.21) -- (1.68,-0.59);
+\draw[mwe] (4.085,-0.21) -- (6.03,-0.59);
+\node[mwk,mwkB] at (0.23,-1.6) {14};
+\draw[mwbad] (0,-1.81) rectangle (0.46,-1.39);
+\node[mwk] at (0.99,-1.6) {20};
+\node[mwk] at (1.45,-1.6) {23};
+\node[mwk] at (1.91,-1.6) {28};
+\node[mwk] at (2.67,-1.6) {33};
+\node[mwk] at (3.13,-1.6) {40};
+\node[mwk] at (3.59,-1.6) {47};
+\node[mwk] at (1.45,-0.8) {16};
+\node[mwk] at (1.91,-0.8) {29};
+\node[mwk] at (4.35,-1.6) {50};
+\node[mwk] at (4.81,-1.6) {53};
+\node[mwk] at (5.57,-1.6) {57};
+\node[mwk] at (6.03,-1.6) {60};
+\node[mwk] at (6.49,-1.6) {65};
+\node[mwk] at (7.25,-1.6) {81};
+\node[mwk] at (7.71,-1.6) {96};
+\node[mwk] at (5.8,-0.8) {56};
+\node[mwk] at (6.26,-0.8) {72};
+\node[mwk] at (3.855,0) {48};
+\node[mwlab] at (3.97,-2.08) {(b) 刪除 12：葉子不足};
+\end{tikzpicture}\\*[0.45em]
+\begin{tikzpicture}[baseline=(current bounding box.north), mwk/.append style={minimum width=0.46cm, minimum height=0.42cm}]
+\draw[mwe] (1.335,-1.01) -- (0.46,-1.39);
+\draw[mwe] (1.795,-1.01) -- (1.68,-1.39);
+\draw[mwe] (2.255,-1.01) -- (3.13,-1.39);
+\draw[mwe] (5.57,-1.01) -- (4.58,-1.39);
+\draw[mwe] (6.03,-1.01) -- (6.03,-1.39);
+\draw[mwe] (6.49,-1.01) -- (7.48,-1.39);
+\draw[mwe] (3.682,-0.21) -- (1.795,-0.59);
+\draw[mwe] (4.143,-0.21) -- (6.03,-0.59);
+\node[mwk] at (0.23,-1.6) {14};
+\node[mwk,mwkM] at (0.69,-1.6) {16};
+\node[mwk] at (1.45,-1.6) {23};
+\node[mwk] at (1.91,-1.6) {28};
+\node[mwk] at (2.67,-1.6) {33};
+\node[mwk] at (3.13,-1.6) {40};
+\node[mwk] at (3.59,-1.6) {47};
+\node[mwk,mwkM] at (1.565,-0.8) {20};
+\node[mwk] at (2.025,-0.8) {29};
+\node[mwk] at (4.35,-1.6) {50};
+\node[mwk] at (4.81,-1.6) {53};
+\node[mwk] at (5.57,-1.6) {57};
+\node[mwk] at (6.03,-1.6) {60};
+\node[mwk] at (6.49,-1.6) {65};
+\node[mwk] at (7.25,-1.6) {81};
+\node[mwk] at (7.71,-1.6) {96};
+\node[mwk] at (5.8,-0.8) {56};
+\node[mwk] at (6.26,-0.8) {72};
+\node[mwk] at (3.912,0) {48};
+\node[mwlab] at (3.97,-2.08) {(c) 向右兄弟借：16 下來，20 上去};
+\end{tikzpicture}\\*[0.45em]
+\begin{tikzpicture}[baseline=(current bounding box.north), mwk/.append style={minimum width=0.46cm, minimum height=0.42cm}]
+\draw[mwe] (1.335,-1.01) -- (0.46,-1.39);
+\draw[mwe] (1.795,-1.01) -- (1.68,-1.39);
+\draw[mwe] (2.255,-1.01) -- (3.13,-1.39);
+\draw[mwe] (5.455,-1.01) -- (4.58,-1.39);
+\draw[mwe] (5.915,-1.01) -- (6.03,-1.39);
+\draw[mwe] (6.375,-1.01) -- (7.25,-1.39);
+\draw[mwe] (3.625,-0.21) -- (1.795,-0.59);
+\draw[mwe] (4.085,-0.21) -- (5.915,-0.59);
+\node[mwk] at (0.23,-1.6) {14};
+\node[mwk] at (0.69,-1.6) {16};
+\node[mwk] at (1.45,-1.6) {23};
+\node[mwk] at (1.91,-1.6) {28};
+\node[mwk] at (2.67,-1.6) {33};
+\node[mwk] at (3.13,-1.6) {40};
+\node[mwk] at (3.59,-1.6) {47};
+\node[mwk] at (1.565,-0.8) {20};
+\node[mwk] at (2.025,-0.8) {29};
+\node[mwk] at (4.35,-1.6) {50};
+\node[mwk] at (4.81,-1.6) {53};
+\node[mwk] at (5.57,-1.6) {57};
+\node[mwk] at (6.03,-1.6) {60};
+\node[mwk] at (6.49,-1.6) {65};
+\node[mwk,mwkB] at (7.25,-1.6) {81};
+\draw[mwbad] (7.02,-1.81) rectangle (7.48,-1.39);
+\node[mwk] at (5.685,-0.8) {56};
+\node[mwk] at (6.145,-0.8) {72};
+\node[mwk] at (3.855,0) {48};
+\node[mwlab] at (3.74,-2.08) {(d) 刪除 96：葉子不足};
+\end{tikzpicture}\hspace{0.55cm}\begin{tikzpicture}[baseline=(current bounding box.north), mwk/.append style={minimum width=0.46cm, minimum height=0.42cm}]
+\draw[mwe] (1.335,-1.01) -- (0.46,-1.39);
+\draw[mwe] (1.795,-1.01) -- (1.68,-1.39);
+\draw[mwe] (2.255,-1.01) -- (3.13,-1.39);
+\draw[mwe] (5.34,-1.01) -- (4.58,-1.39);
+\draw[mwe] (5.8,-1.01) -- (5.8,-1.39);
+\draw[mwe] (6.26,-1.01) -- (7.02,-1.39);
+\draw[mwe] (3.567,-0.21) -- (1.795,-0.59);
+\draw[mwe] (4.027,-0.21) -- (5.8,-0.59);
+\node[mwk] at (0.23,-1.6) {14};
+\node[mwk] at (0.69,-1.6) {16};
+\node[mwk] at (1.45,-1.6) {23};
+\node[mwk] at (1.91,-1.6) {28};
+\node[mwk] at (2.67,-1.6) {33};
+\node[mwk] at (3.13,-1.6) {40};
+\node[mwk] at (3.59,-1.6) {47};
+\node[mwk] at (1.565,-0.8) {20};
+\node[mwk] at (2.025,-0.8) {29};
+\node[mwk] at (4.35,-1.6) {50};
+\node[mwk] at (4.81,-1.6) {53};
+\node[mwk] at (5.57,-1.6) {57};
+\node[mwk] at (6.03,-1.6) {60};
+\node[mwk,mwkM] at (6.79,-1.6) {72};
+\node[mwk] at (7.25,-1.6) {81};
+\node[mwk] at (5.57,-0.8) {56};
+\node[mwk,mwkM] at (6.03,-0.8) {65};
+\node[mwk] at (3.797,0) {48};
+\node[mwlab] at (3.74,-2.08) {(e) 向左兄弟借：72 下來，65 上去};
+\end{tikzpicture}\\*[0.45em]
+\begin{tikzpicture}[baseline=(current bounding box.north), mwk/.append style={minimum width=0.46cm, minimum height=0.42cm}]
+\draw[mwe] (1.335,-1.01) -- (0.46,-1.39);
+\draw[mwe] (1.795,-1.01) -- (1.68,-1.39);
+\draw[mwe] (2.255,-1.01) -- (3.13,-1.39);
+\draw[mwe] (4.995,-1.01) -- (4.35,-1.39);
+\draw[mwe] (5.455,-1.01) -- (5.34,-1.39);
+\draw[mwe] (5.915,-1.01) -- (6.56,-1.39);
+\draw[mwe] (3.395,-0.21) -- (1.795,-0.59);
+\draw[mwe] (3.855,-0.21) -- (5.455,-0.59);
+\node[mwk] at (0.23,-1.6) {14};
+\node[mwk] at (0.69,-1.6) {16};
+\node[mwk] at (1.45,-1.6) {23};
+\node[mwk] at (1.91,-1.6) {28};
+\node[mwk] at (2.67,-1.6) {33};
+\node[mwk] at (3.13,-1.6) {40};
+\node[mwk] at (3.59,-1.6) {47};
+\node[mwk] at (1.565,-0.8) {20};
+\node[mwk] at (2.025,-0.8) {29};
+\node[mwk,mwkB] at (4.35,-1.6) {53};
+\draw[mwbad] (4.12,-1.81) rectangle (4.58,-1.39);
+\node[mwk] at (5.11,-1.6) {57};
+\node[mwk] at (5.57,-1.6) {60};
+\node[mwk] at (6.33,-1.6) {72};
+\node[mwk] at (6.79,-1.6) {81};
+\node[mwk] at (5.225,-0.8) {56};
+\node[mwk] at (5.685,-0.8) {65};
+\node[mwk,mwkM] at (3.625,0) {50};
+\node[mwlab] at (3.51,-2.08) {(f) 刪除 48：換成後繼 50，葉子不足};
+\end{tikzpicture}\hspace{0.55cm}\begin{tikzpicture}[baseline=(current bounding box.north), mwk/.append style={minimum width=0.46cm, minimum height=0.42cm}]
+\draw[mwe] (1.335,-1.01) -- (0.46,-1.39);
+\draw[mwe] (1.795,-1.01) -- (1.68,-1.39);
+\draw[mwe] (2.255,-1.01) -- (3.13,-1.39);
+\draw[mwe] (5.65,-1.01) -- (5.04,-1.39);
+\draw[mwe] (6.11,-1.01) -- (6.72,-1.39);
+\draw[mwe] (3.607,-0.21) -- (1.795,-0.59);
+\draw[mwe] (4.067,-0.21) -- (5.88,-0.59);
+\node[mwk] at (0.23,-1.6) {14};
+\node[mwk] at (0.69,-1.6) {16};
+\node[mwk] at (1.45,-1.6) {23};
+\node[mwk] at (1.91,-1.6) {28};
+\node[mwk] at (2.67,-1.6) {33};
+\node[mwk] at (3.13,-1.6) {40};
+\node[mwk] at (3.59,-1.6) {47};
+\node[mwk] at (1.565,-0.8) {20};
+\node[mwk] at (2.025,-0.8) {29};
+\node[mwk] at (4.35,-1.6) {53};
+\node[mwk,mwkM] at (4.81,-1.6) {56};
+\node[mwk] at (5.27,-1.6) {57};
+\node[mwk] at (5.73,-1.6) {60};
+\node[mwk] at (6.49,-1.6) {72};
+\node[mwk] at (6.95,-1.6) {81};
+\node[mwk,mwkB] at (5.88,-0.8) {65};
+\draw[mwbad] (5.65,-1.01) rectangle (6.11,-0.59);
+\node[mwk] at (3.837,0) {50};
+\node[mwlab] at (3.59,-2.08) {(g) 和右兄弟合併，56 下來，父節點不足};
+\end{tikzpicture}\\*[0.45em]
+\begin{tikzpicture}[baseline=(current bounding box.north), mwk/.append style={minimum width=0.46cm, minimum height=0.42cm}]
+\draw[mwe] (2.67,-1.01) -- (0.46,-1.39);
+\draw[mwe] (3.13,-1.01) -- (1.68,-1.39);
+\draw[mwe] (3.59,-1.01) -- (3.13,-1.39);
+\draw[mwe] (4.05,-1.01) -- (5.04,-1.39);
+\draw[mwe] (4.51,-1.01) -- (6.72,-1.39);
+\draw[mwe] (3.59,-0.21) -- (3.59,-0.59);
+\node[mwk] at (0.23,-1.6) {14};
+\node[mwk] at (0.69,-1.6) {16};
+\node[mwk] at (1.45,-1.6) {23};
+\node[mwk] at (1.91,-1.6) {28};
+\node[mwk] at (2.67,-1.6) {33};
+\node[mwk] at (3.13,-1.6) {40};
+\node[mwk] at (3.59,-1.6) {47};
+\node[mwk] at (4.35,-1.6) {53};
+\node[mwk] at (4.81,-1.6) {56};
+\node[mwk] at (5.27,-1.6) {57};
+\node[mwk] at (5.73,-1.6) {60};
+\node[mwk] at (6.49,-1.6) {72};
+\node[mwk] at (6.95,-1.6) {81};
+\node[mwk] at (2.9,-0.8) {20};
+\node[mwk] at (3.36,-0.8) {29};
+\node[mwk,mwkM] at (3.82,-0.8) {50};
+\node[mwk] at (4.28,-0.8) {65};
+\draw[mwempty] (3.36,-0.21) rectangle (3.82,0.21);
+\node[mwlab] at (3.59,-2.08) {(h) 和左兄弟合併，50 下來，根變空};
+\end{tikzpicture}\hspace{0.55cm}\begin{tikzpicture}[baseline=(current bounding box.north), mwk/.append style={minimum width=0.46cm, minimum height=0.42cm}]
+\draw[mwe] (2.67,-0.21) -- (0.46,-0.59);
+\draw[mwe] (3.13,-0.21) -- (1.68,-0.59);
+\draw[mwe] (3.59,-0.21) -- (3.13,-0.59);
+\draw[mwe] (4.05,-0.21) -- (5.04,-0.59);
+\draw[mwe] (4.51,-0.21) -- (6.72,-0.59);
+\node[mwk] at (0.23,-0.8) {14};
+\node[mwk] at (0.69,-0.8) {16};
+\node[mwk] at (1.45,-0.8) {23};
+\node[mwk] at (1.91,-0.8) {28};
+\node[mwk] at (2.67,-0.8) {33};
+\node[mwk] at (3.13,-0.8) {40};
+\node[mwk] at (3.59,-0.8) {47};
+\node[mwk] at (4.35,-0.8) {53};
+\node[mwk] at (4.81,-0.8) {56};
+\node[mwk] at (5.27,-0.8) {57};
+\node[mwk] at (5.73,-0.8) {60};
+\node[mwk] at (6.49,-0.8) {72};
+\node[mwk] at (6.95,-0.8) {81};
+\node[mwk] at (2.9,0) {20};
+\node[mwk] at (3.36,0) {29};
+\node[mwk] at (3.82,0) {50};
+\node[mwk] at (4.28,0) {65};
+\node[mwlab] at (3.59,-2.08) {(i) 拿掉空的根};
+\end{tikzpicture}
+\diagcaption{$5$ 階 B 樹的刪除。 (h) 之後拿掉空的根，高度從 $3$ 變成 $2$。}
+\label{fig:mw-b-del}
+\end{center}
+
+\begin{itemize}
+\item 刪除 $12$：葉子剩 $\{14\}$，不足。 右兄弟 $\{20, 23, 28\}$ 有 $3$ 個鍵，可以借：
+分隔鍵 $16$ 下來，$20$ 上去。
+\item 刪除 $96$：葉子剩 $\{81\}$，不足。 它是最右邊的子節點，沒有右兄弟；左兄弟
+$\{57, 60, 65\}$ 可以借：$72$ 下來，$65$ 上去。
+\item 刪除 $48$：$48$ 在根，後繼是右子樹最左的葉子 $\{50, 53\}$ 裡的 $50$。 $50$ 上去
+取代 $48$，葉子剩 $\{53\}$，不足。 右兄弟 $\{57, 60\}$ 只有 $2$ 個鍵，不能借；它是第
+一個子節點，沒有左兄弟。 和右兄弟合併：$53$、分隔鍵 $56$、$57, 60$ 合成
+$\{53, 56, 57, 60\}$。 父節點剩 $\{65\}$，不足；它是根的最後一個子節點，左兄弟
+$\{20, 29\}$ 只有 $2$ 個鍵，合併成 $\{20, 29, 50, 65\}$，根變空，拿掉。
+\end{itemize}
+
+最後一步合併出來的 $\{20, 29, 50, 65\}$ 有 $4$ 個鍵，剛好是上限 $m - 1$。 這就是上面
+「為什麼一定對」框裡 $2\ell \le m - 1$ 等號成立的情況：$m$ 是奇數時合併的結果可能剛好滿。
+
+\section{\texorpdfstring{B$^{+}$}{B+} 樹與磁碟存取}
+\label{sec:mw-bplus}
+
+\subsection{磁碟存取的成本}
+
+硬碟和固態硬碟都以\textbf{區塊}（block，也叫頁 page）為單位讀寫，常見的大小是 4 KiB
+到 16 KiB。 讀一個區塊的時間，傳統硬碟約幾毫秒，固態硬碟約幾十到一百多微秒；記憶
+體裡比較兩個整數只要幾奈秒。 所以磁碟上的資料結構，成本幾乎只看\textbf{讀寫了幾個區
+塊}。 B 樹的做法是讓\textbf{一個節點剛好是一個區塊}：區塊放得下幾個鍵，就把階數 $m$
+開到多大，樹高就是查一筆資料要讀的區塊數。
+
+\textbf{例 4.} 區塊 $4096$ 位元組，鍵 $8$ 位元組，子指標（區塊編號）$8$ 位元組，每個
+鍵還要帶一個指向資料記錄的指標 $8$ 位元組。 一個 B 樹節點有 $m - 1$ 個鍵和記錄指標、
+$m$ 個子指標，要
+\[
+16(m - 1) + 8m \le 4096 \;\Longrightarrow\; 24m \le 4112 \;\Longrightarrow\; m \le 171.
+\]
+取 $m = 171$，$c = 86$。 存 $10^8$ 筆資料時，由定理~\ref{thm:mw-height}：
+$171^3 = 5{,}000{,}211 < 10^8 + 1$，所以 $h \ge 4$；$86^3 = 636{,}056 \le 5 \times 10^7$、
+$86^4 = 54{,}700{,}816 > 5 \times 10^7$，所以 $h - 1 \le 3$，$h \le 4$。 高度剛好是
+$4$，查任何一筆最多讀 $4$ 個區塊；根常駐在記憶體的話只要讀 $3$ 個。 同樣 $10^8$ 筆
+存在紅黑樹裡，高度可能到 $2\lg(10^8 + 1) \approx 53$。
+
+\subsection{\texorpdfstring{B$^{+}$}{B+} 樹}
+
+資料庫和檔案系統實際用的大多是 B 樹的變形 \textbf{B$^{+}$ 樹}（B$^{+}$-tree）。 和 B
+樹的差別：
+\begin{itemize}
+\item \textbf{所有的鍵和資料記錄（或記錄指標）都在葉子。} 內部節點只放\textbf{分隔鍵}，
+用來決定往哪棵子樹走，是葉子裡某些鍵的複本。
+\item \textbf{葉子由左到右串成一條串列}，每片葉子多一個指標指向下一片。
+\item 內部節點的規則和 B 樹一樣（最多 $m$ 個子節點、所有葉子同層）；葉子能放幾個鍵另
+外由區塊大小決定，可以和 $m - 1$ 不同。
+\end{itemize}
+
+本書的約定是：分隔鍵等於它右邊那棵子樹裡最小的鍵。 搜尋 $k$ 時，在內部節點遇到
+$k \ge$ 分隔鍵就往右走，所以即使在內部節點看到和 $k$ 相等的鍵，也要繼續往下，搜尋一
+定走到葉子才結束。 圖~\ref{fig:mw-bplus} 是一棵內部節點 $4$ 階、葉子最多放 $3$ 個鍵的
+B$^{+}$ 樹。
+
+\begin{center}
+\begin{tikzpicture}[baseline=(current bounding box.north), mwk/.append style={minimum width=0.5cm, minimum height=0.42cm}]
+\draw[mwe] (1.125,-1.06) -- (0.5,-1.49);
+\draw[mwe] (1.625,-1.06) -- (2.25,-1.49);
+\draw[mwe] (5.25,-1.06) -- (4,-1.49);
+\draw[mwe] (5.75,-1.06) -- (5.75,-1.49);
+\draw[mwe] (6.25,-1.06) -- (7.5,-1.49);
+\draw[mwe] (3.312,-0.21) -- (1.375,-0.64);
+\draw[mwe] (3.812,-0.21) -- (5.75,-0.64);
+\node[mwk] at (0.25,-1.7) {12};
+\node[mwk] at (0.75,-1.7) {18};
+\node[mwk] at (1.75,-1.7) {25};
+\node[mwk] at (2.25,-1.7) {31};
+\node[mwk] at (2.75,-1.7) {40};
+\node[mwk] at (1.375,-0.85) {25};
+\node[mwk] at (3.75,-1.7) {47};
+\node[mwk] at (4.25,-1.7) {53};
+\node[mwk] at (5.25,-1.7) {60};
+\node[mwk] at (5.75,-1.7) {66};
+\node[mwk] at (6.25,-1.7) {74};
+\node[mwk] at (7.25,-1.7) {82};
+\node[mwk] at (7.75,-1.7) {95};
+\node[mwk] at (5.5,-0.85) {60};
+\node[mwk] at (6,-0.85) {82};
+\node[mwk] at (3.562,0) {47};
+\draw[mwlink] (1,-1.7) -- (1.5,-1.7);
+\draw[mwlink] (3,-1.7) -- (3.5,-1.7);
+\draw[mwlink] (4.5,-1.7) -- (5,-1.7);
+\draw[mwlink] (6.5,-1.7) -- (7,-1.7);
+\node[mwlab] at (4,-2.18) {};
+\end{tikzpicture}
+\diagcaption{一棵 B$^{+}$ 樹。 根的 $47$ 和內部節點的 $25, 60, 82$ 都是分隔鍵，它們
+在葉子裡也都有。 葉子之間的箭頭把所有的鍵串成由小到大的一條串列。}
+\label{fig:mw-bplus}
+\end{center}
+
+\textbf{範圍查詢}是 B$^{+}$ 樹最主要的好處。 要找 $30 \le k \le 70$ 的所有資料，先像
+搜尋一樣走到 $30$ 該在的葉子 $\{25, 31, 40\}$，接著沿著葉子的串列往右讀，讀到超過
+$70$ 為止：$31, 40, 47, 53, 60, 66$。 讀的區塊數是 $h$ 加上涵蓋這個範圍的葉子數。
+B 樹做同樣的事要做一次中序走訪，上上下下會重複讀內部節點。
+
+\textbf{插入}時，葉子溢位就分裂，右半的第一個鍵\textbf{複製}一份上去當分隔鍵，它自己
+仍然留在葉子裡；內部節點溢位時，和 B 樹一樣把中間的鍵\textbf{移}上去，不留在原節點。
+例如在圖~\ref{fig:mw-bplus} 插入 $35$，葉子變成 $\{25, 31, 35, 40\}$，溢位，分成
+$\{25, 31\}$ 和 $\{35, 40\}$，$35$ 複製上去，父節點變成 $\{25, 35\}$，葉子的串列也要
+接上新的葉子。 \textbf{刪除}時從葉子拿掉鍵，不足就和兄弟葉子借或合併；內部節點裡
+的分隔鍵即使在葉子裡已經被刪掉，仍然能正確地分隔左右，可以先留著。
+
+\begin{center}
+\begin{tabular}{p{0.26\linewidth}p{0.32\linewidth}p{0.32\linewidth}}
+\toprule
+ & B 樹 & B$^{+}$ 樹 \\
+\midrule
+鍵出現幾次 & 每個鍵一次，可能在任何一層 & 每個鍵都在葉子；分隔鍵在內部節點另有複本 \\
+資料記錄放在 & 每個鍵旁邊 & 只在葉子 \\
+搜尋在哪裡結束 & 找到就停，可能在內部節點 & 一定走到葉子 \\
+內部節點的分支數 & 鍵要帶記錄指標，分支較少 & 只放分隔鍵和子指標，分支較多，樹較矮 \\
+範圍查詢 & 中序走訪 & 找到起點後沿葉子串列往右讀 \\
+分裂時上去的鍵 & 移上去 & 葉子：複製上去；內部節點：移上去 \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+第四列可以用例 4 的數字算：B$^{+}$ 樹的內部節點不放記錄指標，$8(m - 1) + 8m \le 4096$，
+$m$ 可以到 $256$，比 B 樹的 $171$ 大。 有些課本還會提到 \textbf{B$^{*}$ 樹}：節點溢位
+時先把鍵分給兄弟，兄弟也滿了才把兩個節點分成三個，讓非根節點至少 $2/3$ 滿。 想法和
+B 樹相同，本書不細講。
+
+\section{本章常見錯誤}
+\label{sec:mw-pitfalls}
+
+\begin{center}
+\begin{tabular}{p{0.24\linewidth}p{0.50\linewidth}p{0.16\linewidth}}
+\toprule
+錯誤 & 例子 & 見 \\
+\midrule
+階數的定義混用 & 把 CLRS 的 $t$ 當成 $m$，$t = 3$ 的 B 樹當成 $3$ 階（其實是 $6$ 階） &
+第~\ref{sec:mw-btree}~節 \\
+最少鍵數算錯 & $5$ 階 B 樹的非根節點寫成至少 $\lfloor 5/2 \rfloor = 2$ 個子節點；應該是
+$\lceil 5/2 \rceil = 3$ 個子節點、$2$ 個鍵 & 定義~\ref{def:mw-btree} \\
+高度差一格 & 用 CLRS 數邊的高度代入本書的公式，或反過來 & 第~\ref{sec:mw-height}~節 \\
+分裂時中間鍵留在原節點 & B 樹的分裂把 $k_p$ 同時留在左半又送上去；只有 B$^{+}$ 樹的葉子
+分裂才複製 & 第~\ref{sec:mw-insert}、\ref{sec:mw-bplus}~節 \\
+直接刪內部節點的鍵 & 從內部節點拿掉鍵，兩棵子樹少了分隔鍵；應該換成後繼（或前驅） &
+第~\ref{sec:mw-23-delete}~節 \\
+借鍵時跳過父節點 & 兄弟的鍵直接搬到不足的節點；應該是分隔鍵下來、兄弟的鍵上去 &
+第~\ref{sec:mw-23-delete}~節 \\
+內部節點借鍵時忘了搬子樹 & 鍵借過來了，兄弟那一邊的子指標沒有跟著搬，子節點數和鍵數
+對不上 & 圖~\ref{fig:mw-23-del}(d) \\
+合併後忘了往上 & 父節點少了一個鍵也可能不足，要繼續處理；根變空要拿掉 &
+第~\ref{sec:mw-delete}~節 \\
+由上而下、由下而上混用 & 2-3-4 樹題目指定由上而下，卻等到葉子溢位才分裂 &
+第~\ref{sec:mw-234}~節 \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\section{觀念題}
+\label{sec:mw-exercises}
+
+題型和研究所考試、期中期末考的筆試相近，有選擇、計算、追蹤和證明。 除非題目另外說
+明，階數 $m$ 是子節點數的上限，高度照本章的定義（數節點），插入用由下而上的分裂（上升
+第 $\lceil m/2 \rceil$ 個鍵），刪除內部節點的鍵用後繼取代，借和合併的順序照
+第~\ref{sec:mw-delete}~節。 解答在本章最後。
+
+\begin{enumerate}
+\item （選擇，可能不只一個答案）下列哪些敘述正確？
+\begin{enumerate}
+\item $5$ 階 B 樹裡，根以外的每個節點至少有 $2$ 個鍵。
+\item B 樹的插入可能讓樹高減少。
+\item B 樹的刪除如果發生了借，就不會再往上影響父節點以上的節點。
+\item CLRS 最小分支度 $t = 2$ 的 B 樹就是 2-3-4 樹。
+\item 在 B$^{+}$ 樹裡搜尋，只要在內部節點看到要找的鍵就可以停。
+\end{enumerate}
+
+\item （計算）
+\begin{enumerate}
+\item $7$ 階 B 樹有 $2000$ 個鍵，高度最小和最大各是多少？
+\item 高度 $3$ 的 $7$ 階 B 樹最少、最多有幾個鍵？
+\item 如果改用 CLRS 數邊的高度（只有根的樹高度 $0$），(b) 的「高度 $3$」最少、最多有
+幾個鍵？
+\end{enumerate}
+
+\item （追蹤）依序把 $64, 18, 93, 40, 75, 27, 52, 86, 11, 33$ 插入空的 2-3 樹，畫出每
+次分裂之後的樹。
+
+\item （追蹤）接著從第 3 題最後的樹依序刪除 $33, 64, 93, 75$，畫出每次借或合併之後的
+樹，寫出用的是借還是合併、向哪一邊。
+
+\item （追蹤）依序把 $31, 74, 58, 12, 87, 45, 66, 20, 93, 38, 51, 79, 26, 62, 70, 84$
+插入空的 $5$ 階 B 樹，畫出每次分裂之後的樹。 再從最後的樹依序刪除
+$87, 93, 31, 45, 20, 12$。
+
+\item （追蹤）
+\begin{enumerate}
+\item 用由上而下的做法，依序把 $5, 10, 15, \ldots, 50$（十個鍵）插入空的 2-3-4 樹，畫
+出最後的樹。
+\item 畫出一棵和 (a) 的結果對應的紅黑樹。
+\item 和 (a) 的結果對應的紅黑樹一共有幾棵？
+\end{enumerate}
+
+\item （計算）把 $10, 20, 30, 40$ 依序插入空的 $4$ 階 B 樹。
+\begin{enumerate}
+\item 用本章由下而上的規則（溢位時上升第 $\lceil m/2 \rceil = 2$ 個鍵）。
+\item 改成溢位時上升第 $3$ 個鍵。
+\item 改用第~\ref{sec:mw-234}~節由上而下的做法。
+\end{enumerate}
+三種做法各得到什麼樹？ 都是合法的 2-3-4 樹嗎？
+
+\item （證明）對所有 $m \ge 3$：
+\begin{enumerate}
+\item 證明第~\ref{sec:mw-insert}~節的分裂之後，左右兩個節點都至少有
+$\lceil m/2 \rceil - 1$ 個鍵。
+\item 如果把「非根節點至少 $\lceil m/2 \rceil - 1$ 個鍵」改成至少 $\lceil m/2 \rceil$
+個鍵，分裂還可能合法嗎？ 舉 $m = 4$ 說明。
+\end{enumerate}
+
+\item （證明）
+\begin{enumerate}
+\item 證明有 $n$ 個鍵的 B 樹（在葉子底下畫出外部節點）剛好有 $n + 1$ 個外部節點。
+\item 用 (a) 重新證明定理~\ref{thm:mw-height} 的下界 $n \ge 2c^{h-1} - 1$。
+\end{enumerate}
+
+\item （計算）磁碟區塊 $8192$ 位元組，鍵 $16$ 位元組，子指標和記錄指標都是 $8$ 位元
+組。 用 B$^{+}$ 樹存 $10^9$ 筆資料。
+\begin{enumerate}
+\item 內部節點放 $m - 1$ 個鍵和 $m$ 個子指標，$m$ 最大是多少？
+\item 葉子放 $L$ 組（鍵，記錄指標），再加一個指向下一片葉子的指標，$L$ 最大是多少？
+\item 假設除了根以外，每個內部節點至少 $\lceil m/2 \rceil$ 個子節點，每片葉子至少
+$\lceil L/2 \rceil$ 個鍵（葉子不只一片）。 這棵樹的高度（包括葉子那一層）最少和最多
+是多少？
+\end{enumerate}
+
+\end{enumerate}
+
+\section{實作練習}
+\label{sec:mw-practice}
+
+Aki-Judge 目前還沒有和本章對應的題目，請用觀念題和範例~\ref{ex:mw-btree} 練習；寫刪
+除時，可以照虛擬碼~\ref{alg:mw-deldown}、\ref{alg:mw-fix} 加進範例的程式，用
+圖~\ref{fig:mw-b-del} 的例子檢查每一步。
+
+\section{讀完你應該會}
+\label{sec:mw-checklist}
+
+\begin{itemize}
+\item 能說出 $m$ 階 B 樹的定義和各種節點的鍵數範圍，換算 CLRS 的 $t$（$m = 2t$）；能證明 $\log_m(n+1) \le h \le 1 + \log_{\lceil m/2 \rceil}\frac{n+1}{2}$，並用
+它算出給定鍵數的最小、最大高度，或給定高度的最少、最多鍵數。
+\item 能對 2-3 樹、2-3-4 樹和一般的 $m$ 階 B 樹做插入和刪除的追蹤，每次分裂、借、合併
+之後畫出整棵樹。
+\item 能寫出 B 樹搜尋和插入的 C 程式，分裂時正確地分配鍵和子指標。
+\item 能把 2-3-4 樹畫成紅黑樹、把紅黑樹畫成 2-3-4 樹，說出紅黑樹插入和刪除的各種情況
+對應分裂、合併還是借。
+\item 能說明 B$^{+}$ 樹和 B 樹的差別，用區塊大小算出階數和要讀幾次磁碟。
+\end{itemize}
+
+\textbf{延伸閱讀}（書末會整理完整的參考資料）
+
+\begin{itemize}
+\item Thomas H. Cormen 等，\textit{Introduction to Algorithms}，第 4 版，第 18 章：用
+最小分支度 $t$ 定義 B 樹，插入和刪除都是由上而下一趟完成，並分析讀寫磁碟的次數。 讀
+的時候記得換算 $m = 2t$，高度數邊。
+\item Donald E. Knuth，\textit{The Art of Computer Programming}，第 3 冊，第 6.2.4 節：
+多路搜尋樹、B 樹及其變形（包括 B$^{*}$ 樹）的原始講法和分析。
+\item Robert Sedgewick、Kevin Wayne，\textit{Algorithms}，第 4 版，第 3.3 節：從 2-3
+樹講到左傾紅黑樹，和本章第~\ref{sec:mw-rb}~節的對應互相參照。
+\item Douglas Comer，``The Ubiquitous B-Tree''，\textit{ACM Computing Surveys}
+11(2)，1979：B 樹和 B$^{+}$ 樹在資料庫、檔案系統裡的用法，篇幅短。
+\end{itemize}
+
+\addcontentsline{toc}{section}{觀念題解答}
+\section*{觀念題解答}
+
+解答裡用文字寫樹：$[a\ b]$ 是一個節點，後面括號裡依序是它的子樹，例如
+$[47]([29],[63\ 82])$ 是根 $47$、左子節點 $\{29\}$、右子節點 $\{63, 82\}$。
+
+\begin{enumerate}
+\item (a)、(c)、(d)。
+(a) 對：$\lceil 5/2 \rceil - 1 = 2$。 (b) 錯：插入只會讓根分裂，高度不變或加 $1$。
+(c) 對：借之後父節點的鍵數不變，父節點以上都不受影響；只有合併會往上傳。
+(d) 對：$t = 2$ 時非根節點有 $1$ 到 $3$ 個鍵、$2$ 到 $4$ 個子節點，就是 $m = 2t = 4$
+階。 (e) 錯：內部節點的鍵只是分隔鍵，資料記錄在葉子，要走到葉子才算找到；而且刪除
+之後分隔鍵可能還留著，對應的資料已經不在了。
+
+\item $m = 7$，$c = \lceil 7/2 \rceil = 4$。
+(a) 最小：$7^3 - 1 = 342 < 2000$，$7^4 - 1 = 2400 \ge 2000$，所以 $h \ge 4$。 最大：
+$2 \cdot 4^{h-1} - 1 \le 2000$，即 $4^{h-1} \le 1000.5$；$4^4 = 256$ 可以，$4^5 = 1024$
+不行，$h \le 5$。 高度是 $4$ 或 $5$。
+(b) 最少 $2 \cdot 4^2 - 1 = 31$ 個，最多 $7^3 - 1 = 342$ 個。
+(c) CLRS 的高度 $3$ 是本書的高度 $4$：最少 $2 \cdot 4^3 - 1 = 127$ 個，最多
+$7^4 - 1 = 2400$ 個。
+
+\item 有分裂的插入共四次（「溢位」後面是分裂前的節點）：
+\begin{itemize}
+\item 插入 $93$：根 $[18\ 64\ 93]$ 溢位，$64$ 上升成新根：$[64]([18],\allowbreak[93])$。
+\item 插入 $27$：$[18\ 27\ 40]$ 溢位，$27$ 上升：$[27\ 64]([18],\allowbreak[40],\allowbreak[75\ 93])$。
+\item 插入 $86$：$[75\ 86\ 93]$ 溢位，$86$ 上升，根 $[27\ 64\ 86]$ 溢位，$64$ 上升成新根：
+$[64]([27]([18],\allowbreak[40\ 52]),[86]([75],\allowbreak[93]))$。
+\item 插入 $33$：$[33\ 40\ 52]$ 溢位，$40$ 上升：
+$[64]([27\ 40]([11\ 18],\allowbreak[33],\allowbreak[52]),[86]([75],\allowbreak[93]))$，高度 $3$。
+\end{itemize}
+
+\item
+\begin{itemize}
+\item 刪除 $33$：葉子變空；右兄弟 $[52]$ 不能借，左兄弟 $[11\ 18]$ 可以，向左兄弟借：
+$27$ 下來，$18$ 上去：$[64]([18\ 40]([11],\allowbreak[27],\allowbreak[52]),[86]([75],\allowbreak[93]))$。
+\item 刪除 $64$：後繼 $75$ 上去，葉子 $[75]$ 變空；沒有左兄弟，右兄弟 $[93]$ 不能借，和右
+兄弟合併成 $[86\ 93]$；父節點變空，它的左兄弟 $[18\ 40]$ 可以借：$75$ 下來，$40$ 上去，
+$[52]$ 這棵子樹跟著搬過來：$[40]([18]([11],\allowbreak[27]),[75]([52],\allowbreak[86\ 93]))$。
+\item 刪除 $93$：葉子剩 $[86]$，結束。
+\item 刪除 $75$：後繼 $86$ 上去，葉子變空；沒有右兄弟，左兄弟 $[52]$ 不能借，和左兄弟
+合併成 $[52\ 86]$；父節點變空，左兄弟 $[18]$ 不能借，合併成 $[18\ 40]$；根變空拿掉：
+$[18\ 40]([11],\allowbreak[27],\allowbreak[52\ 86])$，高度 $2$。
+\end{itemize}
+
+\item 插入時有三次分裂：
+\begin{itemize}
+\item 插入 $87$：根 $[12\ 31\ 58\ 74\ 87]$ 溢位，$58$ 上升：$[58]([12\ 31],\allowbreak[74\ 87])$。
+\item 插入 $38$：$[12\ 20\ 31\ 38\ 45]$ 溢位，$31$ 上升：
+$[31\ 58]([12\ 20],\allowbreak[38\ 45],\allowbreak[66\ 74\ 87\ 93])$。
+\item 插入 $79$：$[66\ 74\ 79\ 87\ 93]$ 溢位，$79$ 上升：
+$[31\ 58\ 79]([12\ 20],\allowbreak[38\ 45\ 51],\allowbreak[66\ 74],\allowbreak[87\ 93])$。
+\end{itemize}
+插完是 $[31\ 58\ 79]([12\ 20\ 26],\allowbreak[38\ 45\ 51],\allowbreak[62\ 66\ 70\ 74],$
+$[84\ 87\ 93])$。 刪除：
+\begin{itemize}
+\item $87$：葉子剩 $[84\ 93]$，結束。
+\item $93$：剩 $[84]$，不足；沒有右兄弟，左兄弟 $[62\ 66\ 70\ 74]$ 可以借：$79$ 下來，
+$74$ 上去：$[31\ 58\ 74]([12\ 20\ 26],\allowbreak[38\ 45\ 51],\allowbreak[62\ 66\ 70],\allowbreak[79\ 84])$。
+\item $31$：後繼 $38$ 上去，葉子剩 $[45\ 51]$，結束。
+\item $45$：剩 $[51]$，不足；右兄弟 $[62\ 66\ 70]$ 可以借（左兄弟也可以，但本書先看右
+邊）：$58$ 下來，$62$ 上去：$[38\ 62\ 74]([12\ 20\ 26],\allowbreak[51\ 58],\allowbreak[66\ 70],\allowbreak[79\ 84])$。
+\item $20$：葉子剩 $[12\ 26]$，結束。
+\item $12$：剩 $[26]$，不足；右兄弟 $[51\ 58]$ 不能借，沒有左兄弟，和右兄弟合併：
+$[62\ 74]([26\ 38\ 51\ 58],\allowbreak[66\ 70],\allowbreak[79\ 84])$。 根還有兩個鍵，高度仍是 $2$。
+\end{itemize}
+
+\item (a) 分裂發生在插入 $20$（根 $[5\ 10\ 15]$，$10$ 上升）、$30$（$[15\ 20\ 25]$，$20$
+上升）、$40$（$[25\ 30\ 35]$，$30$ 上升）、$45$（根 $[10\ 20\ 30]$ 已滿，先分裂，$20$ 上升成新根；要去的葉子 $[35\ 40]$ 不滿，直接放）和 $50$（$[35\ 40\ 45]$，$40$
+上升）之前。 最後是 $[20]([10]([5],\allowbreak[15]),[30\ 40]([25],\allowbreak[35],\allowbreak[45\ 50]))$，高度 $3$。
+(b) 下面是其中一棵（3-節點都用「黑色帶紅色右子節點」）：
+\begin{center}
+\begin{tikzpicture}[baseline=(current bounding box.north)]
+\node[mwB] (rb5) at (0.00,-1.64) {5};
+\node[mwB] (rb10) at (0.58,-0.82) {10};
+\node[mwB] (rb15) at (1.16,-1.64) {15};
+\node[mwB] (rb20) at (1.74,0.00) {20};
+\node[mwB] (rb25) at (2.32,-1.64) {25};
+\node[mwB] (rb30) at (2.90,-0.82) {30};
+\node[mwB] (rb35) at (3.48,-2.46) {35};
+\node[mwR] (rb40) at (4.06,-1.64) {40};
+\node[mwB] (rb45) at (4.64,-2.46) {45};
+\node[mwR] (rb50) at (5.22,-3.28) {50};
+\draw[mwe] (rb20) -- (rb10);
+\draw[mwe] (rb10) -- (rb5);
+\draw[mwe] (rb10) -- (rb15);
+\draw[mwe] (rb20) -- (rb30);
+\draw[mwe] (rb30) -- (rb25);
+\draw[mwe] (rb30) -- (rb40);
+\draw[mwe] (rb40) -- (rb35);
+\draw[mwe] (rb40) -- (rb45);
+\draw[mwe] (rb45) -- (rb50);
+\begin{scope}[on background layer]
+\node[mwgrp, fit=(rb30) (rb40)] {};
+\node[mwgrp, fit=(rb45) (rb50)] {};
+\end{scope}
+\node[mwlab] at (2.61,-4.03) {};
+\end{tikzpicture}
+\end{center}
+(c) 有兩個 3-節點 $[30\ 40]$、$[45\ 50]$，每個有兩種畫法，共 $2^2 = 4$ 棵。
+
+\item (a) $[10\ 20\ 30\ 40]$ 溢位，上升第 $2$ 個：$[20]([10],\allowbreak[30\ 40])$。
+(b) 上升第 $3$ 個：$[30]([10\ 20],\allowbreak[40])$。
+(c) 插入 $40$ 時根 $[10\ 20\ 30]$ 是 4-節點，先分裂成 $[20]([10],\allowbreak[30])$，再放進 $40$：
+$[20]([10],\allowbreak[30\ 40])$，和 (a) 相同。 三棵都是合法的 2-3-4 樹，所以作答時一定要寫出用
+的規則。
+
+\item 令 $c = \lceil m/2 \rceil$。
+(a) 左邊留 $p - 1 = c - 1$ 個，剛好是下限。 右邊有 $m - c = \lfloor m/2 \rfloor$ 個，而
+$\lceil m/2 \rceil - \lfloor m/2 \rfloor \le 1$，所以 $\lfloor m/2 \rfloor \ge c - 1$。
+(b) 不可能。 溢位的節點有 $m$ 個鍵，一個上升後剩 $m - 1$ 個分給兩邊，兩邊都要
+$\ge c$ 就需要 $m - 1 \ge 2c \ge m$，不可能。 例如 $m = 4$：$4$ 個鍵上升一個，剩 $3$
+個，不可能兩邊都至少 $2$ 個。 所以下限一定要寫成 $\lceil m/2 \rceil - 1$。
+
+\item (a) 設樹裡（不算外部節點）有 $N$ 個節點。 把外部節點也算進去，共 $N + E$ 個節
+點，除了根以外每個節點都有一條連到父節點的邊，邊數是 $N + E - 1$。 另一方面，有
+$k$ 個鍵的節點恰有 $k + 1$ 個子節點（葉子的子節點就是外部節點），邊數也等於
+$\sum (k_x + 1) = n + N$。 兩式相等得到 $E = n + 1$。
+(b) 外部節點都在第 $h + 1$ 層。 照定理的證明，第 $i$ 層（$2 \le i \le h + 1$）至少
+$2c^{i-2}$ 個節點（第 $h$ 層的葉子也至少有 $c$ 個外部子節點），所以
+$n + 1 = E \ge 2c^{h-1}$。
+
+\item (a) $16(m - 1) + 8m \le 8192$，$24m \le 8208$，$m = 342$。
+(b) $24L + 8 \le 8192$，$L = 341$。
+(c) 葉子的片數：每片最多 $341$ 個鍵，至少要 $\lceil 10^9 / 341 \rceil = 2{,}932{,}552$ 片；
+每片至少 $171$ 個鍵，最多 $\lfloor 10^9 / 171 \rfloor = 5{,}847{,}953$ 片。 高度 $H$（葉
+子在第 $H$ 層）時，葉子最多 $342^{H-1}$ 片，最少 $2 \cdot 171^{H-2}$ 片。
+最矮：$342^2 = 116{,}964$ 不夠，$342^3 = 40{,}001{,}688$ 夠，$H \ge 4$。
+最高：$2 \cdot 171^{H-2} \le 5{,}847{,}953$，$171^2 = 29{,}241$ 可以，$171^3 = 5{,}000{,}211$
+不行，$H \le 4$。 所以高度一定是 $4$，查一筆資料讀 $4$ 個區塊。
+\end{enumerate}
