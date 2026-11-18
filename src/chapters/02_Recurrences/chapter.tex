@@ -1,0 +1,1372 @@
+\chapter{遞迴式}
+\label{ch:recurrences}
+
+% 本章的圖共用的樣式
+\tikzset{
+    rnode/.style={draw=black!55, rounded corners=2pt, inner sep=2.5pt,
+                  font=\small, minimum width=0.95cm, align=center},
+    rleaf/.style={draw=black!35, rounded corners=2pt, inner sep=2pt,
+                  font=\scriptsize, minimum width=0.8cm, align=center},
+    rsum/.style={font=\small, anchor=west},
+    redge/.style={draw=black!60},
+}
+
+會計室要核對一份很多天的營業額報表。 主任的做法是：報表只有一天，就直接把那天
+的數字當成總和；超過一天，就把報表從中間分成前後兩份，交給兩位組員各自算出總
+和，組員也用同樣的方法再往下分。 兩份總和交回來以後，主任不放心，自己把整份報
+表從頭到尾再加一次，確認兩份加起來沒有錯。 每一層的人都這樣做。 報表從
+$1000$ 天變成 $8000$ 天，全部的人加起來，要多做幾倍的加法？ 往下讀之前，先估計
+一下。
+
+第~1~章分析的是迴圈，執行次數可以直接寫成一個和。 遞迴的程式不一樣：規模
+$n$ 的工作量，是用「規模比較小的同一件事」來描述的。 寫出來是一個
+\textbf{遞迴式}（recurrence），例如
+\[
+T(n) = 2T(n/2) + n .
+\]
+這一章先講怎麼從程式寫出遞迴式，再介紹幾種解法：代換法、遞迴樹、主定理，以及處
+理 $T(n-1)$ 這類形式的展開和特徵方程式，最後簡單介紹生成函數和 Akra--Bazzi
+方法。 之後的合併排序、快速排序（第~14~章）、分治（第~17~章）和很多樹的操作，
+都要先寫出遞迴式才能分析。
+
+這一章用到《C 程式設計基礎》第~15~章的遞迴，用到時會先在框裡複習。 數學上用到
+第~1~章的漸近符號、等比級數和 $a^{\log_b n} = n^{\log_b a}$，以及數學歸納法。
+
+\section{從程式寫出遞迴式}
+\label{sec:rec-write}
+
+遞迴式是一個等式（或不等式），把函數在 $n$ 的值用它在比較小的輸入上的值表示出
+來，再加上最小的幾個 $n$ 的值，叫做\textbf{基礎情況}（base case）。 例如
+\[
+T(n) = \begin{cases} 0, & n = 1, \\ 2T(n/2) + n, & n \ge 2. \end{cases}
+\]
+光有遞迴式，還看不出 $T(n)$ 有多大。 \textbf{解}遞迴式的意思是找出 $T(n)$ 的封閉
+形式（例如 $n \lg n$），或至少找出它的 $\Theta$。
+
+\subsection{寫遞迴式要回答的四件事}
+
+\begin{enumerate}
+\item \textbf{規模}：用哪個量當 $n$。 處理陣列的一段 $A[p..r]$ 時，通常取
+$n = r - p + 1$。
+\item \textbf{基礎情況}：$n$ 多小時直接回答、不再呼叫，要花多少時間。 通常是
+$\Theta(1)$。
+\item \textbf{遞迴呼叫}：呼叫了幾次，每一次的規模是多少。 每一次呼叫寫一項
+$T(\text{規模})$；同樣的規模呼叫兩次，就寫 $2T(\cdot)$。
+\item \textbf{呼叫以外的工作}：切分、迴圈、合併答案，記成 $f(n)$。
+\end{enumerate}
+
+四件事合起來是 $T(n) = (\text{各次呼叫的 } T \text{ 加起來}) + f(n)$。 最容易漏掉的
+是第 3 點的「次數」：同一個規模呼叫了兩次，卻只寫一個 $T$。
+
+\begin{cbookrecap}[第~15~章 15.2、15.4、15.6 節]
+遞迴函式要有基礎情況，而且每次呼叫都要往基礎情況靠近，否則不會停。 每一次呼叫
+都有自己的一份參數和區域變數，放在呼叫堆疊上，所以下面的 \texttt{audit\_sum} 裡
+的 \texttt{p}、\texttt{q}、\texttt{r}、\texttt{s} 在每一層都是不同的變數，不會互
+相蓋掉。
+
+處理陣列的一段時，用兩個整數 \texttt{p}、\texttt{r} 表示「從 \texttt{a[p]} 到
+\texttt{a[r]}」，取中間 \texttt{q = p + (r - p) / 2} 分成兩半，這樣寫不會像
+\texttt{(p + r) / 2} 那樣在 \texttt{p + r} 超過 \texttt{int} 時溢位。 想數函式被
+呼叫幾次，最簡單的方法是用全域變數當計數器，每次進入函式就加一。
+\end{cbookrecap}
+
+\subsection{例子：遞迴版的二分搜尋}
+
+在排好的 $A[p..r]$ 裡找 $x$，找到就回傳位置，找不到回傳 \NIL。
+
+\begin{pseudo}[label=alg:rec-search]{遞迴版的二分搜尋}
+\Function{Rec-Search}{$A, p, r, x$}
+    \If{$p > r$}
+        \State \Return \NIL \Comment{空的一段}
+    \EndIf
+    \State $q \gets \lfloor (p + r) / 2 \rfloor$
+    \If{$A[q] = x$}
+        \State \Return $q$
+    \ElsIf{$A[q] < x$}
+        \State \Return \Call{Rec-Search}{$A, q + 1, r, x$}
+    \Else
+        \State \Return \Call{Rec-Search}{$A, p, q - 1, x$}
+    \EndIf
+\EndFunction
+\end{pseudo}
+
+令 $n = r - p + 1$。 左邊那段 $A[p..q-1]$ 有 $q - p = \lceil n/2 \rceil - 1$ 個數，
+右邊那段 $A[q+1..r]$ 有 $r - q = \lfloor n/2 \rfloor$ 個數，比較大的是
+$\lfloor n/2 \rfloor$。 每一次呼叫只會往下呼叫\textbf{一次}，呼叫以外只做常數個
+步驟。 分析最壞情況時，假設每一步都沒找到，而且都走到比較大的那一段，得到
+\[
+W(n) = W(\lfloor n/2 \rfloor) + c \quad (n \ge 1), \qquad W(0) = c,
+\]
+$c$ 是一次呼叫除了遞迴以外的成本。 觀念題第 12 題會證明這時總共呼叫
+$\lfloor \lg n \rfloor + 2$ 次，所以 $W(n) = \Theta(\lg n)$。
+
+\subsection{例子：層層核對的報表加總}
+
+章首的做法寫成虛擬碼如下。 \proc{Audit-Sum} 回傳 $A[p..r]$ 的總和；兩半交給下一
+層算，回來之後把整段重新加一次，核對兩半的小計。
+
+\begin{pseudo}[label=alg:rec-audit]{層層核對的加總}
+\Function{Audit-Sum}{$A, p, r$}
+    \If{$p = r$}
+        \State \Return $A[p]$
+    \EndIf
+    \State $q \gets \lfloor (p + r) / 2 \rfloor$
+    \State $s_1 \gets$ \Call{Audit-Sum}{$A, p, q$}
+    \State $s_2 \gets$ \Call{Audit-Sum}{$A, q + 1, r$}
+    \State $s \gets 0$
+    \For{$i \gets p$ \To $r$}
+        \State $s \gets s + A[i]$ \Comment{整段重算一次}
+    \EndFor
+    \If{$s \ne s_1 + s_2$}
+        \State 回報「$A[p..r]$ 的小計不符」
+    \EndIf
+    \State \Return $s$
+\EndFunction
+\end{pseudo}
+
+照四件事來寫。 規模是 $n = r - p + 1$。 基礎情況是 $n = 1$，不做加法。 遞迴呼叫兩
+次：左半 $A[p..q]$ 有 $q - p + 1 = \lceil n/2 \rceil$ 天，右半有
+$\lfloor n/2 \rfloor$ 天。 呼叫以外，最後的 \textbf{for} 迴圈做 $n$ 次加法。 所以加法的次
+數 $T(n)$ 滿足
+\[
+T(n) = \begin{cases}
+0, & n = 1, \\
+T(\lceil n/2 \rceil) + T(\lfloor n/2 \rfloor) + n, & n \ge 2.
+\end{cases}
+\]
+被呼叫的次數 $C(n)$ 也可以用同樣的方法寫：每次呼叫自己算一次，再加上兩邊的呼叫，
+\[
+C(1) = 1, \qquad C(n) = C(\lceil n/2 \rceil) + C(\lfloor n/2 \rfloor) + 1 \quad (n \ge 2).
+\]
+整個程序的執行時間是 $\Theta(T(n) + C(n))$：每一次加法花常數時間，每一次呼叫除了
+迴圈以外也只花常數時間。
+
+\subsection{手算追蹤}
+
+$n = 5$ 時把每一次呼叫畫成一個節點，節點裡寫它處理的那一段，下面寫它自己做了幾
+次加法（不含下一層的）。 這種圖叫\textbf{遞迴樹}（recursion tree），第~\ref{sec:rec-tree}~節
+會把它當成解遞迴式的工具。
+
+\begin{center}
+\begin{tikzpicture}[level distance=1.45cm]
+\node[rnode] (a) at (0,0) {$A[1..5]$\\[-1pt]{\scriptsize 加 5 次}};
+\node[rnode] (b) at (-3,-1.6) {$A[1..3]$\\[-1pt]{\scriptsize 加 3 次}};
+\node[rnode] (c) at (3,-1.6) {$A[4..5]$\\[-1pt]{\scriptsize 加 2 次}};
+\node[rnode] (d) at (-4.4,-3.2) {$A[1..2]$\\[-1pt]{\scriptsize 加 2 次}};
+\node[rnode] (e) at (-1.6,-3.2) {$A[3..3]$\\[-1pt]{\scriptsize 0}};
+\node[rnode] (f) at (1.8,-3.2) {$A[4..4]$\\[-1pt]{\scriptsize 0}};
+\node[rnode] (g) at (4.2,-3.2) {$A[5..5]$\\[-1pt]{\scriptsize 0}};
+\node[rnode] (h) at (-5.4,-4.8) {$A[1..1]$\\[-1pt]{\scriptsize 0}};
+\node[rnode] (i) at (-3.4,-4.8) {$A[2..2]$\\[-1pt]{\scriptsize 0}};
+\foreach \u/\v in {a/b, a/c, b/d, b/e, c/f, c/g, d/h, d/i} { \draw[redge] (\u) -- (\v); }
+\node[rsum] at (6.0,0) {第 0 層：5};
+\node[rsum] at (6.0,-1.6) {第 1 層：$3 + 2 = 5$};
+\node[rsum] at (6.0,-3.2) {第 2 層：2};
+\node[rsum] at (6.0,-4.8) {第 3 層：0};
+\end{tikzpicture}
+\diagcaption{\proc{Audit-Sum} 處理 5 天的遞迴樹。 共 9 次呼叫、$5 + 5 + 2 = 12$ 次
+加法。 只有兩層是滿的，第 2 層只剩 $A[1..2]$ 還要往下分。}
+\label{fig:rec-audit5}
+\end{center}
+
+考卷上寫追蹤時，也可以把遞迴式一個一個代進去，由小到大列表：
+\begin{center}
+\begin{tabular}{cccl}
+\toprule
+$n$ & $\lceil n/2 \rceil$、$\lfloor n/2 \rfloor$ & $T(n)$ & 計算 \\
+\midrule
+1 & -- & 0 & 基礎情況 \\
+2 & 1、1 & 2 & $0 + 0 + 2$ \\
+3 & 2、1 & 5 & $T(2) + T(1) + 3 = 2 + 0 + 3$ \\
+4 & 2、2 & 8 & $2 + 2 + 4$ \\
+5 & 3、2 & 12 & $T(3) + T(2) + 5 = 5 + 2 + 5$ \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\subsection{C 程式}
+
+下面的程式把 \proc{Audit-Sum} 翻成 C，用兩個全域變數數呼叫次數和加法次數，再印出
+$n \lfloor \lg n \rfloor$ 和 $n \lceil \lg n \rceil$ 來比較（第~\ref{sec:rec-subst}~節
+會證明 $T(n)$ 一定夾在這兩個數中間）。
+
+\begin{example}[label=ex:rec-audit]{c}{(audit\_sum.c) 層層核對的加總，數呼叫和加法的次數}
+#include <stdio.h>
+#include <stdlib.h>
+
+long long calls;    // audit_sum 被呼叫的次數
+long long adds;     // 核對時重算總和做的加法次數
+
+// 回傳 a[p..r] 的總和。兩半各自交給下一層算，回來後把整段重算一次，
+// 核對兩半的小計加起來對不對。
+long long audit_sum(const int *a, int p, int r)
+{
+    calls++;
+    if (p == r) {
+        return a[p];
+    }
+    int q = p + (r - p) / 2;        // 左半 a[p..q] 有 ceil(n/2) 天
+    long long s1 = audit_sum(a, p, q);
+    long long s2 = audit_sum(a, q + 1, r);
+    long long s = 0;
+    for (int i = p; i <= r; i++) {  // 重算整段：n 次加法
+        s += a[i];
+        adds++;
+    }
+    if (s != s1 + s2) {
+        printf("mismatch in [%d, %d]\n", p, r);
+    }
+    return s;
+}
+
+// floor(lg n) 和 ceil(lg n)，n >= 1
+int floor_lg(int n)
+{
+    int k = 0;
+    while ((2LL << k) <= n) {
+        k++;
+    }
+    return k;
+}
+
+int ceil_lg(int n)
+{
+    int k = 0;
+    while ((1LL << k) < n) {
+        k++;
+    }
+    return k;
+}
+
+int main(void)
+{
+    int ns[] = {1, 2, 3, 4, 5, 6, 7, 8, 1000, 2000, 4000, 8000};
+    printf("n calls adds n*floor(lg n) n*ceil(lg n)\n");
+    for (int t = 0; t < 12; t++) {
+        int n = ns[t];
+        int *a = malloc(n * sizeof *a);
+        if (a == NULL) {
+            return 1;
+        }
+        for (int i = 0; i < n; i++) {
+            a[i] = 500 + (i * 37) % 101;  // 第 i 天的營業額（自己產生）
+        }
+        calls = 0;
+        adds = 0;
+        audit_sum(a, 0, n - 1);
+        printf("%d %lld %lld %lld %lld\n", n, calls, adds,
+               (long long)n * floor_lg(n), (long long)n * ceil_lg(n));
+        free(a);
+    }
+    return 0;
+}
+\end{example}
+\iosample{}{n calls adds n*floor(lg n) n*ceil(lg n) \\ 1 1 0 0 0 \\ 2 3 2 2 2 \\ 3 5 5 3 6 \\ 4 7 8 8 8 \\ 5 9 12 10 15 \\ 6 11 16 12 18 \\ 7 13 20 14 21 \\ 8 15 24 24 24 \\ 1000 1999 9976 9000 10000 \\ 2000 3999 21952 20000 22000 \\ 4000 7999 47904 44000 48000 \\ 8000 15999 103808 96000 104000}
+
+幾件事可以從表上讀出來。 呼叫次數每一列都是 $2n - 1$。 加法次數在 $n$ 是 $2$ 的
+次方時剛好等於 $n \lg n$（$n = 2, 4, 8$），其他時候夾在兩欄中間。 章首的問題：
+$1000$ 天要 $9976$ 次加法，$8000$ 天要 $103808$ 次，大約 $10.4$ 倍。 天數變成 $8$
+倍，每天被加的次數（大約是層數 $\lg n$）也從大約 $10$ 變成大約 $13$，所以是
+$8 \times 13/10 \approx 10.4$ 倍，比 $8$ 倍多一些。
+
+\subsection{地板、天花板和基礎情況}
+\label{sec:rec-floors}
+
+$n$ 是 $2$ 的次方時，每次都剛好對半分，遞迴式變成 $T(n) = 2T(n/2) + n$。 令
+$n = 2^k$，兩邊除以 $2^k$：
+\[
+\frac{T(2^k)}{2^k} = \frac{T(2^{k-1})}{2^{k-1}} + 1
+= \frac{T(2^{k-2})}{2^{k-2}} + 2 = \cdots = \frac{T(1)}{1} + k = k,
+\]
+所以 $T(n) = n \lg n$，和程式印出的一樣。 其他的 $n$ 有地板、天花板，算起來麻煩很
+多。 下面的定理說明，在常見的情況下，只算 $b$ 的次方就夠了。
+
+\begin{theorem}[只看 $b$ 的次方就夠]
+\label{thm:rec-smooth}
+設 $b \ge 2$ 是整數，$T(n)$ 和 $g(n)$ 都是非負的非遞減函數，而且存在常數 $d$ 讓
+$n$ 夠大時 $g(bn) \le d\, g(n)$。 如果 $n$ 是 $b$ 的次方時 $T(n) = \Theta(g(n))$，那麼
+對所有的 $n$ 都有 $T(n) = \Theta(g(n))$。
+\end{theorem}
+
+\begin{proof}
+設 $n$ 是 $b$ 的次方而且 $n \ge n_0$ 時 $c_1 g(n) \le T(n) \le c_2 g(n)$，並且
+$m \ge n_0$ 時 $g(bm) \le d\, g(m)$。 對 $n \ge b n_0$，取 $k$ 讓
+$b^k \le n < b^{k+1}$，這時 $b^k > n/b \ge n_0$。 用 $T$、$g$ 非遞減：
+\[
+T(n) \le T(b^{k+1}) \le c_2\, g(b^{k+1}) \le c_2 d\, g(b^k) \le c_2 d\, g(n),
+\]
+\[
+T(n) \ge T(b^k) \ge c_1 g(b^k) \ge \frac{c_1}{d}\, g(b^{k+1}) \ge \frac{c_1}{d}\, g(n).
+\]
+取常數 $c_1/d$、$c_2 d$ 和 $b n_0$，就符合 $\Theta$ 的定義。
+\end{proof}
+
+用在報表加總：$T(n)$ 是非遞減的（$n$ 加一時，兩半之中剛好有一半多一天，對 $n$ 做
+歸納就得到 $T(n + 1) > T(n)$），$g(n) = n \lg n$ 滿足 $g(2n) = 2n(\lg n + 1) \le
+4 n \lg n$（$n \ge 2$）。 所以從 $T(2^k) = 2^k k$ 就能推到所有的 $n$ 都有
+$T(n) = \Theta(n \lg n)$。
+
+條件 $g(bn) \le d\, g(n)$ 的意思是「$n$ 變成常數倍時，$g$ 也只變成常數倍」。
+$n^k$、$n^k \lg n$、$\lg n$ 都滿足；$2^n$ 不滿足，因為 $2^{2n} / 2^n = 2^n$ 不是常數。
+所以解出來是指數的遞迴式，不能只看特殊的 $n$ 就下結論。
+
+基礎情況也常常省略不寫，只寫 $T(n) = 2T(n/2) + \Theta(n)$，意思是「$n$ 小於某個
+常數時 $T(n) = \Theta(1)$」。 在本章的遞迴式裡，把基礎情況的常數換掉，只會讓答案
+差一個常數倍（第~\ref{sec:rec-master}~節的引理~\ref{lem:rec-unroll} 會看到，它只影
+響葉子的總成本），不會改變 $\Theta$。
+
+\section{代換法}
+\label{sec:rec-subst}
+
+\textbf{代換法}（substitution method）分兩步：先猜出答案的形式，再用數學歸納法證
+明，順便找出常數。 猜的方法可以是算幾個小的值、畫遞迴樹、或和看過的遞迴式比
+較。 這一節的例子都已經有答案可以猜，重點放在第二步。
+
+\subsection{例子：報表加總的上下界}
+
+從上一節的表可以猜 $n \lfloor \lg n \rfloor \le T(n) \le n \lceil \lg n \rceil$。
+證明前先準備地板、天花板的兩個等式。
+
+\begin{lemma}
+\label{lem:rec-lg-half}
+$n \ge 2$ 時，$\lceil \lg \lceil n/2 \rceil \rceil = \lceil \lg n \rceil - 1$，而且
+$\lfloor \lg \lfloor n/2 \rfloor \rfloor = \lfloor \lg n \rfloor - 1$。
+\end{lemma}
+
+\begin{proof}
+令 $k = \lceil \lg n \rceil \ge 1$，則 $2^{k-1} < n \le 2^k$，所以
+$2^{k-2} < n/2 \le \lceil n/2 \rceil \le 2^{k-1}$（$2^{k-1}$ 是整數，不小於
+$n/2$，也就不小於 $\lceil n/2 \rceil$）。 落在 $(2^{k-2}, 2^{k-1}]$ 的數取
+$\lceil \lg \cdot \rceil$ 都是 $k - 1$。 第二個等式類似：令
+$k = \lfloor \lg n \rfloor \ge 1$，則 $2^k \le n < 2^{k+1}$，所以
+$2^{k-1} \le \lfloor n/2 \rfloor \le n/2 < 2^k$。
+\end{proof}
+
+\begin{theorem}
+\label{thm:rec-audit}
+報表加總的加法次數對所有 $n \ge 1$ 滿足
+$n \lfloor \lg n \rfloor \le T(n) \le n \lceil \lg n \rceil$，所以
+$T(n) = \Theta(n \lg n)$。
+\end{theorem}
+
+\begin{proof}
+對 $n$ 做強歸納法：假設比 $n$ 小的值都成立，證明 $n$ 也成立。
+
+$n = 1$：$T(1) = 0$，兩邊也都是 $0$。
+
+$n \ge 2$：$\lceil n/2 \rceil$、$\lfloor n/2 \rfloor$ 都在 $1$ 和 $n - 1$ 之間，可以
+用歸納假設。 上界：因為 $\lfloor n/2 \rfloor \le \lceil n/2 \rceil$，兩個
+$\lceil \lg \cdot \rceil$ 都不超過 $\lceil \lg \lceil n/2 \rceil \rceil =
+\lceil \lg n \rceil - 1$，所以
+\[
+T(n) \le \left\lceil \tfrac{n}{2} \right\rceil (\lceil \lg n \rceil - 1)
++ \left\lfloor \tfrac{n}{2} \right\rfloor (\lceil \lg n \rceil - 1) + n
+= n(\lceil \lg n \rceil - 1) + n = n \lceil \lg n \rceil.
+\]
+下界：兩個 $\lfloor \lg \cdot \rfloor$ 都至少是
+$\lfloor \lg \lfloor n/2 \rfloor \rfloor = \lfloor \lg n \rfloor - 1$，同樣的算法得到
+$T(n) \ge n \lfloor \lg n \rfloor$。
+
+最後，$n \ge 2$ 時 $\lfloor \lg n \rfloor \ge \frac{1}{2} \lg n$、$\lceil \lg n \rceil
+\le 2 \lg n$，取 $c_1 = 1/2$、$c_2 = 2$、$n_0 = 2$，得到 $T(n) = \Theta(n \lg n)$。
+\end{proof}
+
+這個證明沒有忽略任何地板或天花板，而且得到的上下界和程式印出的兩欄完全一樣。 能
+這樣做是因為猜的形式 $n \lceil \lg n \rceil$ 剛好和天花板配合；猜不出這麼合適的形
+式時，就先用第~\ref{sec:rec-floors}~節的方法只看 $2$ 的次方。
+
+\begin{examnote}
+用代換法時，先寫出要證明的不等式，常數寫成符號（例如 $T(n) \le c\, n \lg n$），歸
+納步驟要推出\textbf{同一個} $c$ 的同一個式子，最後再說明 $c$ 和 $n_0$ 可以取多少、
+基礎情況成不成立。 推出「$\le cn + n$」這種多一項的式子時，證明還沒有完成。
+\end{examnote}
+
+\subsection{常見的錯誤：常數在歸納中變大}
+
+下面是一個錯誤的「證明」，聲稱報表加總的 $T(n) = O(n)$。
+
+\begin{quote}
+假設比 $n$ 小的值都有 $T(k) \le ck$。 則
+$T(n) \le c \lceil n/2 \rceil + c \lfloor n/2 \rfloor + n = cn + n = (c + 1) n =
+O(n)$。
+\end{quote}
+
+錯在最後一個等號。 歸納假設用的是常數 $c$，要證明的也必須是 $T(n) \le cn$；推出來
+的卻是 $(c + 1)n$。 每往上一層，「常數」就多 $1$，$\lg n$ 層以後是 $c + \lg n$，已
+經不是常數了。 定理~\ref{thm:rec-audit} 的下界 $n \lfloor \lg n \rfloor$ 也說明
+$T(n) \ne O(n)$。 $O(n)$ 這個寫法藏起了常數，在歸納法裡要把常數寫出來，才看得到
+它有沒有變。
+
+\subsection{減去低次項}
+
+有時候猜的答案是對的，歸納卻差一點點過不去。 以呼叫次數
+$C(n) = C(\lceil n/2 \rceil) + C(\lfloor n/2 \rfloor) + 1$、$C(1) = 1$ 為例，程式
+印出 $2n - 1$，猜 $C(n) \le cn$：
+\[
+C(n) \le c \lceil n/2 \rceil + c \lfloor n/2 \rfloor + 1 = cn + 1.
+\]
+多了 $1$，不管 $c$ 取多大都推不出 $C(n) \le cn$。 這時該做的是把猜的式子\textbf{減去一個低次項}，改成
+$C(n) \le cn - d$，不必改猜更大的 $n \lg n$ 或 $n^2$：
+\[
+C(n) \le (c \lceil n/2 \rceil - d) + (c \lfloor n/2 \rfloor - d) + 1 = cn - 2d + 1
+\le cn - d,
+\]
+最後一步只要 $d \ge 1$。 基礎情況要 $C(1) = 1 \le c - d$。 取 $c = 2$、$d = 1$，得到
+$C(n) \le 2n - 1$。 把上面的 $\le$ 都換成 $=$ 再做一次，就得到 $C(n) = 2n - 1$，和
+程式一致。
+
+減去一項之後，要證明的式子變強了，可是歸納假設也一起變強，兩個呼叫各自少了 $d$，
+合起來少 $2d$，剛好吸收掉多出來的 $1$。 這是代換法最常用的技巧。
+
+\subsection{換變數}
+
+$T(n) = 2T(\sqrt{n}) + 1$、$T(2) = 1$，$n$ 取 $2, 4, 16, 256, \ldots$（這樣 $\sqrt{n}$
+一直是整數）。 開根號不好處理，可以換成指數：令 $m = \lg n$，$S(m) = T(2^m)$。
+$\sqrt{n} = 2^{m/2}$，所以
+\[
+S(m) = 2S(m/2) + 1, \qquad S(1) = 1.
+\]
+這和上一小段的呼叫次數是同一種遞迴式，$m$ 是 $2$ 的次方時 $S(m) = 2m - 1$。 換
+回來：$T(n) = 2 \lg n - 1 = \Theta(\lg n)$。 驗算：$T(4) = 2T(2) + 1 = 3$，
+$T(16) = 2T(4) + 1 = 7$，都等於 $2 \lg n - 1$。 把規模開根號的資料結構會出現這種
+遞迴式。
+
+\section{遞迴樹}
+\label{sec:rec-tree}
+
+代換法需要先猜。 \textbf{遞迴樹}（recursion tree）是一個好用的猜法，很多時候也可
+以直接算出答案：每一次呼叫畫成一個節點，節點裡寫這次呼叫\textbf{自己}做的工作
+（不含下面的呼叫），一層一層加起來，最後把所有層加總。
+
+\subsection{畫樹、算每層、加總}
+
+以 $T(n) = 3T(n/2) + n$ 為例，$n$ 是 $2$ 的次方，$T(1) = \Theta(1)$。 第~17~章的
+大數乘法就是這個形狀：一個規模 $n$ 的問題拆成三個規模 $n/2$ 的問題，另外做線性的
+工作。
+
+\begin{center}
+\begin{tikzpicture}
+\node[rnode] (r) at (0,0) {$n$};
+\foreach \i/\x in {1/-4, 2/0, 3/4} {
+    \node[rnode] (a\i) at (\x,-1.4) {$n/2$};
+    \draw[redge] (r) -- (a\i);
+    \foreach \j/\dx in {1/-1.25, 2/0, 3/1.25} {
+        \node[rnode, minimum width=0.8cm] (b\i\j) at (\x+\dx,-2.8) {$n/4$};
+        \draw[redge] (a\i) -- (b\i\j);
+    }
+}
+\foreach \x in {-5.25,-4,-2.75,-1.25,0,1.25,2.75,4,5.25} {
+    \node[font=\small] at (\x,-3.6) {$\vdots$};
+}
+\foreach \x in {-5.25,-4,-1.25,0,2.75,5.25} {
+    \node[rleaf] at (\x,-4.5) {$\Theta(1)$};
+}
+\node[font=\small] at (-2.6,-4.5) {$\cdots$};
+\node[font=\small] at (1.4,-4.5) {$\cdots$};
+\node[font=\small] at (4.0,-4.5) {$\cdots$};
+\draw[decorate, decoration={brace, amplitude=5pt}] (-6.3,-4.5) -- (-6.3,0)
+    node[midway, left=6pt, font=\small, align=right] {$\lg n$\\層};
+\node[rsum] at (6.3,0) {$n$};
+\node[rsum] at (6.3,-1.4) {$\tfrac{3}{2}\,n$};
+\node[rsum] at (6.3,-2.8) {$\left(\tfrac{3}{2}\right)^{2} n$};
+\node[rsum] at (6.3,-3.6) {$\vdots$};
+\node[rsum] at (6.3,-4.5) {$\Theta(n^{\lg 3})$};
+\end{tikzpicture}
+\diagcaption{$T(n) = 3T(n/2) + n$ 的遞迴樹。 右邊是每一層的總和，一層比一層大
+$3/2$ 倍；最下面一層是 $3^{\lg n} = n^{\lg 3}$ 個葉子。}
+\label{fig:rec-tree-3half}
+\end{center}
+
+一層一層數：
+
+\begin{itemize}
+\item 第 $j$ 層有 $3^j$ 個節點，每個的規模是 $n/2^j$，自己的工作是 $n/2^j$，這一層
+合計 $3^j \cdot n/2^j = (3/2)^j n$。
+\item 規模在 $j = \lg n$ 時變成 $1$，所以第 $0$ 到第 $\lg n - 1$ 層是內部節點，第
+$\lg n$ 層是葉子，共有 $3^{\lg n} = n^{\lg 3}$ 個，每個 $\Theta(1)$。
+\end{itemize}
+
+加起來（等比級數，公比 $3/2$）：
+\[
+T(n) = n \sum_{j=0}^{\lg n - 1} \left(\frac{3}{2}\right)^{j} + \Theta(n^{\lg 3})
+= n \cdot \frac{(3/2)^{\lg n} - 1}{3/2 - 1} + \Theta(n^{\lg 3})
+= 2n^{\lg 3} - 2n + \Theta(n^{\lg 3}) = \Theta(n^{\lg 3}).
+\]
+這裡用了 $(3/2)^{\lg n} = n^{\lg (3/2)} = n^{\lg 3 - 1}$。 $\lg 3 \approx 1.585$，所以
+這個演算法比 $n^2$ 好。 這個例子每一步都是精確的等式，不需要再驗證；如果畫樹時有
+近似（例如忽略了地板），習慣上再用代換法確認一次。
+
+\subsection{三種形狀}
+
+上面的例子每一層是上一層的 $3/2$ 倍。 一般來說，相鄰兩層的總和之比 $r$ 決定了答
+案，這正是第~1~章等比級數的兩句話：公比小於 $1$，總和和第一項同一級；公比大於
+$1$，總和和最後一項同一級。
+
+\begin{center}
+\begin{tabular}{llll}
+\toprule
+每層的變化 & 誰最大 & 答案 & 例子 \\
+\midrule
+越來越小（$r < 1$） & 根 & $\Theta(\text{根的工作})$ &
+$2T(n/2) + n^2 = \Theta(n^2)$ \\
+每層一樣（$r = 1$） & 平手 & $\Theta(\text{每層} \times \text{層數})$ &
+$2T(n/2) + n = \Theta(n \lg n)$ \\
+越來越大（$r > 1$） & 葉子 & $\Theta(\text{葉子的個數})$ &
+$3T(n/2) + n = \Theta(n^{\lg 3})$ \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+第一列的例子：每層的總和是 $n^2, n^2/2, n^2/4, \ldots$，全部加起來不超過 $2n^2$；
+葉子只有 $n$ 個。 所以是 $\Theta(n^2)$，大部分的工作在根做完。 下一節的主定理就
+是把這張表寫成精確的定理。
+
+\begin{examnote}
+用遞迴樹作答時，寫出第 $j$ 層的節點數、每個節點的規模、這一層的總和、總層數，以
+及葉子的個數和總成本，再寫加總。 葉子那一層最容易漏掉，層數也容易差一。 葉子的個數
+$n^{\log_b a}$ 可以拿來檢查答案：答案不可能比它小。 例如把 $3T(n/2) + n$ 答成
+$\Theta(n \lg n)$，一比 $n^{\lg 3} \approx n^{1.585}$ 就知道錯了。
+\end{examnote}
+
+\subsection{不平衡的樹}
+
+兩個子問題不一樣大時，遞迴樹的左右兩邊深度不同。 看
+\[
+T(n) = T(n/4) + T(3n/4) + n, \qquad T(n) = \Theta(1) \ (n < 4).
+\]
+
+\begin{center}
+\begin{tikzpicture}
+\node[rnode] (r) at (0,0) {$n$};
+\node[rnode] (a) at (-3,-1.4) {$n/4$};
+\node[rnode] (b) at (3,-1.4) {$3n/4$};
+\node[rnode] (c) at (-4.4,-2.8) {$n/16$};
+\node[rnode] (d) at (-1.6,-2.8) {$3n/16$};
+\node[rnode] (e) at (1.6,-2.8) {$3n/16$};
+\node[rnode] (f) at (4.4,-2.8) {$9n/16$};
+\foreach \u/\v in {r/a, r/b, a/c, a/d, b/e, b/f} { \draw[redge] (\u) -- (\v); }
+\node[font=\small] at (-4.4,-3.6) {$\vdots$};
+\node[font=\small] at (4.4,-3.6) {$\vdots$};
+\node[rleaf] (l) at (-4.4,-4.5) {$\Theta(1)$};
+\node[rleaf] (rr) at (4.4,-5.4) {$\Theta(1)$};
+\node[font=\scriptsize, align=center] at (-1.9,-4.5) {最淺的葉子\\深度約 $\log_4 n$};
+\node[font=\scriptsize, align=center] at (1.9,-5.4) {最深的葉子\\深度約 $\log_{4/3} n$};
+\node[rsum] at (6.0,0) {$n$};
+\node[rsum] at (6.0,-1.4) {$n/4 + 3n/4 = n$};
+\node[rsum] at (6.0,-2.8) {$n$};
+\node[rsum] at (6.0,-3.9) {不滿的層 $\le n$};
+\end{tikzpicture}
+\diagcaption{$T(n) = T(n/4) + T(3n/4) + n$ 的遞迴樹。 每一層的規模加起來是 $n$；
+往左走規模縮得快，往右走縮得慢，所以最下面幾層是不滿的。}
+\label{fig:rec-tree-unbalanced}
+\end{center}
+
+同一層的規模加起來是 $n$（每個節點分成的兩塊加起來就是它自己），所以每一層滿的層
+成本剛好是 $n$，不滿的層不超過 $n$。 一直往左走，規模每層變成 $1/4$，大約
+$\log_4 n$ 層就到葉子；一直往右走，每層只變成 $3/4$，要大約 $\log_{4/3} n$ 層。
+
+\begin{itemize}
+\item \textbf{上界}：最多 $\log_{4/3} n + 1$ 層，每層的內部成本不超過 $n$；葉子的
+規模都至少 $1$（規模 $s \ge 4$ 的節點分成 $s/4 \ge 1$ 和 $3s/4 \ge 3$），規模加起
+來不超過 $n$，所以葉子最多 $n$ 個。 合計 $O(n \lg n)$。
+\item \textbf{下界}：前 $\lfloor \log_4 n \rfloor$ 層都是滿的，每層成本 $n$，合計
+$\Omega(n \lg n)$。
+\end{itemize}
+
+所以 $T(n) = \Theta(n \lg n)$。 這裡忽略了「規模不是整數」等細節，用代換法驗證上
+界：猜 $T(n) \le d\, n \lg n$（$n \ge 2$）。 $n \ge 8$ 時兩個子問題的規模都至少 $2$，
+用歸納假設：
+\[
+T(n) \le d\,\frac{n}{4} \lg \frac{n}{4} + d\,\frac{3n}{4} \lg \frac{3n}{4} + n
+= d\, n \lg n - d\, n \left(\frac{1}{4} \lg 4 + \frac{3}{4} \lg \frac{4}{3}\right) + n .
+\]
+括號裡的數 $h = \frac{1}{2} + \frac{3}{4}\lg\frac{4}{3} \approx 0.811$ 是正的常數，
+只要 $d \ge 1/h$（大約 $1.23$），減掉的 $d h n$ 就蓋過加上的 $n$，得到
+$T(n) \le d\, n \lg n$。 $2 \le n < 8$ 時最多往下兩層就到基礎情況，$T(n)$ 不超過某個常數
+$M$，而 $n \lg n \ge 2$，所以 $d$ 再取大一點（$d \ge M/2$）就都成立。
+
+兩塊的比例換成任何固定的 $\alpha : (1 - \alpha)$（$0 < \alpha < 1$），結論都一樣是
+$\Theta(n \lg n)$，只是 $\alpha$ 越偏，常數越大。 第~14~章分析快速排序時會用到這
+個結論。
+
+\section{主定理}
+\label{sec:rec-master}
+
+很多分治演算法的遞迴式長成
+\[
+T(n) = aT(n/b) + f(n),
+\]
+意思是：規模 $n$ 的問題拆成 $a$ 個規模 $n/b$ 的子問題，呼叫以外另外花 $f(n)$。 這
+裡 $a \ge 1$、$b > 1$ 是常數。 遞迴樹的第 $j$ 層有 $a^j$ 個節點，每個的成本是
+$f(n/b^j)$；樹高 $\log_b n$，葉子共有
+\[
+a^{\log_b n} = n^{\log_b a}
+\]
+個。 上一節的表是在比較根的成本 $f(n)$ 和葉子的總數 $n^{\log_b a}$，主定理把這個比
+較說清楚。
+
+\subsection{定理}
+
+\begin{theorem}[主定理]
+\label{thm:rec-master}
+設 $a \ge 1$、$b > 1$ 是常數，$f(n)$ 是正的函數，$T(n)$ 定義在 $b$ 的次方
+$n = 1, b, b^2, \ldots$ 上：$T(1)$ 是正的常數，$n \ge b$ 時
+$T(n) = aT(n/b) + f(n)$。
+\begin{enumerate}
+\item 若存在常數 $\varepsilon > 0$ 使 $f(n) = O(n^{\log_b a - \varepsilon})$，則
+$T(n) = \Theta(n^{\log_b a})$。
+\item 若 $f(n) = \Theta(n^{\log_b a})$，則 $T(n) = \Theta(n^{\log_b a} \lg n)$。
+\item 若存在常數 $\varepsilon > 0$ 使 $f(n) = \Omega(n^{\log_b a + \varepsilon})$，
+而且存在常數 $c < 1$，使得 $n$ 夠大時
+\[
+a f(n/b) \le c f(n) \qquad \text{（正則條件）},
+\]
+則 $T(n) = \Theta(f(n))$。
+\end{enumerate}
+\end{theorem}
+
+三種情況對應上一節的三列：情況 1 是葉子贏，情況 2 平手，情況 3 根贏。 有兩個地方
+要注意。
+
+第一，情況 1 和情況 3 要求 $f(n)$ 和 $n^{\log_b a}$ 差了\textbf{至少一個}
+$n^{\varepsilon}$ 的因子，叫做「多項式地小（大）」。 只是「比較小」不夠。 例如和
+$n^2$ 比，$n \lg n$ 是多項式地小（$n \lg n = O(n^{1.5})$），但 $n^2 / \lg n$ 只差了
+$\lg n$，任何 $n^{\varepsilon}$ 最後都比 $\lg n$ 大，所以不算。
+
+第二，情況 3 的\textbf{正則條件}（regularity condition）說第 1 層的總和
+$a f(n/b)$ 不超過根的 $c$ 倍，這樣每一層都至少縮成上一層的 $c$ 倍，總和是遞減的
+等比級數。 $f(n) = n^k$ 而且 $k > \log_b a$ 時它一定成立：
+$a (n/b)^k = (a/b^k) n^k$，而 $a/b^k = b^{\log_b a - k} < 1$，取 $c = a/b^k$。
+
+情況 2 常用下面這個推廣，它把 $f(n)$ 多一個 $\lg^k n$ 因子的情形也包進來。
+
+\begin{theorem}[推廣的情況 2]
+\label{thm:rec-master2}
+同定理~\ref{thm:rec-master} 的假設。 若存在常數 $k \ge 0$ 使
+$f(n) = \Theta(n^{\log_b a} \lg^k n)$，則 $T(n) = \Theta(n^{\log_b a} \lg^{k+1} n)$。
+\end{theorem}
+
+$k = 0$ 就是原本的情況 2。 定理只對 $b$ 的次方敘述；遞迴式寫成
+$T(\lfloor n/b \rfloor)$ 或 $T(\lceil n/b \rceil)$ 時結論也一樣成立，證明比較繁
+瑣，本書不做。 如果知道 $T$ 是非遞減的，也可以直接用定理~\ref{thm:rec-smooth} 推到
+所有的 $n$。 證明放在本節最後的框裡。
+
+\subsection{怎麼用}
+
+\begin{enumerate}
+\item 確認是 $aT(n/b) + f(n)$ 的形式：$a$、$b$ 是常數，$a \ge 1$，$b > 1$。
+\item 算出 $\log_b a$。
+\item 比較 $f(n)$ 和 $n^{\log_b a}$：差到多項式倍（情況 1 或 3），還是同一級（情況
+2，或推廣的情況 2）。
+\item 情況 3 還要驗證正則條件。
+\end{enumerate}
+
+\begin{center}
+\begin{tabular}{lcccl}
+\toprule
+遞迴式 & $a$、$b$ & $n^{\log_b a}$ & 情況 & 答案 \\
+\midrule
+$5T(n/2) + n^2$ & 5、2 & $n^{2.32\ldots}$ & 1（$\varepsilon = 0.3$） & $\Theta(n^{\lg 5})$ \\
+$27T(n/3) + n^3$ & 27、3 & $n^3$ & 2 & $\Theta(n^3 \lg n)$ \\
+$3T(n/9) + n$ & 3、9 & $n^{1/2}$ & 3（$\varepsilon = 1/2$，$c = 1/3$） & $\Theta(n)$ \\
+$T(n/2) + 1$ & 1、2 & $n^0 = 1$ & 2 & $\Theta(\lg n)$ \\
+$4T(n/16) + \sqrt{n}$ & 4、16 & $n^{1/2}$ & 2 & $\Theta(\sqrt{n} \lg n)$ \\
+$3T(n/3) + n \lg n$ & 3、3 & $n$ & 推廣的 2（$k = 1$） & $\Theta(n \lg^2 n)$ \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+幾列的說明。 第 3 列：$f(n) = n = \Omega(n^{1/2 + 1/2})$，正則條件
+$3 \cdot (n/9) = n/3 \le \frac{1}{3} n$，取 $c = 1/3$。 第 4 列是二分搜尋，$a = 1$
+時 $n^{\log_b a} = 1$，$f(n) = 1$ 和它同一級。 最後一列：$n \lg n$ 比 $n$ 大，但沒
+有大到 $n^{1+\varepsilon}$（$\lg n = o(n^{\varepsilon})$），原本的三種情況都不適
+用；它是推廣情況 2 的 $k = 1$。
+
+\begin{examnote}
+用主定理作答時，依序寫出 $a$、$b$、$\log_b a$、$f(n)$、屬於哪一種情況。 情況 1、3
+寫出一個可用的 $\varepsilon$，情況 3 再寫出正則條件的 $c$ 和驗證過程。 只寫「由主
+定理得 $\Theta(n^2)$」，看不出你有沒有檢查條件。
+\end{examnote}
+
+\subsection{不能用的時候}
+
+\textbf{$f(n)$ 和 $n^{\log_b a}$ 差不到多項式倍。} 例如
+$T(n) = 4T(n/2) + n^2 / \lg n$。 $n^{\log_2 4} = n^2$，$f(n)$ 比 $n^2$ 小，但只小了
+$\lg n$，不是情況 1；推廣的情況 2 要 $k \ge 0$，這裡等於 $k = -1$，也不行。 直接用
+遞迴樹算（$n = 2^m$）：第 $j$ 層的總和是
+\[
+4^j \cdot \frac{(n/2^j)^2}{\lg (n/2^j)} = \frac{n^2}{m - j},
+\]
+把 $j = 0, \ldots, m - 1$ 加起來是 $n^2 (1/m + \cdots + 1/1) = n^2 H_m$，葉子是
+$4^m = n^2$ 個。 $H_m = \Theta(\lg m)$，所以
+$T(n) = \Theta(n^2 \lg \lg n)$，比 $n^2$ 大，比 $n^2 \lg n$ 小。
+
+\textbf{不是 $aT(n/b) + f(n)$ 的形式。} 規模是減的，例如 $T(n) = T(n-1) + n$（見
+第~\ref{sec:rec-other}~節）；子問題不一樣大，例如 $T(n/4) + T(3n/4) + n$（見
+第~\ref{sec:rec-tree}~節和第~\ref{sec:rec-gf}~節）；$a$ 不是常數，例如
+$T(n) = n\,T(n/2) + 1$；$a < 1$，例如 $T(n) = \frac{1}{2} T(n/2) + n$，「呼叫半
+次」不是一個合理的遞迴程式。
+
+\textbf{情況 3 的正則條件不成立。} $f(n)$ 是多項式時一定成立，但 $f(n)$ 忽大忽小
+時可能不成立，這時定理不給結論，要回到遞迴樹自己算。
+
+\subsection{實際算一次}
+
+下面的程式對 $n = 2^k$ 直接用遞迴式一層一層算出 $T(n)$（$T(1) = 1$），再除以猜的
+答案。 比值趨近一個正的常數，表示猜的 $\Theta$ 對；比值趨近 $0$ 或越來越大，表示
+猜錯了。 四個遞迴式和印出的比值是：
+A：$3T(n/2) + n$，印 $T(n)/n^{\lg 3}$；
+B：$2T(n/2) + n$，印 $T(n)/(n \lg n)$；
+C：$2T(n/2) + n^2$，印 $T(n)/n^2$；
+D：$4T(n/2) + n^2/\lg n$，D1 印 $T(n)/(n^2 \lg n)$，D2 印 $T(n)/(n^2 \lg \lg n)$。
+
+\begin{example}[label=ex:rec-ratio]{c}{(recur\_ratio.c) 用比值檢查遞迴式的解}
+#include <stdio.h>
+#include <math.h>
+
+// n = 2^k 時，用遞迴式本身一層一層算出 T(n)，T(1) = 1。
+//   A: T(n) = 3T(n/2) + n            除以 n^(lg 3) = 3^k
+//   B: T(n) = 2T(n/2) + n            除以 n lg n
+//   C: T(n) = 2T(n/2) + n^2          除以 n^2
+//   D: T(n) = 4T(n/2) + n^2 / lg n   D1 除以 n^2 lg n，D2 除以 n^2 lg lg n
+int main(void)
+{
+    double ta = 1, tb = 1, tc = 1, td = 1;  // T(2^0)
+    double n = 1, pow3 = 1;                  // 2^k、3^k
+    printf("k A B C D1 D2\n");
+    for (int k = 1; k <= 64; k++) {
+        n *= 2;
+        pow3 *= 3;
+        ta = 3 * ta + n;
+        tb = 2 * tb + n;
+        tc = 2 * tc + n * n;
+        td = 4 * td + n * n / k;              // lg n = k
+        if (k == 2 || k == 4 || k == 8 || k == 16 || k == 32 || k == 64) {
+            printf("%d %.4f %.4f %.4f %.4f %.4f\n", k, ta / pow3,
+                   tb / (n * k), tc / (n * n), td / (n * n * k),
+                   td / (n * n * log2(k)));
+        }
+    }
+    return 0;
+}
+\end{example}
+\iosample{}{k A B C D1 D2 \\ 2 2.1111 1.5000 1.7500 1.2500 2.5000 \\ 4 2.6049 1.2500 1.9375 0.7708 1.5417 \\ 8 2.9220 1.1250 1.9961 0.4647 1.2393 \\ 16 2.9970 1.0625 2.0000 0.2738 1.0952 \\ 32 3.0000 1.0312 2.0000 0.1581 1.0117 \\ 64 3.0000 1.0156 2.0000 0.0897 0.9573}
+
+A、B、C 都很快穩定下來：A 的精確解是 $3n^{\lg 3} - 2n$，比值是
+$3 - 2(2/3)^k$；B 是 $n \lg n + n$，比值 $1 + 1/k$；C 是 $2n^2 - n$。 D1 一路往 $0$
+掉，說明 $n^2 \lg n$ 猜得太大，把 $4T(n/2) + n^2/\lg n$ 硬套成情況 2 會得到錯的答
+案。 D2 的比值是 $(1 + H_k)/\lg k$，會慢慢趨近 $\ln 2 \approx 0.69$；$k$ 到 $64$
+（$n = 2^{64}$）都還沒停下來。 牽涉到 $\lg \lg n$ 的比值收斂得非常慢，這種程式只能
+幫忙檢查，不能代替證明。
+
+\begin{whybox}[主定理的證明（$n$ 是 $b$ 的次方）]
+令 $n = b^m$，$w = \log_b a$，所以 $a^m = n^w$，$a = b^w$。 $f$ 是正的，而且每個
+$O$、$\Omega$、$\Theta$ 的不等式只在 $n \ge n_0$ 時成立；$n_0$ 以下只有有限多個
+$b$ 的次方，把常數調大（或調小）就能讓不等式對所有出現的 $b$ 的次方都成立。 下面
+直接這樣用。
+
+\begin{lemma}
+\label{lem:rec-unroll}
+$T(n) = T(1)\, n^{w} + g(n)$，其中 $g(n) = \sum_{j=0}^{m-1} a^j f(n/b^j)$。
+\end{lemma}
+
+\begin{proof}
+反覆代入：$T(n) = f(n) + aT(n/b) = f(n) + af(n/b) + a^2 T(n/b^2) = \cdots =
+\sum_{j=0}^{m-1} a^j f(n/b^j) + a^m T(1)$，而 $a^m = n^w$。
+\end{proof}
+
+$T(1)\, n^w$ 是葉子的總成本，$g(n)$ 是內部節點的總成本，第 $j$ 項是第 $j$ 層。 剩
+下的工作是估計 $g(n)$。
+
+\textbf{情況 1。} 設 $f(x) \le c\, x^{w - \varepsilon}$。 因為
+$a^j / (b^j)^{w - \varepsilon} = (b^{\varepsilon})^j$，
+\[
+g(n) \le c \sum_{j=0}^{m-1} a^j \left(\frac{n}{b^j}\right)^{w - \varepsilon}
+= c\, n^{w - \varepsilon} \sum_{j=0}^{m-1} (b^{\varepsilon})^j
+= c\, n^{w - \varepsilon} \cdot \frac{b^{\varepsilon m} - 1}{b^{\varepsilon} - 1}
+< \frac{c}{b^{\varepsilon} - 1}\, n^{w},
+\]
+最後一步用了 $b^{\varepsilon m} = n^{\varepsilon}$。 所以
+$T(1) n^w \le T(n) \le (T(1) + \frac{c}{b^\varepsilon - 1}) n^w$，$T(n) = \Theta(n^w)$。
+
+\textbf{情況 2（含推廣，$k \ge 0$）。} $g(n)$ 裡 $f$ 的參數 $n/b^j$ 都至少是 $b$，
+$\lg$ 是正的。 設 $c_1 x^w \lg^k x \le f(x) \le c_2 x^w \lg^k x$。 因為
+$a^j (n/b^j)^w = n^w$、$\lg(n/b^j) = (m - j)\lg b$，第 $j$ 層夾在
+$c_1 n^w (\lg b)^k (m-j)^k$ 和 $c_2 n^w (\lg b)^k (m-j)^k$ 之間。 而
+\[
+\left(\frac{m}{2}\right)^{k+1} \le \sum_{i=1}^{m} i^k \le m^{k+1}
+\]
+（左邊只留 $i \ge m/2$ 的項，至少 $m/2$ 項，每項至少 $(m/2)^k$）。 $m = \lg n / \lg b$，
+所以 $g(n) = \Theta(n^w \lg^{k+1} n)$。 $n \ge b$ 時 $\lg n \ge \lg b > 0$，葉子的
+$n^w$ 被它蓋過，$T(n) = \Theta(n^w \lg^{k+1} n)$。
+
+\textbf{情況 3。} 先假設正則條件對所有 $x \ge b$ 都成立。 用 $j$ 次得到
+$a^j f(n/b^j) \le c^j f(n)$，所以
+\[
+f(n) \le g(n) \le f(n) \sum_{j=0}^{\infty} c^j = \frac{f(n)}{1 - c},
+\]
+左邊是 $j = 0$ 那一項。 $g(n) = \Theta(f(n))$；又
+$f(n) = \Omega(n^{w + \varepsilon})$，所以葉子的 $n^w = O(f(n))$，$T(n) =
+\Theta(f(n))$。 如果正則條件只在 $x \ge n_1$ 時成立，參數小於 $n_1$ 的那幾層用不
+上它；這樣的層最多 $\log_b n_1 + 1$ 個（常數），每層不超過
+$a^m \cdot \max_{x < n_1} f(x) = O(n^w)$，合計 $O(n^w) = O(f(n))$，結論不變。
+\end{whybox}
+
+\section{其他常見的形式}
+\label{sec:rec-other}
+
+\subsection{\texorpdfstring{每次減一：$T(n) = T(n-1) + f(n)$}{每次減一：T(n) = T(n-1) + f(n)}}
+
+每次只把規模減 $1$ 的遞迴，例如走訪串列、選擇排序、快速排序的最壞情況（第~14~章），
+遞迴樹是一條鏈，直接展開：
+\[
+T(n) = f(n) + T(n-1) = f(n) + f(n-1) + T(n-2) = \cdots = T(0) + \sum_{i=1}^{n} f(i).
+\]
+問題變成第~1~章的求和。
+
+\begin{center}
+\begin{tabular}{lll}
+\toprule
+$f(n)$ & $\sum_{i=1}^{n} f(i)$ & $T(n)$ \\
+\midrule
+$1$ & $n$ & $\Theta(n)$ \\
+$n$ & $n(n+1)/2$ & $\Theta(n^2)$ \\
+$n^k$（$k \ge 0$ 常數） & & $\Theta(n^{k+1})$ \\
+$\lg n$ & $\lg(n!)$ & $\Theta(n \lg n)$ \\
+$1/n$ & $H_n$ & $\Theta(\lg n)$ \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+如果每次呼叫自己\textbf{兩次}，形式變成 $T(n) = 2T(n-1) + f(n)$，就完全不同了。
+《C 程式設計基礎》第~15~章 15.8 節的河內塔，搬 $n$ 個盤子的步數是
+$H(n) = 2H(n-1) + 1$、$H(0) = 0$。 兩邊加 $1$：
+$H(n) + 1 = 2\bigl(H(n-1) + 1\bigr)$，所以 $H(n) + 1 = 2^n (H(0) + 1)$，
+$H(n) = 2^n - 1$。 規模\textbf{減}一個常數、呼叫次數又大於一，答案是指數；規模
+\textbf{除以}一個常數，答案是多項式。 看到遞迴式時，先分清楚是哪一種。
+
+\subsection{\texorpdfstring{開根號：$T(n) = T(\sqrt{n}) + 1$}{開根號：T(n) = T(√n) + 1}}
+
+規模每次開根號，$k$ 次之後是 $n^{1/2^k}$。 設 $n \le 2$ 時停下：
+\[
+n^{1/2^k} \le 2 \iff \frac{\lg n}{2^k} \le 1 \iff k \ge \lg \lg n,
+\]
+所以 $T(n) = \Theta(\lg \lg n)$。 也可以用上一節的換變數：$m = \lg n$，
+$S(m) = S(m/2) + 1 = \Theta(\lg m)$。 $\lg \lg n$ 長得非常慢，$n = 2^{64}$ 時只有
+$6$。
+
+\subsection{線性遞迴與特徵方程式}
+
+像 $a_n = a_{n-1} + 2a_{n-2}$ 這種「每一項是前面固定幾項的常數倍相加」的遞迴式叫做
+\textbf{常係數線性遞迴}（linear recurrence with constant coefficients）。 往前看兩項
+的叫二階。 它們有一套標準的解法。
+
+\begin{theorem}[二階齊次線性遞迴]
+\label{thm:rec-linear}
+設 $c_1$、$c_2$ 是常數，$c_2 \ne 0$，數列滿足 $a_n = c_1 a_{n-1} + c_2 a_{n-2}$
+（$n \ge 2$）。 方程式 $x^2 = c_1 x + c_2$ 叫做它的\textbf{特徵方程式}
+（characteristic equation）。
+\begin{enumerate}
+\item 特徵方程式有兩個不同的根 $r_1$、$r_2$ 時，$a_n = A r_1^n + B r_2^n$。
+\item 特徵方程式有重根 $r$ 時，$a_n = (A + Bn) r^n$。
+\end{enumerate}
+常數 $A$、$B$ 由 $a_0$、$a_1$ 決定。
+\end{theorem}
+
+\begin{proof}
+先說明公式裡的數列都滿足遞迴式。 $c_2 \ne 0$，所以 $0$ 不是根。 $r^n$ 滿足遞迴式
+等於 $r^n = c_1 r^{n-1} + c_2 r^{n-2}$，兩邊除以 $r^{n-2}$ 就是 $r$ 是特徵方程式的
+根。 兩個滿足遞迴式的數列，它們的常數倍相加也滿足（遞迴式兩邊都是線性的）。 重根
+時 $r = c_1/2$、$c_2 = -r^2$，檢查 $n r^n$：
+\[
+c_1 (n-1) r^{n-1} + c_2 (n-2) r^{n-2} = r^{n}\bigl(2(n-1) - (n-2)\bigr) = n r^n .
+\]
+
+再說明一定選得到 $A$、$B$ 符合 $a_0$、$a_1$。 不同根：$A + B = a_0$、
+$A r_1 + B r_2 = a_1$，係數的行列式 $r_2 - r_1 \ne 0$，有解。 重根：$A = a_0$、
+$(A + B) r = a_1$，$r \ne 0$，有解。
+
+最後，滿足同一個二階遞迴式、而且前兩項相同的兩個數列，用歸納法可知每一項都相同。
+所以 $a_n$ 就是公式給的數列。
+\end{proof}
+
+根是複數時公式仍然成立，只是要用複數計算；本書的例子都是實數根。 《C 程式設計基礎》第~15~章
+的費氏數列也可以這樣解：$x^2 = x + 1$ 的根是 $\varphi = (1 + \sqrt{5})/2$ 和
+$(1 - \sqrt{5})/2$，第二個根的絕對值小於 $1$，所以費氏數是
+$\Theta(\varphi^n)$。
+
+\textbf{例 1（兩個不同的根）。} 一條寬 $1$、長 $n$ 的走道要鋪地磚。 磚有兩種長度：
+長 $1$ 的只有灰色，長 $2$ 的有紅、藍兩色。 鋪法有幾種？ 看最右邊那一塊：是灰磚，剩
+下長 $n - 1$；是紅磚或藍磚，剩下長 $n - 2$。 所以
+\[
+a_n = a_{n-1} + 2a_{n-2}, \qquad a_0 = 1,\ a_1 = 1
+\]
+（長 $0$ 只有「什麼都不鋪」一種）。 特徵方程式 $x^2 = x + 2$，根是 $2$ 和 $-1$，
+$a_n = A \cdot 2^n + B(-1)^n$。 代 $n = 0, 1$：$A + B = 1$、$2A - B = 1$，解得
+$A = 2/3$、$B = 1/3$。
+\[
+a_n = \frac{2^{n+1} + (-1)^n}{3}.
+\]
+驗算：$a_2 = a_1 + 2a_0 = 3 = (8 + 1)/3$，$a_3 = 3 + 2 = 5 = (16 - 1)/3$。
+
+\textbf{例 2（重根）。} $a_n = 6a_{n-1} - 9a_{n-2}$，$a_0 = 1$、$a_1 = 6$。 特徵方
+程式 $x^2 - 6x + 9 = (x - 3)^2$，重根 $3$，$a_n = (A + Bn) 3^n$。 $a_0 = A = 1$，
+$a_1 = 3(1 + B) = 6$，$B = 1$，所以 $a_n = (n + 1) 3^n$。 驗算 $a_2 = 36 - 9 = 27 =
+3 \cdot 9$。 重根時如果寫成 $A \cdot 3^n + B \cdot 3^n$，那其實只有一個常數，配不出
+兩個初始值。
+
+\subsection{非齊次的線性遞迴}
+
+多了一項和 $a$ 無關的 $g(n)$：
+\[
+a_n = c_1 a_{n-1} + c_2 a_{n-2} + g(n).
+\]
+如果已經找到\textbf{任何一個}滿足它的數列 $p_n$（叫\textbf{特解}），那麼所有的解都
+是 $p_n$ 加上齊次遞迴式（把 $g(n)$ 拿掉）的解。 理由：兩個解相減，$g(n)$ 消掉了，
+差滿足齊次遞迴式。 所以解法是三步：解齊次部分（定理~\ref{thm:rec-linear}）、猜一
+個特解、\textbf{最後}才用初始值求 $A$、$B$。
+
+特解照 $g(n)$ 的樣子猜：
+
+\begin{center}
+\begin{tabular}{ll}
+\toprule
+$g(n)$ & 特解的猜法 \\
+\midrule
+常數 $d$ & 常數 $p$ \\
+$k$ 次多項式 & $k$ 次多項式（係數待定） \\
+$d \cdot s^n$ & $p \cdot s^n$ \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+例外：如果 $1$（前兩列）或 $s$（第三列）剛好是特徵方程式的根，猜的式子會被齊次部
+分吃掉，要再乘上 $n$（重根乘 $n^2$）。 觀念題第 11 題 (b) 就是這種情形。
+
+\textbf{例 3。} 回到鋪地磚。 照定義直接寫遞迴函式，最右邊是長 $2$ 的磚時，紅、藍
+各呼叫一次，所以呼叫次數是
+\[
+C(n) = C(n-1) + 2C(n-2) + 1 \ (n \ge 2), \qquad C(0) = C(1) = 1 .
+\]
+齊次部分和例 1 一樣，是 $A \cdot 2^n + B(-1)^n$。 $g(n) = 1$，$1$ 不是根（$1 \ne 1
++ 2$），猜常數 $p$：$p = p + 2p + 1$，$p = -1/2$。 所以
+$C(n) = A \cdot 2^n + B(-1)^n - 1/2$。 現在才代初始值：$A + B - 1/2 = 1$、
+$2A - B - 1/2 = 1$，得 $A = 1$、$B = 1/2$：
+\[
+C(n) = 2^n + \frac{(-1)^n - 1}{2},
+\]
+$n$ 是偶數時剛好是 $2^n$，奇數時是 $2^n - 1$。
+
+\subsection{實際數一次：鋪地磚}
+
+\begin{example}[label=ex:rec-tiles]{c}{(tiles.c) 鋪地磚的方法數和呼叫次數}
+#include <stdio.h>
+
+long long calls;    // tile 被呼叫的次數
+
+// 長 n 的走道有幾種鋪法。磚有兩種長度：長 1 的只有灰色，
+// 長 2 的有紅、藍兩色。看走道最右邊那一塊是哪一種。
+long long tile(int n)
+{
+    calls++;
+    if (n <= 1) {
+        return 1;                   // 長 0：什麼都不鋪；長 1：一塊灰磚
+    }
+    long long ways = tile(n - 1);   // 最右邊是灰磚
+    for (int color = 0; color < 2; color++) {
+        ways += tile(n - 2);        // 最右邊是紅磚或藍磚
+    }
+    return ways;
+}
+
+int main(void)
+{
+    int ns[] = {0, 1, 2, 3, 4, 5, 6, 7, 8, 12, 16, 20};
+    printf("n ways closed calls closed\n");
+    for (int t = 0; t < 12; t++) {
+        int n = ns[t];
+        long long sign = (n % 2 == 0) ? 1 : -1;     // (-1)^n
+        calls = 0;
+        long long w = tile(n);
+        printf("%d %lld %lld %lld %lld\n", n, w, ((2LL << n) + sign) / 3,
+               calls, (1LL << n) + (sign - 1) / 2);
+    }
+    return 0;
+}
+\end{example}
+\iosample{}{n ways closed calls closed \\ 0 1 1 1 1 \\ 1 1 1 1 1 \\ 2 3 3 4 4 \\ 3 5 5 7 7 \\ 4 11 11 16 16 \\ 5 21 21 31 31 \\ 6 43 43 64 64 \\ 7 85 85 127 127 \\ 8 171 171 256 256 \\ 12 2731 2731 4096 4096 \\ 16 43691 43691 65536 65536 \\ 20 699051 699051 1048576 1048576}
+
+第二、三欄是方法數和例 1 的公式，第四、五欄是呼叫次數和例 3 的公式，每一列都相同。
+這支程式的時間是 $\Theta(2^n)$：同一個 \texttt{tile(k)} 被重算了很多次。 用《C 程式
+設計基礎》第~15~章 15.9 節的記憶化，或從小到大填一個陣列，呼叫次數可以降到
+$\Theta(n)$。
+
+\section{生成函數與 Akra--Bazzi 方法}
+\label{sec:rec-gf}
+
+這一節介紹兩個更一般的工具，只給結論和一個例子。
+
+\subsection{生成函數}
+
+數列 $a_0, a_1, a_2, \ldots$ 的\textbf{生成函數}（generating function）是冪級數
+$A(x) = \sum_{n \ge 0} a_n x^n$。 遞迴式乘上 $x^n$ 再對 $n$ 加總，會變成 $A(x)$ 的
+一個方程式。 用鋪地磚的 $a_n = a_{n-1} + 2a_{n-2}$（$a_0 = a_1 = 1$）示範：
+\[
+A(x) - x A(x) - 2x^2 A(x) = a_0 + (a_1 - a_0) x = 1 .
+\]
+（左邊 $x^n$ 的係數，$n \ge 2$ 時是 $a_n - a_{n-1} - 2a_{n-2} = 0$；$n = 0, 1$ 時剩
+下右邊兩項。） 所以
+\[
+A(x) = \frac{1}{1 - x - 2x^2} = \frac{1}{(1 - 2x)(1 + x)}
+= \frac{2/3}{1 - 2x} + \frac{1/3}{1 + x}.
+\]
+再用 $\frac{1}{1 - rx} = \sum_n r^n x^n$ 展開，$x^n$ 的係數是
+$\frac{2}{3} 2^n + \frac{1}{3}(-1)^n$，和例 1 一樣。 分母
+$1 - c_1 x - c_2 x^2$ 拆成 $(1 - r_1 x)(1 - r_2 x)$ 時，$r_1$、$r_2$ 正是特徵方程式
+的根，所以對線性遞迴，兩種方法是同一件事。 生成函數的好處是還能處理計數問題裡很
+多別的形式，例如第~7~章二元樹的個數（卡特蘭數）。
+
+\subsection{Akra--Bazzi 方法}
+
+子問題大小不同的遞迴式，例如
+$T(n) = T(n/4) + T(3n/4) + n$，主定理用不上。 Akra 和 Bazzi 在 1998 年給了一個一般的
+公式。
+
+\begin{theorem}[Akra--Bazzi，只給結論]
+\label{thm:rec-akra}
+設 $T(n) = f(n) + \sum_{i=1}^{k} a_i T(n/b_i)$，$a_i > 0$、$b_i > 1$ 都是常數，
+$f(n)$ 是非負函數，而且 $n$ 變成常數倍時 $f(n)$ 只變成常數倍（例如 $n^k$、
+$n^k \lg n$ 可以，$2^n$ 不行）。 令 $p$ 是滿足 $\sum_{i=1}^{k} a_i / b_i^{\,p} = 1$
+的實數（只有一個），則
+\[
+T(n) = \Theta\!\left(n^{p} \left(1 + \int_{1}^{n} \frac{f(u)}{u^{p+1}}\, du\right)\right).
+\]
+\end{theorem}
+
+\textbf{例。} $T(n) = T(n/4) + T(3n/4) + n$：$\frac{1}{4^p} + \frac{1}{(4/3)^p} = 1$，
+$p = 1$ 時 $\frac{1}{4} + \frac{3}{4} = 1$，所以 $p = 1$。
+$\int_1^n \frac{u}{u^2}\, du = \ln n$，所以 $T(n) = \Theta(n(1 + \ln n)) =
+\Theta(n \lg n)$，和第~\ref{sec:rec-tree}~節用遞迴樹得到的一樣。 如果改成
+$T(n/2) + T(n/3) + n$，$\frac{1}{2} + \frac{1}{3} < 1$，所以 $p < 1$，積分是
+$\Theta(n^{1-p})$，答案是 $\Theta(n)$：每一層比上一層少，根的工作最大。
+
+這個公式對地板、天花板也不敏感（把 $n/b_i$ 換成 $\lfloor n/b_i \rfloor$ 結論不變）。
+$k = 1$ 時它包含主定理的大部分情形。
+
+\section{本章常見錯誤}
+\label{sec:rec-pitfalls}
+
+\begin{center}
+\begin{tabular}{p{0.24\linewidth}p{0.50\linewidth}p{0.16\linewidth}}
+\toprule
+錯誤 & 例子 & 見 \\
+\midrule
+漏掉呼叫的次數 & 呼叫兩次 $T(n/2)$ 卻寫成 $T(n/2) + n$；兩種顏色各呼叫一次卻只寫
+一個 $C(n-2)$ & 第~\ref{sec:rec-write}~節 \\
+歸納時常數變大 & 從 $T(k) \le ck$ 推出 $T(n) \le cn + n$，就說「$= O(n)$」 &
+第~\ref{sec:rec-subst}~節 \\
+猜對了卻證不出來就放棄 & 差一個常數時改猜更大的答案，而不是減去低次項 &
+第~\ref{sec:rec-subst}~節 \\
+遞迴樹漏了葉子 & $3T(n/2) + n$ 只算內部節點，或層數寫錯 &
+第~\ref{sec:rec-tree}~節 \\
+不平衡的樹用一條路徑代表 & $T(n/4) + T(3n/4) + n$ 只看最短路徑就說是
+$\Theta(n \log_4 n)$ 而沒有說明上界 & 第~\ref{sec:rec-tree}~節 \\
+主定理只比大小 & 把 $n^2/\lg n$ 當成 $O(n^{2 - \varepsilon})$；把 $n \lg n$ 當成
+$\Omega(n^{1+\varepsilon})$ & 第~\ref{sec:rec-master}~節 \\
+情況 3 沒驗正則條件 & 只寫「$f$ 比較大，所以 $\Theta(f(n))$」 &
+第~\ref{sec:rec-master}~節 \\
+$\log_b a$ 算錯 & 把 $\log_4 2$ 算成 $2$；把 $\log_2 8$ 和 $\log_8 2$ 搞混 &
+第~\ref{sec:rec-master}~節 \\
+減法的遞迴套主定理 & $T(n) = 2T(n-1) + 1$ 說成 $\Theta(n)$ &
+第~\ref{sec:rec-other}~節 \\
+特徵方程式重根寫錯 & 重根 $r$ 寫成 $A r^n + B r^n$ & 第~\ref{sec:rec-other}~節 \\
+非齊次先代初始值 & 齊次解先用 $a_0$、$a_1$ 求出 $A$、$B$，再加上特解 &
+第~\ref{sec:rec-other}~節 \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\section{觀念題}
+\label{sec:rec-exercises}
+
+題型和研究所考試、期中期末考的筆試相近，有選擇、計算、追蹤和證明。 沒有特別說明
+時，$T(n)$ 在 $n$ 小於某個常數時是 $\Theta(1)$。 解答在本章最後。
+
+\begin{enumerate}
+\item （選擇，可能不只一個答案）下列哪些遞迴式可以\textbf{直接}套用主定理（含推廣
+的情況 2）？
+\begin{enumerate}
+\item $T(n) = 4T(n/2) + n \lg n$
+\item $T(n) = 8T(n/2) + n^3 / \lg n$
+\item $T(n) = T(n/2) + 2^n$
+\item $T(n) = 0.5\, T(n/2) + n$
+\item $T(n) = 2T(n-1) + 1$
+\item $T(n) = 6T(n/3) + n^2 \lg n$
+\end{enumerate}
+
+\item （計算）用主定理解下列遞迴式。 寫出 $a$、$b$、$\log_b a$、情況，情況 3 要驗
+證正則條件。
+\begin{enumerate}
+\item $T(n) = 7T(n/3) + n^2$
+\item $T(n) = 16T(n/2) + n^4$
+\item $T(n) = 10T(n/3) + n^2$
+\item $T(n) = 2T(n/8) + \sqrt[3]{n}$
+\item $T(n) = 3T(n/9) + \sqrt{n} \lg n$
+\end{enumerate}
+
+\item （追蹤）\texttt{x} 是全域變數，一開始是 $0$。
+\begin{code}{c}{觀念題 3}
+void g(int n)
+{
+    if (n < 4) {
+        x++;
+        return;
+    }
+    for (int i = 0; i < n; i += 2)
+        x++;
+    for (int k = 0; k < 5; k++)
+        g(n / 4);
+}
+\end{code}
+(a) 呼叫 \texttt{g(64)} 之後，\texttt{x} 是多少？ \texttt{g} 一共被呼叫幾次（含
+\texttt{g(64)} 本身）？ (b) 寫出 \texttt{x++} 執行次數 $X(n)$ 的遞迴式。 (c) 求
+$X(n)$ 的 $\Theta$。
+
+\item （證明）$T(1) = 1$，$n \ge 2$ 時 $T(n) = 2T(\lfloor n/2 \rfloor) + n^2$。 用代
+換法證明對所有 $n \ge 1$ 都有 $n^2 \le T(n) \le 2n^2$。
+
+\item （證明）$n$ 是 $3$ 的次方，$T(1) = 1$，$T(n) = 3T(n/3) + 1$。 (a) 說明為什麼
+用歸納法證明 $T(n) \le cn$ 會失敗。 (b) 減去一個低次項，證明 $T(n) \le cn - d$，求
+出可用的 $c$、$d$，並說明 $T(n) = (3n - 1)/2$。
+
+\item （找錯）下面的「證明」錯在哪裡？ $T(n) = T(n-1) + n$ 的正確答案是什麼？
+\begin{quote}
+設 $T(0) = 1$。 假設 $T(n-1) \le c(n - 1)$，則 $T(n) \le c(n-1) + n \le cn + n =
+O(n)$。 所以 $T(n) = O(n)$。
+\end{quote}
+
+\item （計算）$T(n) = 2T(n/5) + T(n/3) + n$。 畫出遞迴樹的前三層，寫出每一層的總
+和，猜出 $\Theta$，再用代換法證明上界。
+
+\item （計算）用換變數解 $T(n) = 4T(\sqrt{n}) + \lg^2 n$，寫成 $\Theta$。
+
+\item （計算）$T(1) = 0$，$T(n) = T(n-1) + n \lg n$。 求 $T(n)$ 的 $\Theta$，上界和
+下界都要說明。
+
+\item （計算）解下列遞迴式，寫出封閉形式。
+\begin{enumerate}
+\item $a_n = 5a_{n-1} - 6a_{n-2}$，$a_0 = 0$，$a_1 = 1$。
+\item $a_n = 4a_{n-1} - 4a_{n-2}$，$a_0 = 2$，$a_1 = 2$。
+\end{enumerate}
+
+\item （計算）解下列遞迴式，寫出封閉形式。
+\begin{enumerate}
+\item $T(0) = 0$，$T(n) = 3T(n-1) + 2^n$。
+\item $T(0) = 0$，$T(n) = 2T(n-1) + 2^n$。
+\end{enumerate}
+
+\item （證明）$R(1) = 0$，$n \ge 2$ 時 $R(n) = R(\lfloor n/2 \rfloor) + 1$。 證明
+$R(n) = \lfloor \lg n \rfloor$。 再用它說明：虛擬碼~\ref{alg:rec-search} 在 $n \ge 1$
+個數裡找一個比全部都大的 $x$ 時，一共呼叫 $\lfloor \lg n \rfloor + 2$ 次。
+
+\item （是非）$T(1) = 1$，$n \ge 2$ 時 $T(n) = 2T(\lfloor n/2 \rfloor) + 1$。 已知
+$n$ 是 $2$ 的次方時 $T(n) = 2n - 1$。 下列敘述對的打 O，錯的打 X，並說明理由。
+\begin{enumerate}
+\item 對所有 $n \ge 1$，$T(n) = 2n - 1$。
+\item 對所有 $n \ge 1$，$T(n) \le 2n - 1$。
+\item 對所有 $n \ge 1$，$T(n) \ge n$。
+\item 對所有 $n$，$T(n) = \Theta(n)$。
+\end{enumerate}
+
+\item （計算）河內塔的步數 $a_0 = 0$、$a_n = 2a_{n-1} + 1$。 用生成函數求 $a_n$。
+
+\item （計算）用 Akra--Bazzi 方法解 $T(n) = 2T(n/4) + T(n/2) + n \lg n$。
+\end{enumerate}
+
+\section{實作練習}
+\label{sec:rec-practice}
+
+下面是 Aki-Judge 上和本章相關的題目。 這一章以手算和證明為主，能寫成程式題的不
+多，練習請以觀念題為主。
+
+\begin{center}
+\begin{tabular}{llc}
+\toprule
+小節 & 題目 & 難度 \\
+\midrule
+每次減一 & \akiref{evaluate-a-linear-recurrence}{計算線性遞迴式的值} & 暖身 \\
+從程式寫出遞迴式 & \akiref{counting-calls-between-two-recursive-functions}{互相呼叫的呼叫次數} & 基本 \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+「計算線性遞迴式的值」可以照遞迴式用迴圈算，也可以先用第~\ref{sec:rec-other}~節的
+方法求出封閉形式，再和程式的答案比對。 「互相呼叫的呼叫次數」裡兩個函式互相呼叫，
+用範例~\ref{ex:rec-audit} 的全域計數器寫法；交之前先對小的 $n$ 手算呼叫樹，和程式
+的計數比對。
+
+\section{讀完你應該會}
+\label{sec:rec-checklist}
+
+\begin{itemize}
+\item 看到一個遞迴程式，能寫出它的執行時間或呼叫次數的遞迴式，包括基礎情況、呼叫
+次數和每次的規模。
+\item 能用代換法證明遞迴式的上下界，寫出常數；歸納過不去時會減去低次項；會用換變
+數處理 $\sqrt{n}$。
+\item 能畫出遞迴樹，寫出每一層的總和、層數、葉子數，判斷是根、每層平手還是葉子決
+定答案；能處理兩個子問題不一樣大的情形。
+\item 能用主定理解 $aT(n/b) + f(n)$，寫出情況、$\varepsilon$ 和正則條件，並認出不
+能用的遞迴式。
+\item 能解 $T(n-1) + f(n)$ 型的遞迴式，以及用特徵方程式解二階常係數線性遞迴（不同
+根、重根、非齊次）。
+\end{itemize}
+
+\textbf{延伸閱讀}（書末會整理完整的參考資料）
+
+\begin{itemize}
+\item Thomas H. Cormen 等，\textit{Introduction to Algorithms}，第 4 版，4.3--4.7 節：
+代換法、遞迴樹、主定理（證明包含連續版本）和 Akra--Bazzi 方法；這一版的主定理情
+況 2 已經是本章定理~\ref{thm:rec-master2} 的形式。
+\item Steven S. Skiena，\textit{The Algorithm Design Manual}，第 3 版，5.3--5.4 節：
+用很短的篇幅講分治的遞迴式和主定理三種情況的直覺。
+\item Ronald L. Graham、Donald E. Knuth、Oren Patashnik，\textit{Concrete
+Mathematics}，第 2 版，第 1 章與第 7 章：前者用幾個經典問題示範怎麼找出遞迴式的封閉
+形式，後者完整講生成函數，適合想把第~\ref{sec:rec-gf}~節讀深的人。
+\end{itemize}
+
+\addcontentsline{toc}{section}{觀念題解答}
+\section*{觀念題解答}
+
+\begin{enumerate}
+\item (a)、(c)、(f)。 (a)：$n^{\log_2 4} = n^2$，$n \lg n = O(n^{1.5})$，情況 1，
+$\Theta(n^2)$。 (b)：$n^{\log_2 8} = n^3$，$f(n) = n^3 / \lg n$ 只小了 $\lg n$，不是
+情況 1，也不是推廣的情況 2（$k = -1$）；用遞迴樹可算出 $\Theta(n^3 \lg \lg n)$。
+(c)：$n^{\log_2 1} = 1$，$2^n = \Omega(n^{1})$，正則條件 $2^{n/2} \le \frac{1}{2} 2^n$
+在 $n \ge 2$ 時成立，情況 3，$\Theta(2^n)$。 (d)：$a = 0.5 < 1$，不符合定理的假設
+（答案碰巧是 $\Theta(n)$，但不是主定理給的）。 (e)：規模是減 $1$，不是除以 $b$。
+(f)：$\log_3 6 \approx 1.63$，$n^2 \lg n = \Omega(n^{1.63 + 0.3})$，正則條件
+$6 (n/3)^2 \lg (n/3) = \frac{2}{3} n^2 \lg(n/3) \le \frac{2}{3} n^2 \lg n$，$c = 2/3$，
+情況 3，$\Theta(n^2 \lg n)$。
+
+\item
+\begin{enumerate}
+\item $a = 7$、$b = 3$，$\log_3 7 \approx 1.77$。 $n^2 = \Omega(n^{1.77 + 0.2})$，
+正則條件 $7(n/3)^2 = \frac{7}{9} n^2$，$c = 7/9$。 情況 3，$\Theta(n^2)$。
+\item $a = 16$、$b = 2$，$\log_2 16 = 4$。 $f(n) = n^4$，情況 2，$\Theta(n^4 \lg n)$。
+\item $a = 10$、$b = 3$，$\log_3 10 \approx 2.096$。 $n^2 = O(n^{2.096 - 0.09})$，情況
+1，$\Theta(n^{\log_3 10})$。 注意 $\log_3 9 = 2$，多一個子問題就讓答案超過 $n^2$。
+\item $a = 2$、$b = 8$，$\log_8 2 = 1/3$。 $f(n) = n^{1/3}$，情況 2，
+$\Theta(\sqrt[3]{n} \lg n)$。
+\item $a = 3$、$b = 9$，$\log_9 3 = 1/2$。 $f(n) = n^{1/2} \lg n$，推廣的情況 2，
+$k = 1$，$\Theta(\sqrt{n} \lg^2 n)$。
+\end{enumerate}
+
+\item (a) 由下往上算。 $n < 4$ 時 \texttt{x++} 一次。 \texttt{g(4)}：迴圈
+$i = 0, 2$ 兩次，加上 $5$ 次 \texttt{g(1)}，共 $2 + 5 = 7$。 \texttt{g(16)}：
+$8 + 5 \cdot 7 = 43$。 \texttt{g(64)}：$32 + 5 \cdot 43 = 247$，所以 \texttt{x} 是
+$247$。 呼叫次數 $1 + 5 + 25 + 125 = 156$。 (b) $X(n) = 1$（$n < 4$），
+$X(n) = 5X(\lfloor n/4 \rfloor) + \lceil n/2 \rceil$（$n \ge 4$）；迴圈
+$i = 0, 2, 4, \ldots$ 小於 $n$ 的有 $\lceil n/2 \rceil$ 個。 (c) $n$ 是 $4$ 的次方
+時，$a = 5$、$b = 4$，$\log_4 5 \approx 1.16$，$f(n) = n/2 = O(n^{1.16 - 0.1})$，
+情況 1，$\Theta(n^{\log_4 5})$。 $X$ 是非遞減的，$n^{\log_4 5}$ 滿足
+定理~\ref{thm:rec-smooth} 的條件，所以對所有 $n$ 都是 $\Theta(n^{\log_4 5})$。
+
+\item 對 $n$ 做強歸納。 $n = 1$：$T(1) = 1$，$1 \le 1 \le 2$。 $n \ge 2$：
+$1 \le \lfloor n/2 \rfloor < n$，用歸納假設。 上界：
+$T(n) \le 2 \cdot 2\lfloor n/2 \rfloor^2 + n^2 \le 4 (n/2)^2 + n^2 = 2n^2$。 下界：
+$T(\lfloor n/2 \rfloor) \ge 0$，所以 $T(n) \ge n^2$。 因此 $T(n) = \Theta(n^2)$，
+$c_1 = 1$、$c_2 = 2$、$n_0 = 1$。
+
+\item (a) 假設 $T(n/3) \le c\,n/3$，得到 $T(n) \le 3 \cdot c\,n/3 + 1 = cn + 1$，比要
+證的 $cn$ 多 $1$，不管 $c$ 多大都推不出來。 (b) 假設 $T(n/3) \le c\,n/3 - d$：
+$T(n) \le 3(c\,n/3 - d) + 1 = cn - 3d + 1 \le cn - d$，只要 $d \ge 1/2$。 基礎情況
+$T(1) = 1 \le c - d$。 取 $d = 1/2$、$c = 3/2$，得 $T(n) \le (3n - 1)/2$。 把每個
+$\le$ 換成 $=$ 再做一次：$T(1) = 1 = (3 - 1)/2$，
+$3 \cdot \frac{3(n/3) - 1}{2} + 1 = \frac{3n - 1}{2}$，所以 $T(n) = (3n - 1)/2$。
+
+\item 錯在「$cn + n = O(n)$」。 歸納要證明的是 $T(n) \le cn$，常數必須和假設的
+$c$ 相同；推出來的是 $(c + 1) n$，歸納沒有完成。 每減一，常數就多 $1$，$n$ 步之後
+「常數」是 $c + n$。 正確的答案是展開：
+$T(n) = T(0) + \sum_{i=1}^{n} i = 1 + \frac{n(n+1)}{2} = \Theta(n^2)$。
+
+\item 第 0 層：$n$。 第 1 層：兩個 $n/5$、一個 $n/3$，總和
+$(\frac{2}{5} + \frac{1}{3}) n = \frac{11}{15} n$。 第 2 層：每個節點又分成總和是自
+己 $\frac{11}{15}$ 倍的三塊，所以總和是 $(\frac{11}{15})^2 n = \frac{121}{225} n$。
+每層是上一層的 $\frac{11}{15} < 1$ 倍，總和不超過
+$n \sum_j (\frac{11}{15})^j = \frac{15}{4} n$，猜 $\Theta(n)$。 下界：
+$T(n) \ge n$。 上界用代換法：假設比 $n$ 小的值都有 $T(k) \le ck$，則
+$T(n) \le 2c\,\frac{n}{5} + c\,\frac{n}{3} + n = \frac{11}{15} cn + n \le cn$，只要
+$c \ge \frac{15}{4}$；$c$ 再取大一點讓有限個基礎情況也成立。 所以
+$T(n) = \Theta(n)$。
+
+\item 令 $m = \lg n$，$S(m) = T(2^m)$。 $\sqrt{n} = 2^{m/2}$，$\lg^2 n = m^2$，所以
+$S(m) = 4S(m/2) + m^2$。 $\log_2 4 = 2$，情況 2，$S(m) = \Theta(m^2 \lg m)$。 換回
+來：$T(n) = \Theta(\lg^2 n \cdot \lg \lg n)$。
+
+\item 展開得 $T(n) = \sum_{i=2}^{n} i \lg i$。 上界：每一項不超過 $n \lg n$，共不到
+$n$ 項，$T(n) \le n^2 \lg n$。 下界：只留 $i \ge n/2$ 的項，至少 $n/2$ 項，每項至少
+$\frac{n}{2} \lg \frac{n}{2}$，所以 $T(n) \ge \frac{n^2}{4}(\lg n - 1)$；$n \ge 4$ 時
+$\lg n - 1 \ge \frac{1}{2} \lg n$，$T(n) \ge \frac{1}{8} n^2 \lg n$。 所以
+$T(n) = \Theta(n^2 \lg n)$。
+
+\item
+\begin{enumerate}
+\item 特徵方程式 $x^2 - 5x + 6 = (x - 2)(x - 3)$，$a_n = A \cdot 2^n + B \cdot 3^n$。
+$A + B = 0$、$2A + 3B = 1$，得 $B = 1$、$A = -1$，$a_n = 3^n - 2^n$。 驗算
+$a_2 = 5 - 0 = 5 = 9 - 4$。
+\item $x^2 - 4x + 4 = (x - 2)^2$，重根 $2$，$a_n = (A + Bn) 2^n$。 $A = 2$，
+$(2 + B) \cdot 2 = 2$，$B = -1$，$a_n = (2 - n) 2^n$。 驗算
+$a_2 = 8 - 8 = 0 = (2 - 2) \cdot 4$。
+\end{enumerate}
+
+\item
+\begin{enumerate}
+\item 齊次部分 $A \cdot 3^n$。 $2$ 不是根，猜 $p \cdot 2^n$：
+$p \cdot 2^n = 3p \cdot 2^{n-1} + 2^n$，兩邊除以 $2^{n-1}$：$2p = 3p + 2$，$p = -2$。
+$T(n) = A \cdot 3^n - 2^{n+1}$，$T(0) = A - 2 = 0$，$A = 2$。
+$T(n) = 2 \cdot 3^n - 2^{n+1}$。 驗算 $T(1) = 0 + 2 = 2 = 6 - 4$。
+\item 齊次部分 $A \cdot 2^n$，$2$ 是根，猜 $p \cdot 2^n$ 會被吃掉（代進去得 $0 = 2^n$），
+改猜 $p\, n 2^n$：$p n 2^n = 2p(n-1) 2^{n-1} + 2^n$，除以 $2^n$：$pn = p(n - 1) + 1$，
+$p = 1$。 $T(n) = A \cdot 2^n + n 2^n$，$T(0) = A = 0$，$T(n) = n 2^n$。 驗算
+$T(1) = 0 + 2 = 2$，$T(2) = 4 + 4 = 8 = 2 \cdot 4$。
+\end{enumerate}
+
+\item 對 $n$ 做強歸納。 $R(1) = 0 = \lfloor \lg 1 \rfloor$。 $n \ge 2$ 時
+$1 \le \lfloor n/2 \rfloor < n$，由歸納假設和引理~\ref{lem:rec-lg-half}：
+$R(n) = \lfloor \lg \lfloor n/2 \rfloor \rfloor + 1 = (\lfloor \lg n \rfloor - 1) + 1
+= \lfloor \lg n \rfloor$。
+
+二分搜尋：$x$ 比全部都大，每次 $A[q] < x$，往右邊 $A[q+1..r]$ 找，規模從 $n$ 變成
+$\lfloor n/2 \rfloor$，直到規模 $0$ 的那次呼叫回傳 \NIL。 令 $W(n)$ 是呼叫次數，
+$W(0) = 1$，$W(n) = W(\lfloor n/2 \rfloor) + 1$（$n \ge 1$），所以 $W(1) = 2$。
+$n \ge 1$ 時，$W(n) - 2$ 和 $R(n)$ 滿足同一個遞迴式、同一個基礎情況
+（$W(1) - 2 = 0$），所以 $W(n) = \lfloor \lg n \rfloor + 2$。
+
+\item 先求出精確解：$T(n) = 2^{\lfloor \lg n \rfloor + 1} - 1$。 （歸納：$n \ge 2$ 時
+$T(n) = 2(2^{\lfloor \lg n \rfloor} - 1) + 1$，用了引理~\ref{lem:rec-lg-half}。）
+令 $k = \lfloor \lg n \rfloor$，$2^k \le n < 2^{k+1}$。
+\begin{enumerate}
+\item X。 $T(3) = 2T(1) + 1 = 3 \ne 5$。 $n$ 是 $2$ 的次方時的公式不一定對其他 $n$ 成
+立。
+\item O。 $2^{k+1} \le 2n$，所以 $T(n) \le 2n - 1$。
+\item O。 $2^{k+1} > n$，而且是整數，所以 $2^{k+1} \ge n + 1$，$T(n) \ge n$。
+\item O。 由 (b)、(c)。 也可以用定理~\ref{thm:rec-smooth}：$T$ 非遞減，$g(n) = n$。
+\end{enumerate}
+
+\item 令 $A(x) = \sum_{n \ge 0} a_n x^n$。 $n \ge 1$ 時 $a_n - 2a_{n-1} = 1$，$a_0 = 0$，
+所以 $A(x) - 2xA(x) = \sum_{n \ge 1} x^n = \frac{x}{1 - x}$。
+\[
+A(x) = \frac{x}{(1 - x)(1 - 2x)} = \frac{1}{1 - 2x} - \frac{1}{1 - x}
+\]
+（通分驗算：$(1 - x) - (1 - 2x) = x$）。 $x^n$ 的係數是 $2^n - 1$，所以
+$a_n = 2^n - 1$。
+
+\item $a_1 = 2$、$b_1 = 4$、$a_2 = 1$、$b_2 = 2$。 找 $p$：
+$\frac{2}{4^p} + \frac{1}{2^p} = 1$。 令 $y = 2^{-p}$，$2y^2 + y - 1 = 0$，
+$(2y - 1)(y + 1) = 0$，$y = 1/2$，$p = 1$。 積分
+$\int_1^n \frac{u \lg u}{u^2}\, du = \int_1^n \frac{\lg u}{u}\, du =
+\frac{(\ln n)^2}{2 \ln 2} = \Theta(\lg^2 n)$。 所以
+$T(n) = \Theta(n (1 + \lg^2 n)) = \Theta(n \lg^2 n)$。 （每一層的規模加起來是
+$\frac{2}{4} + \frac{1}{2} = 1$ 倍，和第~\ref{sec:rec-tree}~節的「每層一樣」同一型，
+只是每層的成本帶著 $\lg$。）
+\end{enumerate}

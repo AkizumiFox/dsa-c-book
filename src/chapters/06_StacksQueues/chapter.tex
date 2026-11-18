@@ -1,0 +1,1757 @@
+\chapter{堆疊與佇列}
+\label{ch:stackqueue}
+
+% 本章的圖共用的樣式與巨集（名稱都以 sq 開頭，避免和其他章衝突）
+\tikzset{
+    sqold/.style={cell, text=black!35},
+    sqfill/.style={cell, fill=coreFill, draw=coreStroke},
+    sqnode/.style={draw=black!65, minimum width=0.9cm, minimum height=0.7cm, font=\ttfamily},
+}
+\newcommand{\sqpow}{\text{\textasciicircum}}
+
+用文書軟體打字時，按一次「復原」會取消最後做的那個動作，再按一次，取消的是再前面
+那一個。 系辦公室的共用印表機剛好相反，誰先送出文件，就先印誰的。 這兩件事都要記
+住一串還沒處理完的東西，差別只在要從哪一頭拿。 如果要你設計記錄的方式，讓「放進
+一個」和「拿出一個」都只花固定的時間，你會怎麼存？ 往下讀之前，先想一想。
+
+復原用的是\textbf{堆疊}（stack）：最後放進去的最先拿出來。 印表機用的是
+\textbf{佇列}（queue）：最先放進去的最先拿出來。 兩者都只開放兩三個操作，正因為
+限制多，每個操作都能做到 $\Theta(1)$。 這一章先用陣列和鏈結串列各實作一次，再看
+它們最常見的幾個用途：運算式的轉換與求值、把遞迴改寫成迴圈，以及好幾個堆疊共用
+一塊記憶體。 中間會穿插考卷上常見的手算：堆疊能排出哪些順序、環狀佇列的
+$\mathit{front}$、$\mathit{rear}$ 怎麼變、中序轉後序的逐步堆疊表。
+
+這一章用到《C 程式設計基礎》第~14~章的結構指標、第~15~章遞迴與呼叫堆疊、第~19~章
+的 \texttt{malloc} 與串列，以及第~20~章用 \texttt{struct} 包裝的堆疊；用到時先在
+框裡複習。 鏈結串列本身的操作在本書第~5~章。
+
+\section{堆疊：陣列與串列兩種實作}
+\label{sec:sq-stack}
+
+\textbf{堆疊}是一串資料，加入和取出都只能在同一端。 這一端叫\textbf{頂端}（top），
+另一端叫底部（bottom）。 它支援的操作：
+
+\begin{itemize}
+\item \proc{Push}$(S, x)$：把 $x$ 放到頂端。
+\item \proc{Pop}$(S)$：取出頂端的元素並回傳。
+\item \proc{Top}$(S)$：回傳頂端的元素，不取出（有些書叫 peek）。
+\item \proc{Stack-Empty}$(S)$：堆疊是不是空的。
+\end{itemize}
+
+最後放進去的元素最先被取出，所以堆疊也叫\textbf{後進先出}（last in, first out，
+LIFO）的結構。 對空的堆疊做 \proc{Pop} 叫\textbf{下溢}（underflow）；容量有限的
+堆疊已經滿了還做 \proc{Push}，叫\textbf{溢位}（overflow）。 兩者都是錯誤，程式要
+檢查，不能假設不會發生。
+
+上面只規定了有哪些操作、每個操作做什麼，沒有規定資料怎麼存。 這種只描述操作的規
+格叫\textbf{抽象資料型態}（abstract data type，ADT）。 同一個 ADT 可以有好幾種實
+作，用的人只看操作，不必知道裡面怎麼存。 下面給兩種實作。
+
+\subsection{用陣列存}
+
+用一個陣列 $S.\mathit{item}[1..S.\mathit{cap}]$ 存元素，再用一個整數
+$S.\mathit{top}$ 記目前有幾個元素。 $S.\mathit{item}[1]$ 是底部，
+$S.\mathit{item}[S.\mathit{top}]$ 是頂端；$S.\mathit{top} = 0$ 表示堆疊是空的。
+
+\begin{pseudo}[label=alg:sq-array-stack]{陣列堆疊}
+\Function{Stack-Empty}{$S$}
+    \State \Return $S.\mathit{top} = 0$
+\EndFunction
+\Statex
+\Procedure{Push}{$S, x$}
+    \If{$S.\mathit{top} = S.\mathit{cap}$}
+        \State \Error{overflow}
+    \EndIf
+    \State $S.\mathit{top} \gets S.\mathit{top} + 1$
+    \State $S.\mathit{item}[S.\mathit{top}] \gets x$
+\EndProcedure
+\Statex
+\Function{Pop}{$S$}
+    \If{\Call{Stack-Empty}{$S$}}
+        \State \Error{underflow}
+    \EndIf
+    \State $S.\mathit{top} \gets S.\mathit{top} - 1$
+    \State \Return $S.\mathit{item}[S.\mathit{top} + 1]$
+\EndFunction
+\end{pseudo}
+
+\proc{Top}$(S)$ 和 \proc{Pop} 一樣先檢查是不是空的，再回傳
+$S.\mathit{item}[S.\mathit{top}]$，但不改 $S.\mathit{top}$。 每個操作都只做幾個
+固定的步驟，是 $\Theta(1)$。
+
+\proc{Pop} 只把 $S.\mathit{top}$ 減一，被取出的值還留在陣列裡，只是不再屬於堆疊。
+下表用容量 $3$ 的陣列走一串操作，灰字是這種「還在陣列裡、但已經不在堆疊裡」的值。
+
+\begin{center}
+\begin{tabular}{llcccc}
+\toprule
+操作 & 回傳 & $S.\mathit{item}[1]$ & $[2]$ & $[3]$ & $S.\mathit{top}$ \\
+\midrule
+\proc{Push}$(S, 4)$ & & 4 & & & 1 \\
+\proc{Push}$(S, 7)$ & & 4 & 7 & & 2 \\
+\proc{Push}$(S, 1)$ & & 4 & 7 & 1 & 3 \\
+\proc{Pop}$(S)$ & 1 & 4 & 7 & \textcolor{black!40}{1} & 2 \\
+\proc{Push}$(S, 6)$ & & 4 & 7 & 6 & 3 \\
+\proc{Push}$(S, 2)$ & overflow & 4 & 7 & 6 & 3 \\
+\proc{Pop}$(S)$ & 6 & 4 & 7 & \textcolor{black!40}{6} & 2 \\
+\proc{Pop}$(S)$ & 7 & 4 & \textcolor{black!40}{7} & \textcolor{black!40}{6} & 1 \\
+\proc{Pop}$(S)$ & 4 & \textcolor{black!40}{4} & \textcolor{black!40}{7} & \textcolor{black!40}{6} & 0 \\
+\proc{Pop}$(S)$ & underflow & \textcolor{black!40}{4} & \textcolor{black!40}{7} & \textcolor{black!40}{6} & 0 \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+容量固定是陣列堆疊的缺點：開太大浪費記憶體，開太小會溢位。 改用「滿了就換一個兩
+倍大的陣列」可以避免溢位，單次 \proc{Push} 最壞要搬 $\Theta(n)$ 個元素，但平均每
+次仍然是 $\Theta(1)$，第~3~章用平攤分析證明這件事。
+
+\subsection{用串列存}
+
+另一種做法是把每個元素放進一個節點，節點用 $\mathit{next}$ 指向它下面的那一個，
+$S.\mathit{top}$ 指向頂端的節點，空堆疊時是 \NIL。 \proc{Push} 和 \proc{Pop} 都
+只動串列的頭。
+
+\begin{pseudo}[label=alg:sq-list-stack]{串列堆疊}
+\Procedure{Push-List}{$S, x$}
+    \State 配置一個新節點 $p$
+    \State $p.\mathit{key} \gets x$
+    \State $p.\mathit{next} \gets S.\mathit{top}$
+    \State $S.\mathit{top} \gets p$
+\EndProcedure
+\Statex
+\Function{Pop-List}{$S$}
+    \If{$S.\mathit{top} = \NIL$}
+        \State \Error{underflow}
+    \EndIf
+    \State $p \gets S.\mathit{top}$
+    \State $x \gets p.\mathit{key}$
+    \State $S.\mathit{top} \gets p.\mathit{next}$
+    \State 釋放 $p$
+    \State \Return $x$
+\EndFunction
+\end{pseudo}
+
+為什麼頂端要放在串列的頭，不放在尾巴？ 單向串列要刪掉最後一個節點，得先找到它
+前面那一個，這要從頭走過去，花 $\Theta(n)$。 放在頭的話，加入和刪除都只改一兩個
+指標。
+
+\begin{center}
+\begin{tikzpicture}
+% 左：陣列
+\node[font=\small] at (1.8, 1.2) {陣列，$\mathit{cap} = 5$};
+\foreach \v [count=\k] in {4,7,6} { \node[sqfill] at (\k*0.9-0.9, 0) {\v}; }
+\foreach \k in {4,5} { \node[cell] at (\k*0.9-0.9, 0) {}; }
+\foreach \k in {1,...,5} { \node[idxlbl] at (\k*0.9-0.9, -0.65) {\k}; }
+\node[font=\small] (tp) at (1.8, -1.4) {$\mathit{top} = 3$};
+\draw[diagarrow] (tp.north) -- (1.8, -0.8);
+% 右：串列
+\node[font=\small] at (9.6, 1.2) {串列};
+\node[font=\small] (top) at (6.6, 0) {$\mathit{top}$};
+\node[sqnode, fill=coreFill, draw=coreStroke] (a) at (8.0, 0) {6};
+\node[sqnode] (b) at (9.6, 0) {7};
+\node[sqnode] (c) at (11.2, 0) {4};
+\node[font=\small] (nil) at (12.6, 0) {\NIL};
+\draw[diagarrow] (top) -- (a);
+\draw[diagarrow] (a) -- (b);
+\draw[diagarrow] (b) -- (c);
+\draw[diagarrow] (c) -- (nil);
+\end{tikzpicture}
+\diagcaption{同一個堆疊（由底到頂是 $4, 7, 6$）的兩種存法。 陣列的頂端在
+$\mathit{item}[\mathit{top}]$；串列的頂端是第一個節點，箭頭指向它下面的元素。}
+\label{fig:sq-two-stacks}
+\end{center}
+
+兩種做法比較如下。 四個操作在兩種做法裡都是 $\Theta(1)$，差別在記憶體。
+
+\begin{center}
+\begin{tabular}{p{0.22\linewidth}p{0.34\linewidth}p{0.34\linewidth}}
+\toprule
+ & 陣列 & 串列 \\
+\midrule
+容量 & 事先決定，會溢位（除非換大陣列）& 只受記憶體限制 \\
+每個元素的空間 & 只有資料本身 & 資料再加一個指標 \\
+每次 \proc{Push} & 寫一格 & 呼叫一次 \texttt{malloc} \\
+沒用到的空間 & 陣列後段空著 & 沒有 \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\subsection{C 程式}
+
+\begin{cbookrecap}[第~14~章 14.5 節、第~19~章 19.3 節、第~20~章 20.2 節]
+第~20~章把「陣列加上 \texttt{top}」包進一個 \texttt{struct}，操作函式都收一個指
+向它的指標，例如 \texttt{stack\_push(\&s, x)}；陣列版的 push 就是
+\texttt{s->data[s->top++] = x}，pop 是 \texttt{return s->data[--s->top]}。 透過結
+構指標取欄位用箭頭：\texttt{s->top} 就是 \texttt{(*s).top}。
+
+節點用 \texttt{malloc(sizeof *p)} 配置，\texttt{sizeof *p} 會跟著 \texttt{p} 的型
+別走，型別改了也不用改這一行。 取出節點時先把要的值和 \texttt{next} 存起來，再
+\texttt{free}，順序反過來就是讀已經釋放的記憶體。
+\end{cbookrecap}
+
+陣列版在《C 程式設計基礎》第~20~章寫過了，這裡寫串列版，並用上面那張表的同一串操
+作測試，最後多 push 一個 $5$。 每一行印出這次操作的結果、堆疊的元素個數和頂端。
+
+\begin{example}[label=ex:sq-list-stack]{c}{(list\_stack.c) 串列堆疊}
+#include <stdio.h>
+#include <stdlib.h>
+
+typedef struct Node {
+    int key;
+    struct Node *next;      // 指向下面那一個
+} Node;
+
+typedef struct {
+    Node *top;              // 空堆疊時是 NULL
+    int size;
+} Stack;
+
+int push(Stack *s, int x)   // 只有 malloc 失敗才回傳 0
+{
+    Node *p = malloc(sizeof *p);
+    if (p == NULL) {
+        return 0;
+    }
+    p->key = x;
+    p->next = s->top;
+    s->top = p;
+    s->size++;
+    return 1;
+}
+
+int pop(Stack *s, int *x)   // 空的回傳 0
+{
+    if (s->top == NULL) {
+        return 0;
+    }
+    Node *p = s->top;
+    *x = p->key;            // 先把要的東西存起來，再 free
+    s->top = p->next;
+    free(p);
+    s->size--;
+    return 1;
+}
+
+int main(void)
+{
+    Stack s = {NULL, 0};
+    int ops[] = {4, 7, 1, 0, 6, 2, 0, 0, 0, 0, 0, 5};  // 正數 x 是 push x，0 是 pop
+    int m = sizeof ops / sizeof ops[0];
+    for (int i = 0; i < m; i++) {
+        int x;
+        if (ops[i] > 0) {
+            if (!push(&s, ops[i])) {
+                return 1;
+            }
+            printf("push %d:", ops[i]);
+        } else if (pop(&s, &x)) {
+            printf("pop -> %d:", x);
+        } else {
+            printf("pop -> underflow:");
+        }
+        if (s.top != NULL) {
+            printf(" size %d, top %d\n", s.size, s.top->key);
+        } else {
+            printf(" empty\n");
+        }
+    }
+    int x;
+    while (pop(&s, &x)) {   // 結束前把剩下的節點都釋放
+    }
+    return 0;
+}
+\end{example}
+\iosample{}{push 4: size 1, top 4 \\ push 7: size 2, top 7 \\ push 1: size 3, top 1 \\ pop -> 1: size 2, top 7 \\ push 6: size 3, top 6 \\ push 2: size 4, top 2 \\ pop -> 2: size 3, top 6 \\ pop -> 6: size 2, top 7 \\ pop -> 7: size 1, top 4 \\ pop -> 4: empty \\ pop -> underflow: empty \\ push 5: size 1, top 5}
+
+到 \texttt{push 2} 之前都和陣列版的表一樣。 串列沒有容量限制，$2$ 放進去了，所以
+之後 pop 出來的是 $2, 6, 7, 4$，陣列版是 $6, 7, 4$ 再下溢。 溢位不能只印一句警告
+就繼續：呼叫的人以為 $2$ 在堆疊裡，後面的結果就全錯了。 範例的函式用回傳值告訴呼
+叫的人成功與否，由呼叫的人決定怎麼處理。 程式結束前堆疊裡還有 $5$，最後的迴圈把
+剩下的節點都 pop 掉，每個 \texttt{malloc} 都有對應的 \texttt{free}。
+
+C 的陣列從 $0$ 開始，陣列版的 \texttt{top} 同時是「元素個數」和「下一個空位的索
+引」，\texttt{data[top - 1]} 才是頂端。 虛擬碼的 $S.\mathit{item}[S.\mathit{top}]$
+是頂端，因為虛擬碼從 $1$ 開始；兩邊的 $\mathit{top}$ 都是元素個數，翻譯時整段一起
+改，不要逐行加減 $1$。
+
+\subsection{應用：括號配對}
+\label{sec:sq-brackets}
+
+一串括號是\textbf{配對正確}的，意思是每個右括號都和它左邊最近、還沒配對的左括號
+同一種。 「最近、還沒配對」正是堆疊頂端的意思：讀到左括號就 push，讀到右括號就
+pop 一個出來比對。
+
+\begin{pseudo}[label=alg:sq-brackets]{括號配對}
+\Function{Brackets-Match}{$s, n$}
+    \State 建立空堆疊 $S$
+    \For{$i \gets 1$ \To $n$}
+        \If{$s[i]$ 是左括號}
+            \State \Call{Push}{$S, s[i]$}
+        \ElsIf{$s[i]$ 是右括號}
+            \If{\Call{Stack-Empty}{$S$} \OR \Call{Pop}{$S$} 和 $s[i]$ 不是同一種}
+                \State \Return \FALSE
+            \EndIf
+        \EndIf
+    \EndFor
+    \State \Return \Call{Stack-Empty}{$S$}
+\EndFunction
+\end{pseudo}
+
+有三種錯誤會被抓到：右括號來的時候堆疊是空的（右括號多了）、種類不合（例如
+\texttt{[(])} 讀到 \texttt{]} 時頂端是 \texttt{(}），以及讀完之後堆疊不是空的（左
+括號多了）。 最後一行很容易漏掉，漏掉之後 \texttt{((} 會被當成正確。 每個字元最多
+push 一次、pop 一次，時間 $\Theta(n)$，堆疊最多放 $n$ 個。
+
+\subsection{哪些輸出順序做得到}
+\label{sec:sq-perm}
+
+考卷上很常見的一種題目：$1, 2, \ldots, n$ 依序進入一個堆疊，中間可以隨時 pop，
+pop 出來的數依序寫下，問哪些順序寫得出來。
+
+例如 $n = 5$，順序 $3, 2, 5, 4, 1$ 做得到：push 1、push 2、push 3、pop（3）、
+pop（2）、push 4、push 5、pop（5）、pop（4）、pop（1）。 順序 $4, 2, 3, 1, 5$ 做
+不到：要先拿到 $4$，得先 push $1, 2, 3, 4$，pop 出 $4$ 之後頂端是 $3$，$2$ 被壓在
+$3$ 下面，拿不到。
+
+判斷的方法就是照著做一次：依序看要輸出的數，還沒 push 進來就一直 push，直到它進
+來；它在頂端就 pop，不在頂端就表示做不到。 這個過程沒有選擇的餘地：要的數在頂端
+時如果改去 push 別的數，它就被壓住了，而壓住它的數比它大、還沒輸出，之後一定得先
+pop 掉，順序就不對了。 所以一個做得到的輸出順序，對應唯一的一串 push、pop。
+
+不用模擬也能判斷，看有沒有下面這種「大、小、中」的樣子。
+
+\begin{theorem}
+\label{thm:sq-312}
+$1, 2, \ldots, n$ 依序進入堆疊。 輸出順序 $p_1, p_2, \ldots, p_n$ 做得到的充分必
+要條件是：不存在 $i < j < k$ 使得 $p_j < p_k < p_i$。
+\end{theorem}
+
+\begin{proof}
+必要：假設有這樣的 $i < j < k$。 $p_i$ 被 pop 的時候，所有比 $p_i$ 小的數都已經
+push 過了，其中 $p_j$、$p_k$ 都還沒輸出，所以兩個都在堆疊裡。 $p_j < p_k$，$p_j$
+比較早 push，在 $p_k$ 下面，必須等 $p_k$ 出來之後才能出來，和 $j < k$ 矛盾。
+
+充分：假設沒有這種三元組，照上面的方法模擬。 唯一會失敗的情況是：輪到 $p_j$ 時，
+它已經在堆疊裡，但不在頂端，頂端是某個 $x > p_j$（堆疊由底到頂遞增，因為是依序
+push 的）。 $x$ 還沒輸出，所以 $x = p_k$，$k > j$。 處理 $p_j$ 時不會再 push
+（$p_j$ 已經在堆疊裡），所以 $x$ 是在處理更早的某個輸出 $p_i$（$i < j$）時 push
+的；那一步 push 到 $p_i$ 為止，所以 $x \le p_i$。 $p_i$ 已經輸出、$x$ 還在堆疊裡，
+所以 $x < p_i$。 這樣 $p_j < p_k < p_i$，$i < j < k$，和假設矛盾。
+\end{proof}
+
+用這個定理檢查 $4, 2, 3, 1, 5$：$4$ 先、$2$ 在中間、$3$ 在後，$2 < 3 < 4$，是
+「大、小、中」，做不到。
+
+能做出幾種順序？ $n = 3$ 的六種排列裡，只有 $3, 1, 2$ 做不到，它本身就是「大、
+小、中」。 $n = 4$ 的 $24$ 種裡有 $10$ 種做不到：
+\[
+1423,\ 2413,\ 3124,\ 3142,\ 3412,\ 4123,\ 4132,\ 4213,\ 4231,\ 4312,
+\]
+每一種都含「大、小、中」，例如 $2413$ 的 $4, 1, 3$。 其餘 $14$ 種做得到。 把
+$n = 1, 2, \ldots$ 做得到的個數列出來是 $1, 2, 5, 14, 42, 132, \ldots$，這是
+\textbf{卡特蘭數}（Catalan number）
+\[
+C_n = \frac{1}{n+1}\binom{2n}{n}.
+\]
+
+\begin{theorem}
+\label{thm:sq-catalan}
+$1, 2, \ldots, n$ 依序進入堆疊，做得到的輸出順序恰好有 $C_n$ 種。
+\end{theorem}
+
+\begin{whybox}[卡特蘭數]
+前面說過，做得到的輸出順序和「合法的 push、pop 序列」一一對應。 一串 push、pop
+是合法的，條件是：共 $n$ 個 push、$n$ 個 pop，而且每一個前綴裡 pop 的個數都不超過
+push 的個數（不會對空堆疊 pop）。 所以只要數合法的序列。
+
+$n$ 個 push、$n$ 個 pop 任意排，共 $\binom{2n}{n}$ 種。 數不合法的：不合法的序列
+一定有第一個「pop 比 push 多一個」的位置。 把這個位置\textbf{之後}的每一步對調
+（push 換成 pop，pop 換成 push）。 那個位置之前 push 比 pop 少一個，之後原本 push、
+pop 各剩 $n - t$ 和 $n - t - 1$ 個（$t$ 是前面 push 的個數），對調後總共變成
+$n - 1$ 個 push、$n + 1$ 個 pop。 反過來，任何 $n - 1$ 個 push、$n + 1$ 個 pop 的
+序列，pop 總數比較多，一定有第一個「pop 比 push 多一個」的位置，把之後對調回去，
+就得到一個不合法的原序列。 兩邊一一對應，所以不合法的有 $\binom{2n}{n-1}$ 種。
+
+合法的個數是
+\[
+\binom{2n}{n} - \binom{2n}{n-1}
+= \binom{2n}{n} - \frac{n}{n+1}\binom{2n}{n}
+= \frac{1}{n+1}\binom{2n}{n}.
+\]
+這裡用了 $\binom{2n}{n-1} = \binom{2n}{n} \cdot \frac{n}{n+1}$，把兩個組合數寫成階
+乘就看得出來。
+\end{whybox}
+
+另一個角度：看 $1$ 是第幾個輸出的。 如果 $1$ 是第 $k + 1$ 個，那麼在它之前輸出的
+恰好是 $2, \ldots, k + 1$（它們都在 $1$ 上面進出），之後輸出的是
+$k + 2, \ldots, n$。 兩段各自是一個小一點的堆疊問題，所以
+$C_n = \sum_{k=0}^{n-1} C_k\, C_{n-1-k}$，$C_0 = 1$。 這個遞迴式在第~7~章數二元樹
+的形狀時會再出現。
+
+\begin{examnote}
+判斷一個輸出順序做不做得到，答案寫「做不到」時，要指出卡住的那一步：「輸出 $4$
+之後頂端是 $3$，$2$ 在 $3$ 下面」，或指出一組 $p_j < p_k < p_i$。 寫「做得到」時，
+寫出完整的 push、pop 序列。 只寫是或否，閱卷的人看不出你是推的還是猜的。
+\end{examnote}
+
+\section{佇列：環狀陣列與串列}
+\label{sec:sq-queue}
+
+\textbf{佇列}也是一串資料，但從一端加入、從另一端取出。 加入的一端叫\textbf{尾端}
+（rear），取出的一端叫\textbf{前端}（front）。 操作：
+
+\begin{itemize}
+\item \proc{Enqueue}$(Q, x)$：把 $x$ 接在尾端。
+\item \proc{Dequeue}$(Q)$：取出前端的元素並回傳。
+\item \proc{Front}$(Q)$：回傳前端的元素，不取出。
+\item \proc{Queue-Empty}$(Q)$：佇列是不是空的。
+\end{itemize}
+
+最先加入的最先取出，所以佇列是\textbf{先進先出}（first in, first out，FIFO）的結
+構。 排隊、印表機的工作、第~21~章廣度優先搜尋裡「等著被處理的點」，都是佇列。
+
+\subsection{直接用陣列的問題}
+
+最直接的想法：用 $Q[1..n]$ 存，元素放在 $Q[\mathit{front}..\mathit{rear}]$。 加
+入時 $\mathit{rear}$ 加一，取出時 $\mathit{front}$ 加一。 問題是兩個索引都只往右
+走，取出的元素留下的空位再也用不到。 做了 $n$ 次加入、$n - 1$ 次取出之後，佇列只
+剩一個元素，$\mathit{rear}$ 卻已經走到 $n$，不能再加入了。 這種「陣列還有空位，
+卻說滿了」的情況，有些書叫假溢位。
+
+一種修法是每次取出後把剩下的元素都往前搬一格，但這讓 \proc{Dequeue} 變成
+$\Theta(n)$。 比較好的修法是讓索引走到最後一格之後，繞回第一格。
+
+\subsection{環狀陣列}
+\label{sec:sq-circular}
+
+把陣列 $Q[0..n-1]$ 想成頭尾相接的一圈：$Q[n-1]$ 的下一格是 $Q[0]$。 往後走一格就
+是索引加一再對 $n$ 取餘數，$i \gets (i + 1) \bmod n$。 這一節的陣列從 $0$ 開始，取
+餘數比較方便，C 程式也一樣，翻譯時不用改編號。
+
+用兩個索引：
+\begin{itemize}
+\item $\mathit{front}$：前端元素的位置；
+\item $\mathit{rear}$：下一個要放的位置（尾端元素的下一格）。
+\end{itemize}
+佇列的元素依序在 $Q[\mathit{front}], Q[\mathit{front} + 1], \ldots$，一路到
+$Q[\mathit{rear} - 1]$，中間可能繞過陣列的結尾。
+
+\textbf{空和滿分不出來。} 一開始 $\mathit{front} = \mathit{rear} = 0$，佇列是空
+的，所以「$\mathit{front} = \mathit{rear}$」表示空。 但如果一直加入，$n$ 次之後
+$\mathit{rear}$ 繞了一圈回到 $0$，又是 $\mathit{front} = \mathit{rear}$，這時佇列
+是滿的。 只看這兩個索引，分不出空和滿。 這不是寫法的問題：固定 $\mathit{front}$
+時，$\mathit{rear}$ 只有 $n$ 種可能，佇列的元素個數卻有 $0, 1, \ldots, n$ 共
+$n + 1$ 種，$n$ 個值不夠表示 $n + 1$ 種狀態（觀念題第~\ref{q:sq-pigeon}~題）。 常見的解法有三種：
+
+\begin{enumerate}
+\item \textbf{留一格不用}：最多只放 $n - 1$ 個。 空是 $\mathit{front} =
+\mathit{rear}$，滿是 $(\mathit{rear} + 1) \bmod n = \mathit{front}$，也就是尾端再
+往後一格就撞到前端。
+\item \textbf{多記一個個數} $\mathit{count}$：空是 $\mathit{count} = 0$，滿是
+$\mathit{count} = n$，$n$ 格都能用。 這時 $\mathit{rear}$ 可以不存，由
+$(\mathit{front} + \mathit{count}) \bmod n$ 算出來。
+\item \textbf{多記一個旗標} $\mathit{tag}$：最近一次操作是加入就設成 $1$，是取出就
+設成 $0$。 $\mathit{front} = \mathit{rear}$ 時，$\mathit{tag} = 1$ 表示滿（剛才
+加入才變相等的），$\mathit{tag} = 0$ 表示空。
+\end{enumerate}
+
+下面的虛擬碼用第一種。 用第一種時，佇列裡的元素個數是
+\[
+(\mathit{rear} - \mathit{front} + n) \bmod n.
+\]
+$\mathit{rear} \ge \mathit{front}$ 時就是 $\mathit{rear} - \mathit{front}$；
+$\mathit{rear} < \mathit{front}$ 表示繞過了結尾，要補上 $n$。
+
+\begin{pseudo}[label=alg:sq-circular]{環狀佇列（留一格不用）}
+\Procedure{Enqueue}{$Q, x$}
+    \If{$(Q.\mathit{rear} + 1) \bmod Q.n = Q.\mathit{front}$}
+        \State \Error{overflow}
+    \EndIf
+    \State $Q.\mathit{item}[Q.\mathit{rear}] \gets x$
+    \State $Q.\mathit{rear} \gets (Q.\mathit{rear} + 1) \bmod Q.n$
+\EndProcedure
+\Statex
+\Function{Dequeue}{$Q$}
+    \If{$Q.\mathit{front} = Q.\mathit{rear}$}
+        \State \Error{underflow}
+    \EndIf
+    \State $x \gets Q.\mathit{item}[Q.\mathit{front}]$
+    \State $Q.\mathit{front} \gets (Q.\mathit{front} + 1) \bmod Q.n$
+    \State \Return $x$
+\EndFunction
+\end{pseudo}
+
+\subsection{手算追蹤}
+
+用 $n = 5$（最多放 $4$ 個），從 $\mathit{front} = \mathit{rear} = 0$ 開始。 下表
+「E 31」表示 \proc{Enqueue}$(Q, 31)$，「D」表示 \proc{Dequeue}$(Q)$。 陣列那五欄
+寫的是實際存在陣列裡的值，灰字是已經取出、但還沒被蓋掉的值。
+
+\begin{center}
+\begin{tabular}{llccccccc}
+\toprule
+操作 & 結果 & $Q[0]$ & $Q[1]$ & $Q[2]$ & $Q[3]$ & $Q[4]$ & $\mathit{front}$ & $\mathit{rear}$ \\
+\midrule
+E 31 & & 31 & & & & & 0 & 1 \\
+E 42 & & 31 & 42 & & & & 0 & 2 \\
+E 53 & & 31 & 42 & 53 & & & 0 & 3 \\
+D & 取出 31 & \textcolor{black!40}{31} & 42 & 53 & & & 1 & 3 \\
+E 64 & & \textcolor{black!40}{31} & 42 & 53 & 64 & & 1 & 4 \\
+E 75 & & \textcolor{black!40}{31} & 42 & 53 & 64 & 75 & 1 & 0 \\
+E 86 & 滿了 & \textcolor{black!40}{31} & 42 & 53 & 64 & 75 & 1 & 0 \\
+D & 取出 42 & \textcolor{black!40}{31} & \textcolor{black!40}{42} & 53 & 64 & 75 & 2 & 0 \\
+D & 取出 53 & \textcolor{black!40}{31} & \textcolor{black!40}{42} & \textcolor{black!40}{53} & 64 & 75 & 3 & 0 \\
+E 97 & & 97 & \textcolor{black!40}{42} & \textcolor{black!40}{53} & 64 & 75 & 3 & 1 \\
+D & 取出 64 & 97 & \textcolor{black!40}{42} & \textcolor{black!40}{53} & \textcolor{black!40}{64} & 75 & 4 & 1 \\
+D & 取出 75 & 97 & \textcolor{black!40}{42} & \textcolor{black!40}{53} & \textcolor{black!40}{64} & \textcolor{black!40}{75} & 0 & 1 \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\proc{Enqueue}$(Q, 75)$ 把 $75$ 放進 $Q[4]$，$\mathit{rear}$ 從 $4$ 繞回 $0$。 接
+著加入 $86$ 時，$(0 + 1) \bmod 5 = 1 = \mathit{front}$，判定為滿，雖然 $Q[0]$ 其實
+空著，這就是留下不用的那一格。 下圖是這個時候的樣子。
+
+\begin{center}
+\begin{tikzpicture}
+\foreach \v/\k in {{}/0, 42/1, 53/2, 64/3, 75/4} {
+    \pgfmathsetmacro{\ang}{90 - 72*\k}
+    \ifnum\k=0
+        \node[cell] (q\k) at (\ang:1.7) {};
+    \else
+        \node[sqfill] (q\k) at (\ang:1.7) {\v};
+    \fi
+    \node[idxlbl] at (\ang:2.65) {$Q[\k]$};
+}
+\draw[diagarrow, draw=black!40] (60:0.75) arc (60:-240:0.75);
+\node[font=\small, text=black!55] at (0,0) {方向};
+\node[font=\small, text=memStroke] (f) at (3.9, 0.1) {$\mathit{front} = 1$};
+\draw[diagarrow, draw=memStroke] (f.west) -- (q1.east);
+\node[font=\small, text=optStroke] (r) at (-3.6, 1.6) {$\mathit{rear} = 0$};
+\draw[diagarrow, draw=optStroke] (r.east) -- (q0.west);
+\end{tikzpicture}
+\diagcaption{$n = 5$ 的環狀佇列，存了 $42, 53, 64, 75$ 四個元素（藍底）。
+$\mathit{rear}$ 指著下一個要放的 $Q[0]$，再往後一格就是 $\mathit{front}$，所以判
+定為滿。 元素沿順時針方向排列。}
+\label{fig:sq-ring}
+\end{center}
+
+\begin{examnote}
+環狀佇列的題目，先看題目怎麼定義 $\mathit{front}$ 和 $\mathit{rear}$。 有的書讓
+$\mathit{front}$ 指向前端元素的\textbf{前一格}、$\mathit{rear}$ 指向尾端元素本身；
+這時空和滿的條件、元素個數的公式都要跟著改。 作答時先寫一句「依題意，
+$\mathit{front}$ 指向……」，再照那個定義算，每做一個操作寫一列
+$\mathit{front}$、$\mathit{rear}$ 和陣列內容。
+\end{examnote}
+
+\subsection{C 程式}
+
+C 的 \texttt{\%} 在左邊是負數時，結果也是負的（例如 \texttt{-1 \% 5} 是
+\texttt{-1}），所以算個數時寫 \texttt{(rear - front + n) \% n}，先加 $n$ 再取餘
+數。 下面是虛擬碼~\ref{alg:sq-circular} 翻成的 C 函式，陣列用 \texttt{malloc}
+配置 \texttt{n} 格。 把上面那張表的操作依序丟給它們，每一步的 \texttt{front}、
+\texttt{rear} 都和表上一樣；例如做完 \texttt{E 75} 時 $\mathit{rear} = 0 <
+\mathit{front} = 1$，\texttt{q\_size} 算出 $(0 - 1 + 5) \bmod 5 = 4$。
+
+\begin{code}[label=code:sq-circ]{c}{環狀佇列（留一格不用）}
+// q[0..n-1] 當成一圈。front 是前端元素的位置，rear 是下一個要放的位置。
+// 留一格不用，最多放 n - 1 個。
+typedef struct {
+    int *q;
+    int n, front, rear;
+} Queue;
+
+int q_size(const Queue *Q)
+{
+    return (Q->rear - Q->front + Q->n) % Q->n;  // 先加 n，避免負數
+}
+
+int enqueue(Queue *Q, int x)                    // 滿了回傳 0
+{
+    if ((Q->rear + 1) % Q->n == Q->front) {
+        return 0;
+    }
+    Q->q[Q->rear] = x;
+    Q->rear = (Q->rear + 1) % Q->n;
+    return 1;
+}
+
+int dequeue(Queue *Q, int *x)                   // 空的回傳 0
+{
+    if (Q->front == Q->rear) {
+        return 0;
+    }
+    *x = Q->q[Q->front];
+    Q->front = (Q->front + 1) % Q->n;
+    return 1;
+}
+\end{code}
+
+\subsection{用串列存}
+
+用串列存佇列，要記兩個指標：$Q.\mathit{front}$ 指向第一個節點，
+$Q.\mathit{rear}$ 指向最後一個節點。 加入接在 $\mathit{rear}$ 後面，取出拿
+$\mathit{front}$。 方向不能反過來：在單向串列的尾巴刪除要先找到前一個節點，是
+$\Theta(n)$；在尾巴加入只要改 $\mathit{rear}.\mathit{next}$，是 $\Theta(1)$。
+
+\begin{pseudo}[label=alg:sq-list-queue]{串列佇列}
+\Procedure{Enqueue-List}{$Q, x$}
+    \State 配置一個新節點 $p$
+    \State $p.\mathit{key} \gets x$
+    \State $p.\mathit{next} \gets \NIL$
+    \If{$Q.\mathit{rear} = \NIL$} \Comment{原本是空的}
+        \State $Q.\mathit{front} \gets p$
+    \Else
+        \State $Q.\mathit{rear}.\mathit{next} \gets p$
+    \EndIf
+    \State $Q.\mathit{rear} \gets p$
+\EndProcedure
+\Statex
+\Function{Dequeue-List}{$Q$}
+    \If{$Q.\mathit{front} = \NIL$}
+        \State \Error{underflow}
+    \EndIf
+    \State $p \gets Q.\mathit{front}$
+    \State $x \gets p.\mathit{key}$
+    \State $Q.\mathit{front} \gets p.\mathit{next}$
+    \If{$Q.\mathit{front} = \NIL$} \Comment{取走的是最後一個}
+        \State $Q.\mathit{rear} \gets \NIL$
+    \EndIf
+    \State 釋放 $p$
+    \State \Return $x$
+\EndFunction
+\end{pseudo}
+
+兩個 \textbf{if} 處理的都是空佇列的邊界：加入第一個節點時 $\mathit{front}$ 也要指
+向它；取走最後一個節點時 $\mathit{rear}$ 也要清成 \NIL，不然 $\mathit{rear}$ 會指
+向已經釋放的節點，下一次加入就寫進釋放過的記憶體。
+
+\textbf{例題：印表機排程。} 系辦的印表機一次印一份文件，每頁要 $4$ 秒，大家送出
+的文件依送出的先後排隊。 輸入每份文件送出的時間和頁數（已經依時間排好），算出每
+份何時開始印、何時印完、等了多久。 印表機印完一份時，把這段時間內送來的文件都加
+入佇列，再從前端取出下一份；佇列是空的就閒著，等下一份送來。
+
+\begin{example}[label=ex:sq-printer]{c}{(printer\_queue.c) 用串列佇列模擬印表機}
+#include <stdio.h>
+#include <stdlib.h>
+
+#define MAXJOBS 100
+#define SEC_PER_PAGE 4      // 印一頁要 4 秒
+
+typedef struct QNode {
+    int job;                // 文件的編號
+    struct QNode *next;
+} QNode;
+
+typedef struct {
+    QNode *front, *rear;    // 從 front 拿，往 rear 後面接
+    int size;
+} Queue;
+
+int enqueue(Queue *Q, int job)
+{
+    QNode *p = malloc(sizeof *p);
+    if (p == NULL) {
+        return 0;
+    }
+    p->job = job;
+    p->next = NULL;
+    if (Q->rear == NULL) {  // 原本是空的：新節點同時是頭和尾
+        Q->front = p;
+    } else {
+        Q->rear->next = p;
+    }
+    Q->rear = p;
+    Q->size++;
+    return 1;
+}
+
+int dequeue(Queue *Q)       // 呼叫前要確定佇列不是空的
+{
+    QNode *p = Q->front;
+    int job = p->job;
+    Q->front = p->next;
+    if (Q->front == NULL) { // 拿走最後一個：尾巴也要清掉
+        Q->rear = NULL;
+    }
+    free(p);
+    Q->size--;
+    return job;
+}
+
+int main(void)
+{
+    int n, arrive[MAXJOBS], pages[MAXJOBS];
+    if (scanf("%d", &n) != 1 || n < 1 || n > MAXJOBS) {
+        return 1;
+    }
+    for (int i = 0; i < n; i++) {   // 依送出的時間排好
+        if (scanf("%d %d", &arrive[i], &pages[i]) != 2) {
+            return 1;
+        }
+    }
+    Queue Q = {NULL, NULL, 0};
+    int next = 0, now = 0, longest = 0, total_wait = 0;
+    printf("job arrive start finish wait\n");
+    while (next < n || Q.size > 0) {
+        if (Q.size == 0 && now < arrive[next]) {
+            now = arrive[next];     // 印表機閒著，等下一份送來
+        }
+        while (next < n && arrive[next] <= now) {
+            if (!enqueue(&Q, next++)) {
+                return 1;
+            }
+        }
+        if (Q.size > longest) {
+            longest = Q.size;
+        }
+        int j = dequeue(&Q);
+        int finish = now + pages[j] * SEC_PER_PAGE;
+        printf("%d %d %d %d %d\n", j + 1, arrive[j], now, finish, now - arrive[j]);
+        total_wait += now - arrive[j];
+        now = finish;
+    }
+    printf("average wait = %.2f, longest queue = %d\n",
+           (double)total_wait / n, longest);
+    return 0;
+}
+\end{example}
+\iosample{6 \\ 0 5 \\ 3 2 \\ 6 10 \\ 9 1 \\ 50 3 \\ 58 2}{job arrive start finish wait \\ 1 0 0 20 0 \\ 2 3 20 28 17 \\ 3 6 28 68 22 \\ 4 9 68 72 59 \\ 5 50 72 84 22 \\ 6 58 84 92 26 \\ average wait = 24.33, longest queue = 3}
+
+手算對一次：第 1 份在 $0$ 秒開始，$5$ 頁印到 $20$ 秒。 這段時間第 2、3、4 份陸續
+送來，$20$ 秒時佇列是 $\langle 2, 3, 4 \rangle$，這是排得最長的時候，所以
+\texttt{longest queue = 3}。 取出第 2 份印到 $28$，再取出第 3 份，$10$ 頁印到
+$68$。 第 4 份只有 $1$ 頁，卻排在 $10$ 頁的那份後面，等了 $59$ 秒。
+
+先來先服務很公平，但不一定讓平均等待最短。 如果每次挑頁數最少的先印，第 4 份就不
+用等那麼久；這時要的是「每次取出最小的」，那是第~8~章的優先佇列，第~19~章會證明
+這樣排能讓平均等待時間最小。
+
+程式結束前佇列一定是空的（迴圈的條件），所以每個 \texttt{malloc} 出來的節點都在
+\texttt{dequeue} 裡釋放了。 佇列不保證空的程式，結束前要像範例~\ref{ex:sq-list-stack}
+最後的迴圈那樣，把剩下的節點都取出來。
+
+\subsection{雙端佇列}
+\label{sec:sq-deque}
+
+\textbf{雙端佇列}（double-ended queue，常簡稱 deque）兩端都可以加入、也都可以取出，
+共四個操作：前端加入、前端取出、尾端加入、尾端取出。 只用一端，它就是堆疊；一端
+加、另一端取，它就是佇列。
+
+環狀陣列可以直接改成雙端佇列。 尾端加入、前端取出和佇列一樣；前端加入是
+$\mathit{front}$ 先往回退一格再放，尾端取出是 $\mathit{rear}$ 先往回退一格再拿。
+往回退一格是 $(i - 1 + n) \bmod n$，加 $n$ 的理由和前面一樣。 例如前端加入：
+先檢查滿了沒有，再做 $\mathit{front} \gets (\mathit{front} - 1 + n) \bmod n$、
+$Q[\mathit{front}] \gets x$；尾端取出：先檢查空了沒有，再做
+$\mathit{rear} \gets (\mathit{rear} - 1 + n) \bmod n$，回傳 $Q[\mathit{rear}]$。
+
+用串列做的話要用雙向串列：尾端取出需要找到倒數第二個節點，單向串列做不到
+$\Theta(1)$。
+
+考卷上還常出現兩種受限的雙端佇列。 \textbf{輸入受限}（input-restricted）的只能
+從一端加入、兩端都能取出；\textbf{輸出受限}（output-restricted）的兩端都能加入、
+只能從一端取出。 題目通常像第~\ref{sec:sq-perm}~節那樣，讓 $1, 2, \ldots, n$ 依
+序進入，問哪些輸出順序做得到（觀念題第~\ref{q:sq-deque}~題）。 解法也一樣：照著要的輸出順序走，
+每一步看要的數在不在可以取出的那一端。
+
+\section{運算式：中序、前序、後序}
+\label{sec:sq-expr}
+
+\subsection{三種寫法}
+
+平常寫的 $a + b$ 把運算子放在兩個運算元中間，叫\textbf{中序}（infix）。 把運算
+子放在前面的 $+\;a\;b$ 叫\textbf{前序}（prefix，也叫波蘭表示法），放在後面的
+$a\;b\;+$ 叫\textbf{後序}（postfix，也叫逆波蘭表示法）。
+
+中序要靠\textbf{優先順序}（precedence）和\textbf{結合性}（associativity）才能讀出
+唯一的意思：$a - b * c$ 先算乘法，$a - b - c$ 是 $(a - b) - c$，從左往右結合；
+次方通常從右往左結合，$a \sqpow b \sqpow c$ 是 $a^{(b^c)}$。 想改變順序就要加括
+號。 前序和後序完全不需要括號，也不需要優先順序：運算子的位置本身就決定了它作用
+在誰身上。
+
+手算轉換最穩的方法是\textbf{加滿括號}：先依優先順序和結合性，把每個運算加上一對
+括號，再把每個運算子搬到它那對括號的右括號（後序）或左括號（前序）的位置，最後
+把括號全部擦掉。 例如 $a * b + c / d$：
+
+\begin{center}
+\begin{tabular}{ll}
+\toprule
+步驟 & 結果 \\
+\midrule
+加滿括號 & $((a * b) + (c / d))$ \\
+運算子移到右括號，擦掉括號（後序）& $a\;b\;*\;c\;d\;/\;+$ \\
+運算子移到左括號，擦掉括號（前序）& $+\;*\;a\;b\;/\;c\;d$ \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+三種寫法裡，運算元出現的順序都一樣（$a, b, c, d$），只有運算子的位置不同。 這是
+檢查答案的好方法：轉完之後，運算元的順序變了就一定錯了。 運算式和二元樹的關係
+（中序、前序、後序剛好是同一棵樹的三種走訪）在第~7~章再講。
+
+\subsection{後序求值}
+\label{sec:sq-postfix-eval}
+
+後序由左往右讀就能算：遇到運算元就 push；遇到運算子就 pop 兩個數出來算，結果
+push 回去。 讀完時堆疊裡剩下的一個數就是答案。 要注意 pop 的順序：\textbf{先 pop
+出來的是右邊的運算元}。 $8\;3\;-$ 是 $8 - 3$：讀到 $-$ 時頂端是 $3$，先 pop 出
+$3$ 當右邊，再 pop 出 $8$ 當左邊。
+
+\begin{pseudo}[label=alg:sq-postfix-eval]{後序求值}
+\Function{Postfix-Eval}{$T, m$} \Comment{$T[1..m]$ 是記號}
+    \State 建立空堆疊 $S$
+    \For{$i \gets 1$ \To $m$}
+        \If{$T[i]$ 是運算元}
+            \State \Call{Push}{$S, T[i]$}
+        \Else
+            \State $b \gets$ \Call{Pop}{$S$} \Comment{右邊的運算元}
+            \State $a \gets$ \Call{Pop}{$S$} \Comment{左邊的運算元}
+            \State \Call{Push}{$S$, $a$ $T[i]$ $b$ 的值}
+        \EndIf
+    \EndFor
+    \State \Return \Call{Pop}{$S$}
+\EndFunction
+\end{pseudo}
+
+用 $8\;2\;5\;*\;+\;1\;3\;2\;*\;+\;4\;-\;/$ 走一次，堆疊由底到頂寫：
+
+\begin{center}
+\begin{tabular}{clll}
+\toprule
+記號 & 動作 & 堆疊（底 $\to$ 頂）\\
+\midrule
+8, 2, 5 & 依序 push & 8 2 5 \\
+$*$ & pop 5、2，push $2 * 5 = 10$ & 8 10 \\
+$+$ & pop 10、8，push $8 + 10 = 18$ & 18 \\
+1, 3, 2 & 依序 push & 18 1 3 2 \\
+$*$ & pop 2、3，push $3 * 2 = 6$ & 18 1 6 \\
+$+$ & pop 6、1，push $1 + 6 = 7$ & 18 7 \\
+4 & push & 18 7 4 \\
+$-$ & pop 4、7，push $7 - 4 = 3$ & 18 3 \\
+$/$ & pop 3、18，push $18 / 3 = 6$ & 6 \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+答案是 $6$，對應的中序是 $(8 + 2 * 5) / (1 + 3 * 2 - 4)$。 每個記號只處理一次，
+每次 $\Theta(1)$，總時間 $\Theta(m)$。
+
+\subsection{中序轉後序}
+\label{sec:sq-infix-postfix}
+
+後序好算，但人寫的是中序，所以要先轉換。 轉換時運算元的順序不變，直接輸出；運算
+子則要等一下，因為讀到 $a - b$ 的 $-$ 時，還不知道右邊是不是 $b * c$ 這種要先算
+的東西。 等待中的運算子放在堆疊裡。 規則如下，由左往右讀每個記號：
+
+\begin{enumerate}
+\item 運算元：直接輸出。
+\item 左括號：push。 它像一道牆，牆下面的運算子要等右括號出現才處理。
+\item 右括號：一直 pop 並輸出，直到遇到左括號；左括號 pop 掉，不輸出。
+\item 運算子 $\mathit{op}$：只要頂端是運算子、而且它\textbf{應該比 $\mathit{op}$
+先算}，就 pop 並輸出；最後把 $\mathit{op}$ push。 「頂端的 $t$ 應該比
+$\mathit{op}$ 先算」的意思是：$t$ 的優先順序比較高，或兩者一樣高而且是由左往右
+結合。
+\item 讀完之後，把堆疊裡剩下的運算子依序 pop 並輸出。
+\end{enumerate}
+
+本書用的優先順序（越上面越先算）：
+
+\begin{center}
+\begin{tabular}{ccc}
+\toprule
+運算子 & 優先順序 & 結合性 \\
+\midrule
+\sqpow & 3 & 由右往左 \\
+$*$、$/$ & 2 & 由左往右 \\
+$+$、$-$ & 1 & 由左往右 \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+第 4 條規則裡的「一樣高」決定了結合性。 讀 $a - b - c$ 的第二個 $-$ 時，頂端是第
+一個 $-$，一樣高、由左往右結合，所以先輸出第一個 $-$，得到 $a\;b\;-\;c\;-$，也就是
+$(a - b) - c$。 讀 $a \sqpow b \sqpow c$ 的第二個 \sqpow{} 時，一樣高但由右往左結
+合，不 pop，直接 push，最後得到 $a\;b\;c\;\sqpow\;\sqpow$，也就是
+$a \sqpow (b \sqpow c)$。
+
+\begin{pseudo}[label=alg:sq-infix-postfix]{中序轉後序}
+\Procedure{Infix-To-Postfix}{$T, m$}
+    \State 建立空堆疊 $S$
+    \For{$i \gets 1$ \To $m$}
+        \If{$T[i]$ 是運算元}
+            \State 輸出 $T[i]$
+        \ElsIf{$T[i]$ 是左括號}
+            \State \Call{Push}{$S, T[i]$}
+        \ElsIf{$T[i]$ 是右括號}
+            \While{\Call{Top}{$S$} 不是左括號}
+                \State 輸出 \Call{Pop}{$S$}
+            \EndWhile
+            \State \Call{Pop}{$S$} \Comment{丟掉左括號}
+        \Else \Comment{$T[i]$ 是運算子}
+            \While{$S$ 不是空的 \AND \Call{Top}{$S$} 是運算子 \AND \Call{Top}{$S$} 應該比 $T[i]$ 先算}
+                \State 輸出 \Call{Pop}{$S$}
+            \EndWhile
+            \State \Call{Push}{$S, T[i]$}
+        \EndIf
+    \EndFor
+    \While{$S$ 不是空的}
+        \State 輸出 \Call{Pop}{$S$}
+    \EndWhile
+\EndProcedure
+\end{pseudo}
+
+每個運算子最多 push 一次、pop 一次，每個括號也一樣，所以總時間是 $\Theta(m)$。 內
+層的 \textbf{while} 有時一次 pop 好幾個，但全部加起來不會超過 push 的次數，這是
+第~3~章聚合法的典型例子。
+
+\textbf{手算追蹤}：轉換 \texttt{A - B * (C + D \sqpow{} E \sqpow{} F) / G + H}。
+每讀一個記號寫一列，堆疊由底到頂寫。
+
+\begin{center}
+\small
+\begin{tabular}{clll}
+\toprule
+記號 & 動作 & 堆疊（底 $\to$ 頂）& 輸出 \\
+\midrule
+A & 輸出 & & A \\
+$-$ & push & $-$ & A \\
+B & 輸出 & $-$ & A B \\
+$*$ & $*$ 比 $-$ 高，push & $-\;*$ & A B \\
+( & push & $-\;*\;($ & A B \\
+C & 輸出 & $-\;*\;($ & A B C \\
+$+$ & 頂端是 (，push & $-\;*\;(\;+$ & A B C \\
+D & 輸出 & $-\;*\;(\;+$ & A B C D \\
+\sqpow & \sqpow{} 比 $+$ 高，push & $-\;*\;(\;+\;\sqpow$ & A B C D \\
+E & 輸出 & $-\;*\;(\;+\;\sqpow$ & A B C D E \\
+\sqpow & 一樣高但由右往左，push & $-\;*\;(\;+\;\sqpow\;\sqpow$ & A B C D E \\
+F & 輸出 & $-\;*\;(\;+\;\sqpow\;\sqpow$ & A B C D E F \\
+) & pop \sqpow{} \sqpow{} $+$，丟掉 ( & $-\;*$ & A B C D E F \sqpow{} \sqpow{} $+$ \\
+$/$ & pop $*$（一樣高、由左往右），push & $-\;/$ & A B C D E F \sqpow{} \sqpow{} $+$ $*$ \\
+G & 輸出 & $-\;/$ & \ldots{} $+$ $*$ G \\
+$+$ & pop $/$、$-$，push & $+$ & \ldots{} $+$ $*$ G $/$ $-$ \\
+H & 輸出 & $+$ & \ldots{} $+$ $*$ G $/$ $-$ H \\
+結束 & pop $+$ & & \ldots{} $+$ $*$ G $/$ $-$ H $+$ \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+結果是 \texttt{A B C D E F \sqpow{} \sqpow{} + * G / - H +}。 檢查：運算元的順序
+\texttt{A} 到 \texttt{H} 沒變；\texttt{D E F \sqpow{} \sqpow} 表示
+$D^{(E^F)}$，次方由右往左結合；$*$ 在 $/$ 前面，表示 $(B * (\ldots)) / G$，乘除
+由左往右結合。
+
+\begin{examnote}
+中序轉後序的追蹤題，表格固定寫四欄：讀到的記號、做了什麼、堆疊（寫明由底到頂或由
+頂到底）、目前為止的輸出。 遇到同優先順序時，在「動作」欄寫出你依據的結合性。 最
+後一列別忘了把堆疊清空。 寫完用「運算元順序沒變」檢查一次。
+\end{examnote}
+
+很多教科書和考卷把第 4 條規則寫成兩張數字表：運算子在堆疊裡時的優先順序
+（in-stack priority，isp），和剛讀進來時的優先順序（incoming priority，icp）。 規
+則變成「頂端的 isp 大於等於讀進來的 icp 就 pop」。 下面這組數字和本書的規則等價：
+
+\begin{center}
+\begin{tabular}{ccccc}
+\toprule
+ & ( & \sqpow & $*$ $/$ & $+$ $-$ \\
+\midrule
+isp（在堆疊裡）& 0 & 3 & 2 & 1 \\
+icp（剛讀進來）& 5 & 4 & 2 & 1 \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+左括號的 icp 最高，所以一定會被 push；進了堆疊之後 isp 最低，所以不會被任何運算子
+pop 掉。 \sqpow{} 的 icp 比 isp 大，所以新讀到的 \sqpow{} 不會把堆疊裡的 \sqpow{}
+pop 出來，這就是由右往左結合。 $*$、$/$、$+$、$-$ 的 isp 和 icp 相等，一樣高時會
+pop，這就是由左往右結合。
+
+\subsection{C 程式}
+
+下面的程式每讀一行中序運算式，就印出後序，再用後序算出值。 為了專心在堆疊上，運
+算元只有一位數（\texttt{0} 到 \texttt{9}），空白略過，而且假設輸入的運算式都是合
+法的。 運算子有 \texttt{+ - * /} 和 \texttt{\sqpow}（次方），除法和 C 一樣捨去小
+數。 兩個堆疊都開成和一行一樣長，不會溢位。
+
+\begingroup\catcode`\^=12
+\begin{example}[label=ex:sq-infix]{c}{(infix\_postfix.c) 中序轉後序並求值}
+#include <stdio.h>
+#include <string.h>
+#include <ctype.h>
+
+#define MAXLEN 256
+
+int prec(char op)               // 優先順序，數字越大越先算
+{
+    switch (op) {
+    case '^': return 3;
+    case '*': case '/': return 2;
+    case '+': case '-': return 1;
+    default:  return 0;
+    }
+}
+
+// 中序 in 轉成後序 out。運算元是一位數，空白略過。
+void to_postfix(const char *in, char *out)
+{
+    char st[MAXLEN];            // 運算子堆疊
+    int top = 0, k = 0;
+    for (int i = 0; in[i] != '\0'; i++) {
+        char c = in[i];
+        if (isdigit((unsigned char)c)) {
+            out[k++] = c;       // 運算元直接輸出
+        } else if (c == '(') {
+            st[top++] = c;
+        } else if (c == ')') {
+            while (st[top - 1] != '(') {
+                out[k++] = st[--top];
+            }
+            top--;              // 丟掉 '('
+        } else if (strchr("+-*/^", c) != NULL) {
+            // 頂端的運算子應該先算的話，先輸出它；^ 由右往左結合，一樣高時不 pop
+            while (top > 0 && st[top - 1] != '(' &&
+                   (prec(st[top - 1]) > prec(c) ||
+                    (prec(st[top - 1]) == prec(c) && c != '^'))) {
+                out[k++] = st[--top];
+            }
+            st[top++] = c;
+        }
+    }
+    while (top > 0) {
+        out[k++] = st[--top];
+    }
+    out[k] = '\0';
+}
+
+long long eval_postfix(const char *p)
+{
+    long long st[MAXLEN];
+    int top = 0;
+    for (int i = 0; p[i] != '\0'; i++) {
+        if (isdigit((unsigned char)p[i])) {
+            st[top++] = p[i] - '0';
+            continue;
+        }
+        long long b = st[--top];    // 先拿出來的是右邊的運算元
+        long long a = st[--top];
+        long long r = 1;
+        switch (p[i]) {
+        case '+': r = a + b; break;
+        case '-': r = a - b; break;
+        case '*': r = a * b; break;
+        case '/': r = a / b; break;
+        case '^': for (long long j = 0; j < b; j++) r *= a; break;
+        }
+        st[top++] = r;
+    }
+    return st[0];
+}
+
+int main(void)
+{
+    char line[MAXLEN], post[MAXLEN];
+    while (fgets(line, sizeof line, stdin) != NULL) {
+        line[strcspn(line, "\n")] = '\0';
+        to_postfix(line, post);
+        for (int i = 0; post[i] != '\0'; i++) {
+            printf("%c ", post[i]);
+        }
+        printf("= %lld\n", eval_postfix(post));
+    }
+    return 0;
+}
+\end{example}
+\iosample{7 - 4 * (1 + 2 ^ 3 ^ 2) / 9 + 5 \\ (8 + 2 * 5) / (1 + 3 * 2 - 4) \\ 9 - 5 - 3 \\ 2 ^ 3 ^ 2 \\ (2 ^ 3) ^ 2 \\ 9 / 4 * 3}{7 4 1 2 3 2 ^ ^ + * 9 / - 5 + = -216 \\ 8 2 5 * + 1 3 2 * + 4 - / = 6 \\ 9 5 - 3 - = 1 \\ 2 3 2 ^ ^ = 512 \\ 2 3 ^ 2 ^ = 64 \\ 9 4 / 3 * = 6}
+\endgroup
+
+第一行就是追蹤表的運算式，把 \texttt{A} 到 \texttt{H} 換成 $7, 4, 1, 2, 3, 2, 9, 5$，
+後序的形狀和手算的一樣。 $2 \sqpow 3 \sqpow 2 = 2^9 = 512$，加了括號的
+$(2 \sqpow 3) \sqpow 2 = 8^2 = 64$，結合性不同，答案差很多。 \texttt{9 - 5 - 3}
+由左往右是 $1$，錯當成由右往左會得到 $9 - 2 = 7$；\texttt{9 / 4 * 3} 由左往右是
+$2 * 3 = 6$，由右往左會得到 $9 / 12 = 0$。
+
+要支援多位數，就先把一行字切成一個一個記號（數字、運算子、括號），堆疊裡放記號
+而不是字元，演算法不變。 程式也沒有處理一元負號（例如 \texttt{-3 + 5} 開頭的
+\texttt{-}）：它和減號是同一個字元，要看前一個記號是什麼來分辨，通常在切記號時改
+成另一個符號再處理。
+
+\subsection{前序}
+\label{sec:sq-prefix}
+
+前序求值有兩種做法。 第一種是\textbf{由右往左}讀，規則和後序一樣，只是 pop 的順序
+反過來：\textbf{先 pop 出來的是左邊的運算元}。 例如 $-\;8\;3$ 由右往左讀，先 push
+$3$、再 push $8$，讀到 $-$ 時先 pop 出 $8$（左）、再 pop 出 $3$（右），算 $8 - 3$。
+
+第二種是遞迴：前序運算式不是一個數，就是「一個運算子，後面接兩個前序運算式」。
+寫一個函式，讀到數字就回傳它；讀到運算子，就遞迴讀左邊的運算式、再遞迴讀右邊的，
+算完回傳。 這個遞迴用的就是系統的呼叫堆疊，下一節說明它和第一種做法的關係。
+
+中序轉前序，手算用加滿括號最不容易錯。 用堆疊的做法要由右往左讀，並且注意結合性
+跟著反過來，容易出錯，這裡不展開；第~7~章用運算式樹可以一次得到三種寫法。
+
+\section{遞迴與堆疊：把遞迴改成迴圈}
+\label{sec:sq-recursion}
+
+\subsection{呼叫堆疊}
+
+\begin{cbookrecap}[第~15~章 15.4 節、15.13 節]
+每呼叫一次函式，系統就在\textbf{呼叫堆疊}（call stack）上放一個 frame，裡面有這次
+呼叫的參數、區域變數，以及返回之後要接著執行的位置。 函式返回時，它的 frame 被
+pop 掉，回到呼叫它的那一層。 遞迴每深一層就多一個 frame，所以遞迴深度太大會用完
+呼叫堆疊（stack overflow）。 第~15~章 15.13 節用一個指標陣列當堆疊，把「反向印出
+串列」改成了迴圈。
+\end{cbookrecap}
+
+呼叫堆疊就是一個堆疊：最後呼叫的函式最先返回。 遞迴之所以能「暫停目前的工作，先
+去做子問題，做完再回來」，就是因為暫停的工作都存在呼叫堆疊裡。 所以任何遞迴都能
+改寫成迴圈加上一個自己管理的堆疊。 自己管理的好處是：深度只受自己配置的記憶體限
+制，而且堆疊裡只放真正需要的東西。
+
+這也說明了遞迴的\textbf{空間}要怎麼算：呼叫堆疊最深時有幾層，每層多大。 遞迴深度
+$d$、每層 $\Theta(1)$ 的遞迴，額外空間是 $\Theta(d)$，不是 $\Theta(1)$。 例如遞迴
+版的二分搜尋，深度 $\Theta(\lg n)$，用了 $\Theta(\lg n)$ 的空間；迴圈版只要
+$\Theta(1)$。
+
+\subsection{尾遞迴：不需要堆疊}
+
+如果遞迴呼叫是函式的最後一個動作，回來之後什麼都不用做，叫\textbf{尾遞迴}（tail
+recursion）。 這時目前這一層的資料之後用不到，不用存，直接把參數換成新的值、跳回
+開頭就好。 例如輾轉相除法：
+
+\begin{pseudo}[label=alg:sq-gcd]{最大公因數：遞迴和迴圈}
+\Function{Gcd}{$a, b$}
+    \If{$b = 0$}
+        \State \Return $a$
+    \EndIf
+    \State \Return \Call{Gcd}{$b, a \bmod b$}
+\EndFunction
+\Statex
+\Function{Gcd-Iter}{$a, b$}
+    \While{$b \ne 0$}
+        \State $r \gets a \bmod b$
+        \State $a \gets b$
+        \State $b \gets r$
+    \EndWhile
+    \State \Return $a$
+\EndFunction
+\end{pseudo}
+
+\proc{Gcd}$(a, b)$ 的最後一步是回傳 \proc{Gcd}$(b, a \bmod b)$ 的結果，所以迴圈
+版只要把 $(a, b)$ 換成 $(b, a \bmod b)$。 注意要用暫存的 $r$：直接寫
+$a \gets b$、$b \gets a \bmod b$，第二行用到的已經是新的 $a$。
+
+\subsection{一般的遞迴：堆疊裡放待辦的工作}
+
+遞迴呼叫之後還有事要做時，就需要堆疊了。 以河內塔為例：把 $k$ 個盤子從柱子
+$a$ 搬到柱子 $c$、以 $b$ 暫放，遞迴的做法分三步：先把上面 $k - 1$ 個從 $a$ 搬到
+$b$，再把最大的從 $a$ 搬到 $c$，最後把那 $k - 1$ 個從 $b$ 搬到 $c$。
+
+\begin{pseudo}[label=alg:sq-hanoi]{河內塔：遞迴版}
+\Procedure{Hanoi}{$k, a, c, b$} \Comment{$k$ 個盤子從 $a$ 搬到 $c$，$b$ 暫放}
+    \If{$k = 0$}
+        \State \Return
+    \EndIf
+    \State \Call{Hanoi}{$k - 1, a, b, c$}
+    \State 印出「$a \to c$」
+    \State \Call{Hanoi}{$k - 1, b, c, a$}
+\EndProcedure
+\end{pseudo}
+
+改成迴圈的想法：堆疊裡放「還沒做的工作」，每個工作是一組 $(k, a, c, b)$，意思是
+「把 $k$ 個盤子從 $a$ 搬到 $c$，$b$ 暫放」。 搬一個盤子也是一個工作，$k = 1$。
+每次 pop 出一個工作：$k = 1$ 就直接搬；否則把它拆成上面三步，放回堆疊。 因為堆疊
+後進先出，三步要\textbf{倒過來} push，最先要做的最後放，下一輪才會先拿到它。
+
+\begin{pseudo}[label=alg:sq-hanoi-iter]{河內塔：用堆疊的迴圈版}
+\Procedure{Hanoi-Iter}{$n, a, c, b$}
+    \State 建立空堆疊 $S$
+    \State \Call{Push}{$S, (n, a, c, b)$}
+    \While{$S$ 不是空的}
+        \State $(k, x, z, y) \gets$ \Call{Pop}{$S$}
+        \If{$k = 1$}
+            \State 印出「$x \to z$」
+        \Else
+            \State \Call{Push}{$S, (k - 1, y, z, x)$} \Comment{第三步，最後做}
+            \State \Call{Push}{$S, (1, x, z, y)$} \Comment{第二步：搬最大的}
+            \State \Call{Push}{$S, (k - 1, x, y, z)$} \Comment{第一步，最先做}
+        \EndIf
+    \EndWhile
+\EndProcedure
+\end{pseudo}
+
+\textbf{手算追蹤}：$n = 3$，從 A 搬到 C，B 暫放。 堆疊由底到頂寫，
+$(k, x, z, y)$ 簡寫成 $k{:}x{\to}z$（暫放的柱子可以從另外兩根推出來）。
+
+\begin{center}
+\small
+\begin{tabular}{clll}
+\toprule
+輪 & pop 出的工作 & 做的事 & 之後的堆疊（底 $\to$ 頂）\\
+\midrule
+1 & $3{:}A{\to}C$ & 拆成三個 & $2{:}B{\to}C$\quad $1{:}A{\to}C$\quad $2{:}A{\to}B$ \\
+2 & $2{:}A{\to}B$ & 拆成三個 & $2{:}B{\to}C$\quad $1{:}A{\to}C$\quad $1{:}C{\to}B$\quad $1{:}A{\to}B$\quad $1{:}A{\to}C$ \\
+3 & $1{:}A{\to}C$ & 搬 A$\to$C & $2{:}B{\to}C$\quad $1{:}A{\to}C$\quad $1{:}C{\to}B$\quad $1{:}A{\to}B$ \\
+4 & $1{:}A{\to}B$ & 搬 A$\to$B & $2{:}B{\to}C$\quad $1{:}A{\to}C$\quad $1{:}C{\to}B$ \\
+5 & $1{:}C{\to}B$ & 搬 C$\to$B & $2{:}B{\to}C$\quad $1{:}A{\to}C$ \\
+6 & $1{:}A{\to}C$ & 搬 A$\to$C & $2{:}B{\to}C$ \\
+7 & $2{:}B{\to}C$ & 拆成三個 & $1{:}A{\to}C$\quad $1{:}B{\to}C$\quad $1{:}B{\to}A$ \\
+8 & $1{:}B{\to}A$ & 搬 B$\to$A & $1{:}A{\to}C$\quad $1{:}B{\to}C$ \\
+9 & $1{:}B{\to}C$ & 搬 B$\to$C & $1{:}A{\to}C$ \\
+10 & $1{:}A{\to}C$ & 搬 A$\to$C & （空）\\
+\bottomrule
+\end{tabular}
+\end{center}
+
+七次搬動依序是 A$\to$C、A$\to$B、C$\to$B、A$\to$C、B$\to$A、B$\to$C、A$\to$C，和
+遞迴版一樣。 第 2 輪之後堆疊最高，有 $5$ 個工作。
+
+下面的程式把兩個版本都跑一次，比對 $n = 1$ 到 $10$ 的搬動順序是否完全相同，並記錄
+迴圈版堆疊最高時有幾個工作。 $n = 3$ 時把搬動印出來。
+
+\begin{example}[label=ex:sq-hanoi]{c}{(hanoi\_stack.c) 河內塔的遞迴版和堆疊版}
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+
+#define MAXN 10
+
+char rec[1 << MAXN][3], itr[1 << MAXN][3];  // 每一步存成 "AC" 這樣的字串
+int nrec, nitr;
+
+void hanoi_rec(int n, char a, char c, char b)   // n 個盤子從 a 搬到 c，b 暫放
+{
+    if (n == 0) {
+        return;
+    }
+    hanoi_rec(n - 1, a, b, c);
+    rec[nrec][0] = a;
+    rec[nrec++][1] = c;
+    hanoi_rec(n - 1, b, c, a);
+}
+
+typedef struct {
+    int n;
+    char a, c, b;
+} Task;                     // 待辦的工作：n 個盤子從 a 搬到 c，b 暫放
+
+int hanoi_iter(int n, char a, char c, char b)   // 回傳堆疊最高時有幾個工作
+{
+    Task *st = malloc(2 * n * sizeof *st);
+    if (st == NULL) {
+        return -1;
+    }
+    int top = 0, deepest = 0;
+    st[top++] = (Task){n, a, c, b};
+    while (top > 0) {
+        if (top > deepest) {
+            deepest = top;
+        }
+        Task t = st[--top];
+        if (t.n == 1) {
+            itr[nitr][0] = t.a;
+            itr[nitr++][1] = t.c;
+        } else {            // 三步倒過來 push，最先要做的最後放
+            st[top++] = (Task){t.n - 1, t.b, t.c, t.a};
+            st[top++] = (Task){1, t.a, t.c, t.b};
+            st[top++] = (Task){t.n - 1, t.a, t.b, t.c};
+        }
+    }
+    free(st);
+    return deepest;
+}
+
+int main(void)
+{
+    printf("n moves same deepest\n");
+    for (int n = 1; n <= MAXN; n++) {
+        nrec = nitr = 0;
+        hanoi_rec(n, 'A', 'C', 'B');
+        int deepest = hanoi_iter(n, 'A', 'C', 'B');
+        int same = (nrec == nitr);
+        for (int i = 0; same && i < nrec; i++) {
+            same = (strcmp(rec[i], itr[i]) == 0);
+        }
+        printf("%d %d %s %d\n", n, nitr, same ? "yes" : "no", deepest);
+        if (n == 3) {
+            for (int i = 0; i < nitr; i++) {
+                printf("%s%c", itr[i], i + 1 < nitr ? ' ' : '\n');
+            }
+        }
+    }
+    return 0;
+}
+\end{example}
+\iosample{}{n moves same deepest \\ 1 1 yes 1 \\ 2 3 yes 3 \\ 3 7 yes 5 \\ AC AB CB AC BA BC AC \\ 4 15 yes 7 \\ 5 31 yes 9 \\ 6 63 yes 11 \\ 7 127 yes 13 \\ 8 255 yes 15 \\ 9 511 yes 17 \\ 10 1023 yes 19}
+
+搬動次數是 $2^n - 1$，每個 $n$ 的順序都和遞迴版相同。 堆疊最高是 $2n - 1$ 個工作
+（觀念題第~\ref{q:sq-hanoi-depth}~題證明），所以程式配置 $2n$ 格就夠。 遞迴版的呼叫堆疊最深是 $n + 1$
+層（$n, n-1, \ldots, 1, 0$），兩者都是 $\Theta(n)$ 的空間。
+
+改寫的一般步驟可以整理成三句：堆疊裡放「之後還要做的事」，需要的參數都放進去；
+一個工作拆成幾個子工作時，倒過來 push；遞迴的終止條件變成「pop 出來的工作可以直
+接做完」。 第~7~章二元樹走訪的迴圈版、第~14~章的快速排序、第~21~章的深度優先
+搜尋，都可以用這個方法把遞迴改成迴圈。
+
+\section{多個堆疊共用一個陣列}
+\label{sec:sq-multi}
+
+一個程式需要好幾個堆疊，而且只能用一塊固定大小的記憶體時，要怎麼分？ 平均切成幾
+段最簡單，但可能其中一個堆疊滿了，別的堆疊還空著很多。
+
+\subsection{兩個堆疊}
+
+兩個堆疊可以做到「只要總數不超過陣列大小就不會溢位」：一個從陣列的左端往右長，另
+一個從右端往左長，兩個頂端在中間相遇時才是真的滿了。
+用 $A[1..n]$ 的話，一號堆疊佔 $A[1..t_1]$，二號堆疊佔 $A[t_2..n]$，一開始
+$t_1 = 0$、$t_2 = n + 1$。 一號 push 是 $t_1 \gets t_1 + 1$ 再放進 $A[t_1]$，二號
+push 是 $t_2 \gets t_2 - 1$ 再放進 $A[t_2]$；兩者共用同一個滿的條件
+$t_1 + 1 = t_2$，也就是中間一格都不剩。 兩個堆疊的大小此消彼長時（例如一個只在
+另一個縮小時才長大），這樣分最省。
+
+\subsection{$m$ 個堆疊}
+
+三個以上就沒辦法都從端點長了。 常見的做法是先把 $A[1..n]$ 平均分成 $m$ 段，用
+$b[i]$ 記第 $i$ 段的邊界、$t[i]$ 記第 $i$ 個堆疊的頂端：第 $i$ 個堆疊佔
+$A[b[i]+1..t[i]]$，空的時候 $t[i] = b[i]$。 一開始
+\[
+b[i] = t[i] = \left\lfloor \frac{(i - 1)\, n}{m} \right\rfloor, \quad
+i = 1, \ldots, m, \qquad b[m+1] = n.
+\]
+第 $i$ 個堆疊滿了，是指 $t[i] = b[i + 1]$，頂端碰到下一段的邊界。
+
+\begin{center}
+\begin{tikzpicture}
+% 兩個堆疊
+\node[font=\small, anchor=east] at (-0.6, 0) {兩個};
+\foreach \k in {1,...,10} {
+    \ifnum\k<4
+        \node[sqfill] at (\k*0.9-0.9, 0) {};
+    \else\ifnum\k>6
+        \node[hlcell] at (\k*0.9-0.9, 0) {};
+    \else
+        \node[cell] at (\k*0.9-0.9, 0) {};
+    \fi\fi
+}
+\draw[diagarrow, draw=coreStroke] (2.3, 0.65) -- (3.3, 0.65);
+\draw[diagarrow, draw=memStroke] (5.1, 0.65) -- (4.1, 0.65);
+\node[font=\scriptsize] at (1.0, 0.65) {一號往右長};
+\node[font=\scriptsize] at (6.6, 0.65) {二號往左長};
+% m 個堆疊
+\node[font=\small, anchor=east] at (-0.6, -1.6) {$m = 3$};
+\foreach \k in {1,...,12} {
+    \pgfmathtruncatemacro{\seg}{(\k-1)/4}
+    \pgfmathtruncatemacro{\pos}{mod(\k-1,4)}
+    \ifnum\seg=0 \ifnum\pos<2 \node[sqfill] at (\k*0.9-0.9, -1.6) {}; \else \node[cell] at (\k*0.9-0.9, -1.6) {}; \fi \fi
+    \ifnum\seg=1 \node[hlcell] at (\k*0.9-0.9, -1.6) {}; \fi
+    \ifnum\seg=2 \ifnum\pos<1 \node[sqfill] at (\k*0.9-0.9, -1.6) {}; \else \node[cell] at (\k*0.9-0.9, -1.6) {}; \fi \fi
+}
+\foreach \x/\l in {-0.45/b[1], 3.15/b[2], 6.75/b[3], 10.35/b[4]} {
+    \draw[thick] (\x, -2.15) -- (\x, -1.05);
+    \node[idxlbl] at (\x, -2.4) {$\l$};
+}
+\node[idxlbl] at (0.9, -1.0) {$t[1]$};
+\node[idxlbl] at (6.3, -1.0) {$t[2]$};
+\node[idxlbl] at (7.2, -1.0) {$t[3]$};
+\end{tikzpicture}
+\diagcaption{上：兩個堆疊從兩端往中間長，中間的空格誰都能用。 下：三個堆疊各分到
+$4$ 格，第 2 個（橘色）已經滿了，但第 1、3 個還有空格。}
+\label{fig:sq-multi}
+\end{center}
+
+圖中第 2 個堆疊滿了，再 push 進第 2 個時，陣列其實還有 $5$ 格空著。 這時可以把別
+的堆疊挪一挪：先往右找，找到第一個還沒滿的堆疊 $j > i$，把第 $i + 1$ 到第 $j$ 個
+堆疊的內容整段往右移一格（它們的 $b$、$t$ 都加一），第 $i$ 個堆疊就多出一格；右
+邊都滿了，就往左找，把第 $j$ 到第 $i$ 個堆疊往左移一格。 兩邊都找不到，才是真的
+滿了。
+
+這個做法保證只要陣列還有空位就能 push，但一次 push 最壞要搬 $\Theta(n)$ 個元素。
+如果某個堆疊一直長，幾乎每次 push 都要搬。 所以它比較像是觀念：記憶體很緊、堆疊
+個數固定時的折衷。 記憶體夠用時，每個堆疊各自用一個會自動加倍的陣列（第~3~章），
+或乾脆用串列，每個操作都是 $\Theta(1)$（平攤或最壞），也不用管邊界。
+
+\section{本章常見錯誤}
+\label{sec:sq-pitfalls}
+
+\begin{center}
+\begin{tabular}{p{0.24\linewidth}p{0.50\linewidth}p{0.16\linewidth}}
+\toprule
+錯誤 & 例子 & 見 \\
+\midrule
+沒檢查空和滿 & 對空堆疊 pop，讀到 \texttt{data[-1]}；溢位只印警告就繼續，後面全錯 &
+第~\ref{sec:sq-stack}~節 \\
+\texttt{top} 差一 & C 裡 \texttt{top} 是個數，頂端在 \texttt{data[top - 1]}，卻讀
+\texttt{data[top]} & 第~\ref{sec:sq-stack}~節 \\
+括號配對漏了最後一步 & 讀完沒檢查堆疊是否為空，\texttt{((} 被當成正確 &
+第~\ref{sec:sq-brackets}~節 \\
+環狀佇列的空滿混淆 & 只用 $\mathit{front} = \mathit{rear}$ 同時當空和滿；忘了題目
+的 $\mathit{front}$ 定義和自己習慣的不同 & 第~\ref{sec:sq-circular}~節 \\
+負數取餘數 & C 寫 \texttt{(rear - front) \% n}，$\mathit{rear} < \mathit{front}$ 時
+得到負數 & 第~\ref{sec:sq-circular}~節 \\
+串列佇列沒顧邊界 & 取走最後一個節點時沒把 $\mathit{rear}$ 清成 \NIL &
+第~\ref{sec:sq-queue}~節 \\
+運算元順序弄反 & 後序 $8\;3\;-$ 算成 $3 - 8$；前序由右往左時，把先 pop 的當成右邊 &
+第~\ref{sec:sq-postfix-eval}、\ref{sec:sq-prefix}~節 \\
+結合性弄錯 & $a \sqpow b \sqpow c$ 轉成 $a\;b\;\sqpow\;c\;\sqpow$；$a - b - c$ 轉成
+$a\;b\;c\;-\;-$ & 第~\ref{sec:sq-infix-postfix}~節 \\
+改寫遞迴時順序弄反 & 子工作照原來的順序 push，結果最後的那一步最先做 &
+第~\ref{sec:sq-recursion}~節 \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\section{觀念題}
+\label{sec:sq-exercises}
+
+題型和研究所考試、期中期末考的筆試相近，有選擇、計算、追蹤和證明。 解答在本章最後。
+
+\begin{enumerate}
+\item （選擇，可能不只一個答案）$1, 2, 3, 4, 5, 6$ 依序進入一個堆疊，中間可以隨時
+pop。 下列哪些輸出順序\textbf{做不到}？
+\begin{enumerate}
+\item $3, 2, 1, 6, 5, 4$
+\item $4, 5, 3, 6, 2, 1$
+\item $2, 5, 3, 4, 1, 6$
+\item $6, 1, 2, 3, 4, 5$
+\item $1, 4, 3, 6, 5, 2$
+\end{enumerate}
+
+\item （計算）$1, 2, 3, 4, 5$ 依序進入一個堆疊。
+\begin{enumerate}
+\item 做得到的輸出順序中，最後一個是 $1$ 的有幾種？
+\item 做得到的輸出順序中，第一個是 $3$ 的有幾種？ 全部列出來。
+\end{enumerate}
+
+\item （追蹤）用虛擬碼~\ref{alg:sq-circular}（留一格不用），$n = 6$，一開始
+$\mathit{front} = \mathit{rear} = 0$。 依序做：E 10、E 20、E 30、E 40、D、D、E 50、
+E 60、E 70、E 80、D、E 90。 寫出每個操作之後的 $\mathit{front}$、
+$\mathit{rear}$，哪個操作失敗？ 最後陣列 $Q[0..5]$ 實際存的值是什麼？
+
+\item （計算）某課本的環狀佇列用 $Q[0..n-1]$，規定 $\mathit{front}$ 指向前端元素的
+\textbf{前一格}，$\mathit{rear}$ 指向尾端元素本身，一開始
+$\mathit{front} = \mathit{rear} = 0$，一樣留一格不用。
+\begin{enumerate}
+\item 寫出這個定義下空、滿的條件和元素個數的公式。
+\item $n = 10$、$\mathit{front} = 7$、$\mathit{rear} = 3$ 時，佇列有幾個元素？ 前
+端元素在哪一格？
+\end{enumerate}
+
+\item \label{q:sq-pigeon}（證明）一個用 $Q[0..n-1]$ 的環狀佇列，只存兩個 $0$ 到 $n - 1$ 之間的整數
+$\mathit{front}$、$\mathit{rear}$，兩者的意義可以自己定，但要滿足：(i) 佇列有幾個
+元素，完全由 $(\mathit{front}, \mathit{rear})$ 決定（陣列裡殘留的舊值和真的元素分
+不出來，不能拿來判斷）；(ii) \proc{Enqueue} 不改 $\mathit{front}$。 證明這個佇列最
+多只能放 $n - 1$ 個元素。
+
+\item （追蹤）用第~\ref{sec:sq-infix-postfix}~節的規則，把
+\texttt{A * (B - C) / D \sqpow{} E \sqpow{} F + G * H} 轉成後序，寫出逐步的堆疊表。
+再用加滿括號的方法寫出它的前序。
+
+\item （計算）求值（\sqpow{} 是次方）：
+\begin{enumerate}
+\item 後序 $6\;3\;-\;4\;2\;\sqpow\;*\;8\;2\;/\;-$
+\item 前序 $-\;*\;+\;4\;2\;3\;/\;8\;\sqpow\;2\;2$
+\end{enumerate}
+
+\item （證明）一串記號只含運算元和二元運算子。 令 $d_k$ 是前 $k$ 個記號裡「運算元
+個數減去運算子個數」。 證明：這串記號能被虛擬碼~\ref{alg:sq-postfix-eval} 算完（過
+程中從不對空堆疊 pop，結束時堆疊恰好剩一個數）的充分必要條件是：對所有
+$1 \le k \le m$ 都有 $d_k \ge 1$，而且 $d_m = 1$。 再用它判斷 \texttt{a b c - + d}
+和 \texttt{a b + - c d} 是不是合法的後序。
+
+\item \label{q:sq-deque}（選擇）$1, 2, 3, 4$ 依序進入一個\textbf{輸入受限}的雙端佇列（只能從尾端加入，
+兩端都能取出，中間可以隨時取出）。 下列哪些輸出順序\textbf{做不到}？
+(A) $4, 1, 3, 2$ \quad (B) $4, 2, 1, 3$ \quad (C) $1, 4, 2, 3$ \quad
+(D) $4, 2, 3, 1$ \quad (E) $3, 1, 2, 4$
+
+\item （設計）用一個\textbf{環狀單向串列}存佇列，而且只記一個指標
+$\mathit{rear}$ 指向尾端節點（尾端節點的 $\mathit{next}$ 指回前端節點）。 寫出
+\proc{Enqueue} 和 \proc{Dequeue} 的虛擬碼，兩者都要 $\Theta(1)$，並處理佇列為空和
+只剩一個節點的情況。 為什麼只記 $\mathit{front}$ 不行？
+
+\item \label{q:sq-hanoi-depth}（證明）證明虛擬碼~\ref{alg:sq-hanoi-iter} 對 $n \ge 1$ 執行時，堆疊裡最多同
+時有 $2n - 1$ 個工作，而且這個數會達到。 （提示：對 $k$ 做歸納，證明一個更強的敘
+述：堆疊下面已經有 $s$ 個工作、頂端是一個 $k$ 的工作時，從這時起到這個工作「做完」
+（堆疊回到只剩下面那 $s$ 個）為止，每次 \textbf{while} 開始時堆疊最多有
+$s + 2k - 1$ 個工作，而且下面那 $s$ 個沒有被動過。）
+
+\item \label{q:sq-fib}（計算）考慮下面的函式。
+\begin{code}{c}{觀念題的函式 f}
+int f(int n)
+{
+    if (n <= 1)
+        return 1;
+    return f(n - 1) + f(n - 2);
+}
+\end{code}
+\begin{enumerate}
+\item 呼叫 \texttt{f(6)}，總共呼叫 \texttt{f} 幾次（含 \texttt{f(6)} 本身）？
+\item 呼叫堆疊最深時有幾層 \texttt{f} 的 frame？ 額外空間是 $n$ 的什麼函數？
+\item 這個函式是不是尾遞迴？ 說明理由。
+\end{enumerate}
+
+\item （計算）$m = 3$ 個堆疊共用 $A[1..12]$，依第~\ref{sec:sq-multi}~節的方式平均
+分段。
+\begin{enumerate}
+\item 寫出一開始的 $b[1..4]$ 和 $t[1..3]$。
+\item 依序 push 進第 $2$ 個堆疊 $5$ 次。 前 $4$ 次之後 $t[2]$ 是多少？ 第 $5$ 次時
+發生什麼事，用「先往右找」的規則挪動之後，$b$、$t$ 變成多少？
+\end{enumerate}
+\end{enumerate}
+
+\section{實作練習}
+\label{sec:sq-practice}
+
+下面是 Aki-Judge 上和本章相關的題目。 「實作 ADT」類的題目只要交標頭檔和函式，不
+寫 \texttt{main}；交之前先用本章的範例自己測一次，特別是空的、滿的、繞回陣列開頭
+的情況。
+
+\begin{center}
+\begin{tabular}{llc}
+\toprule
+小節 & 題目 & 難度 \\
+\midrule
+堆疊的實作 & \akiref{growable-array-stack}{可自動擴充的陣列堆疊} & 基本 \\
+ & \akiref{linked-node-stack}{鏈結節點堆疊} & 基本 \\
+ & \akiref{container-yard-stacks}{貨櫃堆疊場} & 基本 \\
+括號配對 & \akiref{bracket-matching-check}{括號配對檢查} & 基本 \\
+佇列的實作 & \akiref{ring-buffer-queue}{環狀緩衝區佇列} & 基本 \\
+ & \akiref{sushi-conveyor-belt}{迴轉壽司輸送帶} & 基本 \\
+雙端佇列 & \akiref{double-ended-queue}{雙端佇列} & 基本 \\
+ & \akiref{queue-line-manager}{排隊名單調度} & 進階 \\
+運算式 & \akiref{evaluate-postfix-expression}{後序運算式求值} & 暖身 \\
+ & \akiref{convert-infix-to-postfix}{中序運算式轉後序} & 基本 \\
+ & \akiref{postfix-string-calculator}{後序字串計算機} & 基本 \\
+ & \akiref{prefix-calculator-lazy-conditional}{附條件運算的前序算式} & 進階 \\
+單調堆疊、單調佇列 & \akiref{next-larger-value-to-the-right}{右側第一個較大的數} & 進階 \\
+ & \akiref{maximum-of-every-window}{每個視窗的最大值} & 進階 \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+幾題的提示：
+
+\begin{itemize}
+\item 「可自動擴充的陣列堆疊」要在陣列滿的時候把容量加倍，加倍為什麼平均是
+$\Theta(1)$，見第~3~章。
+\item 「迴轉壽司輸送帶」滿了還要放時，要先取出最舊的一盤，再放新的；查第 $i$ 盤
+就是從 $\mathit{front}$ 往後數 $i - 1$ 格，記得取餘數。
+\item 「排隊名單調度」要從隊伍中間拉出任何一個人，用雙向串列，另外開一個陣列從編
+號直接找到節點（第~5~章）。
+\item 「附條件運算的前序算式」照第~\ref{sec:sq-prefix}~節的遞迴寫法最自然；\texttt{?}
+只計算被選中的那一邊，所以沒被選中的那一邊只要檢查語法、不能算值。
+\item 最後兩題是本章正文沒有講的延伸。 「右側第一個較大的數」：由左往右掃，堆疊
+裡放還沒找到答案的位置，它們的值由底到頂不增；新的數比頂端大，頂端的答案就是它，
+pop 掉再比下一個。 「每個視窗的最大值」：雙端佇列裡放「還可能成為最大值」的位置，
+值由前到後遞減，新的數從尾端進來前，先從尾端 pop 掉比它小的；前端的位置滑出視窗
+就從前端 pop。 兩題每個位置都只進出一次，總時間 $\Theta(n)$，這也是第~3~章聚合法
+的例子。
+\end{itemize}
+
+\section{讀完你應該會}
+\label{sec:sq-checklist}
+
+\begin{itemize}
+\item 用陣列和串列各寫出堆疊、佇列的所有操作，處理空、滿、只剩一個元素的邊界，並
+說出兩種做法在空間上的差別。
+\item 給一個輸出順序，判斷 $1, \ldots, n$ 經過堆疊（或受限的雙端佇列）能不能得到，
+寫出 push、pop 序列或指出卡住的地方；知道做得到的順序有 $C_n$ 種。
+\item 環狀佇列依題目給的 $\mathit{front}$、$\mathit{rear}$ 定義，寫出空、滿的條件
+和元素個數，逐步追蹤每個操作。
+\item 把中序運算式轉成前序、後序（加滿括號或用堆疊），寫出逐步的堆疊表，並正確處
+理括號和結合性；能用堆疊算出後序、前序的值。
+\item 把一個遞迴函式改寫成迴圈加上自己的堆疊，並算出遞迴的深度和額外空間。
+\end{itemize}
+
+\textbf{延伸閱讀}（書末會整理完整的參考資料）
+
+\begin{itemize}
+\item Thomas H. Cormen 等，\textit{Introduction to Algorithms}，第 4 版，10.1--10.2
+節：用陣列和串列實作堆疊、佇列的標準寫法，以及雙向串列。
+\item Steven S. Skiena，\textit{The Algorithm Design Manual}，第 3 版，3.2 節：從
+「什麼時候取出的順序重要」的角度談堆疊和佇列。
+\item Antti Laaksonen，\textit{Competitive Programmer's Handbook}，8.2、8.3 節：用堆
+疊找每個位置最近的較小元素、用雙端佇列求滑動視窗的最小值，就是上面最後兩題的做法，
+並用平攤分析說明為什麼是線性時間。
+\item 《C 程式設計基礎》第~20~章：把堆疊包成標頭檔加實作檔，換掉實作而不改用的人
+的程式，是本章 ADT 觀念在 C 裡的寫法。
+\end{itemize}
+
+\addcontentsline{toc}{section}{觀念題解答}
+\section*{觀念題解答}
+
+\begin{enumerate}
+\item (c)、(d) 做不到。 (c)：輸出 $5$ 時 $1$ 到 $5$ 都 push 過了，堆疊由底到頂是
+$1, 3, 4$，頂端是 $4$，下一個要 $3$ 卻在 $4$ 下面；也可以直接看 $5, 3, 4$ 是
+「大、小、中」。 (d)：輸出 $6$ 之後堆疊是 $1, 2, 3, 4, 5$，頂端是 $5$，拿不到
+$1$。 其他三個都做得到，例如 (b)：push 1、2、3、4，pop 4，push 5，pop 5，pop 3，
+push 6，pop 6，pop 2，pop 1。
+
+\item
+\begin{enumerate}
+\item $14$ 種。 $1$ 最後輸出，表示它一進去就待在底部直到最後，$2, 3, 4, 5$ 在它
+上面自己進出，是 $n = 4$ 的堆疊問題，共 $C_4 = 14$ 種。
+\item $9$ 種。 先 push 1、2、3 再 pop 3，這時堆疊是 $1, 2$，還有 $4, 5$ 沒進來。 下
+一個輸出是 $2$、$4$ 或 $5$：
+\begin{itemize}
+\item 下一個是 $2$：剩下堆疊 $1$，還有 $4, 5$，得到 32145、32154、32415、32451、
+32541，共 $5$ 種。
+\item 下一個是 $4$：push 4 再 pop，堆疊 $1, 2$，還有 $5$，得到 34215、34251、
+34521，共 $3$ 種。
+\item 下一個是 $5$：push 4、5 再 pop 5，之後只能依序 pop，得到 35421，$1$ 種。
+\end{itemize}
+\end{enumerate}
+
+\item 每個操作之後的 $(\mathit{front}, \mathit{rear})$：E 10 $(0,1)$、E 20 $(0,2)$、
+E 30 $(0,3)$、E 40 $(0,4)$、D 取出 10 $(1,4)$、D 取出 20 $(2,4)$、E 50 $(2,5)$、
+E 60 $(2,0)$、E 70 $(2,1)$、E 80 失敗（$(1 + 1) \bmod 6 = 2 = \mathit{front}$，滿
+了）、D 取出 30 $(3,1)$、E 90 $(3,2)$。 最後陣列 $Q[0..5] = 70, 90, 30, 40, 50, 60$，
+其中 $Q[2] = 30$ 已經取出，佇列由前到後是 $40, 50, 60, 70, 90$，共
+$(2 - 3 + 6) \bmod 6 = 5$ 個，剛好是滿的。
+
+\item
+\begin{enumerate}
+\item 前端元素在 $(\mathit{front} + 1) \bmod n$。 加入是先
+$\mathit{rear} \gets (\mathit{rear} + 1) \bmod n$ 再放；取出是先
+$\mathit{front} \gets (\mathit{front} + 1) \bmod n$ 再拿。 空：
+$\mathit{front} = \mathit{rear}$。 滿：$(\mathit{rear} + 1) \bmod n =
+\mathit{front}$。 個數：$(\mathit{rear} - \mathit{front} + n) \bmod n$。 公式和本
+書的定義長得一樣，因為兩個索引都往前挪了一格，差不變。
+\item $(3 - 7 + 10) \bmod 10 = 6$ 個。 元素依序在 $Q[8]$、$Q[9]$、$Q[0]$、
+$Q[1]$、$Q[2]$、$Q[3]$。
+\end{enumerate}
+
+\item 設這個佇列最多能放 $c$ 個元素。 從空佇列開始，連續做 $c$ 次
+\proc{Enqueue}，中間經過 $c + 1$ 個狀態，元素個數依序是 $0, 1, \ldots, c$。 由
+(ii)，這 $c + 1$ 個狀態的 $\mathit{front}$ 都一樣。 由 (i)，元素個數不同的兩個狀態，
+$(\mathit{front}, \mathit{rear})$ 不能相同，所以這 $c + 1$ 個狀態的 $\mathit{rear}$
+兩兩不同。 $\mathit{rear}$ 只有 $0, 1, \ldots, n - 1$ 共 $n$ 種值，所以
+$c + 1 \le n$，$c \le n - 1$。
+
+這個論證不管 $\mathit{front}$、$\mathit{rear}$ 怎麼定義都成立：只存兩個索引，
+就一定要空下一格。 想用滿 $n$ 格，就要多存一點
+資訊，例如第~\ref{sec:sq-circular}~節的個數或旗標，這時 (i) 不成立了。
+
+\item 每讀一個記號的堆疊（底 $\to$ 頂）依序是：
+A：空；$*$：$*$；(：$*\;($；B：同上；$-$：$*\;(\;-$；C：同上；
+)：pop $-$，剩 $*$；$/$：$*$ 和 $/$ 一樣高、由左往右，pop $*$ 再 push，剩 $/$；
+D：同上；\sqpow：$/\;\sqpow$；E：同上；\sqpow：一樣高但由右往左，不 pop，
+$/\;\sqpow\;\sqpow$；F：同上；$+$：比三者都低，pop \sqpow{} \sqpow{} $/$，剩 $+$；
+G：同上；$*$：比 $+$ 高，$+\;*$；H：同上；結束：pop $*$ $+$。 輸出依序累積成
+\texttt{A B C - * D E F \sqpow{} \sqpow{} / G H * +}。 作答時照
+第~\ref{sec:sq-infix-postfix}~節的四欄表寫，一個記號一列。 前序：加滿括號是
+$(((A * (B - C)) / (D \sqpow (E \sqpow F))) + (G * H))$，把運算子移到左括號，得到
+\texttt{+ / * A - B C \sqpow{} D \sqpow{} E F * G H}。 兩者的運算元順序都是 $A$ 到
+$H$。
+
+
+\item
+\begin{enumerate}
+\item 堆疊依序：$6$；$6, 3$；$-$ 得 $3$；$3, 4, 2$；\sqpow{} 得 $3, 16$；$*$ 得
+$48$；$48, 8, 2$；$/$ 得 $48, 4$；$-$ 得 $44$。 答案 $44$，即
+$(6 - 3) \cdot 4^2 - 8 / 2$。
+\item 由右往左讀，先 pop 的是左邊：push 2、2；\sqpow{} pop 出 $2$（左）、$2$（右）
+得 $4$；push 8；$/$ 得 $8 / 4 = 2$；push 3、2、4；$+$ 得 $4 + 2 = 6$，堆疊由底到頂
+是 $2, 3, 6$；$*$ 得 $6 * 3 = 18$；$-$ 得 $18 - 2 = 16$。 答案 $16$，即
+$(4 + 2) \cdot 3 - 8 / 2^2$。
+\end{enumerate}
+
+\item 先用歸納法證明：只要前 $k$ 個記號都處理成功，處理完之後堆疊裡有 $d_k$ 個數。
+$k = 0$ 時堆疊是空的，$d_0 = 0$。 處理第 $k$ 個記號：運算元 push 一個，$d$ 加一；
+運算子 pop 兩個、push 一個，堆疊少一個，$d$ 減一。 兩邊一致。
+
+充分：若所有 $d_k \ge 1$。 第 $k$ 個記號是運算子時，$d_k = d_{k-1} - 1 \ge 1$，所
+以處理前堆疊有 $d_{k-1} \ge 2$ 個數，pop 兩次不會下溢。 結束時堆疊有 $d_m = 1$ 個
+數。
+
+必要：若第一個 $d_k < 1$ 出現在某個 $k$。 $d_0 = 0$，$k = 1$ 時第一個記號是運算子，
+對空堆疊 pop；$k > 1$ 時 $d_{k-1} \ge 1$、$d_k = d_{k-1} - 1 < 1$，所以
+$d_{k-1} = 1$，處理第 $k$ 個運算子時堆疊只有一個數，第二次 pop 下溢。 若所有
+$d_k \ge 1$ 但 $d_m \ne 1$，結束時堆疊不是恰好一個數。
+
+判斷：\texttt{a b c - + d} 的 $d$ 依序是 $1, 2, 3, 2, 1, 2$，結尾 $d_m = 2 \ne 1$，
+不合法（最後多一個運算元）。 \texttt{a b + - c d} 的 $d$ 依序是 $1, 2, 1, 0, \ldots$，
+第 4 個記號 $d = 0$，不合法（$-$ 只有一個運算元可用）。
+
+\item (B)、(D) 做不到。 要先輸出 $4$，得先讓 $1, 2, 3, 4$ 都進來，雙端佇列由前到後
+是 $1, 2, 3, 4$。 取出 $4$（尾端）之後剩 $1, 2, 3$，只能取兩端的 $1$ 或 $3$，所以
+第二個是 $2$ 的 (B)、(D) 都不行。 (A)：取 4（尾）、1（前）、3（尾）、2。 (C)：
+$1$ 進來馬上取出，之後 $2, 3, 4$ 都進來，取 4（尾）、2（前）、3。 (E)：$1, 2, 3$
+進來，取 3（尾）、1（前）、2，再讓 $4$ 進來取出。 (C) 和 (E) 用普通堆疊做不到
+（$1, 4, 2, 3$ 和 $3, 1, 2$ 都含「大、小、中」），這也說明雙端佇列比堆疊有彈性。
+
+\item 前端節點是 $\mathit{rear}.\mathit{next}$。
+\begin{pseudo}{環狀串列的佇列}
+\Procedure{Enqueue-Ring}{$Q, x$}
+    \State 配置新節點 $p$，$p.\mathit{key} \gets x$
+    \If{$Q.\mathit{rear} = \NIL$}
+        \State $p.\mathit{next} \gets p$ \Comment{只有一個節點，自己接自己}
+    \Else
+        \State $p.\mathit{next} \gets Q.\mathit{rear}.\mathit{next}$ \Comment{新節點接到前端}
+        \State $Q.\mathit{rear}.\mathit{next} \gets p$
+    \EndIf
+    \State $Q.\mathit{rear} \gets p$
+\EndProcedure
+\Statex
+\Function{Dequeue-Ring}{$Q$}
+    \If{$Q.\mathit{rear} = \NIL$}
+        \State \Error{underflow}
+    \EndIf
+    \State $p \gets Q.\mathit{rear}.\mathit{next}$ \Comment{前端節點}
+    \If{$p = Q.\mathit{rear}$}
+        \State $Q.\mathit{rear} \gets \NIL$ \Comment{取走的是唯一的節點}
+    \Else
+        \State $Q.\mathit{rear}.\mathit{next} \gets p.\mathit{next}$
+    \EndIf
+    \State $x \gets p.\mathit{key}$，釋放 $p$
+    \State \Return $x$
+\EndFunction
+\end{pseudo}
+只記 $\mathit{front}$ 的話，加入時要找到尾端節點，得從前端繞一圈，是
+$\Theta(n)$。 記 $\mathit{rear}$ 時，前端只差一步，兩端都是 $\Theta(1)$。
+
+\item 用歸納法證明提示裡的敘述 $P(k)$：堆疊下面有 $s$ 個工作、頂端是一個 $k$ 的工作
+時，到這個工作做完為止，每次 \textbf{while} 開始時堆疊最多有 $s + 2k - 1$ 個工作，
+下面那 $s$ 個沒有被動過，而且最大值 $s + 2k - 1$ 會達到。
+
+$k = 1$：只有一輪，開始時有 $s + 1 = s + 2 \cdot 1 - 1$ 個，pop 出來直接搬，沒有動到
+下面。
+
+$k \ge 2$：第一輪開始時有 $s + 1$ 個。 pop 出這個工作、push 三個之後，由底到頂是
+「下面 $s$ 個、$(k - 1)$、$(1)$、$(k - 1)$」，共 $s + 3$ 個。 接著依序做三個工作，
+每個都套用歸納假設：
+\begin{itemize}
+\item 頂端的 $(k - 1)$，下面有 $s + 2$ 個：最多 $(s + 2) + 2(k - 1) - 1 = s + 2k - 1$
+個，而且會達到；做完時剩 $s + 2$ 個，下面沒被動過。
+\item 接著的 $(1)$，下面有 $s + 1$ 個：最多 $s + 2$ 個。
+\item 最後的 $(k - 1)$，下面有 $s$ 個：最多 $s + 2k - 3$ 個。
+\end{itemize}
+第一輪的 $s + 1$ 也不超過 $s + 2k - 1$。 所以整個過程最多 $s + 2k - 1$ 個，而且第一
+段會達到；三段都不動自己下面的工作，所以原本那 $s$ 個沒被動過。
+
+取 $s = 0$、$k = n$，就得到最多 $2n - 1$ 個，而且會達到。 達到的時刻是一路拆最上面
+的工作 $(n), (n - 1), \ldots, (2)$，每拆一次多兩個，從 $1$ 個變成
+$1 + 2(n - 1) = 2n - 1$ 個，和範例~\ref{ex:sq-hanoi} 印出的 \texttt{deepest} 一致。
+同一個歸納也說明了迴圈版的搬動順序和遞迴版相同：兩者都是先做完第一個 $(k-1)$，
+再搬最大的，再做第二個 $(k-1)$。
+
+\item
+\begin{enumerate}
+\item 令 $c(n)$ 是呼叫 \texttt{f(n)} 的總次數，$c(0) = c(1) = 1$，
+$c(n) = 1 + c(n - 1) + c(n - 2)$。 依序 $c(2) = 3$、$c(3) = 5$、$c(4) = 9$、
+$c(5) = 15$、$c(6) = 25$。 共 $25$ 次。
+\item 最深的一條是 \texttt{f(6)}$\to$\texttt{f(5)}$\to \cdots \to$\texttt{f(1)}，
+共 $6$ 層。 一般是 $n$ 層（$n \ge 1$），額外空間 $\Theta(n)$。 雖然總呼叫次數是指
+數級，同一時間在呼叫堆疊上的只有一條路徑。
+\item 不是。 遞迴呼叫 \texttt{f(n - 1)} 回來之後，還要再呼叫 \texttt{f(n - 2)}、做
+加法，最後一個動作是加法，不是遞迴呼叫。
+\end{enumerate}
+
+\item
+\begin{enumerate}
+\item $b[i] = \lfloor (i-1) \cdot 12 / 3 \rfloor$：$b[1] = 0$、$b[2] = 4$、
+$b[3] = 8$、$b[4] = 12$；$t[1] = 0$、$t[2] = 4$、$t[3] = 8$。
+\item 前 $4$ 次放在 $A[5..8]$，$t[2] = 8 = b[3]$，第 $2$ 個堆疊滿了。 第 $5$ 次時
+往右找：第 $3$ 個堆疊 $t[3] = 8 < b[4] = 12$，還沒滿。 把第 $3$ 個堆疊（目前是空
+的，沒有元素要搬）往右移一格：$b[3] = 9$、$t[3] = 9$。 第 $2$ 個堆疊多出一格，放進
+$A[9]$，$t[2] = 9$。 最後 $b = (0, 4, 9, 12)$，$t = (0, 9, 9)$。
+\end{enumerate}
+\end{enumerate}

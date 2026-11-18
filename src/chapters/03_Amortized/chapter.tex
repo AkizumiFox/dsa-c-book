@@ -1,0 +1,1204 @@
+\chapter{平攤分析}
+\label{ch:amortized}
+
+% 本章的圖共用的樣式
+\tikzset{
+    ctrcell/.style={cell, minimum width=0.75cm, minimum height=0.6cm},
+    flipcell/.style={hlcell, minimum width=0.75cm, minimum height=0.6cm},
+    costwrite/.style={draw=coreStroke, fill=coreFill},
+    costcopy/.style={draw=memStroke, fill=memFill},
+}
+% 計數器追蹤圖的一列：\ctrrow{y}{左邊的說明}{位元/是否翻轉, ...}{右邊的說明}
+\newcommand{\ctrrow}[4]{%
+    \node[anchor=east, font=\small] at (0.3, #1) {#2};
+    \foreach \b/\h [count=\k] in {#3} {
+        \ifnum\h=1\relax
+            \node[flipcell] at (\k*0.85, #1) {\b};
+        \else
+            \node[ctrcell] at (\k*0.85, #1) {\b};
+        \fi
+    }
+    \node[anchor=west, font=\small] at (3.9, #1) {#4};
+}
+
+班代用一本筆記本記班費，每收一筆寫一行。 本子寫滿了，他就買一本行數是舊本子兩倍的
+新本子，把舊帳一行一行抄過去，再接著記。 抄帳那天特別累，例如記第 1025 筆之前，
+要先抄 1024 行。 這學期一共收了大約一千筆，平均下來每收一筆，他總共要寫幾行？ 會
+不會因為偶爾要抄一大本，平均起來就變得很多？ 往下讀之前，先猜一個數。
+
+上一章分析的是「一次呼叫」的成本。 這一章換一個角度：資料結構上的操作通常一次做
+很多個，其中少數幾次很貴，大部分很便宜。 只看最貴的那一次再乘上次數，得到的上界
+往往太鬆。 \textbf{平攤分析}（amortized analysis）改成證明「任何一串 $n$ 次操作的總
+成本」的上界，再把它平均分給每一次操作。 這裡的平均不涉及機率：它對最壞的那一串操
+作也成立。
+
+這一章介紹三種做法：聚合法、記帳法、位能法，都用同兩個例子（可以一次拿掉很多個的
+堆疊、二進位計數器）示範，最後用它們分析動態陣列，回答章首的問題。 後面的章會再
+用到這些工具：第~8~章費氏堆積的各項成本、第~12~章雜湊表的重新配置、第~13~章互斥
+集合、第~27~章 KMP 演算法的線性時間，都是平攤的結論。
+
+這一章用到《C 程式設計基礎》第~14~章的結構指標、第~19~章的 \texttt{realloc} 和第~20~章
+用陣列寫的堆疊，用到時會先在框裡複習。
+
+\section{聚合法}
+\label{sec:amo-aggregate}
+
+\subsection{可以一次拿掉很多個的堆疊}
+
+堆疊（stack）是後放進去的先拿出來的資料結構，第~6~章會完整介紹。 這一節只需要三
+個操作：
+
+\begin{itemize}
+\item \proc{Push}$(S, x)$：把 $x$ 放到堆疊 $S$ 的最上面。
+\item \proc{Pop}$(S)$：拿掉最上面的元素並回傳它。 呼叫前要確定 $S$ 不是空的。
+\item \proc{Multipop}$(S, k)$：一次拿掉最上面的 $k$ 個；不到 $k$ 個就全部拿掉。
+\end{itemize}
+
+前兩個操作都花常數時間，記成成本 $1$。 \proc{Multipop} 的寫法如下，堆疊目前有 $s$
+個元素時，迴圈做 $\min(s, k)$ 次，成本記成 $\min(s, k)$。
+
+\begin{pseudo}[label=alg:multipop]{一次拿掉 $k$ 個}
+\Procedure{Multipop}{$S, k$}
+    \While{\textbf{not} \Call{Stack-Empty}{$S$} \AND $k > 0$}
+        \State \Call{Pop}{$S$}
+        \State $k \gets k - 1$
+    \EndWhile
+\EndProcedure
+\end{pseudo}
+
+現在從空的堆疊開始，做 $n$ 次操作，每次是三種之一。 總成本是多少？
+
+照第~1~章的方法，先找每一次操作的最壞情況。 堆疊最多有 $n$ 個元素，一次
+\proc{Multipop} 最多拿掉 $n$ 個，成本 $O(n)$；$n$ 次操作，總成本 $O(n^2)$。 這個上
+界是對的，但太鬆了。 要讓某一次 \proc{Multipop} 拿掉很多個，前面就得先花很多次
+\proc{Push} 把它們放進去，而放進去的元素只能被拿掉一次。
+
+把這句話寫清楚：每個元素被 \proc{Pop}（包括 \proc{Multipop} 裡面的 \proc{Pop}）拿
+掉之前，一定被 \proc{Push} 放進去過，而且只會被拿掉一次。 所以整串操作裡，
+\proc{Pop} 實際執行的總次數不超過 \proc{Push} 的次數，而後者不超過 $n$。 總成本
+\[
+\text{\proc{Push} 的次數} + \text{\proc{Pop} 實際執行的次數} \le n + n = 2n.
+\]
+任何 $n$ 次操作的總成本都是 $O(n)$，平均每次 $O(1)$。
+
+這種做法叫\textbf{聚合法}（aggregate analysis）：不去估每一次操作，直接對整串操作
+算出總成本的上界 $T(n)$，再說每次操作的平攤成本是 $T(n)/n$。 聚合法給所有種類的操
+作同一個平攤成本，這裡三種操作的平攤成本都是 $2n/n = 2$。
+
+\begin{definition}[平攤成本]
+\label{def:amortized}
+一個資料結構從初始狀態開始，執行一串操作，第 $i$ 次操作的實際成本是 $c_i$。 如果
+給每一次操作指定一個數 $\hat{c}_i$，使得對\textbf{每一串}操作、每一個 $n$ 都有
+\[
+\sum_{i=1}^{n} c_i \le \sum_{i=1}^{n} \hat{c}_i,
+\]
+就說 $\hat{c}_i$ 是第 $i$ 次操作的\textbf{平攤成本}（amortized cost）。
+\end{definition}
+
+定義裡的「每一串」很重要：平攤成本的上界對最壞的操作順序也成立，所以它仍然是一種
+最壞情況的保證，只是保證的對象是總和。 它和第~1~章的平均情況不同，平均情況要先假
+設輸入的機率分布，算的是期望值；平攤分析不用任何機率。
+
+它也不保證單一次操作很快。 上面的堆疊裡，某一次 \proc{Multipop} 還是可能花 $n - 1$
+的時間。 如果應用要求每一次回應都很快（例如控制機器的程式），只有平攤上界是不夠的。
+
+\begin{cbookrecap}[第~14~章 14.5 節、第~20~章 20.8 節]
+\texttt{Stack s = \{malloc(n * sizeof(int)), 0\};} 用大括號依欄位的順序初始化一個
+結構。 函式要改呼叫端的結構時傳結構的位址，在函式裡用 \texttt{s->size} 存取欄位，
+它是 \texttt{(*s).size} 的簡寫。 第~20~章用同樣的寫法把陣列和堆疊頂端的位置包成一
+個結構，這一章的堆疊沿用那個做法。 字串比較用 \texttt{strcmp}，相等時回傳 $0$
+（第~11~章）。
+\end{cbookrecap}
+
+下面的程式讀進一串操作，印出每一次的實際成本和堆疊的大小。 輸入只有
+\texttt{push} 和 \texttt{multipop} 兩種，\proc{Pop} 就是 \texttt{multipop 1}。
+
+\begin{example}[label=ex:multipop]{c}{(multipop.c) 每次操作的實際成本}
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+
+// 用陣列做的堆疊。n 次操作最多 push n 次，容量開 n 格就夠。
+typedef struct {
+    int *data;
+    int size;
+} Stack;
+
+// 一般的 pop，實際成本 1。呼叫前要確定堆疊不是空的。
+int pop(Stack *s)
+{
+    s->size--;
+    return s->data[s->size];
+}
+
+// 一次 pop 掉 k 個，堆疊不夠 k 個就全部 pop 掉。回傳這次 pop 了幾個。
+int multipop(Stack *s, int k)
+{
+    int popped = 0;
+    while (s->size > 0 && k > 0) {
+        pop(s);
+        popped++;
+        k--;
+    }
+    return popped;
+}
+
+int main(void)
+{
+    int n;
+    if (scanf("%d", &n) != 1 || n <= 0) {
+        return 1;
+    }
+    Stack s = {malloc(n * sizeof(int)), 0};
+    if (s.data == NULL) {
+        return 1;
+    }
+    long long total = 0;
+    int pushes = 0;
+    char op[16];
+    for (int i = 1; i <= n; i++) {
+        int x, cost;
+        if (scanf("%15s %d", op, &x) != 2) {
+            free(s.data);
+            return 1;
+        }
+        if (strcmp(op, "push") == 0) {
+            s.data[s.size++] = x;
+            pushes++;
+            cost = 1;
+        } else {                       // multipop x
+            cost = multipop(&s, x);
+        }
+        total += cost;
+        printf("%d %s %d: cost %d, size %d\n", i, op, x, cost, s.size);
+    }
+    printf("total %lld, pushes %d, 2n = %d\n", total, pushes, 2 * n);
+    free(s.data);
+    return 0;
+}
+\end{example}
+\iosample{10 \\ push 5 \\ push 8 \\ push 3 \\ multipop 2 \\ push 7 \\ push 1 \\ push 4 \\ push 6 \\ multipop 10 \\ push 2}{1 push 5: cost 1, size 1 \\ 2 push 8: cost 1, size 2 \\ 3 push 3: cost 1, size 3 \\ 4 multipop 2: cost 2, size 1 \\ 5 push 7: cost 1, size 2 \\ 6 push 1: cost 1, size 3 \\ 7 push 4: cost 1, size 4 \\ 8 push 6: cost 1, size 5 \\ 9 multipop 10: cost 5, size 0 \\ 10 push 2: cost 1, size 1 \\ total 15, pushes 8, 2n = 20}
+
+第 9 次操作一次花了 $5$，但在它之前已經有 $5$ 次便宜的 \proc{Push} 把這 $5$ 個元素
+放進去。 總成本 $15$ 剛好是 \proc{Push} 的 $8$ 次加上 \proc{Pop} 的 $7$ 次，在
+$2n = 20$ 以內。
+
+\subsection{二進位計數器}
+\label{sec:amo-counter}
+
+第二個例子是一個 $k$ 位元的二進位計數器，用陣列 $A[1..k]$ 存，$A[1]$ 是最低位。 計
+數器表示的數是 $\sum_{i=1}^{k} A[i] \cdot 2^{i-1}$，一開始每一位都是 $0$。 唯一的
+操作是加一：
+
+\begin{pseudo}[label=alg:increment]{計數器加一}
+\Procedure{Increment}{$A, k$}
+    \State $i \gets 1$
+    \While{$i \le k$ \AND $A[i] = 1$}
+        \State $A[i] \gets 0$ \Comment{尾端連續的 1 變成 0}
+        \State $i \gets i + 1$
+    \EndWhile
+    \If{$i \le k$}
+        \State $A[i] \gets 1$ \Comment{第一個 0 變成 1}
+    \EndIf
+\EndProcedure
+\end{pseudo}
+
+全部都是 $1$ 時，$i$ 會走到 $k + 1$，每一位都變成 $0$，計數器回到 $0$，這叫\textbf{溢
+位}（overflow）。 一次 \proc{Increment} 的成本是它翻轉（$0$ 變 $1$ 或 $1$ 變 $0$）
+的位元個數。 下圖是 $4$ 位元的計數器從 $0$ 加到 $8$ 的過程，左邊是最高位
+$A[4]$，橘框是這一次翻轉的位元。
+
+\begin{center}
+\begin{tikzpicture}[yscale=0.75]
+\node[font=\small\bfseries, anchor=west] at (3.9, 0.9) {成本　累計};
+\foreach \i [count=\k] in {4,3,2,1} { \node[idxlbl] at (\k*0.85, 0.9) {$A[\i]$}; }
+\ctrrow{0}{$0$}{0/0,0/0,0/0,0/0}{}
+\ctrrow{-1}{$1$}{0/0,0/0,0/0,1/1}{$1$\qquad $1$}
+\ctrrow{-2}{$2$}{0/0,0/0,1/1,0/1}{$2$\qquad $3$}
+\ctrrow{-3}{$3$}{0/0,0/0,1/0,1/1}{$1$\qquad $4$}
+\ctrrow{-4}{$4$}{0/0,1/1,0/1,0/1}{$3$\qquad $7$}
+\ctrrow{-5}{$5$}{0/0,1/0,0/0,1/1}{$1$\qquad $8$}
+\ctrrow{-6}{$6$}{0/0,1/0,1/1,0/1}{$2$\qquad $10$}
+\ctrrow{-7}{$7$}{0/0,1/0,1/0,1/1}{$1$\qquad $11$}
+\ctrrow{-8}{$8$}{1/1,0/1,0/1,0/1}{$4$\qquad $15$}
+\end{tikzpicture}
+\diagcaption{$4$ 位元計數器從 $0$ 加到 $8$。 每一列左邊是計數器的值，橘框是這次
+\proc{Increment} 翻轉的位元，右邊是這次的成本和到目前為止的總成本。}
+\label{fig:amo-counter}
+\end{center}
+
+一次 \proc{Increment} 最壞要翻轉全部 $k$ 位（例如從 $0111\cdots1$ 變成
+$1000\cdots0$），所以 $n$ 次的總成本是 $O(nk)$。 但從圖上看得出來，$A[1]$ 每次都翻，
+$A[2]$ 每兩次翻一次，$A[3]$ 每四次翻一次，越高的位越少動。 照每一位分開數，得到更
+好的上界。
+
+\begin{theorem}
+\label{thm:counter-aggregate}
+$k$ 位元計數器從 $0$ 開始執行 $n$ 次 \proc{Increment}，翻轉的位元總數是
+$\sum_{i=1}^{k} \lfloor n / 2^{i-1} \rfloor$，小於 $2n$。 這個結論不管中間有沒有溢位
+都成立。
+\end{theorem}
+
+\begin{proof}
+第 $m$ 次 \proc{Increment} 把計數器從 $(m - 1) \bmod 2^k$ 變成 $m \bmod 2^k$。 它翻
+轉的是最低位開始的一段：如果 $m$ 的二進位最低的 $j$ 位都是 $0$、第 $j + 1$ 位是
+$1$，翻轉的就是 $A[1..j+1]$（$m$ 是 $2^k$ 的倍數時是溢位，翻轉全部 $k$ 位）。 換句
+話說，$A[i]$ 在第 $m$ 次被翻轉，若且唯若 $2^{i-1}$ 整除 $m$。 $1$ 到 $n$ 之間
+$2^{i-1}$ 的倍數有 $\lfloor n / 2^{i-1} \rfloor$ 個，所以
+\[
+\sum_{i=1}^{k} \left\lfloor \frac{n}{2^{i-1}} \right\rfloor
+< \sum_{j=0}^{\infty} \frac{n}{2^{j}} = 2n.
+\qedhere
+\]
+\end{proof}
+
+所以 $n$ 次 \proc{Increment} 的總成本是 $O(n)$，每次的平攤成本是 $O(1)$，和位元數
+$k$ 無關。 證明裡用的是第~1~章的等比級數：公比 $1/2$，總和和第一項同一級。
+
+下面的程式實際數一次。 第一部分印出圖~\ref{fig:amo-counter} 的過程，第二部分用
+$32$ 位元的計數器加到 $10^6$，第三部分印出 $n = 1000$ 時最低的 $10$ 位各翻了幾次。
+
+\begin{example}[label=ex:counter-flips]{c}{(counter\_flips.c) 計數器加一的翻轉次數}
+#include <stdio.h>
+#include <stdlib.h>
+
+#define K 32                    // 計數器的位元數
+
+// 把 bit[0..K-1] 表示的數加一，bit[0] 是最低位。回傳翻轉了幾個位元。
+int increment(int *bit)
+{
+    int i = 0, flips = 0;
+    while (i < K && bit[i] == 1) {     // 尾端連續的 1 都變成 0
+        bit[i] = 0;
+        flips++;
+        i++;
+    }
+    if (i < K) {                       // 第一個 0 變成 1（溢位時沒有這一步）
+        bit[i] = 1;
+        flips++;
+    }
+    return flips;
+}
+
+void clear(int *bit)
+{
+    for (int i = 0; i < K; i++) {
+        bit[i] = 0;
+    }
+}
+
+int main(void)
+{
+    int *bit = calloc(K, sizeof *bit);   // 一開始是 0
+    if (bit == NULL) {
+        return 1;
+    }
+    // 第一部分：前 8 次加一，印出低 4 位
+    printf("step bits flips total\n");
+    long long total = 0;
+    for (int step = 1; step <= 8; step++) {
+        int f = increment(bit);
+        total += f;
+        printf("%d %d%d%d%d %d %lld\n", step, bit[3], bit[2], bit[1], bit[0],
+               f, total);
+    }
+
+    // 第二部分：從 0 開始加 n 次，總翻轉次數和 2n 比較
+    int ns[] = {16, 1000, 1000000};
+    printf("n total 2n\n");
+    for (int k = 0; k < 3; k++) {
+        clear(bit);
+        total = 0;
+        for (int step = 0; step < ns[k]; step++) {
+            total += increment(bit);
+        }
+        printf("%d %lld %d\n", ns[k], total, 2 * ns[k]);
+    }
+
+    // 第三部分：n = 1000 時每一位各翻了幾次
+    clear(bit);
+    long long per_bit[K] = {0};
+    for (int step = 0; step < 1000; step++) {
+        int f = increment(bit);
+        for (int i = 0; i < f; i++) {   // 沒有溢位時，翻的正是第 0 到第 f-1 位
+            per_bit[i]++;
+        }
+    }
+    printf("flips of bit 0..9:");
+    for (int i = 0; i < 10; i++) {
+        printf(" %lld", per_bit[i]);
+    }
+    printf("\n");
+    free(bit);
+    return 0;
+}
+\end{example}
+\iosample{}{step bits flips total \\ 1 0001 1 1 \\ 2 0010 2 3 \\ 3 0011 1 4 \\ 4 0100 3 7 \\ 5 0101 1 8 \\ 6 0110 2 10 \\ 7 0111 1 11 \\ 8 1000 4 15 \\ n total 2n \\ 16 31 32 \\ 1000 1994 2000 \\ 1000000 1999993 2000000 \\ flips of bit 0..9: 1000 500 250 125 62 31 15 7 3 1}
+
+C 程式的陣列從 $0$ 開始，\texttt{bit[j]} 對應虛擬碼的 $A[j + 1]$，所以它翻了
+$\lfloor n / 2^j \rfloor$ 次。 第三部分的 $1000, 500, 250, \ldots, 1$ 正是
+$\lfloor 1000 / 2^j \rfloor$，加起來 $1994$。 總數都比 $2n$ 少一點點：$2000 - 1994
+= 6$，而 $1000$ 的二進位 $1111101000$ 剛好有 $6$ 個 $1$。 這不是巧合，觀念題第 11
+題請你證明。
+
+\begin{examnote}
+題目問「平攤成本」或「平攤時間複雜度」時，答案要針對\textbf{任意一串} $n$ 次操作的
+總成本論證，再除以 $n$。 不要寫「平均來說」「通常」「大部分的操作」這類機率的說
+法，也不要只舉一串特定的操作算給人看：舉例只能說明那一串，不能說明所有的串。
+\end{examnote}
+
+\section{記帳法}
+\label{sec:amo-accounting}
+
+聚合法給每一種操作同一個平攤成本。 \textbf{記帳法}（accounting method）可以給不同
+的操作不同的平攤成本，想法像預付：便宜的操作多收一點錢，多的部分存起來，以後貴的操
+作來了，用存款付。
+
+具體地說，給每一種操作訂一個收費 $\hat{c}_i$。 第 $i$ 次操作收費 $\hat{c}_i$、實際
+花 $c_i$；$\hat{c}_i > c_i$ 時把差額存起來，存款通常想成「放在資料結構裡某些元素
+身上」；$\hat{c}_i < c_i$ 時從存款提出差額。 前 $j$ 次操作之後的存款是
+\[
+\sum_{i=1}^{j} \hat{c}_i - \sum_{i=1}^{j} c_i.
+\]
+只要能證明\textbf{存款永遠不會變成負的}，也就是對所有 $j$ 這個式子都 $\ge 0$，收費
+$\hat{c}_i$ 就符合定義~\ref{def:amortized}，是平攤成本。 記帳法的證明就是說明這一
+件事。
+
+\subsection{堆疊}
+
+收費訂成：\proc{Push} 收 $2$，\proc{Pop} 和 \proc{Multipop} 收 $0$。 \proc{Push}
+實際花 $1$，多收的 $1$ 存在剛放進去的那個元素身上。 之後這個元素被拿掉時（不管是
+\proc{Pop} 還是 \proc{Multipop} 裡的一次），用它身上的 $1$ 付這次的成本。
+\proc{Multipop} 拿掉幾個元素，就有幾個元素各自付 $1$，所以收 $0$ 也付得出來。
+
+存款不會變負：堆疊裡每個元素身上都剛好有 $1$，存款等於堆疊的大小，大小不會是負
+的。 所以 $n$ 次操作的總成本不超過總收費，最多 $2n$。
+
+用上一節程式的那 $10$ 次操作追蹤一次：
+
+\begin{center}
+\begin{tabular}{clccc}
+\toprule
+$i$ & 操作 & 實際成本 $c_i$ & 收費 $\hat{c}_i$ & 之後的存款 \\
+\midrule
+1 & \texttt{push 5} & 1 & 2 & 1 \\
+2 & \texttt{push 8} & 1 & 2 & 2 \\
+3 & \texttt{push 3} & 1 & 2 & 3 \\
+4 & \texttt{multipop 2} & 2 & 0 & 1 \\
+5 & \texttt{push 7} & 1 & 2 & 2 \\
+6 & \texttt{push 1} & 1 & 2 & 3 \\
+7 & \texttt{push 4} & 1 & 2 & 4 \\
+8 & \texttt{push 6} & 1 & 2 & 5 \\
+9 & \texttt{multipop 10} & 5 & 0 & 0 \\
+10 & \texttt{push 2} & 1 & 2 & 1 \\
+\midrule
+合計 & & 15 & 16 & \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+最右欄每一列都等於那時候堆疊的大小，最小是第 9 次之後的 $0$，沒有變成負的。 總收費
+$16$ 減去總成本 $15$，剩下的 $1$ 就是最後堆疊裡那個元素身上的存款。
+
+\subsection{計數器}
+
+\proc{Increment} 收 $2$。 把一個位元從 $0$ 設成 $1$ 時，用掉 $1$ 付這次翻轉，另外
+$1$ 存在這個位元身上；之後這個位元從 $1$ 變回 $0$ 時，用它身上的存款付。
+
+每次 \proc{Increment} 的 \textbf{while} 迴圈把一些 $1$ 變成 $0$，這些都由位元身上的
+存款付；迴圈後面最多把一個位元從 $0$ 設成 $1$，由這次收的 $2$ 付，還剩下 $1$ 存起
+來。 所以收 $2$ 夠用。 存款等於計數器裡 $1$ 的個數，永遠不是負的。 $n$ 次
+\proc{Increment} 的總成本最多 $2n$，和定理~\ref{thm:counter-aggregate} 一樣。
+
+記帳法的關鍵是決定存款放在哪裡。 放在「之後要付錢的那個東西」身上最方便：堆疊的存
+款放在以後要被拿掉的元素上，計數器的存款放在以後要變回 $0$ 的位元上。 這樣存款夠
+不夠用，只要看「每個要付錢的東西身上是不是都有錢」。
+
+\section{位能法}
+\label{sec:amo-potential}
+
+記帳法的存款分散在各個元素身上。 \textbf{位能法}（potential method）把存款的總額寫
+成資料結構狀態的一個函數，直接用式子計算。
+
+設資料結構一開始的狀態是 $D_0$，第 $i$ 次操作之後的狀態是 $D_i$。 選一個\textbf{位
+能函數}（potential function）$\Phi$，它把每一個狀態對應到一個實數 $\Phi(D_i)$。 定
+義第 $i$ 次操作的平攤成本是
+\[
+\hat{c}_i = c_i + \Phi(D_i) - \Phi(D_{i-1}),
+\]
+實際成本加上這次操作讓位能增加了多少。 位能增加，表示這次多付了錢存起來；位能減少，
+表示這次用了存款。
+
+\begin{theorem}
+\label{thm:potential}
+對任何位能函數 $\Phi$ 和任何一串操作，
+\[
+\sum_{i=1}^{n} c_i = \sum_{i=1}^{n} \hat{c}_i - \Phi(D_n) + \Phi(D_0).
+\]
+因此，如果對所有 $i$ 都有 $\Phi(D_i) \ge \Phi(D_0)$，$\hat{c}_i$ 就是平攤成本。
+\end{theorem}
+
+\begin{proof}
+把 $\hat{c}_i$ 的定義加起來，位能的部分前後相消：
+\[
+\sum_{i=1}^{n} \hat{c}_i = \sum_{i=1}^{n} \bigl( c_i + \Phi(D_i) - \Phi(D_{i-1}) \bigr)
+= \sum_{i=1}^{n} c_i + \Phi(D_n) - \Phi(D_0).
+\]
+移項就是第一個式子。 如果 $\Phi(D_n) \ge \Phi(D_0)$，右邊減掉的
+$\Phi(D_n) - \Phi(D_0)$ 不是負的，所以 $\sum c_i \le \sum \hat{c}_i$。 要求對所有
+$i$ 成立，是因為定義~\ref{def:amortized} 要求對每一個 $n$ 都成立。
+\end{proof}
+
+實際使用時，通常把位能函數選成 $\Phi(D_0) = 0$、而且永遠 $\Phi(D_i) \ge 0$，這樣條
+件自動滿足。 剩下的工作就是對每一種操作算出 $\hat{c}_i$ 的上界。
+
+\subsection{堆疊}
+
+令 $\Phi$ 是堆疊裡的元素個數。 空堆疊的 $\Phi(D_0) = 0$，而且元素個數不會是負的。
+
+\begin{itemize}
+\item \proc{Push}：實際成本 $1$，位能加 $1$，$\hat{c}_i = 1 + 1 = 2$。
+\item \proc{Pop}：實際成本 $1$，位能減 $1$，$\hat{c}_i = 1 - 1 = 0$。
+\item \proc{Multipop}$(S, k)$：設堆疊原本有 $s$ 個，拿掉 $k' = \min(s, k)$ 個。 實
+際成本 $k'$，位能減 $k'$，$\hat{c}_i = k' - k' = 0$。
+\end{itemize}
+
+三種操作的平攤成本都不超過 $2$，由定理~\ref{thm:potential}，$n$ 次操作的總成本最
+多 $2n$。 位能就是記帳法裡的存款總額：每個元素身上 $1$，總共是元素個數。
+
+\subsection{計數器}
+
+令 $\Phi(D_i) = b_i$，第 $i$ 次操作之後計數器裡 $1$ 的個數。 從 $0$ 開始時
+$b_0 = 0$，而且 $b_i \ge 0$。
+
+設第 $i$ 次 \proc{Increment} 的 \textbf{while} 迴圈把 $t_i$ 個 $1$ 變成 $0$。 沒有
+溢位時，迴圈後面再把一個 $0$ 變成 $1$，所以
+\[
+c_i = t_i + 1, \qquad b_i = b_{i-1} - t_i + 1, \qquad
+\hat{c}_i = (t_i + 1) + (1 - t_i) = 2.
+\]
+溢位時 $t_i = k$，全部變成 $0$，$c_i = k$、$b_i = 0 = b_{i-1} - k$，$\hat{c}_i = k
+- k = 0$。 兩種情況都有 $\hat{c}_i \le 2$，所以總成本最多 $2n$。
+
+照圖~\ref{fig:amo-counter} 的前 $8$ 次逐列算：
+
+\begin{center}
+\begin{tabular}{cccccc}
+\toprule
+$i$ & 之後的值 & $c_i$ & $\Phi(D_i) = b_i$ & $\Phi(D_i) - \Phi(D_{i-1})$ & $\hat{c}_i$ \\
+\midrule
+1 & 0001 & 1 & 1 & $+1$ & 2 \\
+2 & 0010 & 2 & 1 & $0$ & 2 \\
+3 & 0011 & 1 & 2 & $+1$ & 2 \\
+4 & 0100 & 3 & 1 & $-1$ & 2 \\
+5 & 0101 & 1 & 2 & $+1$ & 2 \\
+6 & 0110 & 2 & 2 & $0$ & 2 \\
+7 & 0111 & 1 & 3 & $+1$ & 2 \\
+8 & 1000 & 4 & 1 & $-2$ & 2 \\
+\midrule
+合計 & & 15 & & & 16 \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+用定理~\ref{thm:potential} 驗算：$\sum c_i = 16 - \Phi(D_8) + \Phi(D_0) = 16 - 1 + 0
+= 15$。
+
+計數器不從 $0$ 開始時，$\Phi(D_0) = b_0$ 不是 $0$。 這時不能直接說總成本不超過
+$2n$，要用定理~\ref{thm:potential} 的等式：總成本 $= \sum \hat{c}_i - b_n + b_0 \le
+2n + b_0$。 一開始有幾個 $1$，總成本最多就多出幾。 觀念題第 2 題有一個例子。
+
+\subsection{三種方法的比較}
+
+\begin{center}
+\begin{tabular}{p{0.13\linewidth}p{0.40\linewidth}p{0.36\linewidth}}
+\toprule
+方法 & 做法 & 證明的重點 \\
+\midrule
+聚合法 & 直接算任意 $n$ 次操作的總成本上界 $T(n)$，平攤成本是 $T(n)/n$ &
+從整體數，例如「每個元素最多被拿掉一次」「$A[i]$ 翻 $\lfloor n/2^{i-1} \rfloor$ 次」 \\
+記帳法 & 每種操作訂收費，多收的存在元素身上 & 存款永遠不是負的 \\
+位能法 & 選 $\Phi$，$\hat{c}_i = c_i + \Delta\Phi$ & $\Phi(D_0) = 0$、$\Phi \ge 0$，
+再逐種操作算 $\hat{c}_i$ \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+三種方法得到的結論一樣，差別在寫法。 聚合法最直接，但只能給所有操作同一個平攤成
+本。 記帳法容易想，適合用文字說明。 位能法最適合寫成嚴謹的證明，操作種類多、情況
+多的時候（例如下一節會縮小的動態陣列），逐種情況代公式比追蹤每個元素身上的錢清楚。
+記帳法的存款總額就是一個位能函數，所以一個記帳法的論證通常可以直接改寫成位能法。
+
+\begin{examnote}
+用位能法作答時依序寫出：(1) $\Phi$ 的定義；(2) $\Phi(D_0) = 0$ 而且 $\Phi(D_i) \ge
+0$ 的理由；(3) 每一種操作的 $c_i$、$\Phi$ 的變化、$\hat{c}_i$，有特殊情況（溢位、擴
+充、縮小）的要分開算；(4) 結論「任意 $n$ 次操作的總成本 $\le \sum \hat{c}_i$」。
+用記帳法時，寫清楚每種操作收多少、存款放在哪裡、為什麼不會變負。
+\end{examnote}
+
+\section{動態陣列：加倍與縮小}
+\label{sec:amo-dynarray}
+
+陣列可以用 $O(1)$ 時間讀寫任何一格，但大小要事先決定。 事先不知道會放多少個元素時，
+可以用\textbf{動態陣列}（dynamic array）：記住目前放了幾個（$\mathit{num}$）和目前
+的容量（$\mathit{cap}$），放滿了就配置一塊更大的陣列，把舊的元素搬過去，釋放舊的。
+章首的筆記本就是這樣做的。
+
+這一節的動態陣列只在尾端加入和刪除，也就是一個用陣列做的堆疊。 成本這樣算：寫入或
+刪除一個元素算 $1$，換容量時每搬一個元素算 $1$。 配置和釋放記憶體當作常數時間，不
+算進去。
+
+\subsection{只會變大的情形}
+
+\begin{pseudo}[label=alg:table-push]{換容量和在尾端加入}
+\Procedure{Resize}{$T, m$}
+    \State 配置一個 $m$ 格的新陣列 $B$（$m = 0$ 時 $B \gets \NIL$）
+    \For{$i \gets 1$ \To $T.\mathit{num}$}
+        \State $B[i] \gets T.\mathit{data}[i]$ \Comment{每搬一個成本 1}
+    \EndFor
+    \State 釋放舊的陣列
+    \State $T.\mathit{data} \gets B$
+    \State $T.\mathit{cap} \gets m$
+\EndProcedure
+\Statex
+\Procedure{Table-Push}{$T, x$}
+    \If{$T.\mathit{num} = T.\mathit{cap}$}
+        \If{$T.\mathit{cap} = 0$}
+            \State \Call{Resize}{$T, 1$}
+        \Else
+            \State \Call{Resize}{$T, 2 \cdot T.\mathit{cap}$}
+        \EndIf
+    \EndIf
+    \State $T.\mathit{num} \gets T.\mathit{num} + 1$
+    \State $T.\mathit{data}[T.\mathit{num}] \gets x$
+\EndProcedure
+\end{pseudo}
+
+從空的陣列（$\mathit{num} = \mathit{cap} = 0$）開始連續 \proc{Table-Push}。 第 $i$
+次放入時，如果前面已經有 $i - 1$ 個而且陣列滿了，要先搬 $i - 1$ 個。 容量依序是
+$1, 2, 4, 8, \ldots$，所以會搬的是第 $2, 3, 5, 9, 17, \ldots$ 次，也就是 $i - 1$ 是
+$2$ 的次方的那幾次。 下圖是前 $17$ 次的實際成本。
+
+\begin{center}
+\begin{tikzpicture}[x=0.62cm, y=0.24cm]
+\foreach \c [count=\i] in {1,2,3,1,5,1,1,1,9,1,1,1,1,1,1,1,17} {
+    \draw[costwrite] (\i-0.3,0) rectangle (\i+0.3,1);
+    \ifnum\c>1\relax
+        \draw[costcopy] (\i-0.3,1) rectangle (\i+0.3,\c);
+    \fi
+    \node[font=\scriptsize, text=black!60] at (\i,-0.9) {\i};
+}
+\draw (0.4,0) -- (17.8,0);
+\draw[-{Stealth[length=2mm]}] (0.4,0) -- (0.4,18.5);
+\foreach \t in {1,3,5,9,17} { \draw (0.4,\t) -- (0.25,\t) node[left, font=\scriptsize] {\t}; }
+\draw[thick, dashed, optStroke] (0.4,3) -- (17.8,3) node[right, font=\small] {平攤 $3$};
+\node[font=\small, anchor=west] at (18.2,-0.9) {$i$};
+\draw[costwrite] (2,15) rectangle (2.5,16); \node[anchor=west, font=\small] at (2.6,15.5) {寫入};
+\draw[costcopy] (2,12.5) rectangle (2.5,13.5); \node[anchor=west, font=\small] at (2.6,13) {搬動};
+\end{tikzpicture}
+\diagcaption{連續 \proc{Table-Push} 時第 $i$ 次的實際成本。 藍色是寫入自己的 $1$，
+橘色是搬動舊元素的成本。 偶爾一次很高，但都在一長串成本 $1$ 之後。}
+\label{fig:amo-push-cost}
+\end{center}
+
+\textbf{聚合法}：$n$ 次放入的寫入成本是 $n$。 搬動發生在容量是 $1, 2, 4, \ldots$ 而
+且已滿的時候，每次搬的個數等於當時的容量，而這些容量都小於 $n$。 它們是 $2$ 的次方，
+最大的一個小於 $n$，由等比級數，總和小於最大那一項的兩倍，也就小於 $2n$。 總成本小
+於 $n + 2n = 3n$，平攤成本是 $3$。 精確地說，$n \ge 2$ 時搬動的總數是
+$1 + 2 + \cdots + 2^{p} = 2^{p+1} - 1$，其中 $2^p$ 是小於 $n$ 的最大的 $2$ 的次方。
+
+\textbf{記帳法}：每次 \proc{Table-Push} 收 $3$。 $1$ 付寫入自己；$1$ 存在自己身上，
+留著下次擴充時搬自己；最後 $1$ 存在一個「上次擴充時已經被搬過、身上沒錢的」舊元素
+身上。 為什麼夠：容量剛從 $m$ 變成 $2m$ 時（$m \ge 1$），陣列裡有 $m + 1$ 個元素。
+到下一次擴充之前，第 $m + 1$ 到第 $2m$ 個元素各存了 $2$，共 $2m$，剛好夠下一次擴
+充時搬 $2m$ 個元素。
+
+\textbf{位能法}：令 $\Phi = 2 \cdot \mathit{num} - \mathit{cap}$。 一開始
+$\Phi = 0$。 只會變大時，除了一開始，陣列至少半滿（擴充後 $\mathit{num} =
+\mathit{cap}/2 + 1$），所以 $\Phi \ge 0$。
+\begin{itemize}
+\item 不用擴充：$c_i = 1$，$\mathit{num}$ 加 $1$，$\Phi$ 加 $2$，$\hat{c}_i = 3$。
+\item 擴充，原本 $\mathit{num} = \mathit{cap} = m \ge 1$：$c_i = m + 1$。 擴充前
+$\Phi = 2m - m = m$，擴充後 $\Phi = 2(m + 1) - 2m = 2$，$\hat{c}_i = (m + 1) + 2 - m
+= 3$。
+\item 第一次放入（$\mathit{cap} = 0$）：$c_i = 1$，$\Phi$ 從 $0$ 變成 $1$，
+$\hat{c}_i = 2$。
+\end{itemize}
+擴充前的位能 $m$ 正好付掉搬 $m$ 個元素的成本，這就是記帳法裡存下來的錢。
+
+章首的問題答案是：平均每記一筆寫不到 $3$ 行。 後面的程式會印出，記 $1000$ 筆時平均
+大約 $2.02$ 行。
+
+\subsubsection{為什麼要乘以倍數，不能加固定的量}
+
+如果每次擴充只多 $d$ 格（容量 $d, 2d, 3d, \ldots$），搬動的個數是
+$d + 2d + \cdots$，$n$ 次放入大約擴充 $n/d$ 次，搬動總數大約
+\[
+d \left( 1 + 2 + \cdots + \frac{n}{d} \right) \approx \frac{n^2}{2d} = \Theta(n^2),
+\]
+$d$ 是常數時平攤成本是 $\Theta(n)$，不是常數。 這是等差級數，和最後一項的平方同一
+級。 乘以一個固定的倍數 $r > 1$ 時，容量是等比級數，搬動總數和最後一項同一級，平攤
+成本才是常數。 $r$ 不一定要是 $2$：$r$ 越大，搬動越少，但陣列可能有更大的比例是空
+的（剛擴充完只用了大約 $1/r$）。 觀念題第 3、4 題分別算這兩種情形。
+
+\subsection{也會變小：為什麼縮到 1/4 才減半}
+
+元素被刪掉很多以後，我們希望把多餘的記憶體還回去，讓 $\mathit{cap}$ 和
+$\mathit{num}$ 維持在同一級。 很自然的想法是：放滿就加倍，少於一半就減半。 這樣
+做會出問題。
+
+設容量是 $m$（$m$ 是 $2$ 的次方），剛好放滿 $m$ 個。 接著重複下面四次操作：
+\begin{enumerate}
+\item 加入：滿了，擴充成 $2m$，搬 $m$ 個。 現在有 $m + 1$ 個。
+\item 刪除：剩 $m$ 個，剛好一半，不縮小。
+\item 刪除：剩 $m - 1$ 個，少於一半，縮成 $m$，搬 $m - 1$ 個。
+\item 加入：$m$ 個，剛好放滿，回到一開始的樣子。
+\end{enumerate}
+每四次操作就搬了大約 $2m$ 個元素。 $m$ 和 $n$ 同一級時，平攤成本是 $\Theta(n)$。
+問題出在擴充完的陣列剛好半滿、縮小完的陣列剛好全滿，兩個門檻緊貼在一起，來回一兩
+次操作就會再換一次容量。
+
+解法是把縮小的門檻放低，讓剛換完容量的陣列離兩個門檻都有一段距離：
+
+\begin{pseudo}[label=alg:table-pop]{在尾端刪除}
+\Function{Table-Pop}{$T$}
+    \State $x \gets T.\mathit{data}[T.\mathit{num}]$
+    \State $T.\mathit{num} \gets T.\mathit{num} - 1$
+    \If{$T.\mathit{num} = 0$}
+        \State \Call{Resize}{$T, 0$} \Comment{空了就全部還回去}
+    \ElsIf{$4 \cdot T.\mathit{num} < T.\mathit{cap}$}
+        \State \Call{Resize}{$T, T.\mathit{cap} / 2$}
+    \EndIf
+    \State \Return $x$
+\EndFunction
+\end{pseudo}
+
+少於四分之一才減半，減半之後大約半滿；放滿才加倍，加倍之後也大約半滿。 從半滿到下
+一次換容量，至少要再做容量的四分之一那麼多次操作，換容量的成本就分攤得掉。 下面用位
+能法把這件事證明清楚。 容量一開始是 $0$，之後只會是 $1$ 或乘 $2$、除以 $2$、變回
+$0$，所以永遠是 $0$ 或 $2$ 的次方。
+
+\begin{theorem}
+\label{thm:dyn-array}
+動態陣列從空的開始，用 \proc{Table-Push} 和 \proc{Table-Pop} 做任意 $n$ 次操作，實
+際總成本不超過 $3n$。 而且任何時候只要 $\mathit{num} \ge 1$，就有 $\mathit{cap} \le
+4 \cdot \mathit{num}$。
+\end{theorem}
+
+\begin{proof}
+令 $\Phi = |2 \cdot \mathit{num} - \mathit{cap}|$。 一開始 $\Phi = 0$，而且絕對值不
+會是負的。 證明每一種情況都有 $\hat{c}_i \le 3$。 以下 $c$ 是操作之前的容量。
+
+\textbf{加入、不擴充}：$c_i = 1$。 $2 \cdot \mathit{num}$ 加 $2$，絕對值最多變大 $2$，
+$\hat{c}_i \le 3$。
+
+\textbf{加入、擴充}：$c = 0$ 時 $c_i = 1$，$\Phi$ 從 $0$ 變成 $|2 - 1| = 1$，
+$\hat{c}_i = 2$。 $c \ge 1$ 時原本 $\mathit{num} = c$，$c_i = c + 1$，$\Phi$ 從
+$|2c - c| = c$ 變成 $|2(c + 1) - 2c| = 2$，$\hat{c}_i = (c + 1) + 2 - c = 3$。
+
+以下是刪除，設刪除之後剩 $r$ 個（$r = \mathit{num} - 1$）。
+
+\textbf{刪除之後變空}（$r = 0$）：$c_i = 1$，不用搬，$\Phi$ 變成 $0$，
+$\hat{c}_i = 1 - \Phi_{\text{之前}} \le 1$。
+
+\textbf{刪除、不縮小}（$r \ge 1$ 且 $4r \ge c$）：$c_i = 1$，$2 \cdot \mathit{num}$
+減 $2$，絕對值最多變大 $2$，$\hat{c}_i \le 3$。
+
+\textbf{刪除、縮小}（$r \ge 1$ 且 $4r < c$）：因為 $c > 4r \ge 4$ 而 $c$ 是 $2$ 的
+次方，$c \ge 8$。 實際成本是刪除的 $1$ 加上搬 $r$ 個，$c_i = 1 + r$。 縮小之後
+$2r < c/2$，所以 $\Phi_{\text{之後}} = c/2 - 2r$。 刪除之前有 $r + 1$ 個，
+$2(r + 1) < c/2 + 2 \le c$，所以 $\Phi_{\text{之前}} = c - 2r - 2$。
+\[
+\hat{c}_i = (1 + r) + \left(\frac{c}{2} - 2r\right) - (c - 2r - 2)
+= 3 + r - \frac{c}{2} < 3 + \frac{c}{4} - \frac{c}{2} < 3.
+\]
+
+每一種情況都有 $\hat{c}_i \le 3$，由定理~\ref{thm:potential}，總成本不超過 $3n$。
+
+記憶體的部分對操作次數做歸納。 一開始 $\mathit{num} = 0$，不用檢查。 加入不擴充時
+$\mathit{num}$ 變大，不等式仍然成立；擴充時 $\mathit{cap}$ 變成 $2c$、$\mathit{num}$
+變成 $c + 1$（或從 $0$ 變成容量 $1$、$1$ 個），成立。 刪除不縮小時，$4r \ge c$ 正是要
+的不等式。 刪除而縮小時，由歸納假設，刪除之前 $4(r + 1) \ge c$，所以 $4r \ge c - 4
+\ge c/2$（因為 $c \ge 8$），縮小後的容量 $c/2$ 不超過 $4r$。
+\end{proof}
+
+用 $9$ 次加入、$7$ 次刪除追蹤一次。 表裡的 $\mathit{num}$、$\mathit{cap}$、$\Phi$ 都
+是操作之後的值，一開始三個都是 $0$。
+
+\begin{center}
+\begin{tabular}{clccccc}
+\toprule
+$i$ & 操作 & $\mathit{num}$ & $\mathit{cap}$ & $c_i$ & $\Phi$ & $\hat{c}_i$ \\
+\midrule
+1 & 加入 & 1 & 1 & 1 & 1 & 2 \\
+2 & 加入 & 2 & 2 & 2 & 2 & 3 \\
+3 & 加入 & 3 & 4 & 3 & 2 & 3 \\
+4 & 加入 & 4 & 4 & 1 & 4 & 3 \\
+5 & 加入 & 5 & 8 & 5 & 2 & 3 \\
+6--8 & 加入 & 6, 7, 8 & 8 & 各 1 & 4, 6, 8 & 各 3 \\
+9 & 加入 & 9 & 16 & 9 & 2 & 3 \\
+10 & 刪除 & 8 & 16 & 1 & 0 & $-1$ \\
+11--14 & 刪除 & 7, 6, 5, 4 & 16 & 各 1 & 2, 4, 6, 8 & 各 3 \\
+15 & 刪除 & 3 & 8 & 4 & 2 & $-2$ \\
+16 & 刪除 & 2 & 8 & 1 & 4 & 3 \\
+\midrule
+合計 & & & & 34 & & 38 \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+第 15 次刪除後剩 $3$ 個，$4 \cdot 3 < 16$，縮成 $8$，搬 $3$ 個，實際成本 $4$。 它的
+平攤成本是負的，因為它用掉了第 11 到 14 次刪除存下來的位能。 驗算：
+$\sum c_i = 38 - \Phi(D_{16}) + \Phi(D_0) = 38 - 4 + 0 = 34$。
+
+\begin{examnote}
+動態陣列的追蹤題，每一列寫出操作之後的 $\mathit{num}$、$\mathit{cap}$ 和這次的實際
+成本，換容量的那一列另外註明搬了幾個。 先確認題目的規則：容量從 $0$ 還是 $1$ 開始、
+縮小的條件是「少於」還是「不超過」四分之一、判斷是在刪除之前還是之後，這些細節會改
+變換容量的時間點。
+\end{examnote}
+
+\subsection{C 實作}
+
+\begin{cbookrecap}[第~19~章 19.3 節]
+\texttt{realloc(p, size)} 把 \texttt{p} 指的那塊記憶體改成 \texttt{size} 個位元
+組，回傳新的位址。 它可能在原地變大或變小，也可能另外找一塊、把舊內容複製過去再釋
+放舊的。 失敗時回傳 \texttt{NULL}，而且\textbf{原本那塊仍然有效}，所以要先用暫存指標
+接：\texttt{tmp = realloc(p, ...)}，確定不是 \texttt{NULL} 才寫 \texttt{p = tmp}。
+直接寫 \texttt{p = realloc(p, ...)}，失敗時唯一的位址被蓋掉，就漏掉了。
+\texttt{realloc} 傳入大小 $0$ 的行為由各個系統自己決定，下面的程式在容量變成 $0$
+時改用 \texttt{free}。
+\end{cbookrecap}
+
+程式把動態陣列包成一個結構，縮小的門檻寫成參數 \texttt{shrink\_den}：
+\texttt{num * shrink\_den < cap} 時減半。 \texttt{shrink\_den} 是 $4$ 就是
+虛擬碼~\ref{alg:table-pop}，是 $2$ 就是會來回換容量的做法。 成本照前面的算法記在
+\texttt{cost} 裡。 \texttt{realloc} 有時能原地變大，不用真的搬，但最壞情況要複製全部
+的元素，所以成本照搬 $\mathit{num}$ 個來算。
+
+\begin{example}[label=ex:dyn-array]{c}{(dyn\_array.c) 會加倍和減半的動態陣列}
+#include <stdio.h>
+#include <stdlib.h>
+
+// 會自己變大變小的陣列（拿來當堆疊用：只在尾端加入和刪除）。
+typedef struct {
+    int *data;
+    int num;            // 目前放了幾個
+    int cap;            // 目前的容量
+    int shrink_den;     // num * shrink_den < cap 時把容量減半
+    long long cost;     // 實際成本：寫入或刪除一個算 1，搬一個也算 1
+    int resizes;        // 換了幾次容量
+} DynArray;
+
+void da_init(DynArray *a, int shrink_den)
+{
+    a->data = NULL;
+    a->num = 0;
+    a->cap = 0;
+    a->shrink_den = shrink_den;
+    a->cost = 0;
+    a->resizes = 0;
+}
+
+// 把容量改成 new_cap，成功回傳 1。搬動 num 個元素的成本算進 cost。
+int da_resize(DynArray *a, int new_cap)
+{
+    if (new_cap == 0) {
+        free(a->data);
+        a->data = NULL;
+    } else {
+        int *tmp = realloc(a->data, new_cap * sizeof *tmp);
+        if (tmp == NULL) {              // 失敗時 a->data 仍然有效，不要蓋掉
+            return 0;
+        }
+        a->data = tmp;
+    }
+    a->cost += a->num;
+    a->cap = new_cap;
+    a->resizes++;
+    return 1;
+}
+
+int da_push(DynArray *a, int x)
+{
+    if (a->num == a->cap) {             // 滿了：加倍（容量 0 時變成 1）
+        if (!da_resize(a, a->cap == 0 ? 1 : 2 * a->cap)) {
+            return 0;
+        }
+    }
+    a->data[a->num++] = x;
+    a->cost += 1;
+    return 1;
+}
+
+// 刪除並回傳最後一個元素。呼叫前要確定 num > 0。
+int da_pop(DynArray *a)
+{
+    int x = a->data[--a->num];
+    a->cost += 1;
+    if (a->num == 0) {                  // 空了就整塊還回去
+        da_resize(a, 0);
+    } else if (a->num * a->shrink_den < a->cap) {
+        da_resize(a, a->cap / 2);      // 縮小失敗也沒關係，舊的那塊還能用
+    }
+    return x;
+}
+
+int main(void)
+{
+    // 第一部分：從空的開始 push n 次
+    int ns[] = {10, 100, 1000, 1025, 1000000};
+    printf("n cost cost/n cap\n");
+    for (int k = 0; k < 5; k++) {
+        DynArray a;
+        da_init(&a, 4);
+        for (int i = 0; i < ns[k]; i++) {
+            if (!da_push(&a, i)) {
+                free(a.data);
+                return 1;
+            }
+        }
+        printf("%d %lld %.3f %d\n", ns[k], a.cost, (double)a.cost / ns[k], a.cap);
+        free(a.data);
+    }
+
+    // 第二部分：先放 1024 個，再重複 1000 次「push, pop, pop, push」
+    printf("rule cost resizes\n");
+    int dens[] = {2, 4};
+    for (int k = 0; k < 2; k++) {
+        DynArray a;
+        da_init(&a, dens[k]);
+        for (int i = 0; i < 1024; i++) {
+            if (!da_push(&a, i)) {
+                free(a.data);
+                return 1;
+            }
+        }
+        a.cost = 0;                     // 只算後面這 4000 次操作
+        a.resizes = 0;
+        int ok = 1;
+        for (int r = 0; r < 1000 && ok; r++) {
+            ok = da_push(&a, r);
+            da_pop(&a);
+            da_pop(&a);
+            ok = ok && da_push(&a, r);
+        }
+        if (!ok) {
+            free(a.data);
+            return 1;
+        }
+        printf("1/%d %lld %d\n", dens[k], a.cost, a.resizes);
+        while (a.num > 0) {             // 全部 pop 掉，最後整塊還回去
+            da_pop(&a);
+        }
+        printf("after popping all: num %d, cap %d\n", a.num, a.cap);
+    }
+    return 0;
+}
+\end{example}
+\iosample{}{n cost cost/n cap \\ 10 25 2.500 16 \\ 100 227 2.270 128 \\ 1000 2023 2.023 1024 \\ 1025 3072 2.997 2048 \\ 1000000 2048575 2.049 1048576 \\ rule cost resizes \\ 1/2 2051000 2000 \\ after popping all: num 0, cap 0 \\ 1/4 5024 1 \\ after popping all: num 0, cap 0}
+
+第一部分：$n = 1000$ 時搬了 $1 + 2 + \cdots + 512 = 1023$ 個，總成本 $2023$，平均
+每次 $2.023$，這就是章首的答案。 $n = 1025$ 是最不划算的時候，剛好在第 $1025$ 次多
+搬了 $1024$ 個，平均 $2.997$，仍然小於 $3$。
+
+第二部分是同一串 $4000$ 次操作，只差在縮小的門檻。 門檻是一半時，每一輪「加入、刪
+除、刪除、加入」都擴充一次、縮小一次，各搬大約 $1024$ 個，每輪成本
+$1025 + 1 + 1024 + 1 = 2051$，$1000$ 輪是 $2{,}051{,}000$。 門檻是四分之一時，只有
+第一次加入擴充成 $2048$（搬 $1024$ 個），之後元素在 $1023$ 到 $1025$ 個之間變動，
+離縮小的門檻 $512$ 還很遠，總成本 $4000 + 1024 = 5024$。 兩者差了大約 $400$ 倍。
+
+\section{本章常見錯誤}
+\label{sec:amo-pitfalls}
+
+\begin{center}
+\begin{tabular}{p{0.26\linewidth}p{0.48\linewidth}p{0.16\linewidth}}
+\toprule
+錯誤 & 例子 & 見 \\
+\midrule
+把平攤當成平均情況 & 說「平均來說 \proc{Multipop} 很快」，或去假設輸入的分布 &
+第~\ref{sec:amo-aggregate}~節 \\
+以為平攤 $O(1)$ 就是每次 $O(1)$ & 說動態陣列的每一次加入都是常數時間；擴充那一次是
+$\Theta(n)$ & 第~\ref{sec:amo-aggregate}、\ref{sec:amo-dynarray}~節 \\
+每次的最壞情況乘以 $n$ 就當答案 & 說 $n$ 次 \proc{Increment} 是 $\Theta(nk)$；
+$O(nk)$ 是對的上界，但不緊 & 第~\ref{sec:amo-counter}~節 \\
+記帳法沒有證明存款不會變負 & 只寫「\proc{Push} 收 $2$」，沒有說明每個元素身上都有
+$1$ & 第~\ref{sec:amo-accounting}~節 \\
+位能函數沒檢查 $\Phi(D_i) \ge \Phi(D_0)$ & 選了會變負的 $\Phi$，或計數器不從 $0$ 開始
+時忘了加 $b_0$ & 第~\ref{sec:amo-potential}~節 \\
+特殊情況漏算 & 只算了不擴充的加入，沒算擴充、溢位、縮小那一次 &
+第~\ref{sec:amo-potential}、\ref{sec:amo-dynarray}~節 \\
+擴充時加固定的量 & 每次多 $100$ 格，以為平攤仍是 $O(1)$ & 第~\ref{sec:amo-dynarray}~節 \\
+縮小的門檻設在一半 & 剛好在邊界來回加入刪除，每次都換容量 &
+第~\ref{sec:amo-dynarray}~節 \\
+\texttt{p = realloc(p, ...)} & 失敗時原本的位址被 \texttt{NULL} 蓋掉，記憶體漏掉 &
+第~\ref{sec:amo-dynarray}~節 \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\section{觀念題}
+\label{sec:amo-exercises}
+
+題型和研究所考試、期中期末考的筆試相近，有選擇、計算、追蹤和證明。 解答在本章最後。
+
+\begin{enumerate}
+\item （選擇，可能不只一個答案）下列哪些敘述正確？
+\begin{enumerate}
+\item 某個操作的平攤成本是 $O(1)$，表示每一次執行這個操作都只花 $O(1)$ 時間。
+\item 平攤分析要先假設輸入的機率分布，算出來的是期望值。
+\item 用記帳法證明了每種操作的收費都不超過 $3$ 而且存款不會變負，則從初始狀態開始
+的任何 $n$ 次操作，實際總成本不超過 $3n$。
+\item 用位能法時，只要 $\Phi(D_0) = 0$，$\Phi$ 在中間的某些狀態取負值也沒關係。
+\item 記帳法裡，某一次操作的平攤成本可以比它的實際成本小。
+\end{enumerate}
+
+\item （追蹤）一個 $6$ 位元的計數器目前是 $001011$。 連續做 $6$ 次 \proc{Increment}，
+寫出每一次之後的值和翻轉的位元數，求總數。 再用位能 $\Phi = $ 計數器裡 $1$ 的個數，
+驗證定理~\ref{thm:potential} 的等式。
+
+\item （計算）動態陣列一開始容量 $1$、沒有元素，放滿時把容量變成原來的 $3$ 倍（不
+縮小）。 成本照第~\ref{sec:amo-dynarray}~節的算法。
+\begin{enumerate}
+\item 連續放入 $82$ 個元素，總成本是多少？ 最後的容量是多少？
+\item 證明連續放入 $n$ 個的總成本小於 $2.5n$。
+\item 和加倍比，這個做法在空間上的缺點是什麼？
+\end{enumerate}
+
+\item （計算）動態陣列一開始容量 $4$，放滿時容量加 $4$（$4, 8, 12, \ldots$）。 連續
+放入 $40$ 個元素總共搬動幾次？ 對 $n = 4m$ 寫出搬動總數的公式，並說明每次放入的
+平攤成本是 $\Theta(n)$。
+
+\item （證明）三進位計數器的每一位是 $0$、$1$ 或 $2$。 加一的做法是：從最低位開始，
+把連續的 $2$ 都改成 $0$，再把遇到的第一個不是 $2$ 的位加一。 成本是改動的位數。
+\begin{enumerate}
+\item 用聚合法證明從 $0$ 開始做 $n$ 次加一，改動的總位數小於 $1.5n$。
+\item 找一個位能函數，使每次加一的平攤成本都不超過 $3/2$，並驗證。
+\end{enumerate}
+
+\item （證明）一個堆疊保持「由下到上遞增」。 \proc{Insert}$(S, x)$ 先把頂端比 $x$
+大的元素一個一個 \proc{Pop} 掉，再 \proc{Push}$(x)$，成本是 \proc{Pop} 的次數加 $1$。
+\begin{enumerate}
+\item 從空堆疊開始做 $n$ 次 \proc{Insert}，證明總成本不超過 $2n$。
+\item 舉一串 $n$ 次 \proc{Insert}，其中某一次的成本是 $n$。
+\end{enumerate}
+
+\item （追蹤）用虛擬碼~\ref{alg:table-push}、\ref{alg:table-pop} 的動態陣列，目前
+$\mathit{num} = 5$、$\mathit{cap} = 8$。 依序做 $4$ 次刪除、$5$ 次加入。 每次寫出操
+作之後的 $\mathit{num}$、$\mathit{cap}$、實際成本 $c_i$、$\Phi = |2 \cdot \mathit{num}
+- \mathit{cap}|$ 和 $\hat{c}_i$，並驗證定理~\ref{thm:potential} 的等式。
+
+\item （選擇，可能不只一個答案）下列動態陣列的規則中，哪些能讓「從空的開始任意 $n$
+次加入、刪除」的總成本是 $O(n)$？ 搬動的成本照本章的算法。
+\begin{enumerate}
+\item 放滿時加倍；刪除後少於一半時減半。
+\item 放滿時加倍；刪除後少於四分之一時減半。
+\item 放滿時加倍；刪除後少於三分之一時減半。
+\item 放滿時加 $100$ 格；永遠不縮小。
+\item 放滿時變成 $3$ 倍；刪除後少於九分之一時變成三分之一。
+\end{enumerate}
+
+\item （證明）一個集合用陣列存。 \proc{Insert} 放在已用部分的尾端，成本 $1$（假設
+陣列夠大）。 \proc{Delete} 給定位置，只把那一格標成「已刪除」，成本 $1$；標完之後，
+如果已刪除的格數超過已用格數的一半，就做一次\textbf{整理}：從頭掃過已用的 $u$ 格，
+把沒刪除的往前搬，成本 $u$，整理完沒有已刪除的格子。 用位能
+$\Phi = 2 \times (\text{已刪除的格數})$ 證明每種操作的平攤成本都不超過 $3$。
+
+\item （找錯）有人分析可以一次拿掉很多個的堆疊時，選位能 $\Phi = -(\text{堆疊的大
+小})$，得到 \proc{Push} 的平攤成本是 $1 + (-1) = 0$，於是說「$n$ 次 \proc{Push} 的
+總成本是 $0$」。 錯在哪裡？
+
+\item （證明）$k$ 位元計數器從 $0$ 開始做 $n$ 次 \proc{Increment}，$n < 2^k$。 證明翻轉
+的位元總數剛好是 $2n - b(n)$，其中 $b(n)$ 是 $n$ 的二進位裡 $1$ 的個數。 用
+範例~\ref{ex:counter-flips} 的輸出驗證 $n = 16$ 和 $n = 10^6$。
+\end{enumerate}
+
+\section{實作練習}
+\label{sec:amo-practice}
+
+這一章的重點是證明，Aki-Judge 上直接對應的題目只有一題，其他練習請以觀念題為主。
+
+\begin{center}
+\begin{tabular}{llc}
+\toprule
+小節 & 題目 & 難度 \\
+\midrule
+動態陣列 & \akiref{growable-array-stack}{可自動擴充的陣列堆疊} & 基本 \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+這一題要交標頭檔和實作檔（《C 程式設計基礎》第~20~章的分檔寫法），只要求放滿時加倍，
+不要求縮小。 寫完後可以自己加上縮小的規則，用範例~\ref{ex:dyn-array} 第二部分的操
+作順序測試，確認門檻是四分之一時不會來回換容量。
+
+\section{讀完你應該會}
+\label{sec:amo-checklist}
+
+\begin{itemize}
+\item 說明平攤成本和最壞情況、平均情況的差別，並判斷「平攤 $O(1)$」這類敘述在什麼
+意義下成立。
+\item 用聚合法算出 \proc{Multipop}、二進位計數器這類操作序列的總成本上界。
+\item 用記帳法訂出每種操作的收費，說明存款放在哪裡、為什麼不會變負。
+\item 選一個位能函數，檢查 $\Phi(D_0) = 0$、$\Phi \ge 0$，逐種情況算出平攤成本。
+\item 手算動態陣列一串加入、刪除後的 $\mathit{num}$、$\mathit{cap}$ 和每次的成本，說
+明為什麼要乘以倍數擴充、為什麼縮小的門檻要比一半低。
+\item 用 \texttt{realloc} 正確地寫出會變大變小的陣列：用暫存指標接回傳值，容量變成
+$0$ 時改用 \texttt{free}。
+\end{itemize}
+
+\textbf{延伸閱讀}（書末會整理完整的參考資料）
+
+\begin{itemize}
+\item Thomas H. Cormen 等，\textit{Introduction to Algorithms}，第 4 版，第 16 章：
+三種方法的完整講法，動態表格同時考慮擴充和縮小。
+\item Robert E. Tarjan，``Amortized Computational Complexity''，\textit{SIAM Journal
+on Algebraic and Discrete Methods}，1985：位能法的經典論文，篇幅不長。
+\item Steven S. Skiena，\textit{The Algorithm Design Manual}，第 3 版，第 3.1 節：
+從實作的角度講動態陣列。
+\item Antti Laaksonen，\textit{Competitive Programmer's Handbook}，第 8 章：平攤分析
+在雙指標、單調堆疊這類解題技巧上的用法。
+\end{itemize}
+
+\addcontentsline{toc}{section}{觀念題解答}
+\section*{觀念題解答}
+
+\begin{enumerate}
+\item (c)、(e) 正確。 (a)：平攤 $O(1)$ 只保證總和，單一次可能很貴，例如動態陣列擴
+充的那一次。 (b)：平攤分析不用機率。 (c)：存款不變負就是 $\sum_{i \le j} c_i \le
+\sum_{i \le j} \hat{c}_i \le 3j$。 (d)：定理~\ref{thm:potential} 要求每個 $i$ 都有
+$\Phi(D_i) \ge \Phi(D_0)$；某個 $D_j$ 的位能是負的，前 $j$ 次的
+$\sum \hat{c}_i$ 就可能小於實際成本。 (e)：例如 \proc{Multipop} 收 $0$，實際成本可
+以很大，差額由存款付。
+
+\item 每一次之後的值和翻轉的位元數：
+\begin{center}
+\begin{tabular}{ccccc}
+\toprule
+次 & 之後的值 & 翻轉 & $\Phi$ & $\hat{c}_i$ \\
+\midrule
+開始 & 001011 & & 3 & \\
+1 & 001100 & 3 & 2 & 2 \\
+2 & 001101 & 1 & 3 & 2 \\
+3 & 001110 & 2 & 3 & 2 \\
+4 & 001111 & 1 & 4 & 2 \\
+5 & 010000 & 5 & 1 & 2 \\
+6 & 010001 & 1 & 2 & 2 \\
+\midrule
+合計 & & 13 & & 12 \\
+\bottomrule
+\end{tabular}
+\end{center}
+沒有溢位，每次 $\hat{c}_i = 2$。 $\sum c_i = \sum \hat{c}_i - \Phi(D_6) + \Phi(D_0)
+= 12 - 2 + 3 = 13$，和直接數的一樣。 總數比 $2 \cdot 6 = 12$ 多 $1$，因為一開始的
+$3$ 個 $1$ 帶著位能。
+
+\item
+\begin{enumerate}
+\item 容量依序是 $1, 3, 9, 27, 81, 243$。 放第 $2, 4, 10, 28, 82$ 個時陣列是滿的，
+分別搬 $1, 3, 9, 27, 81$ 個，共 $121$ 個。 總成本 $82 + 121 = 203$，最後容量 $243$。
+\item 搬動的個數是 $3$ 的次方，而且都小於 $n$（擴充時已有的元素個數小於這次放入後
+的 $n$）。 設最大的一項是 $3^p < n$，總和
+$1 + 3 + \cdots + 3^p = \frac{3^{p+1} - 1}{2} < \frac{3}{2} \cdot 3^p < 1.5n$。 加上
+寫入的 $n$，總成本小於 $2.5n$。
+\item 剛擴充完時，容量是元素個數的大約 $3$ 倍，大約三分之二的空間沒有用到；加倍時最
+多大約一半沒用到。 倍數越大，搬得越少，浪費的空間越多。
+\end{enumerate}
+
+\item 容量是 $4j$ 而且放滿時，放下一個要搬 $4j$ 個。 放 $40$ 個時，在第
+$5, 9, \ldots, 37$ 個擴充，搬 $4 + 8 + \cdots + 36 = 4(1 + 2 + \cdots + 9) = 180$
+次。 一般地，$n = 4m$ 時搬動總數是
+\[
+4 \bigl(1 + 2 + \cdots + (m - 1)\bigr) = 2m(m - 1) = \frac{n(n - 4)}{8},
+\]
+是 $\Theta(n^2)$。 總成本是 $n + \frac{n(n-4)}{8} = \Theta(n^2)$，除以 $n$，平攤成本是
+$\Theta(n)$。 加固定的量時，搬動的個數是等差級數，總和和項數的平方同一級。
+
+\item
+\begin{enumerate}
+\item 第 $m$ 次加一改動最低位開始的一段：從最低位起連續的 $2$，加上它們上面那一位。
+所以從低位數來第 $j + 1$ 位（$j \ge 0$）在第 $m$ 次被改動，若且唯若 $m - 1$ 最低的
+$j$ 位全是 $2$，也就是 $m - 1$ 除以 $3^j$ 的餘數是 $3^j - 1$，也就是 $3^j$ 整除 $m$。
+$1$ 到 $n$ 之間這樣的 $m$ 有 $\lfloor n/3^j \rfloor$ 個。 總數
+\[
+\sum_{j \ge 0} \left\lfloor \frac{n}{3^j} \right\rfloor
+< n \sum_{j \ge 0} \frac{1}{3^j} = \frac{3}{2} n.
+\]
+\item 令 $\Phi = \frac{1}{2} \times (\text{值是 } 1 \text{ 的位數}) + (\text{值是 } 2
+\text{ 的位數})$。 一開始全是 $0$，$\Phi = 0$，而且 $\Phi \ge 0$。 一次加一把 $t$
+個 $2$ 改成 $0$（位能減 $t$），再把一個 $0$ 改成 $1$ 或把一個 $1$ 改成 $2$（位能都加
+$1/2$）。 實際成本 $t + 1$，$\hat{c}_i = (t + 1) - t + \frac{1}{2} = \frac{3}{2}$。
+全部是 $2$ 而溢位時，成本是位數 $t$，位能減 $t$，$\hat{c}_i = 0$。
+\end{enumerate}
+
+\item
+\begin{enumerate}
+\item 每個元素最多被 \proc{Push} 一次、\proc{Pop} 一次。 $n$ 次 \proc{Insert} 共
+\proc{Push} $n$ 次，所以 \proc{Pop} 的總次數不超過 $n$，總成本不超過 $2n$。 用位能
+法寫：$\Phi = $ 堆疊大小，一次 \proc{Insert} pop 掉 $p$ 個，$c_i = p + 1$，位能變化
+$1 - p$，$\hat{c}_i = 2$。
+\item 依序插入 $2, 3, \ldots, n$，再插入 $1$。 前 $n - 1$ 次都不用 pop；最後一次要
+把 $n - 1$ 個全部 pop 掉，成本 $(n - 1) + 1 = n$。 找「左邊第一個比它小的元素」這類問題用的單調堆疊就是這個結構。
+\end{enumerate}
+
+\item 一開始 $\Phi = |10 - 8| = 2$。
+\begin{center}
+\begin{tabular}{clccccc}
+\toprule
+$i$ & 操作 & $\mathit{num}$ & $\mathit{cap}$ & $c_i$ & $\Phi$ & $\hat{c}_i$ \\
+\midrule
+1 & 刪除 & 4 & 8 & 1 & 0 & $-1$ \\
+2 & 刪除 & 3 & 8 & 1 & 2 & 3 \\
+3 & 刪除 & 2 & 8 & 1 & 4 & 3 \\
+4 & 刪除 & 1 & 4 & 2 & 2 & 0 \\
+5 & 加入 & 2 & 4 & 1 & 0 & $-1$ \\
+6 & 加入 & 3 & 4 & 1 & 2 & 3 \\
+7 & 加入 & 4 & 4 & 1 & 4 & 3 \\
+8 & 加入 & 5 & 8 & 5 & 2 & 3 \\
+9 & 加入 & 6 & 8 & 1 & 4 & 3 \\
+\midrule
+合計 & & & & 14 & & 16 \\
+\bottomrule
+\end{tabular}
+\end{center}
+第 4 次刪除後剩 $1$ 個，$4 \cdot 1 < 8$，縮成 $4$，搬 $1$ 個；第 8 次加入時陣列是滿的
+（$4$ 個），擴充成 $8$，搬 $4$ 個。 驗算：$16 - \Phi(D_9) + \Phi(D_0) = 16 - 4 + 2
+= 14$。
+
+\item (b)、(c)、(e)。 (a) 是本章說明過的來回換容量，平攤 $\Theta(n)$。 (d) 只放入也要
+搬 $100 + 200 + \cdots$，是 $\Theta(n^2/100) = \Theta(n^2)$。 (b)、(c)、(e) 的共同點
+是：剛換完容量時，元素個數離兩個門檻都差了容量的一個固定比例。 (c) 加倍後半滿，要再
+放入容量的一半才會滿、刪除容量的六分之一才會低於三分之一；減半後大約三分之二滿，
+要放入或刪除大約三分之一的容量才會再換容量。 (e) 變成 $3$ 倍後是三
+分之一滿，縮小後也大約是三分之一滿，離「滿」和「九分之一」都差了容量的一個固定比
+例。 每次換容量搬動的個數不超過當時的容量，而在下一次換容量之前，至少要做容量的固
+定比例那麼多次操作，所以搬動的成本可以平攤成每次 $O(1)$。
+
+\item 設已用 $u$ 格、其中已刪除 $d$ 格。 一開始 $d = 0$，$\Phi = 0$，而且
+$\Phi \ge 0$。
+\begin{itemize}
+\item \proc{Insert}：$c_i = 1$，$d$ 不變，$\hat{c}_i = 1$。
+\item \proc{Delete}、不整理：$c_i = 1$，$d$ 加 $1$，$\hat{c}_i = 1 + 2 = 3$。
+\item \proc{Delete}、要整理：標完之後 $d > u/2$，也就是 $2d > u$。 實際成本 $1 + u$。
+操作前 $\Phi = 2(d - 1)$，整理後 $\Phi = 0$。
+$\hat{c}_i = (1 + u) + 0 - 2(d - 1) = 3 + u - 2d < 3$。
+\end{itemize}
+由定理~\ref{thm:potential}，任意 $n$ 次操作的總成本不超過 $3n$。 如果每次刪除都立刻
+往前搬，一次刪除就要 $\Theta(u)$；等到刪除的格子夠多才一起整理，前面每次刪除多付的
+$2$ 剛好付得起整理。 第~12~章雜湊表的「刪除標記」會用到同樣的想法。
+
+\item 定理~\ref{thm:potential} 要求 $\Phi(D_i) \ge \Phi(D_0)$。 這裡 $\Phi(D_0) = 0$，
+放了 $i$ 個之後 $\Phi(D_i) = -i < 0$，條件不成立，所以 $\hat{c}_i$ 加起來不是實際成本
+的上界。 用等式算：$n$ 次 \proc{Push} 的 $\sum c_i = \sum \hat{c}_i - \Phi(D_n) +
+\Phi(D_0) = 0 - (-n) + 0 = n$，實際總成本是 $n$。 位能是預先存的錢，不能借了不還。
+
+\item 令 $\Phi = $ 計數器裡 $1$ 的個數。 $n < 2^k$，所以 $n$ 次都沒有溢位，由
+第~\ref{sec:amo-potential}~節的計算每次 $\hat{c}_i$ 剛好是 $2$。 由
+定理~\ref{thm:potential}，
+\[
+\sum_{i=1}^{n} c_i = 2n - \Phi(D_n) + \Phi(D_0) = 2n - b(n) + 0,
+\]
+因為做完 $n$ 次後計數器的值就是 $n$。 驗證：$16 = 10000_2$，$b = 1$，$32 - 1 = 31$；
+$10^6 = 11110100001001000000_2$，$b = 7$，$2 \times 10^6 - 7 = 1{,}999{,}993$，都和
+程式的輸出一樣。
+\end{enumerate}

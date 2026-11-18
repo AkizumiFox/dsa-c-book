@@ -1,0 +1,1746 @@
+\chapter{鏈結串列}
+\label{ch:lists}
+
+% 本章的圖共用的樣式：一個節點畫成「資料｜next」兩格。
+\tikzset{
+    lkey/.style={draw=black!60, minimum width=0.85cm, minimum height=0.65cm,
+        font=\ttfamily\small, inner sep=1pt},
+    lptr/.style={draw=black!60, minimum width=0.40cm, minimum height=0.65cm, inner sep=0pt},
+    lhl/.style={lkey, draw=memStroke, thick, fill=memFill},
+    lhd/.style={lkey, fill=black!8},
+    lname/.style={font=\small\ttfamily},
+    lnk/.style={-{Stealth[length=1.8mm]}, thick, draw=black!70},
+    lnew/.style={lnk, draw=memStroke},
+    lold/.style={lnk, densely dashed, draw=black!30},
+    stepno/.style={circle, draw=optStroke, fill=optFill, inner sep=0.5pt,
+        font=\scriptsize\bfseries, text=optStroke},
+}
+% \lnode[樣式]{名稱}{座標}{內容}：資料格叫 <名稱>，next 格叫 <名稱>p。
+\newcommand{\lnode}[4][lkey]{%
+    \node[#1] (#2) at (#3) {#4};
+    \node[lptr, anchor=west] (#2p) at (#2.east) {};
+}
+% \lnil{名稱}：next 是 NIL，在 next 格畫一條斜線。
+\newcommand{\lnil}[1]{\draw[black!60] (#1p.south west) -- (#1p.north east);}
+% \llink[樣式]{名稱}{路徑}：從 <名稱> 的 next 格畫出指標，例如 \llink{a}{-- (b)}。
+\newcommand{\llink}[3][lnk]{%
+    \fill[black!70] (#2p.center) circle (1.1pt);
+    \draw[#1] (#2p.center) #3;
+}
+
+社團的迎新活動開放報名，總召把報名的同學依學號由小到大寫在一張紙上。 每天都有
+人新報名，也有人取消。 新報名的人要插進中間某個位置，名單如果寫在一整排連續的格子
+裡，插入一個人就得把後面所有的人往後抄一格。 換一種記法：每個人旁邊只註明「下一位
+是誰」，插入時只要改一兩個「下一位」。 名單有 $n$ 個人時，兩種記法插入一個人各要
+改幾個地方？ 第二種記法有沒有什麼事變得比較慢？ 往下讀之前，先想一想。
+
+第二種記法就是\textbf{鏈結串列}（linked list）。 這一章先講單向串列的搜尋、插入和
+刪除，再講幾種變形：帶頭節點的串列、環狀串列、雙向串列。 接著用串列表示多項式和稀
+疏矩陣，說明怎麼自己管理一池節點，最後整理反轉、合併、找中間這三個最常考的操作。
+每個操作都會給虛擬碼、C 程式、手算追蹤和成本。
+
+這一章用到《C 程式設計基礎》第~14~章的結構指標（\texttt{p->next}）、第~19~章的
+\texttt{malloc}、\texttt{free} 和串列入門。 那一章已經寫過頭端插入、指標的指標和
+刪除；這一章從資料結構的角度重新整理，重點放在成本、正確性和考卷上的追蹤，用到時
+會先在框裡複習。
+
+\section{單向鏈結串列}
+\label{sec:ll-singly}
+
+\subsection{節點與串列}
+
+鏈結串列由\textbf{節點}（node）組成。 單向串列（singly linked list）的每個節點有
+兩個欄位：$\mathit{key}$ 存資料，$\mathit{next}$ 指向下一個節點；最後一個節點的
+$\mathit{next}$ 是 \NIL。 串列本身只記一個指標 $L.\mathit{head}$，指向第一個節點；
+空串列的 $L.\mathit{head} = \NIL$。 實際的節點常常還有別的資料欄位（姓名、成績），
+虛擬碼只寫 $\mathit{key}$ 和指標，其他欄位跟著節點一起搬。
+
+\begin{center}
+\begin{tikzpicture}
+\node[lname] (hd) at (0,0) {head};
+\lnode{a}{1.4,0}{115}
+\lnode{b}{3.4,0}{160}
+\lnode{c}{5.4,0}{207}
+\lnode{d}{7.4,0}{342}
+\draw[lnk] (hd) -- (a);
+\llink{a}{-- (b)}
+\llink{b}{-- (c)}
+\llink{c}{-- (d)}
+\lnil{d}
+\end{tikzpicture}
+\diagcaption{有四個節點的單向串列。 每個節點左格是 $\mathit{key}$，右格是
+$\mathit{next}$；斜線表示 \NIL。}
+\label{fig:ll-singly}
+\end{center}
+
+節點在記憶體裡不必相鄰，每個節點各自用 \texttt{malloc} 要來，彼此只靠
+$\mathit{next}$ 串起來。 這帶來兩個後果。 好處是：只要手上有某個節點 $p$，在它後面
+接一個新節點只要改兩個指標，和串列多長無關。 壞處是：想拿第 $k$ 個節點，只能從
+$\mathit{head}$ 開始一個一個往下走，沒有辦法像陣列那樣用位址公式直接算出來（第~4~
+章）。 下表把兩者並排。
+
+\begin{center}
+\begin{tabular}{lll}
+\toprule
+操作（$n$ 個元素） & 陣列（依序存放） & 單向串列（只記 $\mathit{head}$） \\
+\midrule
+取第 $k$ 個 & $\Theta(1)$ & $\Theta(k)$ \\
+找某個 $\mathit{key}$（沒有排序） & $\Theta(n)$ & $\Theta(n)$ \\
+找某個 $\mathit{key}$（已經排序） & $\Theta(\lg n)$，二分搜尋 & $\Theta(n)$ \\
+在最前面插入 & $\Theta(n)$，全部往後挪 & $\Theta(1)$ \\
+已知節點 $p$，在它後面插入或刪除 & $\Theta(n)$ & $\Theta(1)$ \\
+額外記憶體 & 沒有（但要先開好容量） & 每個節點一個指標 \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+排好的串列不能二分搜尋：二分搜尋要直接跳到中間那一格，串列走到中間就要
+$\Theta(n)$ 步。 所以「串列比陣列好」或「陣列比串列好」都不對，要看哪些操作比較常
+做。 第~6~章的堆疊與佇列、第~12~章雜湊的鏈結法、第~21~章圖的相鄰串列，都是挑串列
+擅長的操作來用。
+
+\subsection{搜尋、插入、刪除}
+
+\textbf{搜尋}從 $\mathit{head}$ 往下走，遇到 $\mathit{key}$ 相同的節點就停。
+
+\begin{pseudo}[label=alg:ll-search]{在串列裡找 $k$}
+\Function{List-Search}{$L, k$}
+    \State $x \gets L.\mathit{head}$
+    \While{$x \ne \NIL$ \AND $x.\mathit{key} \ne k$}
+        \State $x \gets x.\mathit{next}$
+    \EndWhile
+    \State \Return $x$ \Comment{找不到時是 \NIL}
+\EndFunction
+\end{pseudo}
+
+最壞情況（$k$ 不在串列裡）要走過全部 $n$ 個節點，$\Theta(n)$。 第 3 行的
+\textbf{and} 先檢查 $x \ne \NIL$，$x$ 是 \NIL 時不會去讀 $x.\mathit{key}$；C 的
+\texttt{\&\&} 也是這樣，兩個條件的順序不能對調。
+
+\textbf{插入}要先說好插在哪裡。 單向串列的節點只知道下一個是誰，不知道上一個是誰，
+所以插入和刪除都以「前一個節點」$p$ 為準：把新節點 $x$ 接在 $p$ 後面，或拿掉 $p$
+後面那一個。 $p = \NIL$ 代表「在最前面」。
+
+\begin{pseudo}[label=alg:ll-insert]{把節點 $x$ 接在 $p$ 後面}
+\Procedure{List-Insert-After}{$L, p, x$}
+    \If{$p = \NIL$} \Comment{接在最前面}
+        \State $x.\mathit{next} \gets L.\mathit{head}$
+        \State $L.\mathit{head} \gets x$
+    \Else
+        \State $x.\mathit{next} \gets p.\mathit{next}$
+        \State $p.\mathit{next} \gets x$
+    \EndIf
+\EndProcedure
+\end{pseudo}
+
+\begin{pseudo}[label=alg:ll-delete]{拿掉 $p$ 後面的節點}
+\Function{List-Delete-After}{$L, p$}
+    \If{$p = \NIL$} \Comment{拿掉第一個}
+        \State $x \gets L.\mathit{head}$
+        \State $L.\mathit{head} \gets x.\mathit{next}$
+    \Else
+        \State $x \gets p.\mathit{next}$
+        \State $p.\mathit{next} \gets x.\mathit{next}$
+    \EndIf
+    \State \Return $x$ \Comment{由呼叫的人決定要不要釋放}
+\EndFunction
+\end{pseudo}
+
+兩個程序都是 $\Theta(1)$：不管串列多長，都只改兩個指標。 前提是被拿掉的節點存在
+（$p = \NIL$ 時串列不是空的，否則 $p.\mathit{next} \ne \NIL$）。 實際上要刪除某個
+$\mathit{key}$ 時，還得先花 $\Theta(n)$ 找到它的前一個節點，所以「串列刪除是
+$\Theta(1)$」只在已經拿到前一個節點時成立。
+
+插入的兩行順序不能對調。 下圖把 $\mathit{key} = 180$ 的節點 $x$ 接在 $160$ 後面。
+如果先做 $p.\mathit{next} \gets x$，$207$ 那個節點就再也沒有人指著，接下來的
+$x.\mathit{next} \gets p.\mathit{next}$ 讀到的是 $x$ 自己，$x$ 指向自己，後半段整條
+遺失。
+
+\begin{center}
+\begin{tikzpicture}
+% 插入前
+\node[anchor=east, font=\small] at (-0.2,0) {插入前};
+\lnode{a}{0.6,0}{115}
+\lnode[lhl]{b}{2.6,0}{160}
+\lnode{c}{4.6,0}{207}
+\lnode{d}{6.6,0}{342}
+\llink{a}{-- (b)}
+\llink{b}{-- (c)}
+\llink{c}{-- (d)}
+\lnil{d}
+\node[font=\scriptsize, text=memStroke] at (2.8,0.6) {$p$};
+% 第一步
+\node[anchor=east, font=\small] at (-0.2,-1.9) {第 6 行};
+\lnode{a2}{0.6,-1.6}{115}
+\lnode[lhl]{b2}{2.6,-1.6}{160}
+\lnode{c2}{4.6,-1.6}{207}
+\lnode{d2}{6.6,-1.6}{342}
+\lnode{x2}{3.6,-2.5}{180}
+\llink{a2}{-- (b2)}
+\llink{b2}{-- (c2)}
+\llink{c2}{-- (d2)}
+\lnil{d2}
+\llink[lnew]{x2}{-- (c2.south)}
+\node[font=\scriptsize, text=black!60] at (2.6,-2.5) {$x$};
+% 第二步
+\node[anchor=east, font=\small] at (-0.2,-4.1) {第 7 行};
+\lnode{a3}{0.6,-3.8}{115}
+\lnode[lhl]{b3}{2.6,-3.8}{160}
+\lnode{c3}{4.6,-3.8}{207}
+\lnode{d3}{6.6,-3.8}{342}
+\lnode{x3}{3.6,-4.7}{180}
+\llink{a3}{-- (b3)}
+\fill[black!70] (b3p.center) circle (1.1pt);
+\draw[lold] (b3p.center) -- (c3);
+\draw[lnew] (b3p.center) -- (x3.north west);
+\llink{x3}{-- (c3.south)}
+\llink{c3}{-- (d3)}
+\lnil{d3}
+\end{tikzpicture}
+\diagcaption{在 $p$（$160$）後面插入 $x$（$180$）。 橘色是這一步新設的指標，灰色虛線
+是被蓋掉的舊指標。 先讓 $x$ 接住後半段，再讓 $p$ 指向 $x$。}
+\label{fig:ll-insert}
+\end{center}
+
+刪除也有一個順序：先把要刪的節點記在變數 $x$ 裡，接好前後，最後才釋放 $x$。 如果
+先釋放，$x.\mathit{next}$ 就讀不到了。
+
+\begin{examnote}
+追蹤指標的題目，一步畫一張圖：先畫操作前的串列，每執行一行指定，就把那一個指標的
+新箭頭畫上、舊箭頭劃掉。 題目問「執行完後串列是什麼」時，從 $\mathit{head}$ 沿著
+箭頭重新走一次再寫答案，不要憑印象寫。 有些節點會變成沒有人指著，答案裡要寫出它們
+已經不在串列上。
+\end{examnote}
+
+\subsection{依序插入與指標的指標}
+
+報名名單要依學號排好。 插入新的學號 $k$ 時，從頭走到第一個 $\mathit{key} \ge k$
+的節點 $q$，把新節點接在 $q$ 的前一個節點 $p$ 後面。 單向串列沒辦法從 $q$ 回頭找
+$p$，所以走的時候讓 $p$ 跟在 $q$ 後面一格。
+
+\begin{pseudo}[label=alg:ll-sorted-insert]{依 $\mathit{key}$ 由小到大插入}
+\Procedure{Sorted-Insert}{$L, x$}
+    \State $p \gets \NIL$ \Comment{$p$ 永遠跟在 $q$ 後面一格}
+    \State $q \gets L.\mathit{head}$
+    \While{$q \ne \NIL$ \AND $q.\mathit{key} < x.\mathit{key}$}
+        \State $p \gets q$
+        \State $q \gets q.\mathit{next}$
+    \EndWhile
+    \State \Call{List-Insert-After}{$L, p, x$}
+\EndProcedure
+\end{pseudo}
+
+為什麼插完之後串列還是排好的？ 用第~1~章的迴圈不變量：每次檢查 \textbf{while} 的
+條件時，從 $\mathit{head}$ 到 $p$（含 $p$）的每個節點都滿足 $\mathit{key} <
+x.\mathit{key}$，而且 $q$ 是 $p$ 的下一個節點（$p = \NIL$ 時 $q$ 是第一個節點）。
+一開始 $p = \NIL$，前一段是空的，成立；每一輪 $q.\mathit{key} < x.\mathit{key}$ 才
+往前走，$p$ 移到 $q$ 之後仍然成立。 迴圈停下時，$q = \NIL$ 或 $q.\mathit{key} \ge
+x.\mathit{key}$。 原本的串列排好了，$p$ 之前的都不大於 $p$，所以把 $x$ 放在 $p$ 和
+$q$ 中間，左邊都比 $x$ 小、右邊都不比 $x$ 小，串列仍然排好。 最壞情況走完整條串
+列，$\Theta(n)$。
+
+虛擬碼裡有兩個地方要分開處理「在最前面」：$p = \NIL$ 的初值，以及
+\proc{List-Insert-After} 的第一個分支。 C 有一個寫法可以把它們合成一種：不記「前一
+個節點」，改記「指向 $q$ 的那個指標欄位在哪裡」。 $q$ 是第一個節點時，指著它的是
+$\mathit{head}$ 這個變數；否則是前一個節點的 \texttt{next} 欄位。 兩者的型別都是
+\texttt{Node *}，所以它們的位址都是 \texttt{Node **}，可以用同一個變數
+\texttt{link} 記。
+
+\begin{cbookrecap}[第~14~章 14.5 節、第~19~章 19.9、19.10 節]
+\texttt{p->next} 是 \texttt{(*p).next} 的簡寫：先沿著指標 \texttt{p} 找到結構，再
+取它的 \texttt{next} 欄位。
+
+C 的參數都是傳值。 函式要改呼叫端的 \texttt{Node *head}，必須收 \texttt{Node **}，
+呼叫時傳 \texttt{\&head}，在函式裡寫 \texttt{*head = ...}。 同樣地，
+\texttt{\&p->next} 是節點 \texttt{p} 的 \texttt{next} 欄位的位址；拿到它，就能改
+「\texttt{p} 的下一個是誰」。 第~19~章用這個寫法把「刪第一個」和「刪中間」寫成同一
+段程式，這一節用同樣的寫法做依序插入。
+\end{cbookrecap}
+
+\begin{center}
+\begin{tikzpicture}
+\node[lname, draw=black!60, minimum width=1.0cm, minimum height=0.65cm] (hd) at (0,0) {};
+\node[lname, above=1pt] at (hd.north) {head};
+\lnode{a}{1.8,0}{115}
+\lnode{c}{3.8,0}{207}
+\lnode{d}{5.8,0}{342}
+\fill[black!70] (hd.center) circle (1.1pt);
+\draw[lnk] (hd.center) -- (a);
+\llink{a}{-- (c)}
+\llink{c}{-- (d)}
+\lnil{d}
+\node[lname, text=memStroke] (lk1) at (0,-1.4) {link（開始）};
+\draw[lnew] (lk1) -- (hd.south);
+\node[lname, text=memStroke] (lk2) at (2.4,-1.4) {link（停下）};
+\draw[lnew] (lk2) -- (ap.south);
+\end{tikzpicture}
+\diagcaption{插入 $160$ 時 \texttt{link} 的位置。 它一開始指向 \texttt{head} 這個
+變數；$115 < 160$，往前一格，改指向 $115$ 的 \texttt{next} 欄位；那個欄位指著
+$207 \ge 160$，停下。 新節點就接在 \texttt{*link} 這個位置。}
+\label{fig:ll-link}
+\end{center}
+
+\texttt{link} 停下時，\texttt{*link} 就是虛擬碼的 $q$。 插入只要兩行：
+\texttt{p->next = *link;} 讓新節點接住 $q$，\texttt{*link = p;} 讓原本指著 $q$ 的
+那個指標（不管是 \texttt{head} 還是某個 \texttt{next}）改指新節點。 刪除也一樣：
+\texttt{*link = dead->next;}。 下面的程式用它管理報名名單。 為了圖好畫，學號只寫
+末三碼。
+
+\begin{example}[label=ex:ll-signup]{c}{(signup.c) 依學號排好的報名名單}
+#include <stdio.h>
+#include <stdlib.h>
+
+typedef struct Node {
+    int id;                 // 學號（這裡只用末三碼）
+    struct Node *next;
+} Node;
+
+// 回傳「指向第一個 id >= x 的節點」的那個指標欄位的位址，
+// 可能是 head 本身，也可能是某個節點的 next 欄位。
+Node **find_link(Node **head, int x)
+{
+    Node **link = head;
+    while (*link != NULL && (*link)->id < x)
+        link = &(*link)->next;
+    return link;
+}
+
+// 依學號由小到大插入。成功回傳 1，已經在名單上回傳 0，
+// 要不到記憶體回傳 -1。
+int add(Node **head, int x)
+{
+    Node **link = find_link(head, x);
+    if (*link != NULL && (*link)->id == x)
+        return 0;
+    Node *p = malloc(sizeof *p);
+    if (p == NULL)
+        return -1;
+    p->id = x;
+    p->next = *link;        // 先接住後面那一段
+    *link = p;              // 再讓前面指向新節點
+    return 1;
+}
+
+// 刪除學號 x。成功回傳 1，找不到回傳 0。
+int drop(Node **head, int x)
+{
+    Node **link = find_link(head, x);
+    if (*link == NULL || (*link)->id != x)
+        return 0;
+    Node *dead = *link;
+    *link = dead->next;     // 前面直接跳過 dead
+    free(dead);
+    return 1;
+}
+
+void print_list(const Node *p)
+{
+    printf("list:");
+    for (; p != NULL; p = p->next)
+        printf(" %d", p->id);
+    printf("\n");
+}
+
+int main(void)
+{
+    Node *head = NULL;
+    int join[] = {207, 115, 342, 160, 115, 101};
+    int quit[] = {115, 300, 342};
+    for (int i = 0; i < 6; i++) {
+        int r = add(&head, join[i]);
+        if (r < 0)
+            break;
+        printf("add %d: %s\n", join[i], r ? "ok" : "already in");
+    }
+    print_list(head);
+    for (int i = 0; i < 3; i++)
+        printf("drop %d: %s\n", quit[i],
+               drop(&head, quit[i]) ? "ok" : "not found");
+    print_list(head);
+    while (head != NULL)    // 全部釋放：每次刪掉第一個
+        drop(&head, head->id);
+    return 0;
+}
+\end{example}
+\iosample{}{add 207: ok \\ add 115: ok \\ add 342: ok \\ add 160: ok \\ add 115: already in \\ add 101: ok \\ list: 101 115 160 207 342 \\ drop 115: ok \\ drop 300: not found \\ drop 342: ok \\ list: 101 160 207}
+
+幾個值得注意的地方：
+
+\begin{itemize}
+\item 加入 $115$ 時它插在最前面，$342$ 插在最後面，$160$ 插在中間，三種情況用的是
+同一段程式。 刪除 $115$ 時它是第一個節點，$342$ 是最後一個，也一樣。
+\item \texttt{find\_link} 只用 \texttt{<} 往前走，停下時 \texttt{*link} 是第一個
+\texttt{id >= x} 的節點，所以只要再比一次 \texttt{==} 就知道 \texttt{x} 在不在名
+單上。 重複報名、取消不存在的學號都在這裡擋掉。
+\item 程式最後一直刪第一個節點，直到名單變空，所有節點都釋放了。 \texttt{drop} 先
+把 \texttt{dead->next} 接好才 \texttt{free(dead)}；順序反過來，就是讀了已經釋放的記
+憶體，AddressSanitizer 會直接報錯。
+\end{itemize}
+
+下表是加入 $160$ 時 \texttt{find\_link} 的過程（這時名單是 $115, 207, 342$）。
+
+\begin{center}
+\begin{tabular}{clll}
+\toprule
+檢查 & \texttt{link} 指向 & \texttt{*link} 指向的節點 & 結果 \\
+\midrule
+1 & \texttt{head} & $115$ & $115 < 160$，往前 \\
+2 & $115$ 的 \texttt{next} & $207$ & $207 \ge 160$，停下 \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+插入之後 $115$ 的 \texttt{next} 指向新節點 $160$，$160$ 的 \texttt{next} 指向
+$207$。 每次操作最多走過整條名單，所以 $n$ 個人的名單每次報名或取消都是 $O(n)$。
+
+\section{帶頭節點、環狀與雙向串列}
+\label{sec:ll-variants}
+
+上一節的程式裡，「在最前面」一直是要另外想的情況。 這一節的三種變形各自解決單向串
+列的一個不方便：頭節點去掉特殊情況，環狀串列讓頭尾都能 $\Theta(1)$ 操作，雙向串列
+讓節點知道前一個是誰。
+
+\subsection{頭節點}
+
+\textbf{頭節點}（header node，也叫 dummy node）是放在串列最前面、不存資料的節點。
+串列改成記住頭節點 $h$，真正的第一個元素是 $h.\mathit{next}$；空串列時
+$h.\mathit{next} = \NIL$，但 $h$ 本身一直存在。 有了它，每個資料節點前面都有一個
+節點，\proc{List-Insert-After} 和 \proc{List-Delete-After} 的 $p$ 永遠不是 \NIL，
+虛擬碼~\ref{alg:ll-insert} 第 2 到 5 行的特殊情況可以整段刪掉，只剩兩行指定。
+
+\begin{center}
+\begin{tikzpicture}
+\node[lname] (h) at (-0.3,0) {h};
+\lnode[lhd]{z}{0.8,0}{}
+\lnode{a}{2.8,0}{12}
+\lnode{b}{4.8,0}{31}
+\lnil{b}
+\draw[lnk] (h) -- (z);
+\llink{z}{-- (a)}
+\llink{a}{-- (b)}
+\node[lname] (h2) at (7.4,0) {h};
+\lnode[lhd]{e}{8.5,0}{}
+\lnil{e}
+\draw[lnk] (h2) -- (e);
+\node[font=\small] at (3.0,-0.8) {兩個元素};
+\node[font=\small] at (8.8,-0.8) {空串列};
+\end{tikzpicture}
+\diagcaption{帶頭節點的串列。 灰底的頭節點不存資料；空串列也有頭節點。}
+\label{fig:ll-header}
+\end{center}
+
+代價是多一個節點的空間，而且走訪時要從 $h.\mathit{next}$ 開始。 C 程式常把頭節點
+宣告成函式裡的區域變數 \texttt{Node head}，用 \texttt{\&head} 當「最後一個節點」開始
+往後接，最後回傳 \texttt{head.next}；這樣接第一個節點時不用判斷串列是不是空的。
+第~\ref{sec:ll-poly}~節的多項式加法和第~\ref{sec:ll-ops}~節的合併都用這個寫法。 它
+和上一節的 \texttt{Node **link} 解決的是同一件事，選一個自己寫得順的就好。
+
+\subsection{環狀串列}
+
+把最後一個節點的 $\mathit{next}$ 接回第一個節點，就是\textbf{環狀串列}（circular
+list）。 環上沒有 \NIL，任何一個節點往下走都會繞回自己。
+
+環狀串列通常記的是\textbf{最後一個}節點 $R.\mathit{last}$。 第一
+個節點就是 $R.\mathit{last}.\mathit{next}$，一步就拿得到；而最後一個節點正是「最前
+面」的前一個節點，所以在最前面和在最後面插入，都是接在 $R.\mathit{last}$ 後面，差
+別只在插完之後 $R.\mathit{last}$ 要不要移到新節點。
+
+\begin{pseudo}[label=alg:ll-ring-push]{在環狀串列的最後面插入}
+\Procedure{Ring-Push-Back}{$R, x$}
+    \If{$R.\mathit{last} = \NIL$} \Comment{空的環：自己接自己}
+        \State $x.\mathit{next} \gets x$
+    \Else
+        \State $x.\mathit{next} \gets R.\mathit{last}.\mathit{next}$
+        \State $R.\mathit{last}.\mathit{next} \gets x$
+    \EndIf
+    \State $R.\mathit{last} \gets x$
+\EndProcedure
+\end{pseudo}
+
+把第 7 行改成「只有原本是空的環時才做」，就是在最前面插入。 兩者都是
+$\Theta(1)$。 如果只記第一個節點，在最前面插入時要改最後一個節點的
+$\mathit{next}$，得先繞一圈找到它，反而變成 $\Theta(n)$。
+
+走訪環狀串列不能用「走到 \NIL 為止」當停止條件，那會永遠走不完。 正確的寫法是從
+第一個節點出發，處理完最後一個（$x = R.\mathit{last}$）就停，或是用
+\textbf{do-while}：先處理再前進，前進後回到起點就停。
+
+\begin{center}
+\begin{tikzpicture}[lkey/.append style={minimum width=1.1cm}]
+\lnode{a}{0,0}{Ming}
+\lnode{b}{2.4,0}{Hua}
+\lnode{c}{4.8,0}{Ting}
+\llink{a}{-- (b)}
+\llink{b}{-- (c)}
+\fill[black!70] (cp.center) circle (1.1pt);
+\draw[lnk, rounded corners=6pt] (cp.center) -- ++(0.5,0) -- ++(0,-0.75) -- ($(a.south)+(0,-0.42)$) -- (a.south);
+\node[lname, text=memStroke] (lst) at (5.05,1.1) {last};
+\draw[lnew] (lst) -- (c.north);
+\end{tikzpicture}
+\diagcaption{三個人的值日環。 \texttt{last} 指向 Ting，今天值日的是
+\texttt{last->next}，也就是 Ming。}
+\label{fig:ll-ring}
+\end{center}
+
+下面的例子是實驗室的值日輪替：每天由環上的下一位值日；新加入的人排在這一輪的最後
+（也就是今天值日的人的前一位）；有人離開就從環上拿掉。 「過一天」只要把
+\texttt{last} 往前移一格，整個環就轉了一格，不用搬任何節點。
+
+\begin{example}[label=ex:ll-duty]{c}{(duty\_ring.c) 用環狀串列排值日}
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+
+typedef struct Member {
+    char name[16];
+    struct Member *next;
+} Member;
+
+// 環只記 last：last 是這一輪的最後一位，last->next 是今天值日的人。
+// 新成員接在 last 後面，再讓 last 指向他，也就是排到這一輪的最後。
+int join(Member **last, const char *name)
+{
+    Member *p = malloc(sizeof *p);
+    if (p == NULL)
+        return 0;
+    snprintf(p->name, sizeof p->name, "%s", name);
+    if (*last == NULL) {
+        p->next = p;                // 只有一個人：自己接自己
+    } else {
+        p->next = (*last)->next;
+        (*last)->next = p;
+    }
+    *last = p;
+    return 1;
+}
+
+// 名字是 name 的人退出。找到回傳 1，找不到回傳 0。
+int leave(Member **last, const char *name)
+{
+    if (*last == NULL)
+        return 0;
+    Member *prev = *last;
+    Member *cur = prev->next;       // 從今天值日的人開始繞一圈
+    do {
+        if (strcmp(cur->name, name) == 0) {
+            if (cur == prev)            // 環上只剩他一個
+                *last = NULL;
+            else {
+                prev->next = cur->next;
+                if (cur == *last)       // 刪掉的是最後一位
+                    *last = prev;
+            }
+            free(cur);
+            return 1;
+        }
+        prev = cur;
+        cur = cur->next;
+    } while (prev != *last);
+    return 0;
+}
+
+int main(void)
+{
+    Member *last = NULL;
+    char op, name[16];
+    int day = 0;
+    while (scanf(" %c", &op) == 1) {
+        if (op == 'N') {            // 過一天：環轉一格
+            if (last == NULL)
+                printf("day %d: nobody\n", ++day);
+            else {
+                printf("day %d: %s\n", ++day, last->next->name);
+                last = last->next;
+            }
+        } else if (scanf("%15s", name) == 1) {
+            if (op == 'J' && !join(&last, name))
+                break;
+            if (op == 'L' && !leave(&last, name))
+                printf("%s is not on duty list\n", name);
+        }
+    }
+    while (last != NULL)            // 全部釋放
+        leave(&last, last->next->name);
+    return 0;
+}
+\end{example}
+\iosample{J Ming \\ J Hua \\ J Ting \\ N \\ N \\ J Wei \\ N \\ L Hua \\ N \\ N \\ L Ting \\ L Ming \\ L Ting \\ N \\ N \\ L Wei \\ N}{day 1: Ming \\ day 2: Hua \\ day 3: Ting \\ day 4: Ming \\ day 5: Wei \\ Ting is not on duty list \\ day 6: Wei \\ day 7: Wei \\ day 8: nobody}
+
+\texttt{J} 是加入，\texttt{L} 是離開，\texttt{N} 是過一天。 Wei 是在第 2 天之後加入的，那時 \texttt{last} 是 Hua、明天輪到 Ting，Wei 接在 Hua
+後面，也就是 Ting 的前一位，等 Ting、Ming、Hua 都輪過才輪到他；Hua 在第 5 天之前離開，
+所以第 5 天就是 Wei。 環上只剩 Wei 時，他的 \texttt{next} 指向自己，每
+天都是他。
+
+\texttt{leave} 有三種情況要分開想：刪掉之後環變空了、刪掉的是 \texttt{last}（
+\texttt{last} 要退回前一個）、其他。 它的迴圈用 \textbf{do-while}，停止條件是「剛檢
+查完的是 \texttt{last}」，繞完一圈就停。 程式結束前，每次讓今天值日的人
+（\texttt{last->next}）離開，\texttt{leave} 第一個就找到他，一次 $\Theta(1)$，直到環
+變空。 第~\ref{sec:ll-avail}~節會看到，如果節點是還給自己管理的節點池，整個環可以一
+次 $\Theta(1)$ 還回去。
+
+\subsection{雙向串列}
+
+單向串列拿到一個節點 $x$，沒有辦法 $\Theta(1)$ 把它刪掉，因為改的是前一個節點的
+$\mathit{next}$，而前一個節點只能從頭找。 \textbf{雙向串列}（doubly linked list）
+的每個節點多一個 $\mathit{prev}$ 指向前一個節點，兩個方向都能走，刪除任何已知的節
+點都是 $\Theta(1)$。
+
+雙向串列最好寫的形式是\textbf{帶頭節點的環狀雙向串列}：頭節點 $h$ 的
+$\mathit{next}$ 是第一個元素，$\mathit{prev}$ 是最後一個元素；空串列時
+$h.\mathit{next} = h.\mathit{prev} = h$。 這樣每個資料節點的前後都一定有節點（可能
+是 $h$），插入、刪除完全沒有特殊情況。
+
+\begin{center}
+\begin{tikzpicture}[
+    dn/.style={draw=black!60, minimum width=0.85cm, minimum height=0.65cm, font=\ttfamily\small},
+]
+\node[dn, fill=black!8] (h) at (0,0) {h};
+\node[dn] (a) at (2.2,0) {12};
+\node[dn] (b) at (4.4,0) {31};
+\node[dn] (c) at (6.6,0) {47};
+\foreach \u/\v in {h/a, a/b, b/c} {
+    \draw[lnk] ([yshift=4pt]\u.east) -- ([yshift=4pt]\v.west);
+    \draw[lnk] ([yshift=-4pt]\v.west) -- ([yshift=-4pt]\u.east);
+}
+\draw[lnk, rounded corners=6pt] (c.north) -- ++(0,0.55) -| (h.north);
+\draw[lnk, rounded corners=6pt] ([xshift=-6pt]h.south) -- ++(0,-0.55) -| ([xshift=-6pt]c.south);
+\node[font=\scriptsize, text=black!60] at (3.3,1.12) {最後一個的 next 是 h};
+\node[font=\scriptsize, text=black!60] at (3.3,-1.12) {h 的 prev 是最後一個};
+\end{tikzpicture}
+\diagcaption{帶頭節點的環狀雙向串列。 上排箭頭是 $\mathit{next}$，下排是
+$\mathit{prev}$。}
+\label{fig:ll-doubly}
+\end{center}
+
+\begin{pseudo}[label=alg:ll-dinsert]{雙向串列：把 $x$ 接在 $p$ 後面}
+\Procedure{DList-Insert-After}{$p, x$}
+    \State $x.\mathit{prev} \gets p$
+    \State $x.\mathit{next} \gets p.\mathit{next}$
+    \State $p.\mathit{next}.\mathit{prev} \gets x$
+    \State $p.\mathit{next} \gets x$
+\EndProcedure
+\end{pseudo}
+
+\begin{pseudo}[label=alg:ll-dremove]{雙向串列：拿掉節點 $x$}
+\Procedure{DList-Remove}{$x$}
+    \State $x.\mathit{prev}.\mathit{next} \gets x.\mathit{next}$
+    \State $x.\mathit{next}.\mathit{prev} \gets x.\mathit{prev}$
+\EndProcedure
+\end{pseudo}
+
+插入要改四個指標：新節點自己的兩個、前一個的 $\mathit{next}$、後一個的
+$\mathit{prev}$。 順序的限制只有一條：第 5 行會蓋掉 $p.\mathit{next}$，而第 3、4 行
+都要用到舊的 $p.\mathit{next}$，所以這兩行要在第 5 行之前做。 第 4 行若改寫成
+$x.\mathit{next}.\mathit{prev} \gets x$，限制就換成「要在第 3 行之後」。 在頭節點
+$h$ 後面插入是放到最前面，在 $h.\mathit{prev}$ 後面插入是放到
+最後面。 刪除只改兩個指標，被刪的 $x$ 自己的指標不用動。
+
+\begin{center}
+\begin{tikzpicture}[
+    dn/.style={draw=black!60, minimum width=0.85cm, minimum height=0.65cm, font=\ttfamily\small},
+]
+\node[dn] (p) at (0,0) {31};
+\node[dn] (q) at (4.4,0) {47};
+\node[dn, draw=memStroke, thick, fill=memFill] (x) at (2.2,-2.0) {40};
+\draw[lold] ([yshift=4pt]p.east) -- ([yshift=4pt]q.west);
+\draw[lold] ([yshift=-4pt]q.west) -- ([yshift=-4pt]p.east);
+\draw[lnew] (x.west) to[bend left=25] node[stepno, pos=0.5, left=2pt] {2} (p.south west);
+\draw[lnew] (x.north east) -- node[stepno, pos=0.5, left=2pt] {3} (q.south west);
+\draw[lnew] (q.south east) to[bend left=25] node[stepno, pos=0.5, right=2pt] {4} (x.east);
+\draw[lnew] (p.south east) -- node[stepno, pos=0.5, right=2pt] {5} (x.north west);
+\node[font=\scriptsize, text=memStroke] at (-0.6,0.5) {$p$};
+\end{tikzpicture}
+\diagcaption{在 $p$（$31$）後面插入 $x$（$40$）。 圓圈裡的數字是虛擬碼~\ref{alg:ll-dinsert}
+的行號，灰色虛線是被取代的兩個舊指標。}
+\label{fig:ll-dinsert}
+\end{center}
+
+翻成 C 時，節點多一個 \texttt{struct DNode *prev} 欄位，四行指定一行對一行照抄（例如
+\texttt{x->prev = p;}）；空串列由 \texttt{h->next = h->prev = h} 開始。
+\proc{DList-Remove} 不負責釋放，拿下來的節點可以 \texttt{free}，也可以接到別的地方，
+例如再接到 $h$ 後面，就是「移到最前面」。
+
+\subsection{幾種串列的比較}
+
+下表整理本節三種結構和單向串列的成本。 「單向」只記 $\mathit{head}$，「單向＋tail」
+另外記最後一個節點，「單向環狀」只記 $\mathit{last}$，「雙向環狀」帶頭節點。 「已知
+節點 $x$」是說手上已經有指向 $x$ 的指標，不包含找到它的時間。
+
+\begin{center}
+{\small
+\begin{tabular}{lcccc}
+\toprule
+操作 & 單向 & 單向＋tail & 單向環狀 & 雙向環狀 \\
+\midrule
+在最前面插入 & $\Theta(1)$ & $\Theta(1)$ & $\Theta(1)$ & $\Theta(1)$ \\
+在最後面插入 & $\Theta(n)$ & $\Theta(1)$ & $\Theta(1)$ & $\Theta(1)$ \\
+刪除第一個 & $\Theta(1)$ & $\Theta(1)$ & $\Theta(1)$ & $\Theta(1)$ \\
+刪除最後一個 & $\Theta(n)$ & $\Theta(n)$ & $\Theta(n)$ & $\Theta(1)$ \\
+刪除已知節點 $x$ & $\Theta(n)$ & $\Theta(n)$ & $\Theta(n)$ & $\Theta(1)$ \\
+每個節點的指標數 & 1 & 1 & 1 & 2 \\
+\bottomrule
+\end{tabular}}
+\end{center}
+
+「刪除最後一個」在單向串列裡都是 $\Theta(n)$，即使記了 \texttt{tail} 也一樣：刪掉
+之後 \texttt{tail} 要改成倒數第二個，而倒數第二個只能從頭找。 第~6~章用串列做佇列
+時，會選「在最後面插入、刪除第一個」這兩個在單向串列上都便宜的操作。
+
+\begin{examnote}
+寫串列的程式題時，寫完後拿四種情況各檢查一次：空串列、只有一個節點、操作的是第一
+個節點、操作的是最後一個節點。 大部分錯誤（讀到 \NIL 的欄位、\texttt{head} 或
+\texttt{last} 沒有更新）都出在這四種情況。 有頭節點或用 \texttt{Node **} 時，可以
+在答案裡說明為什麼這些情況不必另外處理。
+\end{examnote}
+
+\section{用串列表示多項式與稀疏矩陣}
+\label{sec:ll-poly}
+
+第~4~章用陣列存多項式和稀疏矩陣：多項式可以存全部的係數，也可以只存非零項；稀疏
+矩陣用三元組 $(\text{列}, \text{行}, \text{值})$ 的陣列。 只存非零項省空間，但項數
+會變的時候（相加後有些項相消、相乘後項數變多），陣列要預先開多大很難說，插入一項還
+得挪動後面的項。 改用串列，每一項是一個節點，要多少就配置多少。
+
+\subsection{多項式}
+
+多項式的每一個非零項存成一個節點，欄位是係數 $\mathit{coef}$、次方 $\mathit{exp}$
+和 $\mathit{next}$，節點依次方由大到小串起來。 例如
+\[
+A(x) = 5x^{12} - 3x^{7} + x^{2} + 8, \qquad B(x) = 2x^{9} + 3x^{7} - x^{2} + 4x
+\]
+存成下圖的兩條串列，每個節點寫成「係數, 次方」。
+
+\begin{center}
+\begin{tikzpicture}[lkey/.append style={minimum width=1.05cm}]
+\node[lname] (ha) at (-0.4,0) {A};
+\lnode{a1}{0.8,0}{5,12}
+\lnode{a2}{3.0,0}{-3,7}
+\lnode{a3}{5.2,0}{1,2}
+\lnode{a4}{7.4,0}{8,0}
+\draw[lnk] (ha) -- (a1);
+\llink{a1}{-- (a2)}
+\llink{a2}{-- (a3)}
+\llink{a3}{-- (a4)}
+\lnil{a4}
+\node[lname] (hb) at (-0.4,-1.1) {B};
+\lnode{b1}{0.8,-1.1}{2,9}
+\lnode{b2}{3.0,-1.1}{3,7}
+\lnode{b3}{5.2,-1.1}{-1,2}
+\lnode{b4}{7.4,-1.1}{4,1}
+\draw[lnk] (hb) -- (b1);
+\llink{b1}{-- (b2)}
+\llink{b2}{-- (b3)}
+\llink{b3}{-- (b4)}
+\lnil{b4}
+\end{tikzpicture}
+\diagcaption{多項式 $A$、$B$ 的串列，依次方由大到小。 係數是 $0$ 的項不存。}
+\label{fig:ll-poly}
+\end{center}
+
+相加的做法和合併兩條排好的串列一樣：$a$、$b$ 各指著一條串列目前的項，次方大的那一
+項先抄到結果；次方一樣就把係數加起來，和不是 $0$ 才抄，兩邊一起前進。 有一邊走完
+了，另一邊剩下的項全部照抄。
+
+\begin{pseudo}[label=alg:ll-poly-add]{多項式相加}
+\Function{Poly-Add}{$a, b$} \Comment{$a$、$b$ 指向兩個多項式的第一項}
+    \State $h \gets$ 新的頭節點；$t \gets h$ \Comment{$t$ 是結果的最後一項}
+    \While{$a \ne \NIL$ \AND $b \ne \NIL$}
+        \If{$a.\mathit{exp} > b.\mathit{exp}$}
+            \State $t \gets \Call{Attach}{t, a.\mathit{coef}, a.\mathit{exp}}$
+            \State $a \gets a.\mathit{next}$
+        \ElsIf{$a.\mathit{exp} < b.\mathit{exp}$}
+            \State $t \gets \Call{Attach}{t, b.\mathit{coef}, b.\mathit{exp}}$
+            \State $b \gets b.\mathit{next}$
+        \Else
+            \State $s \gets a.\mathit{coef} + b.\mathit{coef}$
+            \If{$s \ne 0$}
+                \State $t \gets \Call{Attach}{t, s, a.\mathit{exp}}$
+            \EndIf
+            \State $a \gets a.\mathit{next}$；$b \gets b.\mathit{next}$
+        \EndIf
+    \EndWhile
+    \State 把 $a$ 或 $b$ 剩下的項依序 \proc{Attach} 到 $t$ 後面
+    \State \Return $h.\mathit{next}$
+\EndFunction
+\end{pseudo}
+
+\proc{Attach}$(t, c, e)$ 配置一個新節點、接在 $t$ 後面，並回傳這個新節點（新的最
+後一項）。 結果用頭節點 $h$ 起頭，第一次 \proc{Attach} 就不用另外處理。
+
+\textbf{成本}。 設 $A$ 有 $m$ 項、$B$ 有 $n$ 項。 迴圈每一輪比較一次次方，至少讓
+$a$、$b$ 其中一個前進一格，所以迴圈最多 $m + n$ 輪；更仔細地說，最後一個被處理的
+項不會在迴圈裡被比較，比較次數最多 $m + n - 1$。 剩下的項照抄，總時間
+$\Theta(m + n)$，和多項式的次數無關。 如果用長度 $d + 1$ 的係數陣列（$d$ 是次方），
+相加要 $\Theta(d)$；$A(x) = x^{1000} + 1$ 這種項數少、次方高的多項式，串列快得多。
+
+\begin{example}[label=ex:ll-poly]{c}{(poly\_add.c) 多項式相加}
+#include <stdio.h>
+#include <stdlib.h>
+
+typedef struct Term {
+    int coef;               // 係數，不會是 0
+    int exp;                // 次方，由大到小排
+    struct Term *next;
+} Term;
+
+// 在 tail 後面接上一個新項，回傳新的尾巴；要不到記憶體回傳 NULL。
+Term *attach(Term *tail, int coef, int exp)
+{
+    Term *t = malloc(sizeof *t);
+    if (t == NULL)
+        return NULL;
+    t->coef = coef;
+    t->exp = exp;
+    t->next = NULL;
+    tail->next = t;
+    return t;
+}
+
+// 從陣列 c[0..m-1]、e[0..m-1] 建一個多項式。
+Term *build(const int *c, const int *e, int m)
+{
+    Term head = {0, 0, NULL};       // 頭節點：只用它的 next
+    Term *t = &head;
+    for (int i = 0; i < m && t != NULL; i++)
+        t = attach(t, c[i], e[i]);
+    return head.next;
+}
+
+// 回傳 a + b，a、b 不變。*cmp 記錄比較了幾次次方。
+Term *poly_add(const Term *a, const Term *b, int *cmp)
+{
+    Term head = {0, 0, NULL};
+    Term *t = &head;
+    *cmp = 0;
+    while (a != NULL && b != NULL && t != NULL) {
+        (*cmp)++;
+        if (a->exp > b->exp) {
+            t = attach(t, a->coef, a->exp);
+            a = a->next;
+        } else if (a->exp < b->exp) {
+            t = attach(t, b->coef, b->exp);
+            b = b->next;
+        } else {
+            if (a->coef + b->coef != 0)     // 係數相消就不留這一項
+                t = attach(t, a->coef + b->coef, a->exp);
+            a = a->next;
+            b = b->next;
+        }
+    }
+    for (; a != NULL && t != NULL; a = a->next)     // 剩下的照抄
+        t = attach(t, a->coef, a->exp);
+    for (; b != NULL && t != NULL; b = b->next)
+        t = attach(t, b->coef, b->exp);
+    return head.next;
+}
+
+// 每一項印成 (係數,次方)，然後釋放整條串列。
+void print_and_free(const char *name, Term *p)
+{
+    printf("%s:", name);
+    while (p != NULL) {
+        Term *next = p->next;
+        printf(" (%d,%d)", p->coef, p->exp);
+        free(p);
+        p = next;
+    }
+    printf("\n");
+}
+
+int main(void)
+{
+    int ca[] = {5, -3, 1, 8}, ea[] = {12, 7, 2, 0};
+    int cb[] = {2, 3, -1, 4}, eb[] = {9, 7, 2, 1};
+    Term *a = build(ca, ea, 4);
+    Term *b = build(cb, eb, 4);
+    int cmp;
+    Term *c = poly_add(a, b, &cmp);
+    print_and_free("A", a);
+    print_and_free("B", b);
+    print_and_free("A+B", c);
+    printf("exponent comparisons = %d\n", cmp);
+    return 0;
+}
+\end{example}
+\iosample{}{A: (5,12) (-3,7) (1,2) (8,0) \\ B: (2,9) (3,7) (-1,2) (4,1) \\ A+B: (5,12) (2,9) (4,1) (8,0) \\ exponent comparisons = 5}
+
+$A$、$B$ 的係數和次方寫在 \texttt{main} 的陣列裡，次方由大到小。 輸出把每一項印成
+（係數, 次方），結果是 $A + B = 5x^{12} + 2x^{9} + 4x + 8$。
+
+逐輪追蹤（「抄」是把那一項接到結果的最後面）：
+
+\begin{center}
+\begin{tabular}{cccl}
+\toprule
+比較 & $a$ 目前的項 & $b$ 目前的項 & 動作 \\
+\midrule
+1 & $5x^{12}$ & $2x^{9}$ & $12 > 9$，抄 $5x^{12}$ \\
+2 & $-3x^{7}$ & $2x^{9}$ & $7 < 9$，抄 $2x^{9}$ \\
+3 & $-3x^{7}$ & $3x^{7}$ & 係數和 $0$，不抄，兩邊都前進 \\
+4 & $x^{2}$ & $-x^{2}$ & 係數和 $0$，不抄，兩邊都前進 \\
+5 & $8$ & $4x$ & $0 < 1$，抄 $4x$；$b$ 走完了 \\
+-- & $8$ & -- & 迴圈結束，抄 $8$ \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+$m = n = 4$，比較了 $5$ 次，少於上限 $m + n - 1 = 7$，因為有兩次是一次消掉兩項。
+
+多項式乘法可以拿 $A$ 的每一項去乘 $B$ 的每一項，得到 $mn$ 個乘積項，再一項一項加
+進結果串列。 結果最多 $mn$ 項，每加一項要在結果裡找位置，最壞情況要
+$O((mn)^2)$；改成每次把「$A$ 的一項乘上整個 $B$」得到的一條排好的串列，用
+\proc{Poly-Add} 加進結果。 第 $i$ 次相加時結果最多 $(i-1)n$ 項，這次相加是 $O(in)$，
+$m$ 次合計 $O(m^2 n)$。
+
+\subsection{稀疏矩陣：正交串列}
+
+稀疏矩陣如果常常要改（把某一格改成 $0$、或把 $0$ 改成非零），三元組陣列每次都要挪
+動，這時可以改用\textbf{正交串列}（orthogonal list，也叫十字串列）。 這一小節只講
+結構和成本，不寫程式。
+
+每個非零元素是一個節點，有五個欄位：列號 $\mathit{row}$、行號 $\mathit{col}$、值
+$\mathit{val}$，以及兩個指標 $\mathit{right}$（同一列的下一個非零元素）和
+$\mathit{down}$（同一行的下一個非零元素）。 每一列有一個列頭節點，把這一列的非零元
+素依行號串成一條環狀串列；每一行也有一個行頭節點，把這一行的非零元素依列號串成環。
+一個節點同時在一條「橫的」串列和一條「直的」串列上，所以叫做正交。 下圖是
+\[
+M = \begin{pmatrix}
+0 & 0 & 3 & 0 \\
+8 & 0 & 0 & 0 \\
+0 & 0 & 0 & 0 \\
+0 & 6 & 0 & 2
+\end{pmatrix}
+\]
+的正交串列。
+
+\begin{center}
+\begin{tikzpicture}[
+    hd/.style={draw=black!60, fill=black!8, minimum width=0.8cm, minimum height=0.6cm, font=\small},
+    en/.style={draw=coreStroke, fill=coreFill, minimum width=1.25cm, minimum height=0.6cm, font=\scriptsize},
+    lnk/.style={-{Stealth[length=1.6mm]}, thick, draw=black!70},
+]
+\foreach \j in {1,...,4} { \node[hd] (C\j) at (\j*1.9,0) {C\j}; }
+\foreach \i in {1,...,4} { \node[hd] (R\i) at (0,-\i*1.1) {R\i}; }
+\node[en] (e13) at (3*1.9,-1*1.1) {1,3 \quad 3};
+\node[en] (e21) at (1*1.9,-2*1.1) {2,1 \quad 8};
+\node[en] (e42) at (2*1.9,-4*1.1) {4,2 \quad 6};
+\node[en] (e44) at (4*1.9,-4*1.1) {4,4 \quad 2};
+% right 指標（同一列）
+\draw[lnk] (R1) -- (e13);
+\draw[lnk] (R2) -- (e21);
+\draw[lnk] (R4) -- (e42);
+\draw[lnk] (e42) -- (e44);
+% down 指標（同一行）
+\draw[lnk, draw=memStroke] (C1) -- (e21);
+\draw[lnk, draw=memStroke] (C2) -- (e42);
+\draw[lnk, draw=memStroke] (C3) -- (e13);
+\draw[lnk, draw=memStroke] (C4) -- (e44);
+\end{tikzpicture}
+\diagcaption{$M$ 的正交串列。 黑色箭頭是 $\mathit{right}$，橘色箭頭是
+$\mathit{down}$；每個節點寫「列, 行　值」。 每一列、每一行的最後一個節點指回自己的
+頭節點，圖上沒有畫出這些指標。 第 3 列沒有非零元素，R3 的 $\mathit{right}$ 指向自
+己。}
+\label{fig:ll-ortho}
+\end{center}
+
+幾個成本：
+
+\begin{itemize}
+\item \textbf{空間}：$r \times c$ 的矩陣有 $t$ 個非零元素時，共 $t$ 個元素節點和
+$r + c$ 個頭節點，$\Theta(t + r + c)$。 三元組陣列是 $\Theta(t)$，正交串列多了頭節
+點，每個節點也比三元組多兩個指標。
+\item \textbf{取 $M[i][j]$}：沿第 $i$ 列走，$O(\text{第 } i \text{ 列的非零個數})$。
+\item \textbf{設定 $M[i][j]$}（新增或刪除一個節點）：在第 $i$ 列找到插入位置的前一個節
+點，在第 $j$ 行也找一次，各改一個指標。 時間是兩條串列的長度，不用挪動其他元素。
+\item \textbf{轉置}：只要把每個節點的 $\mathit{row}$ 和 $\mathit{col}$、
+$\mathit{right}$ 和 $\mathit{down}$ 對調，列頭和行頭對調，$\Theta(t + r + c)$。
+\end{itemize}
+
+矩陣只讀不改時，三元組陣列比較省空間，也比較好寫；元素常常變動時，正交串列省下挪動
+的成本。 第~21~章圖的相鄰串列，可以看成只保留「橫的」那一半的正交串列。
+
+\section{可用空間串列}
+\label{sec:ll-avail}
+
+到目前為止，每個節點都用 \texttt{malloc} 要、用 \texttt{free} 還。 有些情況不想或
+不能這樣做：沒有作業系統的小型裝置可能沒有 \texttt{malloc}；節點很小、配置很頻繁時，
+每次都呼叫 \texttt{malloc} 的額外成本比節點本身還大；有些考題也會直接給兩個陣列
+$\mathit{key}[\,]$、$\mathit{next}[\,]$，要你用陣列模擬串列。 這時可以一次準備好一池
+節點，自己管理哪些在用、哪些空著。
+
+空著的節點也串成一條串列，叫\textbf{可用空間串列}（available-space list，或 free
+list），開頭記在 $\mathit{avail}$。 要節點就從這條串列的最前面拿一個，還節點就放回
+最前面，兩者都是 $\Theta(1)$。 可用空間串列其實就是一個堆疊（第~6~章）。
+
+\begin{pseudo}[label=alg:ll-getnode]{從可用空間串列拿一個節點}
+\Function{Get-Node}{}
+    \If{$\mathit{avail} = \NIL$}
+        \State \Error{沒有可用的節點}
+    \EndIf
+    \State $x \gets \mathit{avail}$
+    \State $\mathit{avail} \gets x.\mathit{next}$
+    \State \Return $x$
+\EndFunction
+\end{pseudo}
+
+\begin{pseudo}[label=alg:ll-retnode]{把節點 $x$ 還回去}
+\Procedure{Ret-Node}{$x$}
+    \State $x.\mathit{next} \gets \mathit{avail}$
+    \State $\mathit{avail} \gets x$
+\EndProcedure
+\end{pseudo}
+
+一開始所有節點都空著，把它們依序串起來就是最初的可用空間串列。 用陣列實作時，
+「指標」改成陣列的編號，\NIL 用一個不會是編號的值（例如 $-1$）表示；
+$x.\mathit{next}$ 寫成 $\mathit{next}[x]$。 這種寫法也叫\textbf{游標}（cursor）實
+作。 一般的串列操作照寫，只是 \texttt{malloc} 換成 \proc{Get-Node}、\texttt{free}
+換成 \proc{Ret-Node}；刪除時一樣要找到前一個節點，插入一樣先接後面再改前面。
+
+下面用一個只有 $5$ 格的節點池追蹤一次。 一開始 $\mathit{avail} = 0$，
+$\mathit{next}[\,] = \langle 1, 2, 3, 4, -1 \rangle$，串列是空的（$\mathit{head} =
+-1$）。 「插入」都插在最前面；「$40@0$」表示 $40$ 放在第 $0$ 格。
+
+\begin{center}
+\begin{tabular}{llll}
+\toprule
+操作 & 用到的格子 & 串列（從 $\mathit{head}$ 走） & 可用空間串列 \\
+\midrule
+插入 40 & 拿第 0 格 & $40@0$ & 1, 2, 3, 4 \\
+插入 25 & 拿第 1 格 & $25@1, 40@0$ & 2, 3, 4 \\
+插入 63 & 拿第 2 格 & $63@2, 25@1, 40@0$ & 3, 4 \\
+刪除 25 & 還第 1 格 & $63@2, 40@0$ & 1, 3, 4 \\
+插入 18 & 拿第 1 格 & $18@1, 63@2, 40@0$ & 3, 4 \\
+插入 77 & 拿第 3 格 & $77@3, 18@1, 63@2, 40@0$ & 4 \\
+插入 52 & 拿第 4 格 & $52@4, 77@3, 18@1, 63@2, 40@0$ & （空） \\
+插入 11 & 失敗 & 不變 & （空） \\
+刪除 18 & 還第 1 格 & $52@4, 77@3, 63@2, 40@0$ & 1 \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+最後的陣列是
+
+\begin{center}
+\begin{tabular}{cccccc}
+\toprule
+編號 & 0 & 1 & 2 & 3 & 4 \\
+\midrule
+$\mathit{key}$ & 40 & 18 & 63 & 77 & 52 \\
+$\mathit{next}$ & $-1$ & $-1$ & 0 & 2 & 3 \\
+\bottomrule
+\end{tabular}
+\qquad $\mathit{head} = 4$，$\mathit{avail} = 1$。
+\end{center}
+
+幾件要看清楚的事：
+
+\begin{itemize}
+\item 刪除 $25$ 把第 $1$ 格還回去，它被放在可用空間串列的\textbf{最前面}，所以下一
+次插入 $18$ 拿到的又是第 $1$ 格。 剛還的節點最先被重用，和堆疊一樣後進先出。
+\item 五格都用完之後，插入 $11$ 失敗。 這是自己管理節點池的代價：容量要事先決定。
+\item 第 $1$ 格的 $\mathit{key}$ 還是 $18$。 還回去的節點不會被清掉，只是不在串列上
+了；判斷一格是不是在用，要看它在哪一條串列上，不能看裡面的值。
+\end{itemize}
+
+\begin{examnote}
+用陣列模擬串列的追蹤題，每一步都寫出 $\mathit{head}$、$\mathit{avail}$ 和有變動的
+$\mathit{next}[\,]$。 最後答案除了陣列內容，最好再從 $\mathit{head}$ 和
+$\mathit{avail}$ 各走一次，寫出兩條串列，例如「串列：$4, 3, 2, 0$；可用：$1$」。
+這兩條串列加起來要剛好是每一格各一次，可以拿來驗算。
+\end{examnote}
+
+\subsection{一次還一整條環狀串列}
+
+要把一條有 $k$ 個節點的單向串列整條還回去，得先走到它的最後一個節點，才能把它接到
+$\mathit{avail}$ 前面，$\Theta(k)$。 環狀串列記的正是最後一個節點，所以可以
+$\Theta(1)$ 做完：
+
+\begin{pseudo}[label=alg:ll-ring-erase]{把整個環還給可用空間串列}
+\Procedure{Ring-Erase}{$R$}
+    \If{$R.\mathit{last} \ne \NIL$}
+        \State $\mathit{first} \gets R.\mathit{last}.\mathit{next}$
+        \State $R.\mathit{last}.\mathit{next} \gets \mathit{avail}$
+        \State $\mathit{avail} \gets \mathit{first}$
+        \State $R.\mathit{last} \gets \NIL$
+    \EndIf
+\EndProcedure
+\end{pseudo}
+
+第 4 行把環在 $\mathit{last}$ 後面剪開、接上原本的可用空間串列，第 5 行讓
+$\mathit{avail}$ 從環的第一個節點開始。 做完之後，原本環上的 $k$ 個節點排在可用空間
+串列的最前面，順序和在環上一樣。 和第~3~章的平攤分析放在一起看：建立一個 $k$ 個
+節點的環要 $k$ 次 \proc{Get-Node}，拆掉只要 $\Theta(1)$，一連串操作的總時間只和配
+置過的節點數有關。
+
+\section{常見操作：反轉、合併、找中間}
+\label{sec:ll-ops}
+
+這一節的三個操作都只改 $\mathit{next}$，不配置新節點，額外空間 $\Theta(1)$。 它們
+常常一起出現：第~14~章串列版的合併排序，就是「找中間切成兩半、各自排好、再合併」。
+這一節用同一個情境示範：兩位助教各自登記了一部分同學的小考成績，名單都依學號排好；
+要把它們合成一份，再切成前後兩半分到兩間教室，後半那間要從學號大的開始點名。
+
+\subsection{反轉}
+
+\textbf{反轉}把串列 $x_1 \to x_2 \to \cdots \to x_n$ 改成 $x_n \to \cdots \to x_1$。
+做法是從頭一個一個拆下來，放到另一條串列 $d$ 的最前面。 拆之前要先記住下一個節點，
+因為改掉 $h.\mathit{next}$ 之後就找不到它了。
+
+\begin{pseudo}[label=alg:ll-reverse]{就地反轉}
+\Function{List-Reverse}{$h$} \Comment{$h$ 指向第一個節點}
+    \State $d \gets \NIL$ \Comment{已經反轉好的一段}
+    \While{$h \ne \NIL$}
+        \State $r \gets h.\mathit{next}$ \Comment{先記住還沒處理的部分}
+        \State $h.\mathit{next} \gets d$
+        \State $d \gets h$
+        \State $h \gets r$
+    \EndWhile
+    \State \Return $d$
+\EndFunction
+\end{pseudo}
+
+用 $112 \to 115 \to 117 \to 120$ 追蹤，每一列是 \textbf{while} 做完一輪之後的狀態：
+
+\begin{center}
+\begin{tabular}{clll}
+\toprule
+輪 & 這一輪搬的節點 & $d$ 那一段 & $h$ 那一段 \\
+\midrule
+開始 & -- & （空） & $112 \to 115 \to 117 \to 120$ \\
+1 & $112$ & $112$ & $115 \to 117 \to 120$ \\
+2 & $115$ & $115 \to 112$ & $117 \to 120$ \\
+3 & $117$ & $117 \to 115 \to 112$ & $120$ \\
+4 & $120$ & $120 \to 117 \to 115 \to 112$ & （空） \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\begin{theorem}
+\label{thm:ll-reverse}
+\proc{List-Reverse} 回傳反轉後的串列，時間 $\Theta(n)$，額外空間 $\Theta(1)$。
+\end{theorem}
+
+\begin{proof}
+設原本的串列是 $x_1 \to \cdots \to x_n$。 不變量：第 $i$ 輪開始時（$1 \le i \le
+n + 1$），$d$ 是 $x_{i-1} \to x_{i-2} \to \cdots \to x_1 \to \NIL$，$h$ 是 $x_i \to
+x_{i+1} \to \cdots \to x_n \to \NIL$，而且 $x_i$ 以後的 $\mathit{next}$ 都沒有被改過
+（$i = n + 1$ 時 $h = \NIL$）。
+
+初始：$i = 1$，$d = \NIL$ 是空的一段，$h$ 是整條原本的串列，成立。
+
+維持：第 $i$ 輪 $h = x_i \ne \NIL$。 第 4 行記下 $r = x_{i+1}$（$i = n$ 時是
+\NIL）；第 5 行讓 $x_i$ 指向 $d$，$d$ 這一段變成 $x_i \to x_{i-1} \to \cdots \to
+x_1$；第 6、7 行讓 $d = x_i$、$h = x_{i+1}$。 第 5 行只改了 $x_i$ 的
+$\mathit{next}$，$x_{i+1}$ 以後沒有動，所以 $h$ 仍然是 $x_{i+1} \to \cdots \to x_n$。
+下一輪開始時不變量對 $i + 1$ 成立。
+
+結束：迴圈在 $h = \NIL$ 時停，也就是 $i = n + 1$。 這時 $d$ 是 $x_n \to \cdots \to
+x_1 \to \NIL$，正是反轉後的串列。
+
+迴圈跑 $n$ 輪，每輪 $\Theta(1)$；只用了 $d$、$r$ 兩個額外的指標。
+\end{proof}
+
+反轉也可以寫成遞迴：先反轉 $x_2$ 以後的部分，再把 $x_1$ 接到它的最後面。 遞迴的深
+度是 $n$，要 $\Theta(n)$ 的堆疊空間，串列很長時可能用光呼叫堆疊（《C 程式設計基礎》
+第~19~章 19.7 節）。 觀念題第 7 題會證明遞迴版的正確性。
+
+\subsection{合併兩條排好的串列}
+
+兩條依 $\mathit{key}$ 由小到大排好的串列，要合成一條排好的串列。 和多項式相加一
+樣，兩邊各一個指標，每次把比較小的那個節點接到結果的最後面；不同的是這裡直接搬原本
+的節點，不配置新的。
+
+\begin{pseudo}[label=alg:ll-merge]{合併兩條排好的串列}
+\Function{Merge-Lists}{$a, b$}
+    \State $h \gets$ 頭節點；$t \gets h$
+    \While{$a \ne \NIL$ \AND $b \ne \NIL$}
+        \If{$a.\mathit{key} \le b.\mathit{key}$}
+            \State $t.\mathit{next} \gets a$；$a \gets a.\mathit{next}$
+        \Else
+            \State $t.\mathit{next} \gets b$；$b \gets b.\mathit{next}$
+        \EndIf
+        \State $t \gets t.\mathit{next}$
+    \EndWhile
+    \If{$a \ne \NIL$}
+        \State $t.\mathit{next} \gets a$ \Comment{剩下的一整段直接接上}
+    \Else
+        \State $t.\mathit{next} \gets b$
+    \EndIf
+    \State \Return $h.\mathit{next}$
+\EndFunction
+\end{pseudo}
+
+兩點說明。 第一，第 4 行用 $\le$：$\mathit{key}$ 相同時先拿 $a$ 的，所以同樣
+$\mathit{key}$ 的節點保持「$a$ 的在前、$b$ 的在後」。 這叫做\textbf{穩定}
+（stable），第~14~章的合併排序靠這一點才是穩定的排序。 第二，某一邊用完時，另一邊
+剩下的部分本來就排好了，而且都不比已經接上的節點小，整段接上只要 $\Theta(1)$，不用
+一個一個搬。 這是串列比陣列方便的地方。
+
+設兩條串列各有 $m$、$n$ 個節點。 每比較一次，就有一個節點接到結果上，而迴圈在其中
+一邊用完時就停，所以比較次數介於 $\min(m, n)$ 和 $m + n - 1$ 之間（觀念題第 6 題會證
+明兩個界都達得到）。 剩下的一段只花 $\Theta(1)$ 接上，所以總時間也介於
+$\Theta(\min(m, n))$ 和 $\Theta(m + n)$ 之間，一般寫成 $O(m + n)$。 陣列版的合併
+必須把剩下的元素一個一個抄過去，永遠是 $\Theta(m + n)$。
+
+\subsection{找中間：快慢指標}
+
+要把串列切成前後兩半，得先知道中間在哪裡。 直接的做法是先走一次數出長度 $n$，再走
+$\lceil n/2 \rceil$ 步。 另一種做法只走一次：兩個指標一起從頭出發，\textbf{慢指
+標} $s$ 每次走一步，\textbf{快指標} $f$ 每次走兩步。 $f$ 走到尾巴時，$s$ 剛好在中
+間。
+
+\begin{pseudo}[label=alg:ll-split]{切成前後兩半，前半有 $\lceil n/2 \rceil$ 個節點}
+\Function{Split-Half}{$h$}
+    \If{$h = \NIL$}
+        \State \Return \NIL
+    \EndIf
+    \State $s \gets h$；$f \gets h.\mathit{next}$
+    \While{$f \ne \NIL$ \AND $f.\mathit{next} \ne \NIL$}
+        \State $s \gets s.\mathit{next}$
+        \State $f \gets f.\mathit{next}.\mathit{next}$
+    \EndWhile
+    \State $b \gets s.\mathit{next}$；$s.\mathit{next} \gets \NIL$
+    \State \Return $b$ \Comment{後半的開頭；前半仍從 $h$ 開始}
+\EndFunction
+\end{pseudo}
+
+\begin{theorem}
+\label{thm:ll-split}
+設 $h$ 是 $x_1 \to \cdots \to x_n$，$n \ge 1$。 \proc{Split-Half} 的迴圈跑
+$\lfloor (n-1)/2 \rfloor$ 輪，結束時 $s = x_{\lceil n/2 \rceil}$，所以前半是
+$x_1, \ldots, x_{\lceil n/2 \rceil}$。
+\end{theorem}
+
+\begin{proof}
+做完 $k$ 輪之後，$s = x_{1+k}$，$f = x_{2+2k}$（$2 + 2k > n$ 時 $f = \NIL$）。
+這對 $k = 0$ 成立，每一輪 $s$ 前進一格、$f$ 前進兩格，所以一直成立。 迴圈繼續的條
+件是 $x_{2+2k}$ 和 $x_{3+2k}$ 都存在，也就是 $2k + 3 \le n$。 所以迴圈跑的輪數
+$K$ 是滿足 $2k + 3 \le n$ 的非負整數 $k$ 的個數，$K = \max(0, \lfloor (n-3)/2 \rfloor
++ 1) = \lfloor (n-1)/2 \rfloor$。
+
+$n = 2m + 1$ 時 $K = m$，$s = x_{m+1} = x_{\lceil n/2 \rceil}$；$n = 2m$ 時
+$K = m - 1$，$s = x_m = x_{n/2}$。 兩種情況都是 $x_{\lceil n/2 \rceil}$。
+\end{proof}
+
+$f$ 從 $h.\mathit{next}$ 出發而不是從 $h$ 出發，是為了偶數長度時讓 $s$ 停在兩個中
+間節點的\textbf{前一個}。 $n = 2$ 時這樣切成 $1 + 1$；如果 $f$ 從 $h$ 出發，會切成
+$2 + 0$，合併排序用它的話會一直切不開（觀念題第 11 題）。
+
+快慢指標和「先數長度」的做法都走了大約 $1.5n$ 個指標：$f$ 走 $n$ 步、$s$ 走 $n/2$
+步。 它的好處在不需要先知道長度。 同樣的技巧也能判斷串列有沒有環：有環的話快指標會在環
+上追上慢指標，沒有環的話快指標會先走到 \NIL。
+
+\subsection{例子：兩位助教的成績名單}
+
+下面的程式把三個操作串起來：合併兩位助教的名單，切成兩半，再把後半反轉。 節點除了
+學號還有成績；為了版面只印學號，成績跟著節點一起搬，不用另外處理。 \texttt{merge} 和 \texttt{split\_half} 是虛擬
+碼~\ref{alg:ll-merge}、\ref{alg:ll-split} 的直接翻譯，\texttt{merge} 的頭節點是區域
+變數。
+
+\begin{example}[label=ex:ll-ops]{c}{(list\_ops.c) 合併、切半、反轉}
+#include <stdio.h>
+
+typedef struct Node {
+    int id, score;          // 學號、小考成績
+    struct Node *next;
+} Node;
+
+// 把陣列 a[0..n-1] 裡的節點依序串起來，回傳第一個。
+Node *link_all(Node *a, int n)
+{
+    for (int i = 0; i + 1 < n; i++)
+        a[i].next = &a[i + 1];
+    a[n - 1].next = NULL;
+    return &a[0];
+}
+
+// 合併兩條依學號排好的串列，不配置新節點。*cmp 記錄比較次數。
+Node *merge(Node *a, Node *b, int *cmp)
+{
+    Node head = {0, 0, NULL};
+    Node *t = &head;
+    *cmp = 0;
+    while (a != NULL && b != NULL) {
+        (*cmp)++;
+        if (a->id <= b->id) {
+            t->next = a;
+            a = a->next;
+        } else {
+            t->next = b;
+            b = b->next;
+        }
+        t = t->next;
+    }
+    t->next = (a != NULL) ? a : b;  // 剩下的一整段直接接上
+    return head.next;
+}
+
+// 切成前後兩半，前半有 ceil(n/2) 個節點。回傳後半的開頭。
+Node *split_half(Node *h)
+{
+    if (h == NULL)
+        return NULL;
+    Node *slow = h, *fast = h->next;
+    while (fast != NULL && fast->next != NULL) {
+        slow = slow->next;          // 走一步
+        fast = fast->next->next;    // 走兩步
+    }
+    Node *back = slow->next;
+    slow->next = NULL;              // slow 是前半的最後一個
+    return back;
+}
+
+// 就地反轉，回傳新的開頭。
+Node *reverse(Node *h)
+{
+    Node *done = NULL;              // 已經反轉好的一段
+    while (h != NULL) {
+        Node *rest = h->next;       // 先記住還沒處理的部分
+        h->next = done;
+        done = h;
+        h = rest;
+    }
+    return done;
+}
+
+void print_list(const char *name, const Node *p)   // 只印學號
+{
+    printf("%s:", name);
+    for (; p != NULL; p = p->next)
+        printf(" %d", p->id);
+    printf("\n");
+}
+
+int main(void)
+{
+    // 節點直接放在陣列裡；三個操作都只改 next，不需要 malloc。
+    Node ta1[] = {{103, 72, NULL}, {108, 90, NULL}, {112, 65, NULL},
+                  {120, 88, NULL}};
+    Node ta2[] = {{101, 80, NULL}, {109, 77, NULL}, {110, 93, NULL},
+                  {115, 58, NULL}, {117, 84, NULL}};
+    Node *a = link_all(ta1, 4), *b = link_all(ta2, 5);
+    print_list("TA1", a);
+    print_list("TA2", b);
+    int cmp;
+    Node *all = merge(a, b, &cmp);
+    print_list("merged", all);
+    printf("comparisons = %d\n", cmp);
+    Node *back = split_half(all);
+    print_list("room A", all);
+    print_list("room B", back);
+    print_list("room B reversed", reverse(back));
+    return 0;
+}
+\end{example}
+\iosample{}{TA1: 103 108 112 120 \\ TA2: 101 109 110 115 117 \\ merged: 101 103 108 109 110 112 115 117 120 \\ comparisons = 8 \\ room A: 101 103 108 109 110 \\ room B: 112 115 117 120 \\ room B reversed: 120 117 115 112}
+
+$m + n = 9$，比較了 $8 = m + n - 1$ 次，是最多的情況：最大的 $120$ 在助教一的名單，
+第二大的 $117$ 在助教二的名單，一直到只剩 $120$ 才停。 合併後有 $9$ 個節點，\texttt{split\_half} 讓前半
+有 $\lceil 9/2 \rceil = 5$ 個。 節點都放在 \texttt{main} 的兩個陣列裡，三個操作
+只改 \texttt{next}，沒有配置也沒有釋放任何節點。
+
+\section{本章常見錯誤}
+\label{sec:ll-pitfalls}
+
+\begin{center}
+\begin{tabular}{p{0.24\linewidth}p{0.50\linewidth}p{0.16\linewidth}}
+\toprule
+錯誤 & 例子 & 見 \\
+\midrule
+改指標的順序錯 & 插入時先寫 \texttt{p->next = x} 再寫 \texttt{x->next = p->next}，
+$x$ 指向自己，後半段遺失 & 第~\ref{sec:ll-singly}~節 \\
+釋放之後還在用 & \texttt{free(p); p = p->next;}；刪除時先 \texttt{free} 才接前後 &
+第~\ref{sec:ll-singly}~節 \\
+改到參數的複本 & 函式收 \texttt{Node *head}，在裡面寫 \texttt{head = ...}，呼叫端的
+\texttt{head} 沒變 & 第~\ref{sec:ll-singly}~節 \\
+忘了第一個節點 & 刪除或插入在最前面時沒有更新 \texttt{head} &
+第~\ref{sec:ll-singly}~節 \\
+環狀串列用 \NIL 當停止條件 & \texttt{while (p != NULL)} 走環，永遠停不下來 &
+第~\ref{sec:ll-variants}~節 \\
+雙向串列只改一個方向 & 刪除時只改 \texttt{x->prev->next}，後一個節點的
+\texttt{prev} 還指著 $x$ & 第~\ref{sec:ll-variants}~節 \\
+係數相消的項留在結果裡 & 多項式相加得到「$0x^7$」這種節點 &
+第~\ref{sec:ll-poly}~節 \\
+以為還回去的節點被清空 & 用 $\mathit{key}$ 判斷一格有沒有在用；還回去之後還有別的
+指標指著它 & 第~\ref{sec:ll-avail}~節 \\
+反轉時沒先記住下一個 & 先改 \texttt{h->next = d}，再寫 \texttt{h = h->next}，
+回到了 $d$ & 第~\ref{sec:ll-ops}~節 \\
+快慢指標的起點選錯 & 偶數長度時切成「全部＋空的」，合併排序無窮遞迴 &
+第~\ref{sec:ll-ops}~節 \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\section{觀念題}
+\label{sec:ll-exercises}
+
+題型和研究所考試、期中期末考的筆試相近，有選擇、計算、追蹤、證明和寫程式。 解答在
+本章最後。
+
+\begin{enumerate}
+\item （選擇，可能不只一個答案）一條有 $n$ 個節點的單向串列，只記
+$L.\mathit{head}$，沒有頭節點、也不記最後一個節點。 下列哪些操作在最壞情況下是
+$\Theta(1)$？
+\begin{enumerate}
+\item 在最前面插入一個節點
+\item 刪除最後一個節點
+\item 已知指向節點 $p$ 的指標，在 $p$ 後面插入一個節點
+\item 已知指向節點 $p$ 的指標，在 $p$ 前面插入一個節點，而且串列上原有的每個節點
+仍然存著原本的資料
+\item 求串列的長度
+\end{enumerate}
+
+\item （追蹤）對單向串列 $L$ 執行下面的程序。
+\begin{pseudo}{觀念題 2}
+\Procedure{Mystery}{$L$}
+    \State $p \gets L.\mathit{head}$
+    \While{$p \ne \NIL$ \AND $p.\mathit{next} \ne \NIL$}
+        \State $q \gets p.\mathit{next}$
+        \State $p.\mathit{next} \gets q.\mathit{next}$
+        \State $q.\mathit{next} \gets L.\mathit{head}$
+        \State $L.\mathit{head} \gets q$
+        \State $p \gets p.\mathit{next}$
+    \EndWhile
+\EndProcedure
+\end{pseudo}
+\begin{enumerate}
+\item $L$ 是 $1 \to 2 \to 3 \to 4 \to 5 \to 6 \to 7$。 寫出 \textbf{while} 每一輪之後
+的串列。
+\item 用一句話描述這個程序對一般的串列做了什麼，並寫出 $n$ 個節點時迴圈跑幾輪。
+\end{enumerate}
+
+\item （選擇，可能不只一個答案）在雙向串列裡把節點 $x$ 接在 $p$ 後面（$p$ 後面原本
+有節點），要執行下面四個指定：
+\[
+\text{(1)}\ x.\mathit{next} \gets p.\mathit{next} \quad
+\text{(2)}\ x.\mathit{prev} \gets p \quad
+\text{(3)}\ p.\mathit{next}.\mathit{prev} \gets x \quad
+\text{(4)}\ p.\mathit{next} \gets x
+\]
+下列哪些執行順序是正確的？
+(A) 1, 2, 3, 4 \quad (B) 4, 1, 2, 3 \quad (C) 2, 1, 4, 3 \quad (D) 3, 1, 2, 4 \quad
+(E) 1, 4, 2, 3
+
+\item （追蹤）用陣列模擬串列，節點池有 $6$ 格。 目前的狀態如下，「--」表示那一格的
+$\mathit{key}$ 沒有意義。 $\mathit{head} = 2$，$\mathit{avail} = 3$。
+\begin{center}
+\begin{tabular}{ccccccc}
+\toprule
+編號 & 0 & 1 & 2 & 3 & 4 & 5 \\
+\midrule
+$\mathit{key}$ & 31 & -- & 17 & -- & -- & 8 \\
+$\mathit{next}$ & 5 & 4 & 0 & 1 & $-1$ & $-1$ \\
+\bottomrule
+\end{tabular}
+\end{center}
+依序執行：刪除 $31$、在最前面插入 $44$、在最前面插入 $66$、刪除 $8$。 插入用
+\proc{Get-Node}，刪除時找到前一個節點接好後用 \proc{Ret-Node} 把那一格還回去。 寫出最後的
+$\mathit{key}$、$\mathit{next}$、$\mathit{head}$、$\mathit{avail}$，以及從
+$\mathit{head}$ 和 $\mathit{avail}$ 出發的兩條串列。
+
+\item （追蹤）$3 \times 4$ 的矩陣 $N$ 只有四個非零元素：$N[1][2] = 5$、
+$N[2][4] = -2$、$N[3][1] = 9$、$N[3][3] = 4$。 用第~\ref{sec:ll-poly}~節的正交串列
+存（每列、每行各一個頭節點，串列都是環狀的）。
+\begin{enumerate}
+\item 一共有幾個節點？
+\item 從第 $3$ 列的頭節點沿 $\mathit{right}$ 走一圈，依序經過哪些節點？
+\item 把 $N[3][3]$ 改成 $0$（刪掉那個節點），要改哪兩個指標，各改成指向誰？
+\item 把 $N[2][2]$ 設成 $7$（新增節點 $y$），在第 $2$ 列和第 $2$ 行各要改哪些指標？
+\end{enumerate}
+
+\item （證明）兩條排好的串列各有 $m$、$n$ 個節點（$m, n \ge 1$），用
+\proc{Merge-Lists}（虛擬碼~\ref{alg:ll-merge}）合併。 證明 $\mathit{key}$ 的比較次
+數 $C$ 滿足 $\min(m, n) \le C \le m + n - 1$，並對任意的 $m$、$n$ 各給一組輸入，分
+別讓 $C = \min(m, n)$ 和 $C = m + n - 1$。
+
+\item （證明）下面是遞迴版的反轉，回傳反轉後的第一個節點。
+\begin{pseudo}{觀念題 7}
+\Function{Rev-Rec}{$h$}
+    \If{$h = \NIL$ \OR $h.\mathit{next} = \NIL$}
+        \State \Return $h$
+    \EndIf
+    \State $r \gets \Call{Rev-Rec}{h.\mathit{next}}$
+    \State $h.\mathit{next}.\mathit{next} \gets h$
+    \State $h.\mathit{next} \gets \NIL$
+    \State \Return $r$
+\EndFunction
+\end{pseudo}
+\begin{enumerate}
+\item 對節點個數 $n$ 用數學歸納法證明它是對的。
+\item 如果拿掉第 6 行，對 $1 \to 2 \to 3$ 執行之後會發生什麼事？
+\item 它的額外空間是多少？
+\end{enumerate}
+
+\item （寫程式）用第~\ref{sec:ll-singly}~節的 \texttt{Node} 和 \texttt{Node **}
+寫法，寫出
+\begin{center}
+\texttt{void remove\_all(Node **head, int k)}
+\end{center}
+刪除串列裡所有 \texttt{id} 等於 \texttt{k} 的節點並釋放它們。 要求 $O(n)$ 時間，
+不能另外寫「刪第一個節點」的特殊情況。
+
+\item （找錯）下面兩個函式各有什麼錯？ 說明怎麼改。
+\begin{code}{c}{觀念題 9}
+// (a) 釋放整條串列
+void free_all(Node *head)
+{
+    for (Node *p = head; p != NULL; p = p->next)
+        free(p);
+}
+
+// (b) 刪除第一個節點
+void drop_first(Node *head)
+{
+    Node *p = head;
+    head = head->next;
+    free(p);
+}
+\end{code}
+
+\item （設計）值日環用單向環狀串列表示，只記最後一個節點 $R.\mathit{last}$。 現在
+要把它拆成兩組：從今天值日的人一直到節點 $p$（含 $p$）為第一組，$p$ 之後到
+$R.\mathit{last}$ 為第二組，兩組各自成為一個環，組內的輪替順序不變。 已知 $p$ 在環上
+而且 $p \ne R.\mathit{last}$。 寫出 $\Theta(1)$ 的程序 \proc{Ring-Split}$(R, p)$，
+回傳兩個環各自的最後一個節點。 如果環改成只記第一個節點，還能 $\Theta(1)$ 做到嗎？
+
+\item （計算）把 \proc{Split-Half}（虛擬碼~\ref{alg:ll-split}）第 4 行的
+$f \gets h.\mathit{next}$ 改成 $f \gets h$，其他不變。
+\begin{enumerate}
+\item $n = 1, 2, \ldots, 6$ 時，迴圈結束時 $s$ 是第幾個節點？ 寫出一般的公式。
+\item 用改過的版本切半，再拿去做合併排序（切成兩半、各自遞迴排序、再合併），$n = 2$
+時會發生什麼事？
+\end{enumerate}
+\end{enumerate}
+
+\section{實作練習}
+\label{sec:ll-practice}
+
+下面是 Aki-Judge 上和本章相關的題目。 大部分題目只要交函式和標頭檔，不寫
+\texttt{main}；評測程式會檢查你有沒有真的用節點和指標，有幾題還規定不能配置新節點，
+只能重接原本的 \texttt{next}。
+
+\begin{center}
+\begin{tabular}{llc}
+\toprule
+小節 & 題目 & 難度 \\
+\midrule
+單向串列 & \akiref{build-and-print-a-list}{建立並列印串列} & 暖身 \\
+單向串列 & \akiref{insert-and-delete-at-a-position}{依位置插入與刪除} & 基本 \\
+雙向串列 & \akiref{doubly-linked-list}{雙向鏈結串列} & 基本 \\
+雙向串列 & \akiref{move-to-front-in-a-doubly-linked-list}{雙向鏈結串列的移到最前端} & 基本 \\
+環狀串列 & \akiref{cutting-a-bead-ring-by-color}{依顏色拆開珠串環} & 進階 \\
+用串列表示資料 & \akiref{bead-runs-pack-and-locate}{串珠壓縮與定位} & 基本 \\
+可用空間 & \akiref{best-fit-memory-pool}{最佳適配記憶體池} & 進階 \\
+反轉 & \akiref{reverse-a-linked-list-in-place-iterative}{就地反轉鏈結串列（迴圈）} & 暖身 \\
+反轉 & \akiref{reverse-a-linked-list-in-place-recursive}{遞迴反轉鏈結串列} & 基本 \\
+合併 & \akiref{merge-two-sorted-linked-lists}{合併兩條已排序的鏈結串列} & 基本 \\
+合併 & \akiref{merge-chains-drop-shared-values}{合併兩條鏈並剔除共同值} & 進階 \\
+重接指標 & \akiref{riffle-two-chains-by-counts}{依張數交錯洗牌兩條鏈} & 進階 \\
+重接指標 & \akiref{follow-the-card}{照卡片指示抽牌} & 進階 \\
+重接指標 & \akiref{threading-replies-under-posts}{把回覆接到貼文底下} & 進階 \\
+綜合 & \akiref{clean-up-a-sign-up-list}{整理報名名單} & 進階 \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+「依張數交錯洗牌兩條鏈」和「合併兩條鏈並剔除共同值」的鏈是用指標陣列表示的，
+\texttt{next} 欄位換成了另一個陣列，但想法和本章一樣。 「整理報名名單」的資料量
+大，要在串列上做 $O(n \lg n)$ 的排序，可以先讀第~14~章串列版的合併排序再回來寫。
+
+\section{讀完你應該會}
+\label{sec:ll-checklist}
+
+\begin{itemize}
+\item 能畫出單向、環狀、雙向串列插入和刪除時每一步的指標變化，並說出各種操作在不同
+串列上的成本，以及和陣列比較的取捨。
+\item 能用頭節點或 \texttt{Node **} 寫出沒有特殊情況的插入與刪除，並且釋放所有節
+點，通過 AddressSanitizer 的檢查。
+\item 能用串列做多項式相加並說明比較次數的上限，能畫出稀疏矩陣的正交串列並說出它
+的空間和操作成本。
+\item 能用陣列模擬串列和可用空間串列，逐步追蹤 $\mathit{head}$、$\mathit{avail}$ 和
+$\mathit{next}[\,]$。
+\item 能寫出反轉、合併、快慢指標切半，並用迴圈不變量證明反轉的正確性、算出切半時
+前半的長度。
+\end{itemize}
+
+\textbf{延伸閱讀}（書末會整理完整的參考資料）
+
+\begin{itemize}
+\item Thomas H. Cormen 等，\textit{Introduction to Algorithms}，第 4 版，第 10.2 節：
+雙向串列的搜尋、插入、刪除，以及用哨兵（sentinel）去掉邊界情況，對應本章的頭節點。
+\item Donald E. Knuth，\textit{The Art of Computer Programming}，第 1 冊，第 2.2.3 到
+2.2.6 節：鏈結配置、環狀串列、雙向串列和正交串列的原始講法，可用空間串列也在這
+裡。 寫法比較老，適合想看這些結構來源的人。
+\item Steven S. Skiena，\textit{The Algorithm Design Manual}，第 3 版，第 3.1 節：
+連續存放和鏈結存放的比較，偏重實務上的取捨。
+\item 《C 程式設計基礎》第~19~章：串列的不變式、頭端插入、指標的指標、串接和有序
+合併，C 語法的部分寫得比本章詳細。
+\end{itemize}
+
+\addcontentsline{toc}{section}{觀念題解答}
+\section*{觀念題解答}
+
+\begin{enumerate}
+\item (a)、(c)。 (a) 和 (c) 都只改兩個指標。 (b) 要把倒數第二個節點的
+$\mathit{next}$ 設成 \NIL，只能從頭走過去找，$\Theta(n)$。 (d) 要改 $p$ 前一個節點
+的 $\mathit{next}$，一樣要從頭找。 （如果允許搬資料，可以在 $p$ 後面插入新節點，
+再把 $p$ 和新節點的資料對調，$\Theta(1)$；但這樣 $p$ 這個節點存的資料變了，其他指
+著 $p$ 的指標會看到不同的東西，題目已經排除這種做法。） (e) 要數過每個節點，
+$\Theta(n)$。
+
+\item
+\begin{enumerate}
+\item 每一輪把 $p$ 後面那個節點 $q$ 拿下來放到最前面，$p$ 再往前一格。
+\begin{center}
+\begin{tabular}{clc}
+\toprule
+輪 & 這一輪之後的串列 & 下一輪的 $p$ \\
+\midrule
+1 & $2 \to 1 \to 3 \to 4 \to 5 \to 6 \to 7$ & 3 \\
+2 & $4 \to 2 \to 1 \to 3 \to 5 \to 6 \to 7$ & 5 \\
+3 & $6 \to 4 \to 2 \to 1 \to 3 \to 5 \to 7$ & 7 \\
+\bottomrule
+\end{tabular}
+\end{center}
+第 3 輪之後 $p = 7$，$p.\mathit{next} = \NIL$，迴圈停。
+\item 原本在偶數位置的節點，依相反的順序搬到最前面；奇數位置的節點保持原本的順序
+接在後面。 $p$ 依序是原本的第 $1, 3, 5, \ldots$ 個節點，每輪處理一個偶數位置，迴
+圈跑 $\lfloor n/2 \rfloor$ 輪，總時間 $\Theta(n)$。
+\end{enumerate}
+
+\item (A)、(D)。 (3) 和 (1) 都讀了 $p.\mathit{next}$，要的是原本的後一個節點，所以
+都要在 (4) 之前；(2) 放在哪裡都可以。 (B)：(4) 先做，(1) 讓 $x.\mathit{next} = x$。
+(C)：(3) 在 (4) 之後，$p.\mathit{next}$ 已經是 $x$，結果是 $x.\mathit{prev} = x$，
+原本後一個節點的 $\mathit{prev}$ 沒有改。 (E)：同 (C) 的問題。
+
+\item 四步之後：
+\begin{center}
+\begin{tabular}{ccccccc}
+\toprule
+編號 & 0 & 1 & 2 & 3 & 4 & 5 \\
+\midrule
+$\mathit{key}$ & 44 & -- & 17 & 66 & -- & 8 \\
+$\mathit{next}$ & 2 & 4 & $-1$ & 0 & $-1$ & 1 \\
+\bottomrule
+\end{tabular}
+\end{center}
+$\mathit{head} = 3$，$\mathit{avail} = 5$。 串列：$66, 44, 17$（格 $3, 0, 2$）；可用：
+格 $5, 1, 4$。 過程：刪除 $31$（格 $0$）時 $\mathit{next}[2] \gets 5$，格 $0$ 還回去，
+$\mathit{avail} = 0 \to 3 \to 1 \to 4$；插入 $44$ 拿到格 $0$；插入 $66$ 拿到格 $3$；
+刪除 $8$（格 $5$）時 $\mathit{next}[2] \gets -1$，格 $5$ 放到可用空間串列的最前面。
+格 $5$ 的 $\mathit{key}$ 還是 $8$，但它已經不在串列上。
+
+\item
+\begin{enumerate}
+\item $4$ 個元素節點，加上 $3$ 個列頭、$4$ 個行頭，共 $11$ 個。
+\item 列頭 R3 $\to (3,1)\,9 \to (3,3)\,4 \to$ R3。
+\item $(3,3)$ 是第 $3$ 列的最後一個，也是第 $3$ 行唯一的元素。 第 $3$ 列：
+$(3,1).\mathit{right} \gets \text{R3}$。 第 $3$ 行：$\text{C3}.\mathit{down} \gets
+\text{C3}$（第 $3$ 行變成空的）。
+\item 第 $2$ 列原本只有 $(2,4)$，$y$ 的行號 $2 < 4$，要放在它前面：
+$y.\mathit{right} \gets (2,4)$，$\text{R2}.\mathit{right} \gets y$。 第 $2$ 行原本只
+有 $(1,2)$，$y$ 的列號 $2 > 1$，放在它後面：$y.\mathit{down} \gets \text{C2}$，
+$(1,2).\mathit{down} \gets y$。
+\end{enumerate}
+
+\item 每次比較之後，恰好有一個節點接到結果上，而且以後不再參與比較。 迴圈在 $a$ 或
+$b$ 變成 \NIL 時停。
+
+下界：迴圈停下時，某一條串列的節點已經全部經由比較接上了，所以 $C \ge \min(m, n)$。
+
+上界：迴圈停下時，另一條串列至少還剩一個節點沒有比較就整段接上，經由比較接上的節點
+最多 $m + n - 1$ 個，所以 $C \le m + n - 1$。
+
+達到下界：$a$ 是 $1, 2, \ldots, m$，$b$ 是 $m + 1, \ldots, m + n$，而且 $m \le n$。
+每次比較都接上 $a$ 的節點，$m$ 次後 $a$ 用完，$C = m = \min(m, n)$（$m > n$ 時把兩條
+對調）。
+
+達到上界：讓兩條串列的最大值分別是全部的最大和第二大，例如 $a$ 是
+$1, 2, \ldots, m - 1, m + n$，$b$ 是 $m, m + 1, \ldots, m + n - 1$。 $b$ 的最後一個
+節點 $m + n - 1$ 接上之前，$a$ 一直還有 $m + n$ 沒接，所以前 $m + n - 1$ 個節點都是
+經由比較接上的，$C = m + n - 1$。
+
+\item
+\begin{enumerate}
+\item 要證明的敘述：對 $n$ 個節點的串列 $x_1 \to \cdots \to x_n$（$n = 0$ 時 $h =
+\NIL$），\proc{Rev-Rec}$(h)$ 回傳 $x_n$，執行完之後串列是 $x_n \to \cdots \to x_1 \to
+\NIL$。
+
+基底：$n = 0$ 或 $n = 1$，第 2、3 行直接回傳 $h$，空串列和一個節點的串列反轉後不變。
+
+歸納：設 $n \ge 2$，而且敘述對 $n - 1$ 個節點成立。 第 4 行對 $x_2 \to \cdots \to
+x_n$ 遞迴，由歸納假設，回傳 $r = x_n$，而且 $x_n \to \cdots \to x_2 \to \NIL$。 遞迴
+只改了 $x_2, \ldots, x_n$ 的 $\mathit{next}$，所以 $x_1.\mathit{next}$ 仍然是
+$x_2$。 第 5 行讓 $x_2.\mathit{next} = x_1$，第 6 行讓 $x_1.\mathit{next} = \NIL$，
+串列變成 $x_n \to \cdots \to x_2 \to x_1 \to \NIL$，回傳 $x_n$。
+
+\item 這裡第 6 行指的是 $h.\mathit{next} \gets \NIL$。 拿掉之後，最外層呼叫結束時
+$x_1.\mathit{next}$ 仍然是 $x_2$，而 $x_2.\mathit{next} = x_1$，串列變成 $3 \to 2
+\to 1 \to 2 \to 1 \to \cdots$，$1$ 和 $2$ 互相指著，形成一個環。 走訪它的程式會停不
+下來。 （內層的呼叫不受影響，因為上一層的第 6 行會蓋掉它；只有最外層的
+$x_1$ 沒有人蓋。）
+
+\item 遞迴深度是 $n - 1$，每層 $\Theta(1)$，額外空間 $\Theta(n)$；迴圈版只要
+$\Theta(1)$。
+\end{enumerate}
+
+\item 用 \texttt{link} 指著「目前要檢查的節點的那個指標欄位」。 刪掉時
+\texttt{link} 不動（它現在指著下一個節點），沒刪才往前一格。
+\begin{code}{c}{觀念題 8 的解答}
+void remove_all(Node **head, int k)
+{
+    Node **link = head;
+    while (*link != NULL) {
+        if ((*link)->id == k) {
+            Node *dead = *link;
+            *link = dead->next;     // 跳過 dead
+            free(dead);
+        } else {
+            link = &(*link)->next;
+        }
+    }
+}
+\end{code}
+每個節點檢查一次，$O(n)$。 第一個節點要刪時，\texttt{link} 就是 \texttt{head}，
+\texttt{*link = dead->next} 直接更新了呼叫端的 \texttt{head}，不需要特殊情況。 連續
+好幾個節點都要刪時，\texttt{link} 一直不動，也是對的。
+
+\item (a) \texttt{free(p)} 之後，迴圈的 \texttt{p = p->next} 讀了已經釋放的記憶體。
+要先記住下一個再釋放：迴圈裡寫 \texttt{Node *next = p->next; free(p); p = next;}，
+和範例~\ref{ex:ll-poly} 的 \texttt{print\_and\_free} 一樣。
+
+(b) 兩個錯。 第一，\texttt{head} 是參數的複本，改它不會改到呼叫端；函式回來之後，
+呼叫端的 \texttt{head} 還指著已經釋放的節點。 第二，空串列時 \texttt{head->next}
+讀了 \NIL 的欄位。 改成收 \texttt{Node **head}：先檢查 \texttt{*head != NULL}，再
+寫 \texttt{Node *p = *head; *head = p->next; free(p);}，呼叫時傳
+\texttt{\&head}。 另一種改法是回傳新的開頭，呼叫端寫
+\texttt{head = drop\_first(head);}。
+
+\item 第一組的第一個人是原本的 $f = R.\mathit{last}.\mathit{next}$，最後一個人是 $p$；
+第二組的第一個人是 $g = p.\mathit{next}$，最後一個人是原本的 $R.\mathit{last}$。 拆開
+之後，$p$ 要接回 $f$，$R.\mathit{last}$ 要接到 $g$。
+\begin{pseudo}{觀念題 10 的解答}
+\Function{Ring-Split}{$R, p$}
+    \State $f \gets R.\mathit{last}.\mathit{next}$ \Comment{今天值日的人}
+    \State $g \gets p.\mathit{next}$ \Comment{第二組的第一個人}
+    \State $p.\mathit{next} \gets f$
+    \State $R.\mathit{last}.\mathit{next} \gets g$
+    \State \Return $(p, R.\mathit{last})$
+\EndFunction
+\end{pseudo}
+只讀兩個、改兩個指標，$\Theta(1)$。 $p$ 就是 $f$ 的時候（第一組只有一個人），第 4 行讓
+$p$ 指向自己，仍然正確。 只記第一個節點時，第 5 行要改的是最後一個節點的
+$\mathit{next}$，得繞一圈才找得到，變成 $\Theta(n)$。
+
+\item
+\begin{enumerate}
+\item 做完 $k$ 輪後 $s = x_{1+k}$、$f = x_{1+2k}$。 迴圈繼續的條件是 $x_{1+2k}$ 和
+$x_{2+2k}$ 都存在，即 $2k + 2 \le n$，所以跑 $\lfloor n/2 \rfloor$ 輪，結束時
+$s = x_{\lfloor n/2 \rfloor + 1}$。 $n = 1, \ldots, 6$ 依序是第 $1, 2, 2, 3, 3, 4$
+個。 $n$ 是奇數時和原來一樣停在正中間；$n$ 是偶數時停在兩個中間節點的後一個。
+\item $n = 2$ 時 $s = x_2$，在 $s$ 後面切開，前半是 $x_1, x_2$，後半是空的。 合併排序
+對前半遞迴，又是同一條長度 $2$ 的串列，永遠切不小，無窮遞迴（實際執行會用光呼叫堆
+疊）。 所以給合併排序用的切法，偶數長度時一定要停在前一個中間節點，也就是原本的
+$f \gets h.\mathit{next}$。
+\end{enumerate}
+\end{enumerate}
