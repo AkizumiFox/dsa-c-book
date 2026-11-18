@@ -1,0 +1,1666 @@
+\chapter{雜湊}
+\label{ch:hash}
+
+% 本章的圖共用的樣式（名稱都以 h 開頭，避免和其他章衝突）
+\tikzset{
+    hcell/.style={draw=black!55, minimum width=0.92cm, minimum height=0.62cm,
+        inner sep=0pt, font=\ttfamily\footnotesize},
+    hlnew/.style={draw=memStroke, thick, fill=memFill},
+    hlprobe/.style={fill=optFill},
+    hldead/.style={draw=optStroke, thick, fill=optFill},
+    hbucket/.style={draw=black!55, minimum width=0.8cm, minimum height=0.6cm,
+        inner sep=0pt, font=\ttfamily\footnotesize},
+    hnode/.style={draw=black!55, minimum height=0.6cm, inner sep=2pt,
+        font=\ttfamily\scriptsize},
+    hdir/.style={draw=black!55, minimum width=0.9cm, minimum height=0.5cm,
+        inner sep=0pt, font=\ttfamily\footnotesize},
+    hpage/.style={draw=coreStroke, fill=coreFill, minimum width=1.9cm,
+        minimum height=0.5cm, inner sep=1pt, font=\footnotesize},
+}
+% 刪除標記在虛擬碼裡的寫法
+\newcommand{\hashDEL}{\textsc{deleted}}
+
+學生餐廳的刷卡機一到中午就忙不過來。 每張學生證有一個九位數的卡號，機器要在一瞬間
+查出這張卡還剩多少錢。 卡號有十億種可能，開一張以卡號當索引的表太浪費；把卡號排好
+再二分搜尋，或是存進第~10~章的平衡樹，每次也要走二三十步。 有沒有辦法讓每次查詢平
+均只看一兩個位置，而且這個次數幾乎和全校有幾張卡無關？ 往下讀之前，先想一想。
+
+第~1~章找重複學號時用過一個辦法：開一個以學號為索引的陣列，在上面打勾。 它快，是
+因為從學號可以直接算出要看哪一格；它浪費，是因為格子數要和學號的範圍一樣多。
+\textbf{雜湊}（hashing）保留「從鍵直接算出位置」的做法，但只開 $m$ 格，$m$ 和實際的
+資料量差不多，再用一個\textbf{雜湊函數}（hash function）把很大的鍵空間壓到
+$0, 1, \ldots, m-1$。 代價是兩個不同的鍵可能算出同一格，叫做\textbf{碰撞}
+（collision）。 這一章依序講怎麼選雜湊函數、碰撞了以後怎麼存（鏈結法與開放定址）、平
+均要看幾格（期望值的推導），最後講表滿了怎麼辦，以及可延伸雜湊和通用雜湊兩個觀念。
+
+雜湊表只支援插入、刪除、搜尋這三個操作，平均每次 $O(1)$。 它不維持任何順序，找最
+小值、找後繼、依序列出都得把整張表掃一遍；需要這些操作時，還是要用第~9、10~章的搜
+尋樹。 這一章用到《C 程式設計基礎》第~14~章的結構、第~19~章的 \texttt{malloc}、
+\texttt{calloc} 和串列，以及本書第~5~章「指標的指標」的刪除寫法和第~3~章的平攤分析。
+
+\section{直接定址表與雜湊函數}
+\label{sec:hash-func}
+
+\subsection{直接定址表}
+
+先看鍵的範圍很小的情形。 設所有可能的鍵組成集合 $U = \{0, 1, \ldots, u - 1\}$，叫做
+\textbf{鍵空間}（universe）。 \textbf{直接定址表}（direct-address table）就是一個陣
+列 $T[0..u-1]$：鍵 $k$ 的資料放在 $T[k]$，沒有這個鍵時 $T[k] = \NIL$。 插入、刪除、
+搜尋都只碰一格，最壞情況也是 $O(1)$。 第~1~章的 \proc{Has-Dup-Marks} 就是這種表，只
+是每格只存一個「有沒有看過」。
+
+這裡的陣列從 $0$ 開始編號，和本書虛擬碼的慣例（從 $1$ 開始）不同。 雜湊表的格子號
+碼是雜湊函數算出來的餘數，從 $0$ 開始最自然，所以這一章的表一律寫成
+$T[0..m-1]$，C 程式也一樣，不用換算。
+
+直接定址表的問題是空間。 它要 $\Theta(u)$ 格，和實際存了幾個鍵無關。 九位數的卡號
+$u = 10^9$，就算每格只存一個位元組也要 1 GB，而全校的卡也許只有三萬張。
+
+\subsection{雜湊表、碰撞與載入因子}
+
+\textbf{雜湊表}（hash table）只開 $m$ 格，$T[0..m-1]$，鍵 $k$ 放在第 $h(k)$ 格附
+近。 這裡
+\[
+h : U \to \{0, 1, \ldots, m - 1\}
+\]
+是雜湊函數，$h(k)$ 叫做 $k$ 的\textbf{雜湊值}（hash value）或\textbf{起始位置}
+（home slot）。 存了 $n$ 個鍵時，
+\[
+\alpha = \frac{n}{m}
+\]
+叫做\textbf{載入因子}（load factor），也就是平均每格分到幾個鍵。 之後所有的成本都用
+$\alpha$ 表示。
+
+$u > m$ 時碰撞一定會發生：$u$ 個鍵放進 $m$ 格，由鴿籠原理，至少有一格分到
+$\lceil u/m \rceil$ 個鍵。 這還說明了一件更糟的事：不管 $h$ 怎麼選，只要 $u \ge nm$，
+就有 $n$ 個鍵的雜湊值全部相同。 輸入剛好是這 $n$ 個鍵時，任何雜湊表都會退化成在一
+堆碰撞的鍵裡逐一比對，最壞情況是 $\Theta(n)$。 所以雜湊的分析一律談\textbf{期望值}，
+而且要先說清楚機率從哪裡來：可能是假設鍵的雜湊值像亂數一樣均勻（第~\ref{sec:hash-chain}、
+\ref{sec:hash-analysis}~節），也可能是從一族函數裡隨機挑一個（第~\ref{sec:hash-dynamic}~節
+的通用雜湊）。
+
+實用的雜湊函數要算得快，而且鍵的每一部分都會影響結果，這樣只差一兩位數的鍵（學號、
+卡號常常這樣）才會被分開。 下面四種是考題最常出現的整數鍵雜湊函數。
+
+\subsection{除法}
+
+\textbf{除法}（division method）取餘數：
+\[
+h(k) = k \bmod m.
+\]
+算得最快，但 $m$ 不能亂選。 $m = 10^p$ 時 $h(k)$ 就是 $k$ 的最後 $p$ 位數字，前面的位
+數完全沒用到；如果卡號的最後兩位是系所代碼，$m = 100$ 會讓同一系的卡全部擠在同一格。
+$m = 2^p$ 時同理，只用到最低的 $p$ 個位元。 另一個陷阱是公因數。
+
+\begin{lemma}
+\label{lem:hash-gcd}
+如果每個鍵都是 $d$ 的倍數，令 $g = \gcd(d, m)$，則 $k \bmod m$ 一定是 $g$ 的倍數，
+所以除法最多只用到 $m/g$ 格。
+\end{lemma}
+
+\begin{proof}
+寫成 $k = qm + r$，$0 \le r < m$。 $g$ 整除 $k$（因為 $g \mid d$、$d \mid k$），也整除
+$m$，所以整除 $r = k - qm$。 $0$ 到 $m - 1$ 之間 $g$ 的倍數只有 $m/g$ 個。
+\end{proof}
+
+例如記憶體位址通常是 $4$ 的倍數。 鍵 $8, 20, 36, 44, 52, 64, 76, 88$ 用 $m = 12$ 時，
+餘數依序是 $8, 8, 0, 8, 4, 4, 4, 4$，只用到 $0, 4, 8$ 三格；改用 $m = 13$，餘數是
+$8, 7, 10, 5, 0, 12, 11, 10$，分散開了。 所以除法的 $m$ 通常選\textbf{質數}，而且不要
+太靠近 $2$ 或 $10$ 的次方。
+
+\subsection{乘法}
+
+\textbf{乘法}（multiplication method）先選一個常數 $0 < A < 1$，取 $kA$ 的小數部分，
+再放大到 $0$ 到 $m-1$：
+\[
+h(k) = \bigl\lfloor m \,( kA \bmod 1 ) \bigr\rfloor,
+\]
+$kA \bmod 1 = kA - \lfloor kA \rfloor$ 表示小數部分。 常用的 $A$ 是
+$(\sqrt{5} - 1)/2 \approx 0.6180339887$，這個值讓連續的鍵分得很開。 例如 $m = 1000$：
+\[
+\begin{aligned}
+5347 A &= 3304.62773\ldots, & h(5347) &= \lfloor 627.73\ldots \rfloor = 627, \\
+5348 A &= 3305.24577\ldots, & h(5348) &= \lfloor 245.77\ldots \rfloor = 245.
+\end{aligned}
+\]
+只差 $1$ 的兩個鍵落在相距很遠的兩格。 乘法對 $m$ 沒有要求，通常取 $m = 2^p$。
+
+程式裡不用浮點數。 設一個字組有 $w$ 個位元，取整數 $s = \lfloor A \cdot 2^w \rfloor$，
+$m = 2^p$，那麼 $ks$ 的低 $w$ 位元相當於 $kA$ 的小數部分乘上 $2^w$，再取其中最高的
+$p$ 個位元就是 $h(k)$：
+\[
+h(k) = \bigl( (k \cdot s) \bmod 2^w \bigr) \gg (w - p).
+\]
+在 C 裡用 \texttt{unsigned} 的乘法，溢位自動就是 $\bmod 2^w$，再右移，一共兩個運算。
+用 $w = 16$、$p = 4$（$m = 16$）算 $k = 3051$：$s = \lfloor 0.6180339887 \cdot 65536
+\rfloor = 40503$，$3051 \cdot 40503 = 123574653$，除以 $2^{16}$ 的餘數是
+$39293 = (1001\,1001\,0111\,1101)_2$，最高 $4$ 位是 $(1001)_2 = 9$。 用實數算也一樣：
+$3051A = 1885.6217\ldots$，$\lfloor 16 \times 0.6217\ldots \rfloor = 9$。
+
+\subsection{中間平方}
+
+\textbf{中間平方法}（mid-square method）把鍵平方，取中間的幾位。 例如四位數的鍵、
+$m = 100$：$k^2$ 補成八位數，取第 $4$、$5$ 位。
+\[
+5347^2 = 28590409 = 285\,\underline{90}\,409, \qquad h(5347) = 90.
+\]
+中間的位數是由 $k$ 的每一位一起乘出來的，所以 $k$ 的每一位都會影響結果；最後幾位只
+和 $k$ 的最後幾位有關，前面幾位主要由 $k$ 的前幾位決定，都不適合。 二進位的版本取
+$k^2$ 中間的 $p$ 個位元，$m = 2^p$。
+
+\subsection{摺疊}
+
+\textbf{摺疊法}（folding）把很長的鍵切成幾段，每段的位數和 $m - 1$ 相同，再加起來，
+最後只留下和 $m - 1$ 一樣多的位數（多出來的進位丟掉）。 例如九位數的卡號
+$417961974$、$m = 1000$，切成 $417 \mid 961 \mid 974$：
+
+\begin{itemize}
+\item \textbf{移位摺疊}（shift folding）：直接相加，$417 + 961 + 974 = 2352$，取後三
+位，$h = 352$。
+\item \textbf{邊界摺疊}（boundary folding）：像摺紙一樣，每隔一段反過來，
+$417 + 169 + 974 = 1560$，$h = 560$。
+\end{itemize}
+
+摺疊適合位數比 $m$ 長很多的鍵（身分證號、電話號碼）。 實務上也常先摺疊成一個整數，
+再用除法或乘法。
+
+\subsection{字串鍵}
+
+字串 $c_0 c_1 \cdots c_{\ell-1}$ 先看成一個 $B$ 進位的數 $c_0 B^{\ell-1} + c_1
+B^{\ell-2} + \cdots + c_{\ell-1}$，再對 $m$ 取餘數。 用 Horner 法（第~4~章算多項式的
+方法）從左往右算，每一步都取餘數：$h \gets (h \cdot B + c_i) \bmod m$，數字就不會變大。
+$B$ 選一個比字元種類多的數（例如 $131$），$m$ 選質數。 只把各字元的碼加起來不行：
+\texttt{"listen"} 和 \texttt{"silent"} 用的字母一樣，和也一樣。 第~27~章的
+Rabin--Karp 字串比對會用到同一個式子。
+
+\section{鏈結法}
+\label{sec:hash-chain}
+
+處理碰撞最直接的方法是讓每一格掛一條串列：第 $j$ 格存一條串列的開頭，所有
+$h(k) = j$ 的鍵都放在這條串列上。 這叫做\textbf{鏈結法}（chaining，也叫
+separate chaining）。
+
+\begin{pseudo}[label=alg:hash-chain]{鏈結法的三個操作}
+\Procedure{Chain-Insert}{$T, x$}
+    \State 把節點 $x$ 插在串列 $T[h(x.\mathit{key})]$ 的最前面
+\EndProcedure
+\Function{Chain-Search}{$T, k$}
+    \State $p \gets T[h(k)]$
+    \While{$p \ne \NIL$ \AND $p.\mathit{key} \ne k$}
+        \State $p \gets p.\mathit{next}$
+    \EndWhile
+    \State \Return $p$
+\EndFunction
+\Procedure{Chain-Delete}{$T, x$}
+    \State 把節點 $x$ 從串列 $T[h(x.\mathit{key})]$ 拿掉
+\EndProcedure
+\end{pseudo}
+
+插入是 $O(1)$：插在最前面不用走到尾端。 這假設 $x$ 的鍵還不在表裡；要檢查重複，就
+得先做一次搜尋。 搜尋的時間和那條串列的長度成正比。 刪除時如果用的是第~5~章的雙向
+串列，給了節點 $x$ 就能 $O(1)$ 拿掉；單向串列要先找到 $x$ 的前一個節點，時間和搜尋
+一樣。 下面的 C 程式用單向串列，刪除時用「指標的指標」一邊找一邊記住要改的那個
+\texttt{next}。
+
+\subsection{C 實作}
+\label{sec:hash-chain-c}
+
+章首的刷卡機用鏈結法存「卡號 $\to$ 餘額」。 為了印得下，示範只開 $m = 7$ 格，放
+$8$ 張卡，$\alpha = 8/7$。 鏈結法的 $\alpha$ 可以大於 $1$，串列只是平均長一點。
+
+\begin{cbookrecap}[第~14~章 14.5 節、第~19~章 19.3、19.9、19.10 節]
+\texttt{ChainTable t = \{calloc(7, sizeof(Entry *)), 7, 0\};} 用大括號依欄位的順序
+初始化結構。 \texttt{calloc} 要一塊能放 $7$ 個指標的記憶體，而且全部設成 $0$；在常
+見的系統上這就是 \texttt{NULL}，所以每條串列一開始都是空的。（標準沒有保證空指標的
+位元全是 $0$；要完全不靠這一點，可以改用 \texttt{malloc} 再逐格設成 \texttt{NULL}。）
+
+\texttt{Entry **pp} 存的是「某個 \texttt{Entry *} 變數的位址」：一開始是
+\texttt{\&t->bucket[b]}，往後走一步變成 \texttt{\&(*pp)->next}。 找到要刪的節點時
+寫 \texttt{*pp = dead->next}，不管它是串列的第一個還是中間的，都是同一行。 這是本書
+第~5~章 5.1 節的寫法。
+\end{cbookrecap}
+
+\begin{example}[label=ex:hash-chain]{c}{(chain\_table.c) 鏈結法的雜湊表}
+#include <stdio.h>
+#include <stdlib.h>
+
+// 鏈結法的雜湊表：卡號 -> 餘額。新的鍵插在串列的最前面。
+typedef struct Entry {
+    long long key;
+    int value;
+    struct Entry *next;
+} Entry;
+
+typedef struct {
+    Entry **bucket;     // bucket[0..m-1] 是 m 條串列的開頭
+    int m, n;           // 格數、鍵數
+} ChainTable;
+
+// 找 key，沒找到回傳 NULL。*cmp 記錄比較了幾個鍵。
+Entry *ct_find(const ChainTable *t, long long key, int *cmp)
+{
+    *cmp = 0;
+    Entry *p = t->bucket[key % t->m];      // h(k) = k mod m
+    for (; p != NULL; p = p->next) {
+        (*cmp)++;
+        if (p->key == key) {
+            return p;
+        }
+    }
+    return NULL;
+}
+
+// 已經有 key 就更新值，否則插在串列最前面。記憶體不夠時回傳 0。
+int ct_put(ChainTable *t, long long key, int value)
+{
+    int cmp;
+    Entry *p = ct_find(t, key, &cmp);
+    if (p == NULL) {
+        p = malloc(sizeof *p);
+        if (p == NULL) {
+            return 0;
+        }
+        p->key = key;
+        p->next = t->bucket[key % t->m];
+        t->bucket[key % t->m] = p;
+        t->n++;
+    }
+    p->value = value;
+    return 1;
+}
+
+// 刪除 key，成功回傳 1。用指標的指標，刪第一個節點不用另外處理。
+int ct_delete(ChainTable *t, long long key)
+{
+    Entry **pp = &t->bucket[key % t->m];
+    while (*pp != NULL && (*pp)->key != key) {
+        pp = &(*pp)->next;
+    }
+    if (*pp == NULL) {
+        return 0;
+    }
+    Entry *dead = *pp;
+    *pp = dead->next;
+    free(dead);
+    t->n--;
+    return 1;
+}
+
+void print_bucket(const ChainTable *t, int b)
+{
+    printf("T[%d]:", b);
+    for (Entry *p = t->bucket[b]; p != NULL; p = p->next) {
+        const char *arrow = (p == t->bucket[b]) ? "" : " ->";
+        printf("%s %lld:%d", arrow, p->key, p->value);
+    }
+    printf("\n");
+}
+
+int main(void)
+{
+    const long long card[] = {417961974, 416402873, 417721181,
+        413819238, 419364875, 410986908, 411465496, 412266090};
+    const int balance[] = {350, 120, 80, 500, 45, 260, 15, 900};
+    const long long ask[] = {417961974, 410986908, 414000002};
+    ChainTable t = {calloc(7, sizeof(Entry *)), 7, 0};
+    if (t.bucket == NULL) {
+        return 1;
+    }
+    for (int i = 0; i < 8; i++) {
+        if (!ct_put(&t, card[i], balance[i])) {
+            printf("out of memory\n");
+            break;
+        }
+    }
+    for (int b = 0; b < t.m; b++) {
+        print_bucket(&t, b);
+    }
+    for (int i = 0; i < 3; i++) {
+        int cmp;
+        Entry *p = ct_find(&t, ask[i], &cmp);
+        int v = (p != NULL) ? p->value : -1;
+        printf("get %lld: %d, cmp = %d\n", ask[i], v, cmp);
+    }
+    ct_put(&t, 417961974, 330);     // 已經有這張卡：只改餘額
+    int first = ct_delete(&t, 417721181);
+    int second = ct_delete(&t, 417721181);
+    printf("delete twice: %d %d, n = %d\n", first, second, t.n);
+    print_bucket(&t, 3);
+    for (int b = 0; b < t.m; b++) { // 釋放：一直刪串列的第一個
+        while (t.bucket[b] != NULL) {
+            ct_delete(&t, t.bucket[b]->key);
+        }
+    }
+    free(t.bucket);
+    return 0;
+}
+\end{example}
+\iosample{}{T[0]: 413819238:500 \\ T[1]: 411465496:15 \\ T[2]: \\ T[3]: 410986908:260 -> 417721181:80 -> 417961974:350 \\ T[4]: \\ T[5]: 412266090:900 -> 416402873:120 \\ T[6]: 419364875:45 \\ get 417961974: 350, cmp = 3 \\ get 410986908: 260, cmp = 1 \\ get 414000002: -1, cmp = 3 \\ delete twice: 1 0, n = 7 \\ T[3]: 410986908:260 -> 417961974:330}
+
+前七行是放完八張卡的表，\texttt{T[3]} 那一行就是第 $3$ 格的串列。 第 $3$ 格的三張卡依放入的先後是
+$417961974$、$417721181$、$410986908$，每次都插在最前面，所以順序反過來。 找
+$417961974$ 要比 $3$ 次，找最後放進去的 $410986908$ 只要 $1$ 次；找不在表裡的
+$414000002$ 時，它的 $h$ 也是 $3$，整條串列都要比過，比了 $3$ 次，印出 $-1$。 同
+一張卡刪兩次，第二次回傳 $0$；最後一行是刪除、改餘額之後的第 $3$ 格。 程式結束前
+用 \texttt{ct\_delete} 逐一刪掉每條串列的第一個節點，把記憶體還回去。 第 $2$、$4$ 格
+是空的：$8$ 個鍵放進 $7$ 格，不會剛好一格一個。
+
+
+\subsection{載入因子與期望長度}
+\label{sec:hash-chain-analysis}
+
+最壞的情況是 $n$ 個鍵全部落在同一格，搜尋要 $\Theta(n)$。 要說明鏈結法「平均」很
+快，得先假設雜湊值怎麼分布。
+
+\begin{definition}[簡單均勻雜湊]
+\label{def:hash-suh}
+每個鍵的雜湊值都等可能是 $0, 1, \ldots, m-1$ 之中的任何一個，而且不同鍵的雜湊值互
+相獨立。 這個假設叫做\textbf{簡單均勻雜湊}（simple uniform hashing）。
+\end{definition}
+
+這是一個關於「雜湊函數加上輸入」的假設，不是證出來的性質。 它的意思是：雜湊函數把
+實際的輸入打散得像亂數一樣。 下面的推導要用到兩個工具。 事件 $E$ 的\textbf{指示變
+數}（indicator variable）$I\{E\}$ 在 $E$ 發生時是 $1$，否則是 $0$，所以
+$\mathrm{E}[I\{E\}] = 1 \cdot \Pr[E] + 0 \cdot (1 - \Pr[E]) = \Pr[E]$。 期望值是線性
+的：$\mathrm{E}[X + Y] = \mathrm{E}[X] + \mathrm{E}[Y]$，不需要 $X$、$Y$ 獨立（第~1~章
+算插入排序的平均挪動次數用過）。 把一個要數的量寫成很多個指示變數的和，再一項一項
+取期望值，是這一章最常用的手法。
+
+\begin{theorem}
+\label{thm:hash-chain-len}
+在簡單均勻雜湊下，$n$ 個鍵放進 $m$ 格：
+\begin{enumerate}
+\item 每一條串列的期望長度都是 $\alpha = n/m$。
+\item 搜尋一個不在表裡的鍵，期望比較 $\alpha$ 個鍵。
+\item 搜尋一個在表裡的鍵（$n$ 個鍵被搜尋的機會一樣，新的鍵插在最前面），期望比較
+\[
+1 + \frac{n - 1}{2m} = 1 + \frac{\alpha}{2} - \frac{\alpha}{2n}
+\]
+個鍵。
+\end{enumerate}
+\end{theorem}
+
+\begin{proof}
+把鍵依放入的順序叫做 $x_1, x_2, \ldots, x_n$。
+
+(1) 固定第 $j$ 格。 第 $j$ 條串列的長度是 $L_j = \sum_{i=1}^{n} I\{h(x_i) = j\}$，每
+一項的期望值是 $1/m$，所以 $\mathrm{E}[L_j] = n/m$。
+
+(2) 要找的鍵 $k$ 不在表裡，搜尋會把第 $h(k)$ 條串列整條比完。 被比到的鍵個數是
+$\sum_{i=1}^{n} I\{h(x_i) = h(k)\}$。 $h(k)$ 和 $h(x_i)$ 獨立而且都均勻，所以
+\[
+\Pr[h(x_i) = h(k)] = \sum_{j=0}^{m-1} \Pr[h(x_i) = j] \Pr[h(k) = j]
+= m \cdot \frac{1}{m^2} = \frac{1}{m},
+\]
+期望值是 $n/m = \alpha$。
+
+(3) 新的鍵插在最前面，所以找 $x_i$ 時，比到的是 $x_i$ 自己，加上排在它前面、也就是
+比它晚放進來而且落在同一格的鍵。 比較次數是
+\[
+C_i = 1 + \sum_{j = i+1}^{n} I\{h(x_j) = h(x_i)\}, \qquad
+\mathrm{E}[C_i] = 1 + \frac{n - i}{m},
+\]
+這裡用了 (2) 的同一個計算：兩個不同的鍵落在同一格的機率是 $1/m$。 每個鍵被找的機
+會是 $1/n$，所以
+\[
+\frac{1}{n} \sum_{i=1}^{n} \left(1 + \frac{n - i}{m}\right)
+= 1 + \frac{1}{nm} \sum_{i=1}^{n} (n - i)
+= 1 + \frac{1}{nm} \cdot \frac{n(n-1)}{2}
+= 1 + \frac{n-1}{2m}. \qedhere
+\]
+\end{proof}
+
+再加上算 $h(k)$ 和走到那一格的 $O(1)$，成功和失敗的搜尋都是期望 $\Theta(1 +
+\alpha)$。 只要表的格數和鍵數成正比（$n = O(m)$，例如規定 $\alpha \le 1$），$\alpha$
+就是常數，三個操作的期望時間都是 $O(1)$。 這就是章首問題的答案：查詢的次數只和
+$\alpha$ 有關，和全校有幾張卡無關。
+
+另外，(1) 說的是「隨便指定一格」的期望長度；「某個已經在表裡的鍵所在的那條串列」期望
+長度是 $1 + (n-1)/m$，比 $\alpha$ 大，因為長的串列裝了比較多鍵。 期望長度是
+$\alpha$ 也不代表每條都差不多長：$\alpha = 1$ 時大約有 $(1 - 1/m)^n \approx e^{-1}
+\approx 37\%$ 的格子是空的（觀念題第 8 題）。
+
+\section{開放定址}
+\label{sec:hash-open}
+
+鏈結法每個鍵要多一個指標，每次插入要 \texttt{malloc} 一個節點。 \textbf{開放定址}
+（open addressing）把所有鍵直接放在表 $T[0..m-1]$ 裡，每格最多一個鍵，所以
+$n \le m$、$\alpha \le 1$。 碰撞時照一個固定的順序去試別的格子，叫做\textbf{探測}
+（probe）。 每個鍵 $k$ 的探測順序是
+\[
+h(k, 0),\ h(k, 1),\ \ldots,\ h(k, m - 1),
+\]
+叫做 $k$ 的\textbf{探測序列}（probe sequence），$i$ 是第幾次探測，從 $0$ 開始。
+插入時沿著探測序列找第一個空格；搜尋時沿著同一個序列找，遇到 $k$ 就是找到了，遇到
+空格就表示 $k$ 不在表裡：如果 $k$ 在表裡，插入它時一定會停在這個空格或更前面。 為
+了讓表不滿時一定插得進去，探測序列最好是 $0, 1, \ldots, m-1$ 的一個排列，每一格都
+會被試到。
+
+\begin{pseudo}[label=alg:hash-open]{開放定址的插入與搜尋（還沒有刪除）}
+\Function{Open-Insert}{$T, k$}
+    \For{$i \gets 0$ \To $m - 1$}
+        \State $j \gets h(k, i)$
+        \If{$T[j] = \NIL$}
+            \State $T[j] \gets k$
+            \State \Return $j$
+        \EndIf
+    \EndFor
+    \State \Error{表已滿}
+\EndFunction
+\Function{Open-Search}{$T, k$}
+    \For{$i \gets 0$ \To $m - 1$}
+        \State $j \gets h(k, i)$
+        \If{$T[j] = k$}
+            \State \Return $j$
+        \ElsIf{$T[j] = \NIL$}
+            \State \Return \NIL
+        \EndIf
+    \EndFor
+    \State \Return \NIL
+\EndFunction
+\end{pseudo}
+
+一次插入或搜尋的成本就是\textbf{探測次數}：看了幾格，包括讓它停下來的那一格。 下面
+三種探測法的差別只在 $h(k, i)$ 怎麼算。 三種都用同一組例子：停車場發的停車證號碼，
+$m = 13$，$h(k) = k \bmod 13$，依序插入
+\[
+5347,\ 3051,\ 6296,\ 1682,\ 2014,\ 8170,\ 2299,\ 5906,\ 7193.
+\]
+它們的 $h(k)$ 依序是 $4, 9, 4, 5, 12, 6, 11, 4, 4$。 放完之後
+$\alpha = 9/13 \approx 0.69$。
+
+\subsection{線性探測}
+
+\textbf{線性探測}（linear probing）從起始位置開始一格一格往後試，到尾端繞回 $0$：
+\[
+h(k, i) = (h(k) + i) \bmod m.
+\]
+圖~\ref{fig:hash-linear} 每一列是插入一個鍵之後的表。 橘框是這次放進去的格子，粉紅底是這次探測時看過、
+但已經有鍵的格子。
+
+\begin{figure}[tbp]
+\centering
+\begin{tikzpicture}
+\foreach \j in {0,...,12} { \node[idxlbl] at ({0.6+\j*0.92}, 0.55) {\j}; }
+\node[anchor=east, font=\footnotesize] at (0.2,0.00) {放 5347，1 次};
+\node[hcell] at (0.60,0.00) {};
+\node[hcell] at (1.52,0.00) {};
+\node[hcell] at (2.44,0.00) {};
+\node[hcell] at (3.36,0.00) {};
+\node[hcell, hlnew] at (4.28,0.00) {5347};
+\node[hcell] at (5.20,0.00) {};
+\node[hcell] at (6.12,0.00) {};
+\node[hcell] at (7.04,0.00) {};
+\node[hcell] at (7.96,0.00) {};
+\node[hcell] at (8.88,0.00) {};
+\node[hcell] at (9.80,0.00) {};
+\node[hcell] at (10.72,0.00) {};
+\node[hcell] at (11.64,0.00) {};
+\node[anchor=east, font=\footnotesize] at (0.2,-0.78) {放 3051，1 次};
+\node[hcell] at (0.60,-0.78) {};
+\node[hcell] at (1.52,-0.78) {};
+\node[hcell] at (2.44,-0.78) {};
+\node[hcell] at (3.36,-0.78) {};
+\node[hcell] at (4.28,-0.78) {5347};
+\node[hcell] at (5.20,-0.78) {};
+\node[hcell] at (6.12,-0.78) {};
+\node[hcell] at (7.04,-0.78) {};
+\node[hcell] at (7.96,-0.78) {};
+\node[hcell, hlnew] at (8.88,-0.78) {3051};
+\node[hcell] at (9.80,-0.78) {};
+\node[hcell] at (10.72,-0.78) {};
+\node[hcell] at (11.64,-0.78) {};
+\node[anchor=east, font=\footnotesize] at (0.2,-1.56) {放 6296，2 次};
+\node[hcell] at (0.60,-1.56) {};
+\node[hcell] at (1.52,-1.56) {};
+\node[hcell] at (2.44,-1.56) {};
+\node[hcell] at (3.36,-1.56) {};
+\node[hcell, hlprobe] at (4.28,-1.56) {5347};
+\node[hcell, hlnew] at (5.20,-1.56) {6296};
+\node[hcell] at (6.12,-1.56) {};
+\node[hcell] at (7.04,-1.56) {};
+\node[hcell] at (7.96,-1.56) {};
+\node[hcell] at (8.88,-1.56) {3051};
+\node[hcell] at (9.80,-1.56) {};
+\node[hcell] at (10.72,-1.56) {};
+\node[hcell] at (11.64,-1.56) {};
+\node[anchor=east, font=\footnotesize] at (0.2,-2.34) {放 1682，2 次};
+\node[hcell] at (0.60,-2.34) {};
+\node[hcell] at (1.52,-2.34) {};
+\node[hcell] at (2.44,-2.34) {};
+\node[hcell] at (3.36,-2.34) {};
+\node[hcell] at (4.28,-2.34) {5347};
+\node[hcell, hlprobe] at (5.20,-2.34) {6296};
+\node[hcell, hlnew] at (6.12,-2.34) {1682};
+\node[hcell] at (7.04,-2.34) {};
+\node[hcell] at (7.96,-2.34) {};
+\node[hcell] at (8.88,-2.34) {3051};
+\node[hcell] at (9.80,-2.34) {};
+\node[hcell] at (10.72,-2.34) {};
+\node[hcell] at (11.64,-2.34) {};
+\node[anchor=east, font=\footnotesize] at (0.2,-3.12) {放 2014，1 次};
+\node[hcell] at (0.60,-3.12) {};
+\node[hcell] at (1.52,-3.12) {};
+\node[hcell] at (2.44,-3.12) {};
+\node[hcell] at (3.36,-3.12) {};
+\node[hcell] at (4.28,-3.12) {5347};
+\node[hcell] at (5.20,-3.12) {6296};
+\node[hcell] at (6.12,-3.12) {1682};
+\node[hcell] at (7.04,-3.12) {};
+\node[hcell] at (7.96,-3.12) {};
+\node[hcell] at (8.88,-3.12) {3051};
+\node[hcell] at (9.80,-3.12) {};
+\node[hcell] at (10.72,-3.12) {};
+\node[hcell, hlnew] at (11.64,-3.12) {2014};
+\node[anchor=east, font=\footnotesize] at (0.2,-3.90) {放 8170，2 次};
+\node[hcell] at (0.60,-3.90) {};
+\node[hcell] at (1.52,-3.90) {};
+\node[hcell] at (2.44,-3.90) {};
+\node[hcell] at (3.36,-3.90) {};
+\node[hcell] at (4.28,-3.90) {5347};
+\node[hcell] at (5.20,-3.90) {6296};
+\node[hcell, hlprobe] at (6.12,-3.90) {1682};
+\node[hcell, hlnew] at (7.04,-3.90) {8170};
+\node[hcell] at (7.96,-3.90) {};
+\node[hcell] at (8.88,-3.90) {3051};
+\node[hcell] at (9.80,-3.90) {};
+\node[hcell] at (10.72,-3.90) {};
+\node[hcell] at (11.64,-3.90) {2014};
+\node[anchor=east, font=\footnotesize] at (0.2,-4.68) {放 2299，1 次};
+\node[hcell] at (0.60,-4.68) {};
+\node[hcell] at (1.52,-4.68) {};
+\node[hcell] at (2.44,-4.68) {};
+\node[hcell] at (3.36,-4.68) {};
+\node[hcell] at (4.28,-4.68) {5347};
+\node[hcell] at (5.20,-4.68) {6296};
+\node[hcell] at (6.12,-4.68) {1682};
+\node[hcell] at (7.04,-4.68) {8170};
+\node[hcell] at (7.96,-4.68) {};
+\node[hcell] at (8.88,-4.68) {3051};
+\node[hcell] at (9.80,-4.68) {};
+\node[hcell, hlnew] at (10.72,-4.68) {2299};
+\node[hcell] at (11.64,-4.68) {2014};
+\node[anchor=east, font=\footnotesize] at (0.2,-5.46) {放 5906，5 次};
+\node[hcell] at (0.60,-5.46) {};
+\node[hcell] at (1.52,-5.46) {};
+\node[hcell] at (2.44,-5.46) {};
+\node[hcell] at (3.36,-5.46) {};
+\node[hcell, hlprobe] at (4.28,-5.46) {5347};
+\node[hcell, hlprobe] at (5.20,-5.46) {6296};
+\node[hcell, hlprobe] at (6.12,-5.46) {1682};
+\node[hcell, hlprobe] at (7.04,-5.46) {8170};
+\node[hcell, hlnew] at (7.96,-5.46) {5906};
+\node[hcell] at (8.88,-5.46) {3051};
+\node[hcell] at (9.80,-5.46) {};
+\node[hcell] at (10.72,-5.46) {2299};
+\node[hcell] at (11.64,-5.46) {2014};
+\node[anchor=east, font=\footnotesize] at (0.2,-6.24) {放 7193，7 次};
+\node[hcell] at (0.60,-6.24) {};
+\node[hcell] at (1.52,-6.24) {};
+\node[hcell] at (2.44,-6.24) {};
+\node[hcell] at (3.36,-6.24) {};
+\node[hcell, hlprobe] at (4.28,-6.24) {5347};
+\node[hcell, hlprobe] at (5.20,-6.24) {6296};
+\node[hcell, hlprobe] at (6.12,-6.24) {1682};
+\node[hcell, hlprobe] at (7.04,-6.24) {8170};
+\node[hcell, hlprobe] at (7.96,-6.24) {5906};
+\node[hcell, hlprobe] at (8.88,-6.24) {3051};
+\node[hcell, hlnew] at (9.80,-6.24) {7193};
+\node[hcell] at (10.72,-6.24) {2299};
+\node[hcell] at (11.64,-6.24) {2014};
+\end{tikzpicture}
+\diagcaption{線性探測依序插入九張停車證（$m = 13$）。 左邊是插入的鍵和探測次數。}
+\label{fig:hash-linear}
+\end{figure}
+
+前七個鍵都只試了一兩次。 第 $8$ 個鍵 $5906$ 的起始位置是 $4$，這時第 $4$ 到 $7$ 格已
+經連成一整段，它要一路試到第 $8$ 格，共 $5$ 次。 第 $9$ 個鍵 $7193$ 也從 $4$ 開始，
+這段又多了第 $8$ 格，再往後還接上本來就有鍵的第 $9$ 格，它試了 $7$ 次。 九個鍵一共
+探測 $22$ 次，平均每個 $22/9 \approx 2.44$ 次。 之後搜尋這九個鍵，每個鍵的探測次數
+和它當初插入時一樣，所以成功搜尋的平均也是 $2.44$ 次。
+
+失敗的搜尋呢？ 如果要找的鍵起始位置是 $0$ 到 $3$，第一格就是空的，$1$ 次就停；起始
+位置是 $4$，要把第 $4$ 到 $12$ 格看完、再看第 $0$ 格，共 $10$ 次；起始位置是 $12$，
+看第 $12$、$0$ 格，共 $2$ 次。 假設起始位置是 $0$ 到 $12$ 的機會一樣，平均是
+\[
+\frac{4 \cdot 1 + (10 + 9 + 8 + 7 + 6 + 5 + 4 + 3 + 2)}{13} = \frac{58}{13} \approx 4.46.
+\]
+
+這種連成一段、越來越長的現象叫做\textbf{主要群聚}（primary clustering）。 原因很簡
+單：一段連續的 $L$ 格後面接著一個空格，起始位置落在這 $L$ 格或那個空格本身的鍵都會
+被放進那個空格，機率大約是 $(L + 1)/m$；段越長，下一個鍵越可能接在它後面，讓它更長。
+兩段之間只隔一格時，那一格一填上，兩段就合成一段，上面第 $4$ 到 $12$ 格就是這樣接起
+來的。
+
+\subsection{二次探測}
+
+\textbf{二次探測}（quadratic probing）讓跳的距離越來越大：
+\[
+h(k, i) = (h(k) + i^2) \bmod m,
+\]
+從起始位置依序跳 $0, 1, 4, 9, 16, \ldots$ 格（都取 $\bmod m$）。 起始位置不同的鍵，
+就算碰上同一格，下一步也會跳到不同的地方，不會跟著同一段一路往後走，所以沒有主要群
+聚。 但起始位置\textbf{相同}的鍵，探測序列整條一模一樣，例子裡 $6296$、$5906$、
+$7193$ 都從 $4$ 開始，依序試 $4, 5, 8, 0$，後一個總是把前一個試過的路再走一遍。 這
+叫做\textbf{次要群聚}（secondary clustering）。
+
+二次探測有一個新問題：$i^2 \bmod m$ 不一定走得遍所有的格子。 例如 $m = 8$ 時
+$i^2 \bmod 8$ 只有 $0, 1, 4$ 三種值，從起始位置出發只到得了三格，表還有空位也插不
+進去（觀念題第 6 題）。 $m$ 是質數時，至少前一半是不重複的。
+
+\begin{theorem}
+\label{thm:hash-quad}
+$m$ 是奇質數時，二次探測的前 $(m+1)/2$ 個位置
+$h(k, 0), h(k, 1), \ldots, h(k, (m-1)/2)$ 兩兩不同。 因此只要表裡的鍵少於
+$(m+1)/2$ 個（例如 $\alpha < 1/2$），插入一定成功。
+\end{theorem}
+
+\begin{proof}
+假設 $0 \le i < j \le (m-1)/2$ 而 $h(k, i) = h(k, j)$。 兩邊減掉 $h(k)$，得到
+$i^2 \equiv j^2 \pmod m$，也就是 $m$ 整除 $j^2 - i^2 = (j - i)(j + i)$。 $m$ 是質數，
+所以 $m$ 整除 $j - i$ 或 $j + i$。 但 $1 \le j - i < m$，而且
+$1 \le j + i \le m - 2 < m$，兩個都不可能被 $m$ 整除，矛盾。 前 $(m+1)/2$ 個位置兩
+兩不同；表裡的鍵少於 $(m+1)/2$ 個時，這些位置裡至少有一個是空的，插入會停在那裡。
+\end{proof}
+
+這個界是緊的：$i$ 和 $m - i$ 給出同一個 $i^2 \bmod m$，所以後一半只是把前一半倒過來
+再走一次，二次探測最多只看得到 $(m+1)/2$ 個不同的格子。 有兩種常見的改法讓它走遍整
+張表：$m = 2^p$ 時改跳三角數 $h(k) + i(i+1)/2$（觀念題第 7 題證明它走得遍）；或是正
+負交替地跳 $h(k) + 1^2, h(k) - 1^2, h(k) + 2^2, h(k) - 2^2, \ldots$，可以證明 $m$ 是
+除以 $4$ 餘 $3$ 的質數時，這樣會走遍全部 $m$ 格。
+
+\subsection{雙重雜湊}
+
+\textbf{雙重雜湊}（double hashing）用第二個雜湊函數決定步長：
+\[
+h(k, i) = (h_1(k) + i \cdot h_2(k)) \bmod m.
+\]
+兩個鍵就算 $h_1$ 相同，$h_2$ 通常不同，探測序列在第二步就分開了，所以主要和次要群
+聚都沒有。 $h_2(k)$ 不能是 $0$（會原地不動），而且要和 $m$ 互質。
+
+\begin{theorem}
+\label{thm:hash-double}
+如果 $\gcd(h_2(k), m) = 1$，雙重雜湊的探測序列 $h(k, 0), \ldots, h(k, m-1)$ 是
+$0, 1, \ldots, m-1$ 的一個排列。
+\end{theorem}
+
+\begin{proof}
+假設 $0 \le i < j \le m - 1$ 而 $h(k, i) = h(k, j)$，則 $m$ 整除 $(j - i)\,h_2(k)$。
+$m$ 和 $h_2(k)$ 互質，所以 $m$ 整除 $j - i$，但 $1 \le j - i < m$，矛盾。 $m$ 個位置
+兩兩不同，就是全部的 $m$ 格。
+\end{proof}
+
+常見的兩種取法：$m$ 取質數，$h_2(k)$ 取 $1$ 到 $m - 1$ 之間的值；或是 $m = 2^p$，
+$h_2(k)$ 一律取奇數。 例子裡 $m = 13$，取 $h_2(k) = 1 + (k \bmod 7)$，值在 $1$ 到
+$7$ 之間，都和 $13$ 互質。
+
+下表把三種探測法放在一起。 每一格是那個鍵插入時依序試過的格子，最後一個數就是它放
+進去的位置。
+
+\begin{center}
+\begin{tabular}{rccllll}
+\toprule
+鍵 & $h_1$ & $h_2$ & 線性探測 & 二次探測 & 雙重雜湊 \\
+\midrule
+5347 & 4 & 7 & 4 & 4 & 4 \\
+3051 & 9 & 7 & 9 & 9 & 9 \\
+6296 & 4 & 4 & 4 5 & 4 5 & 4 8 \\
+1682 & 5 & 3 & 5 6 & 5 6 & 5 \\
+2014 & 12 & 6 & 12 & 12 & 12 \\
+8170 & 6 & 2 & 6 7 & 6 7 & 6 \\
+2299 & 11 & 4 & 11 & 11 & 11 \\
+5906 & 4 & 6 & 4 5 6 7 8 & 4 5 8 & 4 10 \\
+7193 & 4 & 5 & 4 5 6 7 8 9 10 & 4 5 8 0 & 4 9 1 \\
+\midrule
+探測總次數 & & & 22 & 17 & 13 \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+前七個鍵三種方法幾乎一樣，差別出在最後兩個起始位置是 $4$ 的鍵。 線性探測被第 $4$
+到 $10$ 格那一整段拖住；二次探測跳開了，但 $5906$、$7193$ 都重走 $4, 5, 8$；雙重雜
+湊的 $7193$ 步長是 $5$，第二步就跳到第 $9$ 格，和 $6296$（步長 $4$）、$5906$（步長
+$6$）走的路都不一樣。 三種方法最後的表在範例~\ref{ex:hash-open} 的輸出裡。
+
+
+用「一共有幾種不同的探測序列」來比較也很清楚。 線性探測和二次探測的整條序列只由
+起始位置決定，各只有 $m$ 種；雙重雜湊由 $(h_1(k), h_2(k))$ 決定，$m$ 是質數時有
+$m(m-1)$ 種。 第~\ref{sec:hash-analysis}~節的理想模型允許全部 $m!$ 種排列，雙重雜湊
+是三種方法裡最接近的。
+
+\begin{examnote}
+探測的追蹤題，每個鍵寫一列：$h(k)$（雙重雜湊加寫 $h_2(k)$）、依序試過的格子、最後
+放的位置，最後畫出整張表。 先看題目的 $i$ 從 $0$ 還是從 $1$ 開始數，以及「探測次數」
+包不包括第一次看起始位置；本章的寫法是 $i$ 從 $0$ 開始、看過幾格就算幾次。 二次探
+測要寫出 $i^2 \bmod m$ 的值再加，不要心算跳過，繞回 $0$ 的地方最容易錯。
+\end{examnote}
+
+\subsection{刪除：刪除標記}
+\label{sec:hash-tomb}
+
+開放定址的刪除不能把格子改回空的。 在線性探測的表裡刪掉 $1682$（第 $6$ 格），如果
+把第 $6$ 格清空，再找 $5906$：從第 $4$ 格開始，看到第 $6$ 格是空的就停下，回答「不在
+表裡」。 但 $5906$ 明明在第 $8$ 格，它當初是越過第 $6$ 格才放進去的。 清空一格會把
+經過它的探測序列從中間切斷。
+
+做法是把刪掉的格子標成第三種狀態 \hashDEL，叫做\textbf{刪除標記}，也常叫
+\textbf{墓碑}（tombstone）。 搜尋時把它當成有鍵的格子，繼續往後找；插入時把它當成
+空格，可以放新的鍵。 \proc{Open-Search} 一個字都不用改：\hashDEL{} 既不等於 $k$ 也不
+是 \NIL，虛擬碼~\ref{alg:hash-open} 的第 11 到 14 行自然會跳過它。 要改的是插入和
+刪除。
+
+\begin{pseudo}[label=alg:hash-tomb]{有刪除標記的插入與刪除}
+\Function{Tomb-Insert}{$T, k$}
+    \State $a \gets \NIL$ \Comment{第一個可以放的格子}
+    \For{$i \gets 0$ \To $m - 1$}
+        \State $j \gets h(k, i)$
+        \If{$T[j] = k$}
+            \State \Return $j$ \Comment{已經在表裡}
+        \EndIf
+        \If{($T[j] = \NIL$ \OR $T[j] = \hashDEL$) \AND $a = \NIL$}
+            \State $a \gets j$
+        \EndIf
+        \If{$T[j] = \NIL$}
+            \State \Break
+        \EndIf
+    \EndFor
+    \If{$a = \NIL$}
+        \State \Error{表已滿}
+    \EndIf
+    \State $T[a] \gets k$
+    \State \Return $a$
+\EndFunction
+\Procedure{Tomb-Delete}{$T, k$}
+    \State $j \gets \Call{Open-Search}{T, k}$
+    \If{$j \ne \NIL$}
+        \State $T[j] \gets \hashDEL$
+    \EndIf
+\EndProcedure
+\end{pseudo}
+
+\proc{Tomb-Insert} 遇到第一個墓碑時先記在 $a$（第 7、8 行），但不能馬上放：$k$ 可
+能就在更後面，直接放會讓表裡有兩個 $k$。 所以它繼續往後找，直到遇到空格（第 9、10
+行）或找到 $k$（第 5、6 行）才停，最後把 $k$ 放在第一個可以放的格子。 回到線性探測
+的例子，刪除 $1682$ 之後做三件事，見圖~\ref{fig:hash-tomb}。
+
+\begin{figure}[tbp]
+\centering
+\begin{tikzpicture}
+\foreach \j in {0,...,12} { \node[idxlbl] at ({0.6+\j*0.92}, 0.55) {\j}; }
+\node[anchor=east, font=\footnotesize] at (0.2,0.00) {刪除 1682};
+\node[hcell] at (0.60,0.00) {};
+\node[hcell] at (1.52,0.00) {};
+\node[hcell] at (2.44,0.00) {};
+\node[hcell] at (3.36,0.00) {};
+\node[hcell] at (4.28,0.00) {5347};
+\node[hcell, hlprobe] at (5.20,0.00) {6296};
+\node[hcell, hldead] at (6.12,0.00) {$\times$};
+\node[hcell] at (7.04,0.00) {8170};
+\node[hcell] at (7.96,0.00) {5906};
+\node[hcell] at (8.88,0.00) {3051};
+\node[hcell] at (9.80,0.00) {7193};
+\node[hcell] at (10.72,0.00) {2299};
+\node[hcell] at (11.64,0.00) {2014};
+\node[anchor=east, font=\footnotesize] at (0.2,-0.78) {找 5906，5 次};
+\node[hcell] at (0.60,-0.78) {};
+\node[hcell] at (1.52,-0.78) {};
+\node[hcell] at (2.44,-0.78) {};
+\node[hcell] at (3.36,-0.78) {};
+\node[hcell, hlprobe] at (4.28,-0.78) {5347};
+\node[hcell, hlprobe] at (5.20,-0.78) {6296};
+\node[hcell, hlprobe] at (6.12,-0.78) {$\times$};
+\node[hcell, hlprobe] at (7.04,-0.78) {8170};
+\node[hcell, hlprobe] at (7.96,-0.78) {5906};
+\node[hcell] at (8.88,-0.78) {3051};
+\node[hcell] at (9.80,-0.78) {7193};
+\node[hcell] at (10.72,-0.78) {2299};
+\node[hcell] at (11.64,-0.78) {2014};
+\node[anchor=east, font=\footnotesize] at (0.2,-1.56) {找 1682，9 次};
+\node[hcell, hlprobe] at (0.60,-1.56) {};
+\node[hcell] at (1.52,-1.56) {};
+\node[hcell] at (2.44,-1.56) {};
+\node[hcell] at (3.36,-1.56) {};
+\node[hcell] at (4.28,-1.56) {5347};
+\node[hcell, hlprobe] at (5.20,-1.56) {6296};
+\node[hcell, hlprobe] at (6.12,-1.56) {$\times$};
+\node[hcell, hlprobe] at (7.04,-1.56) {8170};
+\node[hcell, hlprobe] at (7.96,-1.56) {5906};
+\node[hcell, hlprobe] at (8.88,-1.56) {3051};
+\node[hcell, hlprobe] at (9.80,-1.56) {7193};
+\node[hcell, hlprobe] at (10.72,-1.56) {2299};
+\node[hcell, hlprobe] at (11.64,-1.56) {2014};
+\node[anchor=east, font=\footnotesize] at (0.2,-2.34) {放 4880，9 次};
+\node[hcell, hlprobe] at (0.60,-2.34) {};
+\node[hcell] at (1.52,-2.34) {};
+\node[hcell] at (2.44,-2.34) {};
+\node[hcell] at (3.36,-2.34) {};
+\node[hcell] at (4.28,-2.34) {5347};
+\node[hcell, hlprobe] at (5.20,-2.34) {6296};
+\node[hcell, hlnew] at (6.12,-2.34) {4880};
+\node[hcell, hlprobe] at (7.04,-2.34) {8170};
+\node[hcell, hlprobe] at (7.96,-2.34) {5906};
+\node[hcell, hlprobe] at (8.88,-2.34) {3051};
+\node[hcell, hlprobe] at (9.80,-2.34) {7193};
+\node[hcell, hlprobe] at (10.72,-2.34) {2299};
+\node[hcell, hlprobe] at (11.64,-2.34) {2014};
+\end{tikzpicture}
+\diagcaption{刪除標記（$\times$）。 找 $5906$ 時越過第 $6$ 格的標記，在第 $8$ 格找到；
+找已經刪掉的 $1682$ 要一路看到第 $0$ 格的空格才停；放 $4880$（$h = 5$）時記住第 $6$
+格，確定後面沒有 $4880$ 之後才放回第 $6$ 格。}
+\label{fig:hash-tomb}
+\end{figure}
+
+\begin{examnote}
+刪除標記的題目，先看清楚題目規定插入時遇到標記怎麼做。 本章（以及多數教科書）的規
+則是「繼續找到空格或找到 $k$ 為止，再放進第一個標記或空格」；有些題目為了簡化，直
+接放進第一個遇到的標記。 兩種規則放的位置可能一樣，探測次數卻不同，作答時把採用的
+規則寫一句在答案前面。
+\end{examnote}
+
+墓碑讓刪除變得正確，但它不會自己消失。 插入、刪除做久了，表裡可能只剩少數幾個鍵，
+卻有很多格是墓碑；失敗的搜尋要一直走到真正的空格才停，速度由「鍵加上墓碑」佔的比
+例決定，而不是 $\alpha$。 常見的處理是記下墓碑的個數 $d$，當 $(n + d)/m$ 超過某個
+門檻時，把所有的鍵重新插入一張乾淨的表（第~\ref{sec:hash-dynamic}~節的再雜湊）。
+刪除和放進墓碑的插入都不會改變 $n + d$，只有放進真正空格的插入會讓它加一；只要
+重建後的表夠空（例如 $(n + d)/m$ 不超過門檻的一半），下一次重建之前至少要再插入
+$\Theta(m)$ 個鍵，重建的 $O(m)$ 平攤到這些插入上，每次 $O(1)$。 第~3~章觀念題「刪除
+時先只做標記、標記多了再一起整理」用的是同一類論證。
+
+\subsection{C 實作}
+\label{sec:hash-open-c}
+
+下面的程式把三種探測法寫在同一個函式 \texttt{probe} 裡，用 \texttt{mode} 選擇；每格
+有 \texttt{EMPTY}、\texttt{FULL}、\texttt{DELETED} 三種狀態。 \texttt{search} 就
+是虛擬碼的 \proc{Open-Search} 加上 \proc{Tomb-Insert} 要的「第一個可以放的格子」，
+\texttt{operate} 的插入、搜尋、刪除都先呼叫它，再依結果放鍵或立標記。 \texttt{main} 把這一節的九張停車證用三種方法各插一次，
+線性探測再做一次刪除、搜尋和插入。 線性探測的每個操作印一行：\texttt{i}、\texttt{f}、
+\texttt{d} 是插入、搜尋、刪除，接著是試過的格子、結果的格子（\texttt{-1} 表示沒找
+到）和探測次數，可以和圖~\ref{fig:hash-linear}、圖~\ref{fig:hash-tomb} 逐格對照；另
+外兩種方法只印最後的表，和上一小節的三列表對照。
+
+\begin{example}[label=ex:hash-open]{c}{(open\_addr.c) 開放定址：三種探測法與刪除標記}
+#include <stdio.h>
+#include <stdlib.h>
+
+// 開放定址的雜湊表（鍵是非負整數），三種探測法，刪除用標記。
+enum { EMPTY, FULL, DELETED };            // 每一格的三種狀態
+enum { LINEAR, QUADRATIC, DOUBLE };       // 探測法
+static int trace = 1;
+
+typedef struct {
+    int *key;
+    unsigned char *state;
+    int m, mode;
+} OpenTable;
+
+// 第 i 次探測的格子，i 從 0 開始。h2(k) = 1 + k mod 7。
+int probe(const OpenTable *t, int key, long long i)
+{
+    long long step = i;                           // 線性探測
+    if (t->mode == QUADRATIC) {
+        step = i * i;
+    } else if (t->mode == DOUBLE) {
+        step = i * (1 + key % 7);
+    }
+    return (int)((key % t->m + step) % t->m);
+}
+
+// 沿探測序列找 key，回傳它所在的格子，沒找到回傳 -1。
+// *avail 設成第一個可以放 key 的格子（第一個標記，
+// 或停下來的空格），沒有就是 -1。trace 是 1 時印出看過的格子。
+int search(const OpenTable *t, int key, int *avail, int *probes)
+{
+    *avail = -1;
+    for (int i = 0; i < t->m; i++) {
+        int j = probe(t, key, i);
+        *probes = i + 1;
+        if (trace) {
+            printf(" %d", j);
+        }
+        if (t->state[j] == FULL && t->key[j] == key) {
+            return j;
+        }
+        if (t->state[j] != FULL && *avail < 0) {
+            *avail = j;
+        }
+        if (t->state[j] == EMPTY) {
+            return -1;
+        }
+    }
+    return -1;
+}
+
+// op 是 'i' 插入、'f' 搜尋、'd' 刪除，每個操作都先搜尋。
+void operate(OpenTable *t, char op, int key)
+{
+    int avail, probes;
+    if (trace) {
+        printf("%c %d:", op, key);
+    }
+    int j = search(t, key, &avail, &probes);
+    if (op == 'i' && j < 0 && avail >= 0) {
+        t->key[avail] = key;
+        t->state[avail] = FULL;
+        j = avail;
+    } else if (op == 'd' && j >= 0) {
+        t->state[j] = DELETED;      // 立標記，不能改回 EMPTY
+    }
+    if (trace) {
+        printf(" -> %d, probes = %d\n", j, probes);
+    }
+}
+
+void print_table(const OpenTable *t)
+{
+    printf("table:");
+    for (int j = 0; j < t->m; j++) {
+        if (t->state[j] == FULL) {
+            printf(" %d", t->key[j]);
+        } else {
+            printf(" %s", t->state[j] == EMPTY ? "-" : "D");
+        }
+    }
+    printf("\n");
+}
+
+int main(void)
+{
+    const int permit[] = {5347, 3051, 6296, 1682, 2014,
+                          8170, 2299, 5906, 7193};
+    const char *name[] = {"linear", "quadratic", "double"};
+    for (int mode = LINEAR; mode <= DOUBLE; mode++) {
+        OpenTable t = {malloc(13 * sizeof(int)), calloc(13, 1),
+                       13, mode};    // calloc：全部是 EMPTY
+        if (t.key != NULL && t.state != NULL) {
+            trace = (mode == LINEAR);   // 只印線性探測的過程
+            printf("== %s\n", name[mode]);
+            for (int i = 0; i < 9; i++) {
+                operate(&t, 'i', permit[i]);
+            }
+            print_table(&t);
+            if (mode == LINEAR) {       // 刪除、搜尋、再插入
+                operate(&t, 'd', 1682);
+                operate(&t, 'f', 5906);
+                operate(&t, 'f', 1682);
+                operate(&t, 'i', 4880);
+                print_table(&t);
+            }
+        }
+        free(t.key);
+        free(t.state);
+    }
+    return 0;
+}
+\end{example}
+\iosample{}{== linear \\ i 5347: 4 -> 4, probes = 1 \\ i 3051: 9 -> 9, probes = 1 \\ i 6296: 4 5 -> 5, probes = 2 \\ i 1682: 5 6 -> 6, probes = 2 \\ i 2014: 12 -> 12, probes = 1 \\ i 8170: 6 7 -> 7, probes = 2 \\ i 2299: 11 -> 11, probes = 1 \\ i 5906: 4 5 6 7 8 -> 8, probes = 5 \\ i 7193: 4 5 6 7 8 9 10 -> 10, probes = 7 \\ table: - - - - 5347 6296 1682 8170 5906 3051 7193 2299 2014 \\ d 1682: 5 6 -> 6, probes = 2 \\ f 5906: 4 5 6 7 8 -> 8, probes = 5 \\ f 1682: 5 6 7 8 9 10 11 12 0 -> -1, probes = 9 \\ i 4880: 5 6 7 8 9 10 11 12 0 -> 6, probes = 9 \\ table: - - - - 5347 6296 4880 8170 5906 3051 7193 2299 2014 \\ == quadratic \\ table: 7193 - - - 5347 6296 1682 8170 5906 3051 - 2299 2014 \\ == double \\ table: - 7193 - - 5347 1682 8170 - 6296 3051 5906 2299 2014}
+
+輸出的 \texttt{table} 一行由第 $0$ 格印到第 $12$ 格，\texttt{-} 是空格。 刪除後的
+\texttt{table} 裡看不到 \texttt{D}，是因為最後插入的 $4880$ 剛好放進了第 $6$ 格的墓
+碑。 \texttt{probe} 用 \texttt{long long} 算 \texttt{i * i} 和
+\texttt{i * (1 + key \% 7)}，$m$ 很大時也不會溢位。
+
+\section{期望探測次數}
+\label{sec:hash-analysis}
+
+第~\ref{sec:hash-chain-analysis}~節算出鏈結法的期望比較次數。 這一節對開放定址做同
+樣的事。 先要一個和簡單均勻雜湊對應的假設，它講的是整條探測序列。
+
+\begin{definition}[均勻雜湊]
+\label{def:hash-uh}
+每個鍵的探測序列 $\langle h(k, 0), \ldots, h(k, m-1) \rangle$ 等可能是
+$0, 1, \ldots, m-1$ 的 $m!$ 種排列之中的任何一種，而且不同鍵的探測序列互相獨立。
+這個假設叫做\textbf{均勻雜湊}（uniform hashing）。
+\end{definition}
+
+上一節的三種方法都達不到這個假設（線性和二次探測只有 $m$ 種序列，雙重雜湊大約
+$m^2$ 種）；它是一個理想模型，實際的方法離它多遠，最後用程式量。 這一節假設表裡沒有
+刪除標記。
+
+\subsection{失敗的搜尋與插入}
+
+\begin{theorem}
+\label{thm:hash-unsucc}
+在均勻雜湊下，開放定址的表有 $m$ 格、$n$ 個鍵，$n < m$。 搜尋一個不在表裡的鍵，期
+望探測次數是
+\[
+\frac{m + 1}{m - n + 1} < \frac{1}{1 - \alpha}.
+\]
+\end{theorem}
+
+\begin{proof}
+表裡哪 $n$ 格有鍵是由其他鍵的探測序列決定的；要找的鍵 $k$ 的探測序列和它們獨立，所
+以可以先把有鍵的 $n$ 格固定下來，叫它們「滿格」，其餘 $m - n$ 格叫「空格」。 $k$ 不
+在表裡，搜尋會沿著 $k$ 的探測序列一直看，直到第一個空格才停。 所以
+\[
+\text{探測次數} = 1 + (\text{排在第一個空格前面的滿格個數}).
+\]
+對每一個滿格 $s$，令 $I_s$ 是「$s$ 在 $k$ 的探測序列裡排在所有空格前面」的指示變數。
+$k$ 的探測序列是均勻隨機的排列，所以 $s$ 和 $m - n$ 個空格這 $m - n + 1$ 格之間的先
+後順序也是均勻的，每一格排在最前面的機率都一樣，都是 $1/(m - n + 1)$。 因此
+$\mathrm{E}[I_s] = 1/(m - n + 1)$，再用期望值的線性：
+\[
+\mathrm{E}[\text{探測次數}] = 1 + \sum_{s} \mathrm{E}[I_s]
+= 1 + \frac{n}{m - n + 1} = \frac{m + 1}{m - n + 1}.
+\]
+最後 $m - n + 1 > m - n$，所以這個值小於
+$1 + \dfrac{n}{m - n} = \dfrac{m}{m - n} = \dfrac{1}{1 - \alpha}$。
+\end{proof}
+
+\begin{corollary}
+\label{cor:hash-insert}
+在均勻雜湊下，把一個新的鍵插入有 $n$ 個鍵的表，期望探測次數是
+$(m + 1)/(m - n + 1)$，小於 $1/(1 - \alpha)$。
+\end{corollary}
+
+插入就是做一次失敗的搜尋，再把鍵放進停下來的那個空格，探測序列完全一樣。
+
+$1/(1 - \alpha)$ 有一個好記的意思：每看一格，是空格的機率大約是 $1 - \alpha$，像擲一
+枚正面機率 $1 - \alpha$ 的硬幣，期望要擲 $1/(1 - \alpha)$ 次才出現第一個正面。 半滿
+時要 $2$ 次，$90\%$ 滿時要 $10$ 次。 表越滿，成本漲得越快。
+
+\subsection{成功的搜尋}
+
+\begin{theorem}
+\label{thm:hash-succ}
+在均勻雜湊下，表有 $m$ 格、$n$ 個鍵，$n < m$，表裡的每個鍵被搜尋的機會一樣。 成功
+搜尋的期望探測次數是
+\[
+\frac{1}{n} \sum_{i=0}^{n-1} \frac{m+1}{m-i+1}
+\;\le\; \frac{1}{\alpha} \ln \frac{1}{1 - \alpha}.
+\]
+\end{theorem}
+
+\begin{proof}
+把鍵依插入的順序編號。 第 $i + 1$ 個鍵插入時表裡有 $i$ 個鍵。 因為沒有刪除，格子只
+會由空變滿，搜尋這個鍵時走的路和當初插入它時完全一樣：前面那些格子當時是滿的，現在
+還是滿的，它停的那一格現在放的就是它。 所以搜尋它的探測次數等於插入它的探測次數，
+由系理~\ref{cor:hash-insert}，期望值是 $(m + 1)/(m - i + 1)$。 每個鍵被搜尋的機率
+是 $1/n$，把 $i = 0$ 到 $n - 1$ 平均就是左邊的式子。
+
+接著估上界。 $(m + 1)(m - i) \le m(m - i + 1)$ 展開後是 $-i \le 0$，成立，所以每一項
+$\frac{m+1}{m-i+1} \le \frac{m}{m-i}$。 於是
+\[
+\frac{1}{n} \sum_{i=0}^{n-1} \frac{m+1}{m-i+1}
+\le \frac{m}{n} \sum_{i=0}^{n-1} \frac{1}{m - i}
+= \frac{1}{\alpha} \sum_{j = m-n+1}^{m} \frac{1}{j}.
+\]
+$1/x$ 是遞減的，在區間 $[j - 1, j]$ 上 $1/x \ge 1/j$，所以
+$\frac{1}{j} \le \int_{j-1}^{j} \frac{dx}{x}$。 把 $j = m - n + 1$ 到 $m$ 加起來：
+\[
+\sum_{j=m-n+1}^{m} \frac{1}{j} \le \int_{m-n}^{m} \frac{dx}{x}
+= \ln \frac{m}{m - n} = \ln \frac{1}{1 - \alpha}. \qedhere
+\]
+\end{proof}
+
+左邊的式子可以寫成 $\frac{m+1}{n}(H_{m+1} - H_{m-n+1})$，$H_t$ 是第~1~章的調和數。
+用第~\ref{sec:hash-open}~節的例子驗算：$m = 13$、$n = 9$，失敗搜尋是
+$14/5 = 2.8$，成功搜尋是 $\frac{14}{9}(H_{14} - H_5) \approx 1.51$。 線性探測在同一張
+表上實際是 $4.46$ 和 $2.44$，雙重雜湊的成功搜尋是 $13/9 \approx 1.44$。 九個鍵太少，
+這些數只能看出方向；大量的資料要用程式量。
+
+\subsection{線性探測的公式}
+
+線性探測有主要群聚，均勻雜湊的公式不適用。 Knuth 在 \textit{The Art of Computer
+Programming} 第 3 冊 6.4 節分析了線性探測（假設起始位置 $h(k)$ 均勻而且獨立），$m$
+很大、$\alpha$ 固定時，期望探測次數趨近於
+\[
+\text{成功：} \frac{1}{2}\left(1 + \frac{1}{1 - \alpha}\right), \qquad
+\text{失敗：} \frac{1}{2}\left(1 + \frac{1}{(1 - \alpha)^2}\right).
+\]
+這裡只引用結果，推導要用到比本書多的組合計數，見延伸閱讀。 雙重雜湊雖然只有大約
+$m^2$ 種探測序列，已經證明它在 $m$ 很大時的期望探測次數趨近於均勻雜湊的公式（Lueker
+與 Molodowitch，1993）。 幾個 $\alpha$ 的公式值，下一小節的程式會和實測值一起印出來。
+
+$\alpha = 0.5$ 時，線性探測的失敗搜尋是 $2.5$ 次，均勻雜湊是 $2$ 次，差不多；過了 $0.7$ 左右，線性探測的失敗搜尋就比均勻雜湊
+貴很多，$0.9$ 時差了五倍。 所以開放定址的表通常把 $\alpha$ 控制在 $0.5$ 到 $0.75$
+以下，超過就擴表。 反過來說，線性探測每次看的是相鄰的格子，在有快取的真實電腦上一
+次讀進來好幾格，$\alpha$ 不高時常常比雙重雜湊快。 RAM 模型（第~1~章）數不出這種
+差別。
+
+\subsection{實測}
+\label{sec:hash-measure}
+
+下面的程式開一張 $m = 100003$ 格（質數）的表，用自己寫的線性同餘亂數產生鍵，載入因
+子依序加到 $0.10$、$0.25$、$0.50$、$0.75$、$0.90$、$0.95$。 每到一個載入因子，就把
+表裡每個鍵搜尋一次，算成功搜尋的平均；再搜尋 $100000$ 個一定不在表裡的鍵，算失敗搜
+尋的平均。 放進表裡的鍵都是偶數、拿來做失敗搜尋的都是奇數，這樣不用另外檢查。 線性
+探測和雙重雜湊（$h_2(k) = 1 + (k \bmod (m - 2))$）用同一串鍵，旁邊印出對應的公式值。
+
+亂數用固定的種子，所以每次執行的輸出都一樣，可以逐字對照。 C 標準函式庫的
+\texttt{rand} 在不同的系統上演算法不同，同一個種子會得到不同的數，這裡不用它。 線性
+同餘法每一步算 $x \gets (ax + c) \bmod 2^{64}$，$a$、$c$ 是兩個選好的常數；
+\texttt{unsigned long long} 的乘法和加法溢位時自動就是 $\bmod 2^{64}$，這是 C 標準規
+定的行為，不是未定義行為。 低位元的週期很短，所以取最高的 $31$ 位元當鍵。
+
+\begin{example}[label=ex:hash-probe-count]{c}{(probe\_count.c) 載入因子和平均探測次數}
+#include <stdio.h>
+#include <stdlib.h>
+#include <math.h>
+
+#define M 100003            // 格數（質數）
+#define TRIALS 100000       // 每個載入因子做幾次失敗搜尋
+
+// 線性同餘法的亂數產生器。種子固定，每次執行的結果都一樣。
+static unsigned long long seed;
+
+int next_key(void)
+{
+    seed = seed * 6364136223846793005ULL + 1442695040888963407ULL;
+    return (int)(seed >> 33);           // 取最高的 31 位元
+}
+
+// 雙重雜湊的步長 h2(k) = 1 + k mod (M - 2)；線性探測的步長是 1。
+int step_of(int key, int dbl)
+{
+    return dbl ? 1 + key % (M - 2) : 1;
+}
+
+// 找 key，回傳探測次數，*slot 是停下來的格子。-1 代表空格。
+int search(const int *table, int key, int dbl, int *slot)
+{
+    int step = step_of(key, dbl);
+    for (long long i = 0; i < M; i++) {
+        *slot = (int)((key % M + i * step) % M);
+        if (table[*slot] == key || table[*slot] == -1) {
+            return (int)i + 1;
+        }
+    }
+    return M;                       // 表滿了（這裡不會發生）
+}
+
+int main(void)
+{
+    const double alphas[] = {0.10, 0.25, 0.50, 0.75, 0.90, 0.95};
+    double res[6][4];
+    int *table = malloc(M * sizeof *table);
+    int *keys = malloc(M * sizeof *keys);
+    if (table == NULL || keys == NULL) {
+        free(table);
+        free(keys);
+        return 1;
+    }
+    for (int dbl = 0; dbl <= 1; dbl++) {
+        seed = 20261119ULL;             // 兩種方法用同一串鍵
+        for (int j = 0; j < M; j++) {
+            table[j] = -1;
+        }
+        int n = 0, slot;
+        for (int a = 0; a < 6; a++) {
+            while (n < (int)(alphas[a] * M)) {   // 插入偶數鍵
+                int key = next_key() & ~1;
+                search(table, key, dbl, &slot);
+                if (table[slot] == -1) {   // 停在空格：不在表裡
+                    table[slot] = key;
+                    keys[n++] = key;
+                }
+            }
+            long long hit = 0, miss = 0;
+            for (int i = 0; i < n; i++) {    // 成功：每個鍵找一次
+                hit += search(table, keys[i], dbl, &slot);
+            }
+            for (int t = 0; t < TRIALS; t++) {   // 失敗：奇數鍵
+                miss += search(table, next_key() | 1, dbl, &slot);
+            }
+            res[a][2 * dbl] = (double)hit / n;
+            res[a][2 * dbl + 1] = (double)miss / TRIALS;
+        }
+    }
+    printf("        ------ linear probing ------   ");
+    printf("------ double hashing ------\n");
+    printf("alpha   hit   Knuth   miss   Knuth     ");
+    printf("hit  uniform   miss uniform\n");
+    for (int a = 0; a < 6; a++) {
+        double x = alphas[a];
+        printf("%.2f %6.2f %7.2f %6.2f %7.2f  ", x,
+               res[a][0], 0.5 * (1 + 1 / (1 - x)),
+               res[a][1], 0.5 * (1 + 1 / ((1 - x) * (1 - x))));
+        printf("%6.2f %7.2f %6.2f %7.2f\n",
+               res[a][2], log(1 / (1 - x)) / x,
+               res[a][3], 1 / (1 - x));
+    }
+    free(table);
+    free(keys);
+    return 0;
+}
+\end{example}
+\iosample{}{\ \ \ \ \ \ \ \ ------\ linear\ probing\ ------\ \ \ ------\ double\ hashing\ ------ \\ alpha\ \ \ hit\ \ \ Knuth\ \ \ miss\ \ \ Knuth\ \ \ \ \ hit\ \ uniform\ \ \ miss\ uniform \\ 0.10\ \ \ 1.05\ \ \ \ 1.06\ \ \ 1.12\ \ \ \ 1.12\ \ \ \ 1.05\ \ \ \ 1.05\ \ \ 1.11\ \ \ \ 1.11 \\ 0.25\ \ \ 1.17\ \ \ \ 1.17\ \ \ 1.39\ \ \ \ 1.39\ \ \ \ 1.16\ \ \ \ 1.15\ \ \ 1.33\ \ \ \ 1.33 \\ 0.50\ \ \ 1.50\ \ \ \ 1.50\ \ \ 2.49\ \ \ \ 2.50\ \ \ \ 1.41\ \ \ \ 1.39\ \ \ 1.94\ \ \ \ 2.00 \\ 0.75\ \ \ 2.50\ \ \ \ 2.50\ \ \ 8.27\ \ \ \ 8.50\ \ \ \ 1.91\ \ \ \ 1.85\ \ \ 3.80\ \ \ \ 4.00 \\ 0.90\ \ \ 5.35\ \ \ \ 5.50\ \ 48.83\ \ \ 50.50\ \ \ \ 2.66\ \ \ \ 2.56\ \ \ 9.49\ \ \ 10.00 \\ 0.95\ \ 10.00\ \ \ 10.50\ 193.24\ \ 200.50\ \ \ \ 3.28\ \ \ \ 3.15\ \ 19.29\ \ \ 20.00}
+
+\texttt{hit} 是成功搜尋、\texttt{miss} 是失敗搜尋。 線性探測的實測值和 Knuth 的公
+式幾乎一致，連 $\alpha = 0.95$ 時失敗搜尋要將近 $200$ 次都對得上；雙重雜湊緊跟著均
+勻雜湊的公式。 失敗搜尋的實測比公式略低一點，因為公式 $1/(1 - \alpha)$ 是
+定理~\ref{thm:hash-unsucc} 的上界，精確值 $(m+1)/(m-n+1)$ 比它小。
+
+\subsection{鏈結法和開放定址怎麼選}
+
+鏈結法的 $\alpha$ 可以大於 $1$，變大時慢慢變慢；刪除直接從串列拿掉；代價是每個鍵多
+一個指標、每次插入配置一個節點，走串列時每個節點可能在記憶體的不同地方。 開放定址只
+有一個陣列，鍵小的時候省很多空間，線性探測讀的是相鄰的格子，對快取友善；代價是
+$\alpha$ 接近 $1$ 時急遽變慢，刪除要用標記，標記多了要重建。 所以鍵數難預估、刪除頻
+繁、每筆資料很大時用鏈結法；鍵數大致已知、資料小、以查詢為主時用開放定址。
+
+\section{再雜湊、可延伸雜湊與通用雜湊}
+\label{sec:hash-dynamic}
+
+\subsection{再雜湊}
+
+前面的分析都假設 $\alpha$ 是常數。 鍵一直加進來，$\alpha$ 就一直變大，鏈結法的串列
+越來越長，開放定址最後會滿。 做法和第~3~章 3.4 節的動態陣列一樣：$\alpha$ 超過門檻
+（例如開放定址 $0.5$、鏈結法 $1$）時，配置一張大約兩倍大的新表，把舊表的鍵逐一插入
+新表，再釋放舊表。 這叫\textbf{再雜湊}（rehashing）。
+
+搬的時候不能照格子號碼直接複製，因為 $h$ 和 $m$ 有關，$m$ 變了，每個鍵的位置都要重
+算。 把第~\ref{sec:hash-open}~節線性探測的表（$m = 13$，九個鍵）搬到 $m' = 29$（大
+於 $2 \times 13$ 的最小質數），依舊表的格子順序逐一插入：
+
+\begin{center}
+\begin{tabular}{lccccccccc}
+\toprule
+鍵 & 5347 & 6296 & 1682 & 8170 & 5906 & 3051 & 7193 & 2299 & 2014 \\
+\midrule
+舊位置（$m = 13$）& 4 & 5 & 6 & 7 & 8 & 9 & 10 & 11 & 12 \\
+$k \bmod 29$ & 11 & 3 & 0 & 21 & 19 & 6 & 1 & 8 & 13 \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+九個鍵在新表裡沒有任何碰撞，每個都只探測 $1$ 次，舊表裡那一長段群聚完全散開了，
+$\alpha$ 降到 $9/29 \approx 0.31$。 一次再雜湊要 $\Theta(n + m)$，但和動態陣列一樣，
+表變成兩倍之後要再插入大約那麼多個鍵才會再擴表，把搬動的成本平攤到這些插入上，每次
+插入的平攤成本仍然是期望 $O(1)$。 再雜湊也用來清掉刪除標記（第~\ref{sec:hash-tomb}~節），
+這時新表的大小可以不變。
+
+要注意「再雜湊」這個詞在一些資料結構課本裡有另一個意思：碰撞時改用第二個、第三個
+雜湊函數 $h_2, h_3, \ldots$ 算下一個位置（雙重雜湊是它的一個特例）。 考題寫「rehashing」
+時，先從上下文判斷是哪一種。
+
+\subsection{可延伸雜湊}
+
+再雜湊一次要搬動全部的鍵。 資料存在磁碟上時，這代價太大：搬一次要把整個檔案讀寫一
+遍。 \textbf{可延伸雜湊}（extendible hashing）讓表一次只長一點點，每次只拆開一個桶。
+
+資料放在固定容量的\textbf{桶}（bucket，在磁碟上就是一頁）裡。 另外有一個
+\textbf{目錄}（directory），是一個有 $2^d$ 個指標的陣列，$d$ 叫做\textbf{全域深度}
+（global depth）。 每個鍵先算出一個夠長的雜湊值（下面用 $5$ 個位元），取\textbf{最
+前面的 $d$ 個位元}當目錄的索引，順著指標找到桶。 幾個相鄰的目錄項可以指向同一個桶；
+每個桶記一個\textbf{局部深度}（local depth）$d'$，表示這個桶裡的鍵前 $d'$ 個位元都
+相同，有 $2^{d - d'}$ 個目錄項指向它。
+
+插入時如果桶滿了，就把它拆成兩個桶，局部深度各加一，依第 $d' + 1$ 個位元把鍵分到兩
+邊：
+
+\begin{itemize}
+\item $d' < d$：有不只一個目錄項指向這個桶，把其中一半改指新的桶就好，目錄不變。
+\item $d' = d$：只有一個目錄項指向它，目錄先加倍（$d$ 加一，新的第 $x$ 項指向舊的第
+$\lfloor x/2 \rfloor$ 項指的桶，也就是去掉最後一個位元），再照上一種情形拆。
+\end{itemize}
+
+拆完如果新的桶還是滿的（所有鍵的下一個位元都一樣），就再拆一次。 下面用容量 $2$ 的桶
+示範。 七個鍵的雜湊值如下：
+
+\begin{center}
+\begin{tabular}{lccccccc}
+\toprule
+鍵 & A & B & C & D & E & F & G \\
+\midrule
+$h(k)$ & \texttt{00110} & \texttt{10011} & \texttt{01101} & \texttt{11010} &
+\texttt{01001} & \texttt{11100} & \texttt{01110} \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\begin{figure}[tbp]
+\centering
+\begin{tikzpicture}[x=1cm, y=0.52cm]
+% (a) d = 1，放完 A、B、C、D
+\begin{scope}
+\node[font=\small] at (1.2, 1.1) {(a) $d = 1$};
+\node[hdir] (a0) at (0, 0) {0};
+\node[hdir] (a1) at (0, -1) {1};
+\node[hpage] (ap) at (2.4, 0) {A C \quad $d'{=}1$};
+\node[hpage] (aq) at (2.4, -1) {B D \quad $d'{=}1$};
+\draw[diagarrow] (a0) -- (ap);
+\draw[diagarrow] (a1) -- (aq);
+\end{scope}
+% (b) 放 E：目錄加倍
+\begin{scope}[xshift=6.6cm]
+\node[font=\small] at (1.2, 1.1) {(b) 放 E，目錄加倍，$d = 2$};
+\foreach \b [count=\i from 0] in {00,01,10,11} { \node[hdir] (b\i) at (0, -\i) {\b}; }
+\node[hpage] (bp) at (2.4, 0) {A \quad $d'{=}2$};
+\node[hpage] (bq) at (2.4, -1) {C E \quad $d'{=}2$};
+\node[hpage] (br) at (2.4, -2.5) {B D \quad $d'{=}1$};
+\draw[diagarrow] (b0) -- (bp);
+\draw[diagarrow] (b1) -- (bq);
+\draw[diagarrow] (b2) -- (br);
+\draw[diagarrow] (b3) -- (br);
+\end{scope}
+% (c) 放 F：拆桶，目錄不變
+\begin{scope}[yshift=-2.9cm]
+\node[font=\small] at (1.2, 1.1) {(c) 放 F，只拆桶，$d = 2$};
+\foreach \b [count=\i from 0] in {00,01,10,11} { \node[hdir] (c\i) at (0, -\i) {\b}; }
+\node[hpage] (cp) at (2.4, 0) {A \quad $d'{=}2$};
+\node[hpage] (cq) at (2.4, -1) {C E \quad $d'{=}2$};
+\node[hpage] (cr) at (2.4, -2) {B \quad $d'{=}2$};
+\node[hpage] (cs) at (2.4, -3) {D F \quad $d'{=}2$};
+\foreach \i/\t in {0/cp, 1/cq, 2/cr, 3/cs} { \draw[diagarrow] (c\i) -- (\t); }
+\end{scope}
+% (d) 放 G：目錄再加倍
+\begin{scope}[xshift=6.6cm, yshift=-2.9cm]
+\node[font=\small] at (1.2, 1.1) {(d) 放 G，目錄加倍，$d = 3$};
+\foreach \b [count=\i from 0] in {000,001,010,011,100,101,110,111} {
+    \node[hdir] (d\i) at (0, -\i) {\b};
+}
+\node[hpage] (dp) at (2.6, -0.5) {A \quad $d'{=}2$};
+\node[hpage] (dq) at (2.6, -2) {E \quad $d'{=}3$};
+\node[hpage] (dr) at (2.6, -3) {C G \quad $d'{=}3$};
+\node[hpage] (ds) at (2.6, -4.5) {B \quad $d'{=}2$};
+\node[hpage] (dt) at (2.6, -6.5) {D F \quad $d'{=}2$};
+\foreach \i/\t in {0/dp, 1/dp, 2/dq, 3/dr, 4/ds, 5/ds, 6/dt, 7/dt} {
+    \draw[diagarrow] (d\i.east) -- (\t.west);
+}
+\end{scope}
+\end{tikzpicture}
+\diagcaption{可延伸雜湊，桶的容量是 $2$，用雜湊值最前面的 $d$ 個位元查目錄。}
+\label{fig:hash-extendible}
+\end{figure}
+
+放 E = \texttt{0}1001 時第一個桶滿了，而且 $d' = d = 1$：目錄先加倍成 $d = 2$
+（\texttt{00}、\texttt{01} 都先指向原來的桶），再依第 $2$ 個位元拆，A = 0\texttt{0}110
+留下，C、E（0\texttt{1}\ldots）到新的桶，見 (b)；B、D 的桶沒有動，局部深度仍是 $1$。
+放 F = \texttt{11}100 時 B、D 的桶滿了，但 $d' = 1 < d = 2$，只拆桶、把目錄項
+\texttt{11} 改指新的桶，見 (c)。 放 G = \texttt{01}110 時 C、E 的桶滿了，$d' = d = 2$，
+目錄再加倍成 $d = 3$，依第 $3$ 個位元把 E = 01\texttt{0}01 和 C、G（01\texttt{1}\ldots）
+分開，見 (d)；其他三個桶不動，各有兩個目錄項指著。
+
+每次只拆一個桶、只搬那個桶裡的鍵；加倍的只是目錄，目錄只存指標，常常整個放得進記憶
+體，搜尋一個鍵只要讀一個桶。 代價是只要有一個桶一直被拆，目錄就得一直加倍。
+
+\begin{examnote}
+可延伸雜湊的題目，先確認用的是雜湊值的最前面幾個位元還是最後面幾個位元（本章用最前
+面，也有很多課本用最後面），以及桶的容量。 每一步畫出目錄（每一項的位元字串）和每個
+桶的局部深度、內容；目錄加倍和只拆桶要分清楚，判斷的依據是 $d'$ 和 $d$ 相不相等。
+\end{examnote}
+
+\subsection{通用雜湊}
+
+任何一個固定的 $h$ 都有一批鍵全部落在同一格（第~\ref{sec:hash-func}~節）。 有人知
+道伺服器用什麼雜湊函數，就能故意送一堆碰撞的鍵讓它變慢，簡單均勻雜湊的假設不成立。 \textbf{通用雜湊}（universal hashing）的想法是：先準備
+一整族函數，程式開始執行時才從裡面隨機挑一個。 輸入是事先決定的，不知道會挑到哪一
+個，所以沒有一組輸入對大部分的函數都很糟。 這時的期望值是對「挑函數」這件事取的，
+不需要對輸入做任何假設。
+
+\begin{definition}[通用雜湊族]
+\label{def:hash-universal}
+一族函數 $\mathcal{H}$，每個都把 $U$ 對應到 $\{0, \ldots, m-1\}$。 如果對任兩個不
+同的鍵 $x \ne y$，滿足 $h(x) = h(y)$ 的函數 $h$ 不超過 $|\mathcal{H}|/m$ 個，就說
+$\mathcal{H}$ 是\textbf{通用的}（universal）。 換句話說，從 $\mathcal{H}$ 隨機挑一
+個 $h$，任兩個固定的不同鍵碰撞的機率不超過 $1/m$。
+\end{definition}
+
+\begin{theorem}
+\label{thm:hash-universal}
+用鏈結法，$h$ 從通用雜湊族裡隨機挑選。 對任何一組事先固定的 $n$ 個鍵，以及任何一個
+鍵 $k$，第 $h(k)$ 條串列裡除了 $k$ 本身以外的鍵，期望個數不超過 $\alpha$。 所以搜尋
+$k$ 期望比較的次數，$k$ 不在表裡時不超過 $\alpha$，在表裡時不超過 $1 + \alpha$。
+\end{theorem}
+
+\begin{proof}
+對表裡每個不等於 $k$ 的鍵 $x$，令 $I_x = I\{h(x) = h(k)\}$。 由定義
+$\mathrm{E}[I_x] = \Pr[h(x) = h(k)] \le 1/m$。 這樣的 $x$ 最多 $n$ 個，加起來期望值不
+超過 $n/m = \alpha$。 搜尋 $k$ 比較的就是這條串列上的鍵；$k$ 在表裡時再加上它自己。
+\end{proof}
+
+和定理~\ref{thm:hash-chain-len} 比，結論的形式一樣，前提卻不同：這裡沒有假設鍵的分
+布，隨機性完全來自程式自己挑函數。 一個常用的通用雜湊族是：取一個比所有鍵都大的質
+數 $p$，
+\[
+h_{a,b}(k) = \bigl( (ak + b) \bmod p \bigr) \bmod m, \qquad
+1 \le a \le p - 1,\ 0 \le b \le p - 1.
+\]
+每組 $(a, b)$ 是一個函數，一共 $p(p-1)$ 個。 它是通用的（Carter 與 Wegman，1979；
+CLRS 第 11.3 節有完整證明，這裡不證）。 例如 $p = 10007$、$m = 10$，執行時隨機挑到
+$a = 37$、$b = 58$，則 $h(2026) = (75020 \bmod 10007) \bmod 10 = 4971 \bmod 10 = 1$。
+下次執行挑到別的 $(a, b)$，同一個鍵就落在別的格子。
+
+\section{本章常見錯誤}
+\label{sec:hash-pitfalls}
+
+\begin{center}
+\small
+\begin{tabular}{p{0.24\linewidth}p{0.50\linewidth}p{0.16\linewidth}}
+\toprule
+錯誤 & 例子 & 見 \\
+\midrule
+除法的 $m$ 沒選好 & $m = 100$ 只用到最後兩位；鍵都是 $4$ 的倍數時用 $m = 12$ &
+第~\ref{sec:hash-func}~節 \\
+負數取餘數 & \texttt{-7 \% 13} 是 $-7$；要寫 \texttt{((k \% m) + m) \% m} &
+第~\ref{sec:hash-func}~節 \\
+探測次數少算一次 & 只數碰撞，沒算最後放進去或停下來的那一格 &
+第~\ref{sec:hash-open}~節 \\
+二次探測當成走得遍 & $m$ 不是質數，或 $\alpha > 1/2$，以為一定插得進去 &
+第~\ref{sec:hash-open}~節 \\
+$h_2(k)$ 選錯 & $h_2(k) = k \bmod 7$ 可能是 $0$，原地不動；$m = 12$、$h_2(k) = 4$
+不互質，只走得到三格 & 第~\ref{sec:hash-open}~節 \\
+刪除時清成空格 & 之後經過這一格才放進去的鍵都找不到了 & 第~\ref{sec:hash-tomb}~節 \\
+插入遇到墓碑就放 & 沒有確認後面有沒有同一個鍵，表裡出現兩個 $k$ &
+第~\ref{sec:hash-tomb}~節 \\
+公式張冠李戴 & 線性探測套用 $1/(1-\alpha)$；成功和失敗的公式對調 &
+第~\ref{sec:hash-analysis}~節 \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\section{觀念題}
+\label{sec:hash-exercises}
+
+題型和研究所考試、期中期末考的筆試相近，有選擇、計算、追蹤和證明。 除非題目另外說
+明，探測次數照本章的算法（看過幾格就算幾次，包括最後一格），$i$ 從 $0$ 開始。 解答
+在本章最後。
+
+\begin{enumerate}
+\item （選擇，可能不只一個答案）下列哪些敘述正確？
+\begin{enumerate}[nosep]
+\item 鏈結法的載入因子可以大於 $1$。
+\item 線性探測裡，起始位置不同的兩個鍵，探測序列不會經過同一格。
+\item 二次探測沒有主要群聚，但起始位置相同的鍵，探測序列完全相同。
+\item $m = 16$ 的雙重雜湊，只要 $h_2(k)$ 一定是奇數，每個鍵的探測序列都會走遍 $16$ 格。
+\item 開放定址刪除一個鍵時，把那一格改回空的，之後的搜尋仍然正確。
+\item 在均勻雜湊下，$\alpha = 0.8$ 的表做一次失敗搜尋，期望探測次數小於 $5$。
+\end{enumerate}
+
+\item （計算）鍵 $k = 6083$。
+\begin{enumerate}[nosep]
+\item 用除法，$m = 97$，求 $h(k)$。
+\item 用乘法，$m = 1000$，$A = 0.6180339887$，求 $h(k)$。
+\item 用中間平方法，$m = 100$：$k^2$ 補成八位數，取第 $4$、$5$ 位。
+\item 另一個鍵 $526803147$ 切成三位數一段，$m = 1000$，分別用移位摺疊和邊界摺疊求
+$h$。
+\end{enumerate}
+
+\item （追蹤）$m = 11$，$h(k) = k \bmod 11$，用線性探測依序插入
+$63, 85, 75, 54, 96, 24, 33$。
+\begin{enumerate}[nosep]
+\item 寫出每個鍵試過的格子和最後的表。
+\item 成功搜尋的平均探測次數是多少？ 假設起始位置是 $0$ 到 $10$ 的機會一樣，失敗搜
+尋的平均探測次數是多少？
+\item 接著刪除 $54$（用刪除標記），再依序搜尋 $33$、搜尋 $96$、插入 $44$。 寫出每
+個操作的探測次數，以及 $44$ 放在哪一格。
+\end{enumerate}
+
+\item （追蹤）$m = 11$，二次探測 $h(k, i) = (k \bmod 11 + i^2) \bmod 11$，依序插入
+$5, 16, 27, 38, 49, 60, 71$。 寫出每個鍵試過的格子。 最後一個鍵插得進去嗎？ 這時表裡
+還有幾個空格？ 用定理~\ref{thm:hash-quad} 解釋。
+
+\item （追蹤）$m = 11$，雙重雜湊 $h_1(k) = k \bmod 11$、
+$h_2(k) = 1 + (\lfloor k / 11 \rfloor \bmod 10)$，依序插入第 3 題的七個鍵。 寫出每個
+鍵的 $h_2$、試過的格子和最後的表，並和第 3 題比較探測的總次數。
+
+\item （計算）$m = 8$，$h(k, i) = (h(k) + i^2) \bmod 8$。
+\begin{enumerate}[nosep]
+\item 列出 $i = 0, 1, \ldots, 7$ 的 $i^2 \bmod 8$。 起始位置是 $0$ 的鍵，最多試得到
+幾個不同的格子？
+\item 舉一個例子：表裡還有空格，插入卻失敗。
+\item 改成 $h(k, i) = (h(k) + i(i+1)/2) \bmod 8$，重做 (a)。
+\end{enumerate}
+
+\item （證明）$m = 2^p$，$p \ge 1$。 證明 $h(k, i) = (h(k) + i(i+1)/2) \bmod m$，
+$i = 0, 1, \ldots, m - 1$ 兩兩不同。（提示：$j - i$ 和 $i + j + 1$ 一個是奇數、一個是
+偶數。）
+
+\item （計算）鏈結法，$m = 100$ 格、$n = 100$ 個鍵，簡單均勻雜湊。
+\begin{enumerate}[nosep]
+\item 空的格子期望有幾個？（提示：對每一格寫一個「這一格是空的」的指示變數。）
+\item 成功搜尋和失敗搜尋的期望比較次數各是多少？
+\item 平均每條串列長 $1$，為什麼還有大約三分之一的格子是空的？
+\end{enumerate}
+
+\item （計算）希望失敗搜尋的期望探測次數不超過 $3$。 用均勻雜湊的 $1/(1-\alpha)$ 和
+線性探測的 Knuth 公式，各求 $\alpha$ 最大可以是多少。 $m = 1000$ 時，兩種情形各大
+約可以放幾個鍵？ 和範例~\ref{ex:hash-probe-count} 的輸出比對。
+
+\item （追蹤）接著圖~\ref{fig:hash-extendible} (d) 的狀態，依序插入
+H（\texttt{00011}）和 I（\texttt{00101}）。 每插入一個，說明有沒有拆桶、目錄有沒有加
+倍，並畫出最後的目錄和桶。 最後有幾個目錄項指向 D、F 那個桶？
+
+\item （計算）$U = \{a, b, c, d\}$，$m = 2$，$\mathcal{H} = \{h_1, h_2, h_3\}$：
+\begin{center}
+\begin{tabular}{ccccc}
+\toprule
+ & $a$ & $b$ & $c$ & $d$ \\
+\midrule
+$h_1$ & 0 & 0 & 1 & 1 \\
+$h_2$ & 0 & 1 & 0 & 1 \\
+$h_3$ & 1 & 0 & 0 & 1 \\
+\bottomrule
+\end{tabular}
+\end{center}
+\begin{enumerate}[nosep]
+\item $\mathcal{H}$ 是通用的嗎？
+\item 把 $h_3$ 換成 $h_3'(a, b, c, d) = (0, 0, 0, 1)$，還是通用的嗎？
+\end{enumerate}
+
+\end{enumerate}
+
+\section{實作練習}
+\label{sec:hash-practice}
+
+下面是 Aki-Judge 上和本章相關的題目。
+
+\begin{center}
+\begin{tabular}{llc}
+\toprule
+小節 & 題目 & 難度 \\
+\midrule
+鏈結法 & \akiref{integer-hash-set-with-chaining}{用鏈結法實作整數集合} & 基本 \\
+鏈結法 & \akiref{integer-hash-map-with-chaining}{用鏈結法實作整數對映} & 基本 \\
+開放定址 & \akiref{open-addressing-integer-set}{線性探測的整數集合} & 基本 \\
+刪除標記 & \akiref{linear-probing-with-deletion-marks}{線性探測雜湊表與刪除標記} & 進階 \\
+再雜湊 & \akiref{parking-plate-registry-with-move-to-front-chains}{停車場車牌登記：前移串鏈與擴表} & 進階 \\
+應用 & \akiref{number-of-distinct-values}{不同數值的個數} & 暖身 \\
+應用 & \akiref{most-frequent-value}{出現次數最多的數} & 暖身 \\
+應用 & \akiref{first-value-appearing-once}{第一個只出現一次的數} & 暖身 \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+前三題只交函式，位置都規定用
+\texttt{((key \% M) + M) \% M} 算，鍵可能是負數。 「線性探測雜湊表與刪除標記」的
+規則和第~\ref{sec:hash-tomb}~節相同，可以先用圖~\ref{fig:hash-tomb} 的例子對一次。 最後三題是計數：把範例~\ref{ex:hash-chain} 的「餘額」改成「出現次數」就能做。
+
+\section{讀完你應該會}
+\label{sec:hash-checklist}
+
+\begin{itemize}
+\item 能用除法、乘法、中間平方、摺疊算出雜湊值，並說明除法的 $m$ 為什麼要選質數。
+\item 能寫出鏈結法的三個操作，並用指示變數推導成功與失敗搜尋的期望比較次數。
+\item 能對一串鍵做線性探測、二次探測、雙重雜湊的追蹤，寫出每個鍵試過的格子和最後的
+表，並指出主要群聚和次要群聚。
+\item 能說明刪除為什麼要用標記，正確地處理標記上的搜尋和插入。
+\item 能在均勻雜湊下推導失敗搜尋 $\frac{m+1}{m-n+1} < \frac{1}{1-\alpha}$ 和成功
+搜尋 $\le \frac{1}{\alpha}\ln\frac{1}{1-\alpha}$，記得線性探測的 Knuth 公式，並用它
+們算出該把 $\alpha$ 控制在多少。
+\item 能追蹤可延伸雜湊的插入，並說明通用雜湊的定義和它保證了什麼。
+\end{itemize}
+
+\textbf{延伸閱讀}（書末會整理完整的參考資料）
+
+\begin{itemize}
+\item Thomas H. Cormen 等，\textit{Introduction to Algorithms}，第 4 版，第 11 章：
+兩種方法的分析、通用雜湊族的證明，以及不用墓碑的線性探測刪除。
+\item Donald E. Knuth，\textit{The Art of Computer Programming}，第 3 冊，第 2 版，
+第 6.4 節：雜湊的原始整理，包括線性探測公式的完整推導和各種探測法的比較。
+\item Ronald Fagin、Jürg Nievergelt、Nicholas Pippenger、H. Raymond Strong，
+``Extendible Hashing---A Fast Access Method for Dynamic Files''，\textit{ACM
+Transactions on Database Systems} 4(3)，1979：可延伸雜湊的原始論文。
+\item J. Lawrence Carter、Mark N. Wegman，``Universal Classes of Hash Functions''，
+\textit{Journal of Computer and System Sciences} 18(2)，1979：通用雜湊的原始論文。
+\item Steven S. Skiena，\textit{The Algorithm Design Manual}，第 3 版，第 3.7 節與
+第 6 章：雜湊在實務上的用法，以及用機率看雜湊的角度。
+\end{itemize}
+
+\addcontentsline{toc}{section}{觀念題解答}
+\section*{觀念題解答}
+
+\begin{enumerate}[itemsep=0.15em]
+\item (a)、(c)、(d)、(f)。 (b)：遇到同一段群聚就會走同樣的格子，這正是主要群聚。
+(d)：奇數和 $16$ 互質（定理~\ref{thm:hash-double}）。 (e)：會切斷經過這一格的探測序
+列。 (f)：精確值 $\frac{m+1}{m-n+1} < \frac{1}{1-0.8} = 5$。
+
+\item (a) $6083 = 97 \times 62 + 69$，$h = 69$。 (b) $6083A = 3759.50075\ldots$，小數部
+分乘以 $1000$ 是 $500.75\ldots$，$h = 500$。 (c) $6083^2 = 37002889$，第 $4$、$5$ 位
+是 $0$、$2$，$h = 2$。 (d) 移位：$526 + 803 + 147 = 1476$，$h = 476$；
+邊界：$526 + 308 + 147 = 981$，$h = 981$。
+
+\item (a) 起始位置依序是 $8, 8, 9, 10, 8, 2, 0$，試過的格子依序是：$63$：8；
+$85$：8, 9；$75$：9, 10；$54$：10, 0；$96$：8, 9, 10, 0, 1；$24$：2；$33$：0, 1, 2, 3。
+最後的表（第 $0$ 到 $10$ 格）：$54, 96, 24, 33, -, -, -, -, 63, 85, 75$。 (b) 成功：$(1+2+2+2+5+1+4)/7 = 17/7 \approx 2.43$。 失敗：起始位置 $0$ 到 $3$ 分別要
+$5, 4, 3, 2$ 次，$4$ 到 $7$ 各 $1$ 次，$8, 9, 10$ 分別要 $8, 7, 6$ 次，合計 $39$，平均
+$39/11 \approx 3.55$。 (c) 刪除 $54$：試 $10, 0$，第 $0$ 格改成標記。 搜尋 $33$：$0$（標記，繼續）、$1, 2,
+3$，找到，$4$ 次。 搜尋 $96$：$8, 9, 10, 0$（標記）、$1$，找到，$5$ 次。 插入 $44$
+（$h = 0$）：第 $0$ 格是標記，記下來，繼續看 $1, 2, 3$，第 $4$ 格是空的，停；$44$
+放進第 $0$ 格，共探測 $5$ 次。
+
+\item 七個鍵的起始位置都是 $5$。 $i^2 \bmod 11$ 依序是 $0, 1, 4, 9, 5, 3, 3, 5, 9, 4,
+1$，所以探測序列是 $5, 6, 9, 3, 10, 8, 8, 10, 3, 9, 6$。 前六個鍵依序放在
+$5, 6, 9, 3, 10, 8$。 $71$ 整條序列都是滿的，插入失敗，但還有 $5$ 個空格
+（第 $0, 1, 2, 4, 7$ 格）。 由定理~\ref{thm:hash-quad}，
+二次探測只看得到 $(11+1)/2 = 6$ 個不同的格子，這六格都被起始位置相同的鍵佔了。
+
+\item $h_2$ 依序是 $6, 8, 7, 5, 9, 3, 4$。 試過的格子：$63$：8；$85$：8, 5；
+$75$：9；$54$：10；$96$：8, 6；$24$：2；$33$：0。
+最後的表：$33, -, 24, -, -, 85, 96, -, 63, 75, 54$。 共探測 $9$ 次，線性探測是 $17$ 次。
+
+\item (a) $0, 1, 4, 1, 0, 1, 4, 1$，只有 $0, 1, 4$ 三種，起始位置 $0$ 的鍵只試得到第
+$0, 1, 4$ 格。 (b) 依序插入三個起始位置都是 $0$ 的鍵（例如 $0, 8, 16$），佔滿第 $0,
+1, 4$ 格；再插入 $24$，八次探測都落在這三格，失敗，但表裡還有 $5$ 個空格。 (c)
+$i(i+1)/2$ 依序是 $0, 1, 3, 6, 10, 15, 21, 28$，除以 $8$ 的餘數是
+$0, 1, 3, 6, 2, 7, 5, 4$，八格都走到了。
+
+\item 假設 $0 \le i < j \le m - 1$ 而兩個位置相同，則 $2^p$ 整除
+$\frac{j(j+1)}{2} - \frac{i(i+1)}{2} = \frac{(j - i)(j + i + 1)}{2}$，所以 $2^{p+1}$
+整除 $(j - i)(j + i + 1)$。 兩個因數的和 $2j + 1$ 是奇數，所以一奇一偶，$2^{p+1}$
+必須整除偶數的那個。 但
+$1 \le j - i \le m - 1 < 2^{p+1}$，$1 \le j + i + 1 \le 2m - 2 < 2^{p+1}$，兩個都是比
+$2^{p+1}$ 小的正數，不可能被它整除，矛盾。
+
+\item (a) 第 $j$ 格是空的，表示 $100$ 個鍵都沒有落在它，機率是 $(1 - 1/100)^{100}$。
+對 $100$ 格的指示變數取期望值再相加，得到 $100 \times 0.99^{100} \approx 36.6$ 個。
+(b) 成功：$1 + 99/200 = 1.495$。 失敗：$\alpha = 1$。 (c) 有的串列長 $2$、$3$ 甚至更
+長，平均要是 $1$，就要有對應數量的空串列。
+
+\item 均勻雜湊：$\frac{1}{1-\alpha} \le 3$，$\alpha \le 2/3$，約可放 $666$ 個。 線性探
+測：$\frac12\bigl(1 + \frac{1}{(1-\alpha)^2}\bigr) \le 3$，$(1-\alpha)^2 \ge 1/5$，
+$\alpha \le 1 - 1/\sqrt5 \approx 0.553$，約可放 $552$ 個。 範例~\ref{ex:hash-probe-count}
+的實測（線性 $\alpha = 0.5$ 時 $2.49$；雙重 $0.75$ 時 $3.80$）和這兩個界相符。
+
+\item H = \texttt{000}11 查目錄 \texttt{000}，指向 A 的桶，還有空位，放進去：\{A, H\}，
+沒有拆桶。 I = \texttt{001}01 查目錄 \texttt{001}，也指向這個桶，滿了；局部深度
+$2 < 3$，目錄不變，只拆桶。 依第 $3$ 個位元分：H = 00\texttt{0}11 到 \texttt{000}，
+A = 00\texttt{1}10 和 I = 00\texttt{1}01 到 \texttt{001}，兩個桶的局部深度都變成 $3$，
+其他桶和目錄不變。 D、F 的桶局部深度 $2$，有 $2^{3-2} = 2$ 個
+目錄項指向它。
+
+\item (a) 是。 $|\mathcal{H}|/m = 1.5$，每一對鍵最多只能被一個函數撞。 $h_1$ 撞
+$\{a, b\}$、$\{c, d\}$，$h_2$ 撞 $\{a, c\}$、$\{b, d\}$，$h_3$ 撞 $\{a, d\}$、
+$\{b, c\}$，六對各一次。 (b) 不是。 $h_3'$ 撞 $\{a, b\}$、$\{a, c\}$、$\{b, c\}$，
+$\{a, b\}$ 被 $h_1$、$h_3'$ 撞了 $2$ 次。
+\end{enumerate}
