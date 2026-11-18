@@ -60,7 +60,7 @@
 |---|---|---|
 | 1 | 《C++ 演算法解題 1：APCS 實作題核心》 | 草稿，[cpp-algorithms-book](https://github.com/AkizumiFox/cpp-algorithms-book) |
 | 2 | 《C++ 演算法解題 2：動態規劃與圖論》 | 草稿，[cpp-algorithms-book-2](https://github.com/AkizumiFox/cpp-algorithms-book-2) |
-| 3 | 《C++ 演算法解題 3：進階資料結構、數學與競賽》 | 草稿 |
+| 3 | 《C++ 演算法解題 3：進階資料結構、數學與競賽》 | 規劃中 |
 | 4 | 《資料結構與演算法：C 語言、虛擬碼與研究所考試》 | 本書，草稿（第 1 章） |
 
 前三本用 C++17，一本接一本讀。 這一本用 C 和虛擬碼，不需要先讀前三本；書裡提到前三本時只當延伸閱讀。
