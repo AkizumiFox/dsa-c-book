@@ -1,0 +1,1069 @@
+\chapter{筆試作答寫法}
+\label{ch:exm}
+
+% 本附錄的圖共用的樣式（名稱都以 exm- 開頭，避免和其他章衝突）
+\tikzset{
+    exm-v/.style={circle, draw=black!65, thick, minimum size=6.5mm, inner sep=0pt, font=\small},
+    exm-a/.style={-{Stealth[length=2mm]}, thick, draw=black!60},
+    exm-w/.style={font=\footnotesize, fill=white, inner sep=1pt},
+    exm-node/.style={circle, draw=black!65, minimum size=6mm, inner sep=0pt, font=\footnotesize},
+    exm-del/.style={draw=memStroke, thick, fill=memFill},
+    exm-suc/.style={draw=optStroke, thick, fill=optFill},
+    exm-tree/.style={level distance=8.5mm, every child node/.style={exm-node},
+        edge from parent/.style={draw=black!55, thick},
+        level 1/.style={sibling distance=22mm},
+        level 2/.style={sibling distance=12mm},
+        level 3/.style={sibling distance=9mm},
+        level 4/.style={sibling distance=7mm}},
+}
+
+% 對照用的兩種框：會被扣分的寫法、完整的寫法
+\newtcolorbox{exmbad}[1][]{%
+    enhanced jigsaw, breakable,
+    sharp corners, boxrule=0.4mm,
+    colback=black!2, colframe=black!40, coltext=black,
+    colbacktitle=black!10, coltitle=black, fonttitle=\bfseries,
+    title={會被扣分的寫法\if\relax\detokenize{#1}\relax\else：#1\fi},
+    left=3mm, right=3mm, top=1.5mm, bottom=1.5mm,
+    before skip=\medskipamount, after skip=\medskipamount,
+}
+\newtcolorbox{exmgood}[1][]{%
+    enhanced jigsaw, breakable,
+    sharp corners, boxrule=0.4mm,
+    colback=greenFill!45, colframe=greenStroke, coltext=black,
+    colbacktitle=greenStroke, coltitle=white, fonttitle=\bfseries,
+    title={完整的寫法\if\relax\detokenize{#1}\relax\else：#1\fi},
+    left=3mm, right=3mm, top=1.5mm, bottom=1.5mm,
+    before skip=\medskipamount, after skip=\medskipamount,
+}
+
+兩份 Dijkstra 演算法的答案，最後的距離都對。 一份只寫了五個數字；另一份先寫一句「平手
+時取編號小的」，接著每一輪一列，寫出取出的頂點和當時所有的 $d$。 改考卷的人手上只有紙，
+第一份答案看不出寫的人是算出來的、記得答案，還是中間錯了兩次剛好抵銷；第二份每一步都能
+對照。 這個附錄講的就是第二種寫法。
+
+內容只講怎麼寫答案：虛擬碼要寫到什麼程度（第~\ref{sec:exm-pseudo}~節）、複雜度怎麼寫
+（第~\ref{sec:exm-cost}~節）、證明的幾種寫法（第~\ref{sec:exm-proof}~節）、追蹤題畫到哪一
+步（第~\ref{sec:exm-trace}~節）。 每一種都用前面章節的演算法出一個小題目，先列一份會被扣分
+的寫法，再列一份完整的寫法。 第~\ref{sec:exm-table}~節把全書各章的「作答提醒」框整理成總
+表，查「這個演算法各課本的約定有什麼不同、本書用哪一套」時可以直接翻那裡。 例子都是本書自
+己出的，不涉及任何學校的考題，也不談考試的規則。
+
+\section{一份答案的三個部分}
+\label{sec:exm-basics}
+
+不管是哪一種題目，完整的答案都可以分成三段。
+
+\begin{enumerate}
+\item \textbf{約定}。 題目沒有規定、但會影響答案的地方，先用一句話寫明：陣列從 $0$ 還是 $1$
+開始、高度數節點還是數邊、平手時選哪一個、刪除時用後繼還是前驅。 寫法像這樣：「依題意根在
+第 $1$ 層；權重相同時先選編號小的頂點。」 題目有規定就照題目，這一句可以省略。
+\item \textbf{過程}。 每一步寫一列表格或畫一張圖，讓別人能一步一步核對。 步驟之間的理由寫在旁
+邊（「$29$ 是 $23$ 的後繼」「$d[5]$ 相等，不更新」）。
+\item \textbf{結論和驗算}。 最後的答案單獨寫一行或框起來，不要讓人從表格裡自己找。 能驗算
+就驗算：二元搜尋樹用中序走訪看是不是遞增，最大流和最小割的值相等，公式代一個小的 $n$ 手數
+一次。
+\end{enumerate}
+
+約定那一句特別重要。 很多演算法有「選哪一個都對、但畫出來不一樣」的地方，各課本的選法不
+同；沒寫明的話，換一套規則算出來的答案會被當成算錯。 第~\ref{sec:exm-table}~節的表就是這些地
+方的清單。
+
+\section{虛擬碼}
+\label{sec:exm-pseudo}
+
+題目要求「寫出演算法」時，虛擬碼的標準是：別人拿一組小輸入，照著每一行做，能得到和你一樣
+的結果。 第~\ref{sec:ana-conventions}~節的慣例（陣列從 $1$ 開始、指定用 $\gets$、相等用
+$=$、縮排表示區塊）就是為了讓這件事做得到。 具體來說，要寫出下面幾樣東西。
+
+\begin{itemize}
+\item \textbf{程序的標頭}：名稱、參數、回傳什麼。 一句話說明輸入的前提，例如「$A[1..n]$ 已
+由小到大排好」。
+\item \textbf{每個變數的初值}。 用到的變數都要先設值；計數器從 $0$ 還是 $1$ 開始要明白寫。
+\item \textbf{迴圈的界限}。 \textbf{for} $i \gets 1$ \textbf{to} $n$ 包含 $n$；\textbf{while}
+的條件寫成完整的比較式，不寫「直到找完為止」。
+\item \textbf{陣列下標}。 整份答案用同一種編號。 下標可能超出範圍的地方（$A[j + 1]$、
+$A[i - 1]$），條件裡要先檢查。
+\item \textbf{呼叫的東西}。 可以呼叫前面章節定義過的程序（例如第~8~章的
+\proc{Heap-Extract-Max}），寫出名稱即可；但不能呼叫一個沒說明做什麼、花多少時間的
+「\proc{Find}」或「排序」。 用一句中文代替一段細節可以，只要那一句的成本清楚。
+\end{itemize}
+
+\subsection{例：把負數搬到前面}
+
+題目：給 $A[1..n]$，把所有負數搬到非負數的前面（同一類之間的順序不限），回傳負數的個數；
+要 $O(n)$ 時間、$O(1)$ 額外空間。
+
+\begin{exmbad}[C 和虛擬碼混寫，下標對不上]
+\begin{algorithmic}[1]
+\State $i = 0$, $j = n$
+\While{$i < j$}
+    \If{$A[i] < 0$} $i$\texttt{++}
+    \Else\ swap$(A[i], A[j])$; $j$\texttt{--}
+    \EndIf
+\EndWhile
+\end{algorithmic}
+\end{exmbad}
+
+想法（兩個指標往中間走）是對的，但沒辦法照著做。 $i$ 從 $0$ 開始、$j$ 從 $n$ 開始，不管陣
+列從哪裡編號，第一步就會讀到一個不存在的格子：從 $1$ 編號時沒有 $A[0]$，從 $0$ 編號時沒有
+$A[n]$。 另外沒有標頭、沒有回傳值，題目要的「負數的個數」要讀的人自己想。 \texttt{=}、
+\texttt{++} 這些 C 的寫法和 $\gets$ 混在一起，也讓人分不清第 1 行是指定還是比較。
+
+完整的寫法借用虛擬碼~\ref{alg:so-lomuto}（Lomuto 分割）的架構，把迴圈不變量寫在註解裡：
+
+\begin{pseudo}[label=alg:exm-neg]{把負數搬到前面，回傳負數的個數（完整的寫法）}
+\Function{Move-Negatives}{$A, n$}
+    \State $i \gets 1$ \Comment{$A[1..i-1]$ 都是負數}
+    \For{$j \gets 1$ \To $n$} \Comment{$A[i..j-1]$ 都不是負數}
+        \If{$A[j] < 0$}
+            \State 交換 $A[i]$ 和 $A[j]$
+            \State $i \gets i + 1$
+        \EndIf
+    \EndFor
+    \State \Return $i - 1$
+\EndFunction
+\end{pseudo}
+
+照著做一次，$A = \langle 3, -2, 0, -5, 7, -1 \rangle$：$j = 2$ 時交換 $A[1]$、$A[2]$，得
+$\langle -2, 3, 0, -5, 7, -1 \rangle$，$i = 2$；$j = 4$ 時交換 $A[2]$、$A[4]$，得
+$\langle -2, -5, 0, 3, 7, -1 \rangle$，$i = 3$；$j = 6$ 時交換 $A[3]$、$A[6]$，得
+$\langle -2, -5, -1, 3, 7, 0 \rangle$，$i = 4$，回傳 $3$。 第 3 行的迴圈跑 $n$ 輪，每輪
+$O(1)$，總共 $\Theta(n)$；只用了 $i$、$j$ 兩個變數。 題目如果再問「為什麼對」，註解裡的兩
+個敘述就是迴圈不變量，照第~\ref{sec:exm-invariant}~小節的三步寫出來即可。
+
+\subsection{例：遞迴的寫法}
+
+遞迴的虛擬碼要多寫三樣東西：\textbf{基礎情況}（什麼時候直接回答）、\textbf{參數怎麼變小}，
+以及\textbf{最外層怎麼呼叫}。 題目：寫一個遞迴程序，回傳二元樹的高度（依本書的定義，空樹是
+$0$，只有一個節點是 $1$）。
+
+\begin{exmbad}[基礎情況寫錯]
+\begin{algorithmic}[1]
+\Function{Height}{$x$}
+    \If{$x.\mathit{left} = \NIL$ \AND $x.\mathit{right} = \NIL$}
+        \State \Return $0$
+    \EndIf
+    \State \Return $\max(\Call{Height}{x.\mathit{left}}, \Call{Height}{x.\mathit{right}}) + 1$
+\EndFunction
+\end{algorithmic}
+\end{exmbad}
+
+這份有三個問題。 (1) 葉子回傳 $0$，用的是 CLRS 數邊的高度，和題目的定義差 $1$。 (2) 只有一
+個子節點的節點，第 4 行會呼叫 \proc{Height}$(\NIL)$，接著第 2 行讀 $\NIL.\mathit{left}$，
+照著做會卡住。 (3) 空樹沒有處理，也沒寫最外層怎麼呼叫。
+
+\begin{pseudo}[label=alg:exm-height]{以 $x$ 為根的子樹的高度，數節點（完整的寫法）}
+\Function{Height}{$x$}
+    \If{$x = \NIL$}
+        \State \Return $0$ \Comment{空樹}
+    \EndIf
+    \State \Return $1 + \max(\Call{Height}{x.\mathit{left}}, \Call{Height}{x.\mathit{right}})$
+\EndFunction
+\end{pseudo}
+
+呼叫方式是 \proc{Height}$(T.\mathit{root})$。 基礎情況放在 $\NIL$，葉子和只有一個子節點的節
+點就不必另外處理：葉子算出 $1 + \max(0, 0) = 1$，符合定義。 每個節點呼叫一次，另外對
+$n + 1$ 個空指標各呼叫一次，時間 $\Theta(n)$。 如果題目用 CLRS 的定義，只要把第 3 行改成
+回傳 $-1$。
+
+\section{複雜度}
+\label{sec:exm-cost}
+
+一句完整的複雜度敘述有四個成分：\textbf{量的是什麼}（時間、比較次數、額外空間）、\textbf{輸
+入大小用哪些變數}（$n$；圖用 $n$ 和 $m$；背包還有容量 $W$）、\textbf{哪一種情況}（最壞、最
+好、平均、期望、平攤），以及\textbf{符號}（$\Theta$ 是緊的，$O$ 只是上界，$\Omega$ 只是下
+界）。 少了其中一個，敘述就可能對、也可能錯，要看讀的人怎麼補。 下表左欄每一句都缺了東西。
+
+\begin{center}
+\small
+\begin{tabular}{p{0.25\linewidth}p{0.52\linewidth}p{0.11\linewidth}}
+\toprule
+會被扣分的寫法 & 完整的寫法 & 見 \\
+\midrule
+快速排序是 $O(n \lg n)$ & Lomuto 分割、取 $A[r]$ 當基準：最壞 $\Theta(n^2)$（例如已排好的輸
+入）；輸入是均勻隨機排列時平均 $\Theta(n \lg n)$；隨機選基準時，對任何輸入期望
+$\Theta(n \lg n)$ & 第~14~章 \\
+BFS 是 $O(n^2)$ & 鄰接串列 $\Theta(n + m)$；鄰接矩陣 $\Theta(n^2)$ & 第~21~章 \\
+動態陣列的加入是 $O(1)$ & 平攤 $O(1)$；單獨一次最壞 $\Theta(n)$（要擴充的那一次） & 第~3~章 \\
+雜湊表搜尋是 $O(1)$ & 鏈結法、簡單均勻雜湊的假設下，平均 $\Theta(1 + \alpha)$；最壞
+$\Theta(n)$（全部擠在同一串） & 第~12~章 \\
+二元搜尋樹插入是 $O(\lg n)$ & $O(h)$，$h$ 是樹高；最壞 $\Theta(n)$（依序插入排好的鍵）；
+AVL 樹、紅黑樹最壞 $\Theta(\lg n)$ & 第~9、10~章 \\
+費氏堆積的 \proc{Decrease-Key} 是 $O(1)$ & 平攤 $O(1)$；單獨一次可能連鎖剪下很多次 & 第~8~章 \\
+0/1 背包的 DP 是 $O(nW)$，是多項式時間 & 時間 $\Theta(nW)$，$W$ 是容量的數值；輸入長度約
+$n \lg W$，所以是擬多項式時間 & 第~18、28~章 \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+$O$ 和 $\Theta$ 的差別也要注意。 題目問「最壞情況的時間是多少」時，答 $O(n^2)$ 只說了上界；
+如果真正的答案是 $\Theta(n \lg n)$，$O(n^2)$ 不算錯，但沒有回答到問題。 題目明白要求
+$\Theta$ 時，上界和下界都要說明。
+
+\subsection{推導要寫出來}
+
+題目：下面的程式片段，第 4 行一共執行幾次？ 用 $\Theta$ 表示。
+
+\begin{center}
+\begin{minipage}{0.55\linewidth}
+\begin{algorithmic}[1]
+\For{$i \gets 1$ \To $n$}
+    \State $j \gets 1$
+    \While{$j \le i$}
+        \State $j \gets 2j$
+    \EndWhile
+\EndFor
+\end{algorithmic}
+\end{minipage}
+\end{center}
+
+\begin{exmbad}
+兩層迴圈，所以是 $O(n^2)$。
+\end{exmbad}
+
+$O(n^2)$ 是對的上界，但題目要 $\Theta$，而這個上界不緊。 「兩層迴圈就是 $n^2$」也是
+第~\ref{sec:ana-fragments}~節列過的常見錯誤：內層每次加倍，跑的次數遠少於 $i$。
+
+\begin{exmgood}
+固定 $i$ 時，$j$ 依序是 $1, 2, 4, \ldots$，只要 $j \le i$ 就再做一次，所以第 4 行執行
+$\lfloor \lg i \rfloor + 1$ 次。 總次數
+\[
+S(n) = \sum_{i=1}^{n} \bigl(\lfloor \lg i \rfloor + 1\bigr).
+\]
+\textbf{上界}：每一項不超過 $\lg n + 1$，$S(n) \le n(\lg n + 1)$。 \textbf{下界}：只看
+$i \ge n/2$ 的項，至少有 $n/2$ 個，每一項都大於 $\lg i \ge \lg n - 1$，所以
+$S(n) \ge \frac{n}{2}(\lg n - 1) \ge \frac{n}{4} \lg n$（$n \ge 4$ 時 $\lg n - 1 \ge
+\frac12 \lg n$）。 因此 $S(n) = \Theta(n \lg n)$。 \textbf{驗算}：$n = 8$ 時
+$S(8) = 1 + 2 + 2 + 3 + 3 + 3 + 3 + 4 = 21$，手數一次也是 $21$ 次。
+\end{exmgood}
+
+遞迴式也一樣。 $T(n) = 2T(n/2) + n^2$ 只寫「由主定理，$T(n) = \Theta(n^2)$」，看不出有沒有檢
+查條件；完整的寫法是：$a = 2$，$b = 2$，$n^{\log_b a} = n$，$f(n) = n^2 = \Omega(n^{1 + \varepsilon})$，
+取 $\varepsilon = 1$，屬於情況 3（定理~\ref{thm:rec-master}）；正則條件 $a f(n/b) = \frac12 n^2
+\le c\, n^2$，取 $c = \frac12 < 1$；所以 $T(n) = \Theta(n^2)$。
+
+\section{證明}
+\label{sec:exm-proof}
+
+證明題的答案，開頭先寫兩件事：\textbf{要證的是什麼}（把題目的敘述用符號寫清楚，包括量詞：
+「對所有 $n \ge 1$」「存在一個最佳解」），以及\textbf{用什麼方法}（歸納法、反證法、迴圈不變
+量、交換論證、歸約）。 中間每一步寫出理由，引用前面的結果時寫出是哪一個；最後一句寫結論，
+和開頭要證的敘述對得上。 這一節五種方法各用一個例子。
+
+\subsection{迴圈不變量}
+\label{sec:exm-invariant}
+
+題目：證明第~14~章的選擇排序（虛擬碼~\ref{alg:so-selection}）會把 $A[1..n]$ 排好。
+
+\begin{exmbad}
+每一趟都把剩下的數裡最小的換到前面，所以做完 $n - 1$ 趟就排好了。
+\end{exmbad}
+
+這一句是演算法的描述，不是證明：「最小的換到前面」為什麼會讓整個陣列排好，沒有說明。 另外
+兩種常見的寫法也不完整：把不變量寫成「$A[1..i]$ 排好了」（第 $i$ 趟開始時 $A[i]$ 還沒放
+好，維持那一步推不出來）；結束那一步照抄插入排序的「$i = n + 1$」（選擇排序的外層只到
+$n - 1$，停下時 $i = n$）。
+
+\begin{exmgood}
+\textbf{不變量}：第 2 行每次檢查 $i$ 時，(a) $A$ 是原陣列的一個排列；(b) $A[1..i-1]$ 由小到
+大排好；(c) $A[1..i-1]$ 的每個數都不大於 $A[i..n]$ 的每個數。
+
+\textbf{初始}：$i = 1$，$A[1..0]$ 是空的，(b)、(c) 自然成立；陣列還沒動過，(a) 成立。
+
+\textbf{維持}：第 4--6 行的內層迴圈有自己的不變量「檢查 $j$ 時，$A[m]$ 是 $A[i..j-1]$ 的最小
+值」：開始時 $j = i + 1$、$m = i$ 成立；第 5、6 行遇到更小的就更新 $m$，所以維持；內層停在
+$j = n + 1$，這時 $A[m]$ 是 $A[i..n]$ 的最小值。 第 7 行把它換到 $A[i]$，只是交換，(a) 仍
+成立。 由 (c)，新的 $A[i]$ 不小於 $A[1..i-1]$ 的每個數，接在後面 $A[1..i]$ 仍然排好；它又是
+$A[i..n]$ 的最小值，所以 $A[1..i]$ 的每個數都不大於 $A[i+1..n]$ 的每個數。 $i$ 加一之後
+(b)、(c) 成立。
+
+\textbf{結束}：外層迴圈在 $i = n$ 時停下。 代入不變量：$A[1..n-1]$ 排好，而且每個數都不大於
+$A[n]$，所以 $A[1..n]$ 排好；由 (a)，它是原來那些數。 證畢。
+\end{exmgood}
+
+\subsection{數學歸納法}
+
+題目：依本書的定義（只有一個節點的樹高度是 $1$，空樹是 $0$），證明高度 $h$ 的二元樹最多有
+$2^h - 1$ 個節點。
+
+\begin{exmbad}[只驗證幾個例子]
+$h = 1$ 最多 $1$ 個，$h = 2$ 最多 $3$ 個，$h = 3$ 最多 $7$ 個，以此類推，最多 $2^h - 1$ 個。
+\end{exmbad}
+
+\begin{exmbad}[從小樹「長出」大樹]
+假設高度 $h$ 的樹最多 $2^h - 1$ 個節點。 高度 $h + 1$ 的樹是在高度 $h$ 的樹下面再加一層，
+這一層最多 $2^h$ 個節點，所以最多 $2^h - 1 + 2^h = 2^{h+1} - 1$ 個。
+\end{exmbad}
+
+第一份只看了三個 $h$。 第二份看起來像歸納法，問題在方向：它從一棵高度 $h$ 的樹加節點，得到
+\textbf{某些}高度 $h + 1$ 的樹，卻沒有說明\textbf{每一棵}高度 $h + 1$ 的樹都能這樣得到；
+「新的一層最多 $2^h$ 個」也沒有理由。 歸納步驟應該從「任意一棵」大的出發，拆成比較小的，再
+套歸納假設。
+
+\begin{exmgood}
+對 $h$ 做強歸納。 \textbf{基礎}：$h = 0$ 只有空樹，$0 = 2^0 - 1$ 個節點。
+
+\textbf{歸納假設}：設 $h \ge 1$，而且所有高度小於 $h$ 的二元樹，高度 $h'$ 時最多
+$2^{h'} - 1$ 個節點。
+
+\textbf{歸納步驟}：任取一棵高度 $h$ 的二元樹 $T$。 $h \ge 1$，所以 $T$ 有根，令左右子樹為
+$L$、$R$。 $T$ 的高度是 $1 + \max(h_L, h_R)$，所以 $h_L, h_R \le h - 1$。 由歸納假設，
+$|L| \le 2^{h_L} - 1 \le 2^{h-1} - 1$，$R$ 也一樣。 因此
+\[
+|T| = 1 + |L| + |R| \le 1 + 2\,(2^{h-1} - 1) = 2^h - 1.
+\]
+由歸納法，對所有 $h \ge 0$ 成立。
+\end{exmgood}
+
+如果題目用 CLRS 的高度（數邊），同一件事寫成「最多 $2^{h+1} - 1$ 個」，基礎情況改成單一節點
+$h = 0$、空樹 $h = -1$。 先看清楚題目的定義再寫基礎情況。 第~2~章的代換法也是歸納法，要注
+意的地方見第~\ref{sec:exm-habits}~小節的表。
+
+\subsection{反證法，以及下界和反例}
+
+題目：證明任何只靠比較找出 $n$ 個相異數最大值的演算法，最壞情況至少要比 $n - 1$ 次。
+
+\begin{exmbad}
+從左到右掃一次，每個數和目前的最大值比一次，共 $n - 1$ 次，所以至少要 $n - 1$ 次。
+\end{exmbad}
+
+這份答案說明的是「有一個演算法用 $n - 1$ 次就夠」，那是上界。 題目要的是下界：\textbf{每一
+個}演算法都至少要這麼多次。 證明下界不能只分析一個演算法，要對所有可能的演算法論證。
+
+\begin{exmgood}
+用反證法。 假設某個演算法 $\mathcal{A}$ 在某個輸入上只比了不到 $n - 1$ 次就回答最大值是 $a$。
+把每次比較看成一場比賽，大的贏。 一次比較只產生一個輸家，不到 $n - 1$ 次比較，輸過的數不到
+$n - 1$ 個，所以除了 $a$ 以外，還有一個數 $b$ 一場都沒輸過。 把 $b$ 改成比所有數都大的值，
+其他數不變。 $b$ 原本每一場都贏，改大之後每一場的結果都和原來相同，所以 $\mathcal{A}$ 做的比
+較、得到的結果都一樣，仍然回答 $a$。 但新輸入的最大值是 $b$，$\mathcal{A}$ 答錯，矛盾。 因此
+每個正確的演算法都至少比 $n - 1$ 次。（第~16~章第~\ref{sec:sel-minmax}~節。）
+\end{exmgood}
+
+反證法的格式是：明白寫出「假設……」，推到一個和前提或已知事實衝突的地方，指出衝突的是哪兩
+件事，最後寫結論。 只寫「假設不成立，這樣不合理，矛盾」，等於沒有證。
+
+要\textbf{否定}一個敘述，最有力的是一個具體的反例。 例如說明選擇排序不穩定，寫出
+$\langle 5_a, 5_b, 2 \rangle$ 排完變成 $\langle 2, 5_b, 5_a \rangle$ 就夠了（第~14~章）；說
+「遠距離交換可能讓相同的鍵越過對方」只是理由，還不是證明。 反過來，要說一個排序\textbf{是}穩
+定的，就不能只舉一個例子，要說明每一步都不會讓相同的鍵越過對方。
+
+\subsection{交換論證}
+
+題目：一台機器依序處理 $n$ 個工作，工作 $i$ 要 $p_i$ 小時，$C_i$ 是它完成的時刻。 證明依
+$p_i$ 由小到大的順序，$\sum C_i$ 最小（第~19~章定理~\ref{thm:gr-spt}）。
+
+\begin{exmbad}[只舉例子]
+例如 $p = 7, 2, 5, 1, 4$，照原順序 $\sum C_i = 64$，由小到大是 $42$，比較小，所以由小到大
+最好。
+\end{exmbad}
+
+\begin{exmbad}[交換不相鄰的兩個工作]
+任取一個最佳順序。 如果第一個工作不是最短的，把它和最短的工作交換，只有這兩個工作的完成時
+間改變，總和變小，矛盾。
+\end{exmbad}
+
+第一份是例子。 第二份的毛病比較隱蔽：交換第 $1$ 個和第 $k$ 個工作時，中間第 $2$ 到第
+$k - 1$ 個工作的完成時間也變了（前面的工作總時數變了），「只有這兩個改變」不成立。 交換論證
+最穩當的做法是只交換\textbf{相鄰}的一對，這樣其他工作的完成時間確實不變。
+
+\begin{exmgood}
+\textbf{交換相鄰的一對}：設某個順序裡工作 $i$ 緊接在 $j$ 前面，$p_i > p_j$，它們前面的工作在
+時刻 $t$ 做完。 交換前 $C_i + C_j = (t + p_i) + (t + p_i + p_j)$，交換後是
+$(t + p_j) + (t + p_j + p_i)$，差 $p_i - p_j > 0$。 其他工作前面的總時數沒變，完成時間不變。
+所以交換讓 $\sum C_i$ 嚴格變小。
+
+\textbf{最佳解一定由小到大}：任取一個最佳順序 $O$。 如果 $O$ 有一對相鄰的 $p_i > p_j$，交換後
+更小，和 $O$ 最佳矛盾。 所以 $O$ 的 $p$ 由小到大（不遞減）。
+
+\textbf{平手}：$p$ 相同的相鄰工作交換，$\sum C_i$ 不變，所以所有不遞減的順序總和都一樣。 貪
+心的順序是其中之一，它的總和等於 $O$ 的總和，是最佳的。
+\end{exmgood}
+
+最後一段常被省略。 少了它，只證明了「最佳解是由小到大的某一個順序」，還沒說明貪心挑到的那
+一個（平手時可能和 $O$ 不同）也是最佳的。 第~19~章活動選擇的寫法是另一種結構：先證「存在最
+佳解包含貪心的第一個選擇」，再證「剩下的是同一種子問題」，兩段都要寫。
+
+\subsection{歸約}
+
+題目：已知 \textsf{IND-SET} 是 NP 完備的（第~28~章），證明 \textsf{VERTEX-COVER} 是 NP 完備
+的。
+
+\begin{exmbad}[方向反了]
+給 \textsf{VERTEX-COVER} 的實例 $(G, k)$，令 $f(G, k) = (G, n - k)$，它是
+\textsf{IND-SET} 的實例，而且答案相同。 所以 $\textsf{VERTEX-COVER} \le_{\mathrm{p}}
+\textsf{IND-SET}$，\textsf{VERTEX-COVER} 是 NP 完備的。
+\end{exmbad}
+
+這份證的是「頂點覆蓋不比獨立集難」，和要證的方向相反。 要說 $B$ 很難，必須把\textbf{已知很
+難的 $A$} 轉成 $B$：$A \le_{\mathrm{p}} B$。 另外兩種常見的缺漏：只證「$x$ 是是實例
+$\Rightarrow$ $f(x)$ 是是實例」一個方向；少了「$B \in \mathrm{NP}$」，那樣只能得到 NP 難。
+
+\begin{exmgood}
+\textbf{(1) $\textsf{VERTEX-COVER} \in \mathrm{NP}$}。 憑證是一個頂點集合 $C$。 驗證者檢查
+$|C| = k$，再掃過每條邊，看是否至少一端在 $C$ 裡；用一個標記陣列，$O(n + m)$。
+
+\textbf{(2) 歸約的方向}。 證明 $\textsf{IND-SET} \le_{\mathrm{p}} \textsf{VERTEX-COVER}$。
+
+\textbf{(3) 構造}。 $f(G, k) = (G, n - k)$，$n$ 是 $G$ 的頂點數。 只要把 $k$ 換掉，多項式時
+間，輸出大小和輸入相同。
+
+\textbf{(4) 兩個方向}。 ($\Rightarrow$) 若 $G$ 有大小 $k$ 的獨立集 $S$，由
+引理~\ref{lem:npc-complement}，$V - S$ 是大小 $n - k$ 的頂點覆蓋。 ($\Leftarrow$) 若 $G$ 有大
+小 $n - k$ 的頂點覆蓋 $C$，由同一個引理，$V - C$ 是大小 $k$ 的獨立集。
+
+由 (1)～(4)，\textsf{VERTEX-COVER} 是 NP 完備的。
+\end{exmgood}
+
+這個例子的兩個方向都只要一行，因為引理已經證過；一般的歸約（例如第~28~章的 3-SAT 到獨立
+集），兩個方向各要一段，各用一個小標題。
+
+\section{追蹤題}
+\label{sec:exm-trace}
+
+追蹤題考的是「照演算法一步一步做」。 答案的標準是：別人拿你的每一列（或每一張圖），對照演
+算法的虛擬碼，能確認這一步做得對。 共同的寫法：
+
+\begin{itemize}
+\item 開頭寫約定（平手、左右、編號從哪裡開始），題目有規定就照題目。
+\item 題目要「每一步之後」就一步一列；要「每一輪之後」就一輪一列。 先看清楚題目要的粒度。
+\item 標出這一步改了什麼：剛放進去的格子、交換的兩個位置、變小的 $d$、旋轉的節點。
+\item 最後的答案單獨寫出來，再做一次檢查（堆積性質、中序遞增、每個鍵各出現一次）。
+\end{itemize}
+
+\subsection{堆積：陣列一步一列}
+
+題目：把 $33, 18, 52, 27, 64, 45, 71, 29$ 依序插入一個空的最大堆積，再取出兩次最大值，寫出每
+個操作之後的陣列。
+
+\begin{exmbad}
+最後的陣列是 $52, 29, 45, 18, 27, 33$。
+\end{exmbad}
+
+只有結果，中間任何一步錯了都看不出來，也無法給部分的分數。 另一種常見的錯誤出在取出：第一
+次取出 $71$ 後，$18$ 搬到根，兩個子節點是 $52$ 和 $64$。 下沉要和\textbf{較大}的 $64$ 交換；
+和左邊的 $52$ 換，根變成 $52$，比右子節點 $64$ 小，已經不是堆積。
+
+\begin{exmgood}
+約定：照第~8~章虛擬碼~\ref{alg:hp-sift}，兩個子節點相等時換左邊。 「交換」是上浮或下沉交
+換的次數。
+\begin{center}
+\small
+\begin{tabular}{lc*{8}{c}}
+\toprule
+操作 & 交換 & 1 & 2 & 3 & 4 & 5 & 6 & 7 & 8 \\
+\midrule
+插入 33 & 0 & 33 \\
+插入 18 & 0 & 33 & 18 \\
+插入 52 & 1 & 52 & 18 & 33 \\
+插入 27 & 1 & 52 & 27 & 33 & 18 \\
+插入 64 & 2 & 64 & 52 & 33 & 18 & 27 \\
+插入 45 & 1 & 64 & 52 & 45 & 18 & 27 & 33 \\
+插入 71 & 2 & 71 & 52 & 64 & 18 & 27 & 33 & 45 \\
+插入 29 & 1 & 71 & 52 & 64 & 29 & 27 & 33 & 45 & 18 \\
+\midrule
+取出 71 & 2 & 64 & 52 & 45 & 29 & 27 & 33 & 18 \\
+取出 64 & 2 & 52 & 29 & 45 & 18 & 27 & 33 \\
+\bottomrule
+\end{tabular}
+\end{center}
+答案：最後的堆積是 $\langle 52, 29, 45, 18, 27, 33 \rangle$。 檢查：每個 $A[i]$ 都不小於
+$A[2i]$、$A[2i+1]$。
+\end{exmgood}
+
+題目要畫樹時，每一列換成一棵樹；節點的左右位置要對，因為它決定了陣列的順序。
+
+\subsection{樹：畫出整棵樹}
+
+二元搜尋樹、AVL 樹、紅黑樹、B 樹的追蹤，每一步都畫\textbf{整棵}樹，旁邊寫這一步是哪一種情
+況。 只畫改到的那一塊，讀的人要自己拼回去，拼錯的責任在答案上。
+
+題目：從圖~\ref{fig:exm-bst}~(a) 的二元搜尋樹刪除 $23$。
+
+\begin{center}
+\begin{minipage}{0.32\linewidth}\centering
+\begin{tikzpicture}[exm-tree]
+\node[exm-node] {41}
+  child {node[exm-del] {23}
+    child {node {12}}
+    child {node {35}
+      child {node[exm-suc] {29}
+        child[missing]
+        child {node {31}}}
+      child {node {38}}}}
+  child {node {68}
+    child {node {57}}
+    child {node {84}}};
+\end{tikzpicture}
+
+{\footnotesize (a) 原來的樹}
+\end{minipage}\hfill
+\begin{minipage}{0.32\linewidth}\centering
+\begin{tikzpicture}[exm-tree]
+\node[exm-node] {41}
+  child {node[exm-suc] {29}
+    child {node {12}}
+    child {node {35}
+      child[missing]
+      child {node {38}}}}
+  child {node {68}
+    child {node {57}}
+    child {node {84}}};
+\end{tikzpicture}
+
+{\footnotesize (b) 會被扣分：$31$ 不見了}
+\end{minipage}\hfill
+\begin{minipage}{0.32\linewidth}\centering
+\begin{tikzpicture}[exm-tree]
+\node[exm-node] {41}
+  child {node[exm-suc] {29}
+    child {node {12}}
+    child {node {35}
+      child {node {31}}
+      child {node {38}}}}
+  child {node {68}
+    child {node {57}}
+    child {node {84}}};
+\end{tikzpicture}
+
+{\footnotesize (c) 完整的答案}
+\end{minipage}
+\diagcaption{刪除有兩個子節點的 $23$（橘色）。 後繼是右子樹最小的 $29$（粉紅色），它有右子
+節點 $31$。}
+\label{fig:exm-bst}
+\end{center}
+
+(b) 把後繼 $29$ 搬到 $23$ 的位置，卻忘了 $29$ 原本的右子節點 $31$。 中序走一次是
+$12, 29, 35, 38, 41, \ldots$，少了 $31$，這個檢查一做就會發現。 完整的答案寫成：
+
+\begin{exmgood}
+約定：有兩個子節點時用後繼取代（第~9~章虛擬碼~\ref{alg:bst-delete}）。 $23$ 有兩個子節點，
+屬於情況 3。 後繼是右子樹的最小值：從 $35$ 一直往左走到 $29$。 $29$ 沒有左子節點，先把它拿
+下來，它的右子節點 $31$ 接到 $35$ 的左邊，再用 $29$ 取代 $23$，得到圖~\ref{fig:exm-bst}~(c)。
+檢查：中序是 $12, 29, 31, 35, 38, 41, 57, 68, 84$，遞增，少的只有 $23$。
+\end{exmgood}
+
+AVL 樹每次旋轉要寫出失衡的節點和類型（LL、RR、LR、RL），刪除時轉完還要繼續往上檢查；紅黑樹
+每一步寫出 $z$、父節點、叔叔的顏色和情況編號，紅色節點用雙圈或標 R，並在開頭說明記號；B 樹
+每次分裂、借、合併都畫整棵樹，寫出哪個鍵上升或下降。 細節見第~10、11~章的作答提醒，以及第~\ref{sec:exm-conv}~小節
+「樹與堆積」那一張表。
+
+\subsection{雜湊表：一個鍵一列}
+
+題目：$m = 11$，$h(k) = k \bmod 11$，線性探測，依序插入 $47, 36, 21, 58, 32, 15, 43$。 寫出每
+個鍵的探測過程和最後的表。
+
+\begin{exmbad}
+只交最後的表：$32, 43, -, 47, 36, 58, 15, -, -, -, 21$（第 $0$ 到第 $10$ 格）。
+\end{exmbad}
+
+表本身是對的，但題目還要探測過程。 只交最後的表，看不出每個鍵試過哪些格子，問探測次數時也
+無從核對。 線性探測最常錯的是繞回：$32$ 從第 $10$ 格開始，第 $10$ 格有人，下一格是
+$(10 + 1) \bmod 11 = 0$，寫成「第 $11$ 格」就出了表。
+
+\begin{exmgood}
+約定：$h(k, i) = (h(k) + i) \bmod 11$，$i$ 從 $0$ 開始；探測次數是看過的格子數，包括最後放進
+去的那一格（第~12~章的數法）。
+\begin{center}
+\small
+\begin{tabular}{ccccc}
+\toprule
+鍵 $k$ & $h(k)$ & 依序試的格子 & 放在 & 探測次數 \\
+\midrule
+47 & 3 & 3 & 3 & 1 \\
+36 & 3 & 3, 4 & 4 & 2 \\
+21 & 10 & 10 & 10 & 1 \\
+58 & 3 & 3, 4, 5 & 5 & 3 \\
+32 & 10 & 10, 0 & 0 & 2 \\
+15 & 4 & 4, 5, 6 & 6 & 3 \\
+43 & 10 & 10, 0, 1 & 1 & 3 \\
+\bottomrule
+\end{tabular}
+\end{center}
+最後的表就是上面那一列。 總探測次數 $15$，平均 $15/7 \approx 2.14$。 檢查：七個鍵各占一格，沒有兩個
+鍵在同一格。
+\end{exmgood}
+
+二次探測要寫出 $i^2 \bmod m$ 的值，雙重雜湊再加一欄 $h_2(k)$；有刪除標記時，先寫明插入遇到標
+記的規則（第~\ref{sec:exm-conv}~小節）。
+
+\subsection{圖演算法：表格的欄位}
+
+題目：圖~\ref{fig:exm-dij} 的有向圖，從頂點 $1$ 執行 Dijkstra 演算法。
+
+\begin{center}
+\begin{tikzpicture}[x=1cm, y=1cm]
+\node[exm-v] (v1) at (0, 0) {1};
+\node[exm-v] (v2) at (2.2, 1.2) {2};
+\node[exm-v] (v3) at (2.2, -1.2) {3};
+\node[exm-v] (v4) at (4.4, -1.2) {4};
+\node[exm-v] (v5) at (6.4, 0) {5};
+\draw[exm-a] (v1) -- node[exm-w] {4} (v2);
+\draw[exm-a] (v1) -- node[exm-w] {1} (v3);
+\draw[exm-a] (v3) -- node[exm-w] {2} (v2);
+\draw[exm-a] (v3) -- node[exm-w] {5} (v4);
+\draw[exm-a] (v2) -- node[exm-w] {1} (v4);
+\draw[exm-a] (v2) -- node[exm-w] {6} (v5);
+\draw[exm-a] (v4) -- node[exm-w] {2} (v5);
+\draw[exm-a] (v3) to[bend right=40] node[exm-w] {8} (v5);
+\end{tikzpicture}
+\diagcaption{Dijkstra 演算法的例子。}
+\label{fig:exm-dij}
+\end{center}
+
+\begin{exmbad}
+$d = (0, 3, 1, 4, 6)$。
+\end{exmbad}
+
+距離是對的，但題目問的是「執行」，要看到過程。 這張圖的第三輪有一個細節：取出 $2$ 之後，
+$d[2] + w(2, 5) = 3 + 6 = 9$，正好等於當時的 $d[5] = 9$。 相等時要不要改 $\pi[5]$，各課本的
+寫法不同，只交最後的 $d$ 看不出這一點。
+
+\begin{exmgood}
+約定：照第~25~章虛擬碼~\ref{alg:spt-dijkstra}，$d$ 一樣小時取編號小的，鬆弛時相等不更新；
+鄰居依編號由小到大。 每一列是取出 $u$、鬆弛完它的出邊之後的 $d[v]/\pi[v]$，粗體是這一輪變
+小的值。
+\begin{center}
+\small
+\begin{tabular}{cccccc}
+\toprule
+取出 $u$ & $1$ & $2$ & $3$ & $4$ & $5$ \\
+\midrule
+（初始） & $0/\NIL$ & $\infty$ & $\infty$ & $\infty$ & $\infty$ \\
+$1$ & $0/\NIL$ & $\mathbf{4}/1$ & $\mathbf{1}/1$ & $\infty$ & $\infty$ \\
+$3$ & $0/\NIL$ & $\mathbf{3}/3$ & $1/1$ & $\mathbf{6}/3$ & $\mathbf{9}/3$ \\
+$2$ & $0/\NIL$ & $3/3$ & $1/1$ & $\mathbf{4}/2$ & $9/3$（$3 + 6 = 9$，相等不更新） \\
+$4$ & $0/\NIL$ & $3/3$ & $1/1$ & $4/2$ & $\mathbf{6}/4$ \\
+$5$ & $0/\NIL$ & $3/3$ & $1/1$ & $4/2$ & $6/4$ \\
+\bottomrule
+\end{tabular}
+\end{center}
+取出的順序是 $1, 3, 2, 4, 5$。 答案：$\delta(1, v) = 0, 3, 1, 4, 6$；最短路徑樹的邊是
+$(1, 3)$、$(3, 2)$、$(2, 4)$、$(4, 5)$。
+\end{exmgood}
+
+其他圖演算法的表，每一步至少要有下表的欄位。
+
+\begin{center}
+\small
+\begin{tabular}{p{0.2\linewidth}p{0.6\linewidth}p{0.1\linewidth}}
+\toprule
+演算法 & 每一步寫出 & 見 \\
+\midrule
+BFS & 取出的頂點、佇列的內容、這一步設定的 $d$、$\pi$ & 第~21~章 \\
+DFS & 每個頂點的 $d/f$；問邊的分類時，一條邊一列寫出種類 & 第~21~章 \\
+Kahn 拓樸排序 & 取出的頂點、入度陣列、佇列的內容 & 第~22~章 \\
+關鍵路徑 & 事件表的 $\mathit{ee}$、$\mathit{le}$；活動表的 $e$、$l$、$l - e$ & 第~22~章 \\
+互斥集合 & 每個操作之後的 $p[1..n]$（和 $\mathit{size}$ 或 $\mathit{rank}$） & 第~13~章 \\
+Kruskal & 依序考慮的每條邊：選入或跳過，跳過要寫原因 & 第~24~章 \\
+Prim & 每回合取出的頂點、改過的 $\mathit{key}$ 和 $\pi$ & 第~24~章 \\
+Bellman--Ford & 邊的順序；每一輪結束時的 $d$ & 第~25~章 \\
+Floyd--Warshall & 每個 $D^{(k)}$ 寫成完整的矩陣，標出改過的格子 & 第~25~章 \\
+Edmonds--Karp & 每一輪的剩餘網路（或 $c_f > 0$ 的邊）、增廣路徑、瓶頸、$|f|$ & 第~26~章 \\
+動態規劃 & 整張表（含平手時的箭頭）、答案在哪一格、還原的過程 & 第~18~章 \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\section{作答提醒總表}
+\label{sec:exm-table}
+
+全書每章有兩三個「作答提醒」框。 這一節把它們分成兩類整理：一類是\textbf{各課本約定不同}的
+地方（第~\ref{sec:exm-conv}~小節的六張表），答案會因為約定而不同，作答時
+要先寫明用哪一套；另一類只談\textbf{寫法}（第~\ref{sec:exm-habits}~小節），不涉及約定。 「本書」
+欄是本書正文和手算追蹤用的約定；題目有規定時，一律照題目。
+
+\subsection{各課本約定不同的地方}
+\label{sec:exm-conv}
+
+\begin{center}
+\begin{minipage}{\linewidth}\centering\footnotesize
+\textbf{基礎與線性結構（第 1--6 章）}\par\smallskip
+\begin{tabular}{p{0.15\linewidth}p{0.38\linewidth}p{0.30\linewidth}p{0.05\linewidth}}
+\toprule
+主題 & 各課本的不同寫法 & 本書 & 章 \\
+\midrule
+虛擬碼 & 指定寫 $=$ 或 $:=$；陣列從 $0$ 開始 & 指定 $\gets$、相等 $=$；陣列從 $1$ 開始，C 程式從 $0$ 開始 & 1 \\
+插入排序的追蹤 & 一輪一列，或每挪動一次一列；比較次數算不算 $j$ 走到 $0$ 那一次 & 一輪一列；$j = 0$ 時不算比較 & 1 \\
+動態陣列換容量 & 容量從 $0$ 或 $1$ 開始；縮小的條件是「少於」或「不超過」$1/4$；在刪除前或後判斷 & 從 $\mathit{num} = \mathit{cap} = 0$ 開始，滿了才加倍；刪除之後 $4 \cdot \mathit{num} < \mathit{cap}$ 才減半 & 3 \\
+陣列位址 & 下標從 $0$、$1$ 或任意下界開始；列優先或行優先；每格以位元組或字組為單位；簡體教材的「行」「列」和台灣相反 & 公式寫成一般下界 $l..u$；「列」是 row；照題目的單位 & 4 \\
+特殊矩陣的壓縮 & 上三角或下三角；列優先或行優先；$B$ 從 $0$ 或 $1$ 開始；對角線存不存 & 以下三角、$B$ 從 $1$ 推公式（列優先 $k = i(i-1)/2 + j$），上三角用轉置換過去 & 4 \\
+多項式、稀疏矩陣 & 係數由低次或由高次排；三元組陣列第 $0$ 格存（列數, 行數, 個數） & 係數由低次到高次；三元組在 $T[0..t-1]$，列數、行數、$t$ 另外記 & 4 \\
+\bottomrule
+\end{tabular}
+\end{minipage}
+\end{center}
+\begin{center}
+\begin{minipage}{\linewidth}\centering\footnotesize
+\begin{tabular}{p{0.15\linewidth}p{0.38\linewidth}p{0.30\linewidth}p{0.05\linewidth}}
+\toprule
+主題 & 各課本的不同寫法 & 本書 & 章 \\
+\midrule
+環狀佇列 & $\mathit{front}$ 指向前端元素或它的前一格；$\mathit{rear}$ 指向尾端元素或下一格；空、滿的判斷 & 陣列從 $0$ 開始；$\mathit{front}$ 指向前端元素、$\mathit{rear}$ 指向下一個空格 & 6 \\
+中序轉後序 & 堆疊由底到頂或由頂到底寫；同優先順序時看結合性；isp／icp 兩張表 & 堆疊由底到頂；左結合時頂端同優先順序先 pop，右結合（次方）不 pop & 6 \\
+\bottomrule
+\end{tabular}
+\end{minipage}
+\end{center}
+
+\begin{center}
+\begin{minipage}{\linewidth}\centering\footnotesize
+\textbf{樹與堆積（第 7--11 章）}\par\smallskip
+\begin{tabular}{p{0.15\linewidth}p{0.38\linewidth}p{0.30\linewidth}p{0.05\linewidth}}
+\toprule
+主題 & 各課本的不同寫法 & 本書 & 章 \\
+\midrule
+高度、層 & CLRS 等英文書數邊：單一節點高度 $0$、空樹 $-1$；也有書根在第 $0$ 層 & 數節點：單一節點 $1$、空樹 $0$，根在第 $1$ 層；深度數邊，根的深度 $0$ & 7 \\
+二元樹的名稱 & complete、full、perfect 的中文譯名各書不同；full 有時指每個節點有 $0$ 或 $2$ 個孩子 & complete 叫完整二元樹；perfect 叫滿二元樹；$0$ 或 $2$ 個孩子叫嚴格二元樹 & 7 \\
+引線二元樹 & 中序第一個的左引線、最後一個的右引線指向 \NIL{} 或頭節點 & 指向 \NIL，旗標仍設成引線 & 7 \\
+堆積的下沉 & 兩個子節點相等時換左或換右 & 換左邊（右邊嚴格較大才換右） & 8 \\
+建堆積 & 逐一插入，或由下而上 & 題目沒說「依序插入」時用由下而上，從 $\lfloor n/2 \rfloor$ 倒著做；答案先寫用哪一種 & 8 \\
+左傾樹的 $s$ & npl：$\mathrm{npl}(\NIL) = -1$、葉子 $0$；重量左傾樹比子樹節點數 & $s(\NIL) = 0$，葉子 $1$ & 8 \\
+\bottomrule
+\end{tabular}
+\end{minipage}
+\end{center}
+\begin{center}
+\begin{minipage}{\linewidth}\centering\footnotesize
+\begin{tabular}{p{0.15\linewidth}p{0.38\linewidth}p{0.30\linewidth}p{0.05\linewidth}}
+\toprule
+主題 & 各課本的不同寫法 & 本書 & 章 \\
+\midrule
+二項堆積 & 合併時同階三棵留哪一棵；延遲合併的版本 & 留下進位來的那棵；不延遲 & 8 \\
+刪除有兩個子節點的節點 & 用後繼或前驅取代 & 後繼（右子樹最小）；B 樹的內部鍵也用後繼 & 9--11 \\
+紅黑樹的記號 & 紅色節點塗色、畫雙圈或標 R & 考卷上用雙圈或標 R，開頭說明 & 10 \\
+B 樹的階數 & $m$ 階 $=$ 最多 $m$ 個子節點；CLRS 用最小分支度 $t$（$m = 2t$）；早期論文的 $k$ 階（$m = 2k + 1$） & 最多 $m$ 個子節點 & 11 \\
+B 樹的細節 & 溢位時上升哪一個鍵；先向哪個兄弟借；和哪個兄弟合併 & 溢位（$m$ 個鍵）上升第 $\lceil m/2 \rceil$ 個；先向右兄弟借再向左；有右兄弟就和右兄弟合併 & 11 \\
+B 樹的高度 & CLRS 數邊，公式寫成 $h' \le \log_t \frac{n+1}{2}$ & 數節點，比 CLRS 多 $1$ & 11 \\
+\bottomrule
+\end{tabular}
+\end{minipage}
+\end{center}
+
+\begin{center}
+\begin{minipage}{\linewidth}\centering\footnotesize
+\textbf{雜湊、互斥集合、排序與選擇（第 12--16 章）}\par\smallskip
+\begin{tabular}{p{0.15\linewidth}p{0.38\linewidth}p{0.30\linewidth}p{0.05\linewidth}}
+\toprule
+主題 & 各課本的不同寫法 & 本書 & 章 \\
+\midrule
+探測的計數 & $i$ 從 $0$ 或 $1$ 開始；探測次數包不包括看起始位置的那一次 & $i$ 從 $0$ 開始；看過幾格算幾次 & 12 \\
+刪除標記之後的插入 & 放進第一個遇到的標記；或繼續找到空格（或 $k$）再放進第一個標記 & 後者 & 12 \\
+可延伸雜湊 & 用雜湊值最前面或最後面的位元 & 最前面的位元 & 12 \\
+秩與高度 & 秩是（數邊的）高度的上界；也叫依高度合併 & 數節點的高度 $\le$ 秩 $+ 1$ & 13 \\
+互斥集合的追蹤 & 一樣大時誰當根；\proc{Union} 裡的 \proc{Find-Set} 壓不壓縮；根存負的節點數；加權規則、塌陷規則等名稱 & 一樣大時 $y$ 的根接到 $x$ 底下；\proc{Union} 裡也壓縮；另開 $\mathit{size}$ 陣列 & 13 \\
+快速排序的分割 & Lomuto；Hoare（回傳的 $j$ 只是分界）；以 $A[p]$ 為基準、最後換到中間的版本 & Lomuto（虛擬碼~\ref{alg:so-lomuto}）：$i \gets p$，先交換再加一；遞迴範圍 $[p..q-1]$、$[q+1..r]$ & 14 \\
+\bottomrule
+\end{tabular}
+\end{minipage}
+\end{center}
+\begin{center}
+\begin{minipage}{\linewidth}\centering\footnotesize
+\begin{tabular}{p{0.15\linewidth}p{0.38\linewidth}p{0.30\linewidth}p{0.05\linewidth}}
+\toprule
+主題 & 各課本的不同寫法 & 本書 & 章 \\
+\midrule
+排序的「一趟」 & 氣泡由右往左把最小值換到前面；選擇每趟找最大值；合併排序遞迴或由下而上 & 氣泡由左往右把最大值換到後面；選擇找最小值；合併排序由下而上一趟一列 & 14 \\
+決策樹的高度 & 數邊，寫成 $2^h \ge n!$ & 寫「最壞比較次數 $d$ 滿足 $2^d \ge n!$」 & 15 \\
+外部排序的趟數 & 包不包括產生初始串的那一趟；I/O 算讀加寫或只算一種 & 合併趟數 $\lceil \log_k r \rceil$；題目沒說就兩種都寫 & 15 \\
+敗者樹 & 鍵相同時誰贏；串讀完時怎麼補 & 編號小的串贏；讀完補 $\infty$ & 15 \\
+錦標賽 & 人數不是 $2$ 的次方時誰輪空 & 最後一個人輪空 & 16 \\
+選擇與中位數 & 名次從 $0$ 或 $1$；中位數取上或取下；統計課取兩數平均 & 名次從 $1$；下中位數，第 $\lfloor (n+1)/2 \rfloor$ 小；分割用 Lomuto & 16 \\
+\bottomrule
+\end{tabular}
+\end{minipage}
+\end{center}
+
+\begin{center}
+\begin{minipage}{\linewidth}\centering\footnotesize
+\textbf{演算法設計（第 17--20 章）}\par\smallskip
+\begin{tabular}{p{0.15\linewidth}p{0.38\linewidth}p{0.30\linewidth}p{0.05\linewidth}}
+\toprule
+主題 & 各課本的不同寫法 & 本書 & 章 \\
+\midrule
+二分搜尋 & 位置從 $0$ 或 $1$；找不到回傳 $-1$、\NIL、$n$ 或 $n + 1$；有重複時回傳哪一個；上界、下界的定義 & 從 $1$；\proc{Binary-Search} 找不到回 \NIL；\proc{Lower-Bound}、\proc{Upper-Bound} 找不到回 $n + 1$ & 17 \\
+最大子陣列 & 允不允許空的子陣列（允許時全負的答案是 $0$） & 至少一個數 & 17 \\
+Strassen & 七個乘積的編號、寫法（有的先定義 $S_1..S_{10}$ 再定義 $P_1..P_7$） & $M_1..M_7$ 那一套 & 17 \\
+DP 的平手 & LCS 平手指向上或左；矩陣鏈乘、最佳二元搜尋樹取哪個 $k$、$r$ & LCS 指向上；取最小的 $k$、$r$ & 18 \\
+最佳二元搜尋樹的成本 & CLRS 走到外部節點也算一次，$e[i, i-1] = q_{i-1}$；也有 $c(i, j)$ 表示 $a_{i+1}..a_j$ 的寫法 & 只數和鍵比較的次數，$e[i, i-1] = 0$ & 18 \\
+區間的端點 & 閉區間，$s_j > f_i$ 才相容 & $s_j \ge f_i$ 就相容；結束時刻相同時編號小的在前 & 19 \\
+\bottomrule
+\end{tabular}
+\end{minipage}
+\end{center}
+\begin{center}
+\begin{minipage}{\linewidth}\centering\footnotesize
+\begin{tabular}{p{0.15\linewidth}p{0.38\linewidth}p{0.30\linewidth}p{0.05\linewidth}}
+\toprule
+主題 & 各課本的不同寫法 & 本書 & 章 \\
+\midrule
+霍夫曼樹 & 權重平手選哪一個；誰當左孩子 & 先比權重再比編號，先取出的放左邊 & 19 \\
+最佳合併的成本 & 一次合併算 $a + b$ 或 $a + b - 1$；以區塊 I/O 計 & $a + b$ & 19 \\
+狀態空間樹 & 依產生順序、整棵樹的深度優先順序編號，或只畫通過檢查的節點 & 依產生順序，剪掉的也編號、打叉；欄位由小到大試 & 20 \\
+背包的分支限界 & 求最大值用上界 $b$；或改成求最小值，用下界 $\hat c$ 和上界 $u$ & 物品依 $p_i/w_i$ 由大到小；先「拿」後「不拿」；上界一樣取編號小的；$b \le \mathit{best}$ 就剪 & 20 \\
+TSP 的縮減矩陣 & 先縮減行或先縮減列；其他下界 & 先列後行；孩子依編號；$\hat c$ 一樣取編號小的 & 20 \\
+\bottomrule
+\end{tabular}
+\end{minipage}
+\end{center}
+
+\begin{center}
+\begin{minipage}{\linewidth}\centering\footnotesize
+\textbf{圖論（第 21--26 章）}\par\smallskip
+\begin{tabular}{p{0.15\linewidth}p{0.38\linewidth}p{0.30\linewidth}p{0.05\linewidth}}
+\toprule
+主題 & 各課本的不同寫法 & 本書 & 章 \\
+\midrule
+路徑與環 & 「路徑」就是簡單路徑，另用 walk、通路；「環」允許重複頂點；有向邊寫 $\langle u, v \rangle$ & 路徑可以重複頂點，頂點都不同叫簡單路徑；環的頂點不重複，無向圖的環至少 $3$ 條邊 & 21 \\
+鄰接串列的順序 & 題目畫出的順序不一定由小到大 & 由小到大；題目畫了就照題目 & 21 \\
+DFS 的時間戳記 & 只記發現的順序，可能從 $0$ 開始 & $d$、$f$ 共用一個時鐘，從 $1$ 開始；外層迴圈依編號 & 21 \\
+Kahn 演算法 & 入度 $0$ 的頂點用佇列、堆疊或每次挑最小 & 佇列；一開始依編號由小到大放入 & 22 \\
+AOE 的記號 & $\mathit{ve}$／$\mathit{vl}$、$\mathit{TE}$／$\mathit{TL}$；$\mathit{ES}$、$\mathit{EF}$、$\mathit{LS}$、$\mathit{LF}$；寬裕時間也叫浮時 & 事件 $\mathit{ee}$／$\mathit{le}$，活動 $e$／$l$，寬裕時間 $l - e$ & 22 \\
+割點的 $\mathit{low}$ & 後向邊用 $\mathit{low}[w]$ 代替 $d[w]$；$d$ 從 $0$ 開始 & 後向邊用 $d[w]$（用 $\mathit{low}[w]$ 會漏掉割點） & 23 \\
+\bottomrule
+\end{tabular}
+\end{minipage}
+\end{center}
+\begin{center}
+\begin{minipage}{\linewidth}\centering\footnotesize
+\begin{tabular}{p{0.15\linewidth}p{0.38\linewidth}p{0.30\linewidth}p{0.05\linewidth}}
+\toprule
+主題 & 各課本的不同寫法 & 本書 & 章 \\
+\midrule
+雙連通元件 & 寫成邊的集合或頂點的集合；孤立頂點算不算一塊 & 邊的等價類 & 23 \\
+最小生成樹的平手 & 先選編號小的邊、依字母順序、Prim 先加編號小的頂點 & 先比權重，再比小端點，再比大端點 & 24 \\
+次小生成樹 & 「和最小生成樹不同的最輕生成樹」或「權重嚴格大於的最輕生成樹」 & 前者 & 24 \\
+Dijkstra & 平手取哪個；相等時要不要更新 $\pi$；表格寫 $S$ 和 $d$，或每格 $d/\pi$ & 取編號最小的；相等不更新；一輪一列寫全部的 $d$ & 25 \\
+Bellman--Ford & 就地更新；或 $\mathit{dist}^{k}$（最多 $k$ 條邊，只用上一欄） & 就地更新，邊照固定順序 & 25 \\
+所有點對 & 路徑記前驅 $\pi_{ij}$，或記中繼點 $k$；遞移閉包是 $A^{+}$ 或 $A^{*}$ & 前驅矩陣；兩種閉包都定義，Warshall 算的是 $A^{+}$ & 25 \\
+\bottomrule
+\end{tabular}
+\end{minipage}
+\end{center}
+\begin{center}
+\begin{minipage}{\linewidth}\centering\footnotesize
+\begin{tabular}{p{0.15\linewidth}p{0.38\linewidth}p{0.30\linewidth}p{0.05\linewidth}}
+\toprule
+主題 & 各課本的不同寫法 & 本書 & 章 \\
+\midrule
+流的定義 & 淨流量：$f(u, v) = -f(v, u)$，反方向是負數 & 流量不為負，$f(u, v)$ 是邊上的流量 & 26 \\
+增廣路徑 & 找路徑的順序 & BFS，鄰居依字母（編號）順序 & 26 \\
+匹配的名詞 & 「極大」「最大」只差一字 & 極大 $=$ maximal（不能再加邊）；最大 $=$ maximum（邊數最多） & 26 \\
+\bottomrule
+\end{tabular}
+\end{minipage}
+\end{center}
+
+\begin{center}
+\begin{minipage}{\linewidth}\centering\footnotesize
+\textbf{字串比對、NP 完備、近似演算法（第 27--29 章）}\par\smallskip
+\begin{tabular}{p{0.15\linewidth}p{0.38\linewidth}p{0.30\linewidth}p{0.05\linewidth}}
+\toprule
+主題 & 各課本的不同寫法 & 本書 & 章 \\
+\midrule
+Rabin--Karp & 字元對應的數字（$\mathtt{a} = 1$、ASCII）；$d$、$q$；第一個字元是最高位或最低位 & 對應到 $0..d-1$；第一個字元是最高位 & 27 \\
+失敗函數 & \texttt{pi[j]}（從 $0$ 編號）；Horowitz 系列的 $f(j) = \pi[j+1] - 1$；$\mathit{next}$；$\mathit{nextval}$ & CLRS 的 $\pi[q]$，$q = 1..m$ & 27 \\
+歸約的說法 & 「把 $A$ 歸約到 $B$」的方向 & $A \le_{\mathrm{p}} B$：已知難的 $A$ 轉成要證的 $B$ & 28 \\
+近似比 & 最大化問題寫 $C \ge \alpha C^{*}$（$\alpha \le 1$，叫 $\frac12$-近似）；效能保證 & $\rho \ge 1$，兩種問題都叫 $\rho$-近似；答案寫成不等式 & 29 \\
+度量 TSP & 最小生成樹的起點、前序走訪孩子的順序 & 孩子依編號由小到大 & 29 \\
+集合覆蓋 & 平手時選哪一個 & 編號小的 & 29 \\
+\bottomrule
+\end{tabular}
+\end{minipage}
+\end{center}
+
+\subsection{只談寫法的提醒}
+\label{sec:exm-habits}
+
+下表的提醒和約定無關，是各種題型\textbf{一定要寫出來}的東西。
+
+\begin{center}
+\begin{minipage}{\linewidth}\centering\footnotesize
+\textbf{各章作答提醒裡的寫法要點}\par\smallskip
+\begin{tabular}{p{0.2\linewidth}p{0.64\linewidth}p{0.06\linewidth}}
+\toprule
+題型 & 要寫出的東西 & 章 \\
+\midrule
+用定義證明 $\Theta$ & $c_1$、$c_2$（或 $c$）和 $n_0$ 的值，驗證所有 $n \ge n_0$ & 1 \\
+迴圈不變量 & 和迴圈變數有關的具體敘述；初始、維持、結束三步；停下時變數的值 & 1 \\
+數執行次數 & 先寫和，再化簡或給上下界，最後寫 $\Theta$；代小的 $n$ 驗算 & 1 \\
+代換法 & 常數寫成符號；歸納步驟推出同一個 $c$ 的同一個式子；基礎情況 & 2 \\
+遞迴樹 & 第 $j$ 層的節點數、規模、該層總和、層數、葉子數；葉子 $n^{\log_b a}$ 可以驗算 & 2 \\
+主定理 & $a$、$b$、$\log_b a$、$f(n)$、情況；情況 1、3 的 $\varepsilon$；情況 3 的正則條件 & 2 \\
+\bottomrule
+\end{tabular}
+\end{minipage}
+\end{center}
+\begin{center}
+\begin{minipage}{\linewidth}\centering\footnotesize
+\begin{tabular}{p{0.2\linewidth}p{0.64\linewidth}p{0.06\linewidth}}
+\toprule
+題型 & 要寫出的東西 & 章 \\
+\midrule
+平攤分析 & 對任意一串操作論證，不用機率的說法；位能法寫 $\Phi$、$\Phi \ge 0$、每種操作的 $\hat c_i$ & 3 \\
+指標、串列 & 一步一張圖，舊箭頭劃掉；從 $\mathit{head}$ 重走一次；空、單一、頭、尾四種情況 & 5 \\
+可用空間串列 & 每步寫 $\mathit{head}$、$\mathit{avail}$ 和改到的 $\mathit{next}$；兩條串列合起來每格一次 & 5 \\
+堆疊輸出順序 & 做不到時指出卡住的一步；做得到時寫出 push、pop 序列 & 6 \\
+由走訪重建樹 & 每一步寫根和左右子樹的節點；畫完用另一種走訪核對 & 7 \\
+引線樹 & 實線孩子、虛線引線，數一數 $n + 1$ 條 & 7 \\
+\bottomrule
+\end{tabular}
+\end{minipage}
+\end{center}
+\begin{center}
+\begin{minipage}{\linewidth}\centering\footnotesize
+\begin{tabular}{p{0.2\linewidth}p{0.64\linewidth}p{0.06\linewidth}}
+\toprule
+題型 & 要寫出的東西 & 章 \\
+\midrule
+費氏堆積 & 寫明是平攤還是單次最壞 & 8 \\
+BST 搜尋、後繼 & 走過的節點和每步的比較；沒說有父指標就從根往下 & 9 \\
+第 $k$ 小、排名 & 先標好每個節點的 $\mathit{size}$；一步一列寫節點、$k$、往哪走 & 9 \\
+AVL 樹 & 每次旋轉畫整棵樹，寫失衡節點和類型；刪除要檢查到根 & 10 \\
+紅黑樹 & 每一步寫 $z$、父節點、叔叔的顏色、情況 & 10 \\
+B 樹 & 每次分裂、借、合併畫整棵樹；鍵數範圍、葉子同層、由左到右排好 & 11 \\
+\bottomrule
+\end{tabular}
+\end{minipage}
+\end{center}
+\begin{center}
+\begin{minipage}{\linewidth}\centering\footnotesize
+\begin{tabular}{p{0.2\linewidth}p{0.64\linewidth}p{0.06\linewidth}}
+\toprule
+題型 & 要寫出的東西 & 章 \\
+\midrule
+探測 & 一個鍵一列：$h(k)$、試過的格子、放的位置；$i^2 \bmod m$ 寫出來 & 12 \\
+穩定性 & 穩定要說明每一步；不穩定給一個帶下標的反例 & 14 \\
+選擇的追蹤 & 一次分割一列：範圍、樞紐、$q$、$k$、往哪邊、新的 $i$ & 16 \\
+找第二大 & 整棵比賽樹，冠軍打敗的人；比較次數分兩部分 & 16 \\
+二分搜尋 & 不變量寫在旁邊；用「只剩兩格」代一次 & 17 \\
+最大子陣列 & 跨中點的段寫往左、往右累加兩列 & 17 \\
+\bottomrule
+\end{tabular}
+\end{minipage}
+\end{center}
+\begin{center}
+\begin{minipage}{\linewidth}\centering\footnotesize
+\begin{tabular}{p{0.2\linewidth}p{0.64\linewidth}p{0.06\linewidth}}
+\toprule
+題型 & 要寫出的東西 & 章 \\
+\midrule
+Strassen & 每個乘積寫式子、代入、值；最後用一般乘法驗算 & 17 \\
+動態規劃 & 一格的定義、遞迴式與邊界、填表順序、答案的格子、時間和空間 & 18 \\
+列出所有拓樸順序 & 列舉樹、依字典序、最後寫總數 & 22 \\
+Kosaraju & 第一次 DFS 的 $f$、依 $f$ 由大到小的順序、在 $G^{\mathrm T}$ 上的每一棵樹 & 23 \\
+Kruskal、Prim & 選邊的順序；跳過的邊寫原因；Prim 寫 $\mathit{key}$ 表 & 24 \\
+MST 與最短路徑 & 說明兩者不同時，舉一個小反例 & 24 \\
+\bottomrule
+\end{tabular}
+\end{minipage}
+\end{center}
+\begin{center}
+\begin{minipage}{\linewidth}\centering\footnotesize
+\begin{tabular}{p{0.2\linewidth}p{0.64\linewidth}p{0.06\linewidth}}
+\toprule
+題型 & 要寫出的東西 & 章 \\
+\midrule
+增廣、最小割 & 每輪的剩餘網路、路徑、瓶頸，別漏反向邊；割只加從 $S$ 到 $T$ 的邊 & 26 \\
+KMP & 失配時退到哪裡；找到後 $q \gets \pi[m]$；比較次數先寫數法 & 27 \\
+NP 完備 & 四步：屬於 NP、選已知問題、構造與時間、兩個方向 & 28 \\
+擬多項式 & 輸入長度寫成 $n$ 和 $\lg M$；時間寫成它們的函數 & 28 \\
+近似演算法的追蹤 & TSP 的成本包含回到起點；加權集合覆蓋比 $c(S)/|S \cap U|$ & 29 \\
+\bottomrule
+\end{tabular}
+\end{minipage}
+\end{center}
+
+\section{觀念題}
+\label{sec:exm-exercises}
+
+每一題給一份不完整或有錯的答案，指出問題，再寫出完整的答案。 解答在本附錄最後。
+
+\begin{enumerate}
+\item （虛擬碼）題目要求回傳 $A[1..n]$（$n \ge 1$）的最大值。 下面的答案錯在哪裡？ 寫出完整的
+版本。
+\begin{center}
+\begin{minipage}{0.6\linewidth}
+\begin{algorithmic}[1]
+\Function{Max}{$A, n$}
+    \State $m \gets 0$
+    \For{$i \gets 1$ \To $n - 1$}
+        \If{$A[i] > m$}
+            \State $m \gets A[i]$
+        \EndIf
+    \EndFor
+    \State \Return $m$
+\EndFunction
+\end{algorithmic}
+\end{minipage}
+\end{center}
+\label{q:exm-max}
+
+\item （證明）要證「$n \ge 1$ 個節點的二元樹，葉子最多 $(n + 1)/2$ 個」，有人寫：「一個節點時
+葉子 $1$ 個，成立。 假設 $n$ 個節點時成立，加一個節點變成 $n + 1$ 個，葉子最多多 $1$ 個……」
+這個寫法有什麼問題？ 寫出一個完整的證明。
+
+\item （追蹤）$m = 7$，$h(k) = k \bmod 7$，線性探測，依序插入 $13, 20, 8, 34$。 有人寫：「$34$ 放
+在第 $2$ 格，探測 $2$ 次。」 依本書的數法，$34$ 的探測次數是多少？ 寫出完整的過程。
+
+\item （歸約）有人要證明問題 $X$ 是 NP 難的，寫了一個多項式時間的 $f$，把 $X$ 的實例轉成
+\textsf{SAT} 的實例，答案相同。 這證明了什麼？ 要證 $X$ 是 NP 難，應該怎麼做？
+\end{enumerate}
+
+\section{讀完你應該會}
+\label{sec:exm-checklist}
+
+\begin{itemize}
+\item 在答案開頭用一句話寫明題目沒規定、但會影響答案的約定，並能從
+第~\ref{sec:exm-table}~節的表查到某個演算法有哪些地方要寫。
+\item 寫出別人能照著手算的虛擬碼：標頭、初值、迴圈界限、一致的下標；遞迴寫出基礎情況和最外
+層的呼叫。
+\item 寫出完整的複雜度敘述（量什麼、輸入大小、哪一種情況、哪個符號），並寫出推導。
+\item 用迴圈不變量、歸納法、反證法、交換論證、歸約寫證明，知道每一種最常漏掉的是哪一步。
+\item 寫追蹤題時一步一列（或一圖），標出改動，最後單獨寫答案並驗算。
+\end{itemize}
+
+\textbf{延伸閱讀}（書末會整理完整的參考資料）
+
+\begin{itemize}
+\item Daniel J. Velleman，\textit{How to Prove It: A Structured Approach}，第 3 版：從邏輯
+和量詞講起，教怎麼把一個敘述拆成要證的步驟，再寫成完整的證明；第 3、6 章講證明的結構和歸
+納法。
+\item Eric Lehman、F. Thomson Leighton、Albert R. Meyer，\textit{Mathematics for Computer
+Science}：麻省理工學院的課程講義，可以免費取得；歸納法、不變量和狀態機的章節有很多寫法的例
+子。
+\item Jon Kleinberg、Éva Tardos，\textit{Algorithm Design}，第 4 章：貪心演算法的兩種證明寫
+法（領先論證和交換論證），講得比本書第~19~章更細。
+\item Thomas H. Cormen 等，\textit{Introduction to Algorithms}，第 4 版，第 2、3 章：迴圈不
+變量和漸近符號的寫法；第 34 章：歸約的完整格式。
+\end{itemize}
+
+\addcontentsline{toc}{section}{觀念題解答}
+\section*{觀念題解答}
+
+\begin{enumerate}
+\item 兩個錯誤。 (1) $m$ 的初值 $0$：全部是負數時回傳 $0$，而 $0$ 不在陣列裡。 (2) 迴圈只到
+$n - 1$，沒看 $A[n]$；$A = \langle 1, 5 \rangle$ 會回傳 $1$。 完整的版本：
+$m \gets A[1]$；\textbf{for} $i \gets 2$ \textbf{to} $n$：\textbf{if} $A[i] > m$
+\textbf{then} $m \gets A[i]$；最後回傳 $m$。 比較 $n - 1$ 次，$\Theta(n)$。
+
+\item 這是「從小樹長出大樹」的寫法：從 $n$ 個節點的某一棵樹加一個節點，只得到某些 $n + 1$ 個節
+點的樹，沒有說明每一棵都能這樣得到；而且加一個節點時葉子可能不變（加在葉子底下）或多一個，
+要分情況，還得說明 $(n + 1)/2$ 的界怎麼跟著變。 完整的證明不必用歸納：令 $n_0$、$n_1$、
+$n_2$ 是有 $0$、$1$、$2$ 個子節點的節點數。 由定理~\ref{thm:bt-n0n2}，$n_0 = n_2 + 1$。 所以
+\[
+n = n_0 + n_1 + n_2 \ge n_0 + n_2 = 2n_0 - 1,
+\]
+得 $n_0 \le (n + 1)/2$。 等號在 $n_1 = 0$ 時成立（嚴格二元樹）。
+
+\item 約定：$h(k, i) = (h(k) + i) \bmod 7$，$i$ 從 $0$ 開始，看過幾格算幾次。 $13$：$h = 6$，
+放在 $6$，$1$ 次。 $20$：$h = 6$，試 $6, 0$，放在 $0$，$2$ 次。 $8$：$h = 1$，放在 $1$，$1$
+次。 $34$：$h = 6$，試 $6, 0, 1, 2$，放在 $2$，\textbf{$4$ 次}。 原答案的位置對，次數少算
+了：繞回之後的 $0$、$1$ 兩格也看過，要算進去。
+
+\item $X \le_{\mathrm{p}} \textsf{SAT}$ 說明 $X$ 不比 \textsf{SAT} 難。 因為 $\textsf{SAT} \in
+\mathrm{NP}$，這證明了 $X \in \mathrm{NP}$（先算 $f(x)$，再用 \textsf{SAT} 的驗證者），但沒有
+說明 $X$ 很難。 要證 $X$ 是 NP 難，方向要反過來：挑一個已知 NP 完備的問題 $A$（例如
+\textsf{SAT} 或 \textsf{3-SAT}），構造多項式時間的 $g$ 證明 $A \le_{\mathrm{p}} X$，兩個方向都
+要證。
+\end{enumerate}

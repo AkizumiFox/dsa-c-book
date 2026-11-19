@@ -8,6 +8,8 @@ CHAPTERS_OUTDIR := $(OUTDIR)/chapters
 
 # 已經動筆的章（目錄名稱）。新的一章開始寫時加進來，book.tex 也要取消註解。
 WRITTEN := 01_Analysis 02_Recurrences 03_Amortized 04_ArraysMatrices 05_LinkedLists 06_StacksQueues 07_Trees 08_Heaps 09_BST 10_BalancedTrees 11_MultiwayTrees 12_Hashing 13_DisjointSets 14_Sorting 15_LinearExternalSort 16_Selection 17_DivideConquer 18_DynamicProgramming 19_Greedy 20_Backtracking 21_GraphTraversal 22_TopologicalSort 23_Connectivity 24_MST 25_ShortestPaths 26_NetworkFlow 27_StringMatching 28_NPCompleteness 29_Approximation
+# 附錄：不參加單章編譯（make chN 用目錄開頭的數字算章號），只參加 make test。
+APPENDICES := A_MathTools B_ExamWriting
 
 # Compile from BUILDDIR so aux/log/minted/pdf intermediates never land in src/.
 # Trailing colon on TEXINPUTS keeps TeX Live's default search path.
@@ -74,7 +76,7 @@ $(CHAPTERS_OUTDIR)/%.pdf: FORCE
 # 沒有 systemd 的機器上直接跑，自己先下 ulimit。
 test:
 	@rm -rf $(BUILDDIR)/code
-	@python3 scripts/extract_code.py --out $(BUILDDIR)/code $(foreach d,$(WRITTEN),$(SRCDIR)/chapters/$(d)/chapter.tex)
+	@python3 scripts/extract_code.py --out $(BUILDDIR)/code $(foreach d,$(WRITTEN) $(APPENDICES),$(SRCDIR)/chapters/$(d)/chapter.tex)
 	@if [ -z "$$DSA_MEMCAP" ] && command -v systemd-run > /dev/null 2>&1; then \
 	    systemd-run --user --scope --quiet -p MemoryMax=4G \
 	        env DSA_MEMCAP=1 UBSAN_OPTIONS=print_stacktrace=1 scripts/run_tests.sh $(BUILDDIR)/code; \
