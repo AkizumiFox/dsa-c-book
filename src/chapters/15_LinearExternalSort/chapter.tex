@@ -32,8 +32,8 @@
 型裡已經是最好的。 第~\ref{sec:lin-linear}~節跳出這個模型：鍵是範圍不大的整數時，
 計數排序、基數排序可以在線性時間排好；鍵是均勻分布的實數時，桶子排序的期望時間也
 是線性。 第~\ref{sec:lin-external}~節處理放不進記憶體的資料：先切成一段一段排好的
-\textbf{串}，再用 $k$ 路合併把它們合起來，中間會講兩個考試常見、但多數演算法教科書
-沒有的做法：\textbf{敗者樹}和\textbf{取代選擇}。
+\textbf{串}，再用 $k$ 路合併把它們合起來，中間會講一個考試常見、但多數演算法教科書
+沒有的做法：\textbf{敗者樹}。
 
 這一章用到第~1~章第~\ref{sec:ana-functions}~節對 $\lg(n!)$ 的估計、第~8~章的堆積，以及第~14~章的合併排
 序、快速排序和堆積排序；C 程式用到《C 程式設計基礎》第~14~章的結構和第~19~章的
@@ -130,6 +130,8 @@ $d \ge \lg(n!)$，$d$ 是整數，所以 $d \ge \lceil \lg(n!) \rceil$。 第~1~
 $\lg n \ge 2$，所以 $\lg n - 1 \ge \frac{1}{2}\lg n$，這至少是 $\frac{n}{4}\lg n$，
 所以 $d = \Omega(n \lg n)$。 每次比較至少花常數時間，執行時間也是 $\Omega(n \lg n)$。
 \end{proof}
+
+這個下界還可以用歸約推到別的問題：第~\ref{sec:dc-hull-lower}~節把排序歸約到凸包，得到凸包也要 $\Omega(n \lg n)$。
 
 \begin{corollary}
 \label{cor:lin-optimal}
@@ -630,7 +632,7 @@ $k$ 不能無限大：$k + 1$ 個緩衝區都要放得進記憶體，$k \le M/B 
 \text{總 I/O 次數} = \frac{2N}{B}\left(1 + \lceil \log_k r \rceil\right).
 \]
 
-\textbf{例 1.} 章首的數字：$N = 1{,}200{,}000$ 筆，每筆 $500$ 位元組；記憶體 $60$ MB，
+\textbf{例子。} 章首的數字：$N = 1{,}200{,}000$ 筆，每筆 $500$ 位元組；記憶體 $60$ MB，
 $M = 120{,}000$ 筆；區塊 $8000$ 位元組，$B = 16$ 筆，檔案共 $N/B = 75{,}000$ 個區
 塊。 初始串 $r = 10$ 個。
 
@@ -650,9 +652,12 @@ $k$ & 合併趟數 $\lceil \log_k 10 \rceil$ & 含產生初始串的總趟數 & 
 $2^3 = 8 < 10$，所以 $2$ 路要 $4$ 趟；$4^2 = 16 \ge 10$，$4$ 路只要 $2$ 趟。 從
 $2$ 路換成 $10$ 路，I/O 少了六成。
 
+串的長度不一樣時（例如有些串是前面合併過的，有些還沒有），每次挑哪幾個串合併會影響總
+I/O：長的串每多合併一次，就要多讀寫一次。 這和霍夫曼編碼是同一個問題，第~19~章會證明每
+次挑最短的 $k$ 個合併最省。
+
 \begin{examnote}
-外部排序的計算題，先寫清楚三件事：(1) 初始串有幾個（$\lceil N/M \rceil$，或取代選擇
-的約 $N/(2M)$）；(2) 「趟數」有沒有包含產生初始串的那一趟，題目沒說就兩個都寫出來；
+外部排序的計算題，先寫清楚三件事：(1) 初始串有幾個（$\lceil N/M \rceil$）；(2) 「趟數」有沒有包含產生初始串的那一趟，題目沒說就兩個都寫出來；
 (3) 一趟的 I/O 是讀加寫，每個區塊算兩次，題目只問讀或只問寫時要除以 $2$。 對數一律取
 天花板，$\log_k r$ 算出 $1.43$ 就是 $2$ 趟，不能寫 $1.43$ 趟。
 \end{examnote}
@@ -1111,109 +1116,6 @@ int main(void)
 每一列的 $L$ 和上面的表一致，總共 $27$ 次比較。 要合併真正的檔案，只要把
 \texttt{next\_key} 改成從檔案（經過緩衝區）讀下一個整數，敗者樹的部分不用動。
 
-\subsection{取代選擇：產生更長的初始串}
-\label{sec:lin-replace}
-
-合併趟數是 $\lceil \log_k r \rceil$，初始串越少越好。 用內部排序產生初始串，每個串
-剛好長 $M$。 \textbf{取代選擇}（replacement selection）在輸出的同時讀入新的紀錄，
-平均可以產生長 $2M$ 的串。
-
-想法是這樣：記憶體裡隨時放 $M$ 筆紀錄。 每次輸出記憶體裡最小的那筆到目前的串，空出
-來的位置馬上讀入下一筆。 新讀入的鍵如果不比剛剛輸出的小，它還能接在這個串後面；如
-果比較小，這個串已經寫過頭了，它只能留給下一個串，稱為\textbf{凍結}。 記憶體裡全部
-都凍結時，這個串結束，解除凍結，開始下一個串。
-
-實作上，把每筆紀錄標上它屬於第幾個串，用（串號, 鍵）當堆積的比較依據：串號小的優
-先，串號相同時鍵小的優先。 凍結的紀錄串號多 $1$，自然排在目前的串的所有紀錄後面。
-
-\begin{pseudo}[label=alg:lin-replace]{取代選擇}
-\Procedure{Replacement-Selection}{$M$}
-    \State 讀入前 $M$ 筆紀錄，每筆的串號都設成 $1$
-    \State 依（串號, 鍵）把它們建成最小堆積 $H$
-    \While{$H$ 不是空的}
-        \State $(r, x) \gets H$ 的根
-        \State 把 $x$ 寫到第 $r$ 個串的尾端
-        \If{輸入還有紀錄}
-            \State $y \gets$ 讀入下一筆
-            \If{$y \ge x$}
-                \State 把根換成 $(r, y)$
-            \Else
-                \State 把根換成 $(r + 1, y)$ \Comment{凍結，留給下一個串}
-            \EndIf
-        \Else
-            \State 刪掉根，用堆積的最後一筆補上
-        \EndIf
-        \State 對根做下沉
-    \EndWhile
-\EndProcedure
-\end{pseudo}
-
-\textbf{手算追蹤。} $M = 3$，輸入依序是
-\[
-41, 17, 63, 29, 8, 52, 35, 12, 70, 24, 58, 6, 47, 33, 90, 15.
-\]
-每一列是輸出前記憶體裡的三筆（加括號的是凍結的，屬於下一個串）、這一步輸出什麼、補
-進來什麼。
-
-\begin{center}
-\small
-\begin{tabular}{rlccl}
-\toprule
-步 & 記憶體（輸出前） & 輸出 & 串 & 補進來 \\
-\midrule
-1 & 41\ \ 17\ \ 63 & 17 & 1 & 29 \\
-2 & 41\ \ 29\ \ 63 & 29 & 1 & 8，比 29 小，凍結 \\
-3 & 41\ \ (8)\ \ 63 & 41 & 1 & 52 \\
-4 & 52\ \ (8)\ \ 63 & 52 & 1 & 35，凍結 \\
-5 & (35)\ \ (8)\ \ 63 & 63 & 1 & 12，凍結；全部凍結，串 1 結束 \\
-\midrule
-6 & 35\ \ 8\ \ 12 & 8 & 2 & 70 \\
-7 & 35\ \ 70\ \ 12 & 12 & 2 & 24 \\
-8 & 35\ \ 70\ \ 24 & 24 & 2 & 58 \\
-9 & 35\ \ 70\ \ 58 & 35 & 2 & 6，凍結 \\
-10 & (6)\ \ 70\ \ 58 & 58 & 2 & 47，凍結 \\
-11 & (6)\ \ 70\ \ (47) & 70 & 2 & 33，凍結；全部凍結，串 2 結束 \\
-\midrule
-12 & 6\ \ 33\ \ 47 & 6 & 3 & 90 \\
-13 & 90\ \ 33\ \ 47 & 33 & 3 & 15，凍結 \\
-14 & 90\ \ (15)\ \ 47 & 47 & 3 & 輸入讀完 \\
-15 & 90\ \ (15) & 90 & 3 & --；串 3 結束 \\
-\midrule
-16 & 15 & 15 & 4 & -- \\
-\bottomrule
-\end{tabular}
-\end{center}
-
-得到四個串：$\langle 17, 29, 41, 52, 63 \rangle$、$\langle 8, 12, 24, 35, 58, 70
-\rangle$、$\langle 6, 33, 47, 90 \rangle$、$\langle 15 \rangle$。 用內部排序每次排
-$3$ 筆，$16$ 筆會得到 $\lceil 16/3 \rceil = 6$ 個串；取代選擇得到 $4$ 個，前兩個都
-比 $M$ 長。 第 2 步的 $8$ 比剛輸出的 $29$ 小，如果讓它進串 1，串 1 就不是排好的了，
-所以凍結。
-
-寫成 C 程式時，把虛擬碼~\ref{alg:lin-replace} 的堆積換成第~8~章的陣列堆積，堆積的元
-素是（串號, 鍵）的結構，比較時先比串號、再比鍵，其他照抄第~8~章的下沉就可以了。
-
-\textbf{串有多長。} 幾個容易確認的性質：
-\begin{itemize}
-\item 輸入已經由小到大排好：讀進來的鍵都不比剛輸出的小，永遠不凍結，整個檔案只有一
-個串。
-\item 輸入由大到小排好：每個新讀入的鍵都比剛輸出的小，全部凍結，每個串剛好 $M$ 筆
-（最後一個可能比較短），和內部排序一樣。
-\item 一般情況，除了最後一個串，每個串至少 $M$ 筆（觀念題第 10 題）。
-\end{itemize}
-輸入是隨機的時候，Knuth 證明串的期望長度趨近 $2M$（TAOCP 第 3 卷 5.4.1 節），所以初
-始串大約只有 $N/(2M)$ 個，是內部排序的一半。 這裡不證明。
-
-代價是什麼？ 取代選擇每輸出一筆都要做一次堆積調整，$O(\lg M)$，總共 $O(N \lg M)$，
-和用內部排序產生初始串同一級；它的串長度不固定，後面的合併程式要能處理長短不一的
-串。 實際上也可以用敗者樹代替堆積，比較次數更少。 串長短不一時，先合併哪幾個串會影響總成本；
-這和第~19~章的霍夫曼編碼是同一個問題，每次挑最短的 $k$ 個串合併最省（$k > 2$ 時要先補幾個長度 $0$ 的虛擬串，見第~19~章）。
-
-\textbf{例 2.} 接例 1：$N = 1{,}200{,}000$，$M = 120{,}000$。 用取代選擇，初始串大
-約 $N/(2M) = 5$ 個。 $2$ 路合併要 $\lceil \lg 5 \rceil = 3$ 趟（原本 $4$ 趟），$5$ 路
-只要 $1$ 趟（原本 $\lceil \log_5 10 \rceil = 2$ 趟）。 總 I/O 次數：$5$ 路合併時是
-$150{,}000 \times (1 + 1) = 300{,}000$，比原本的 $450{,}000$ 少三分之一。
-
 \section{本章常見錯誤}
 \label{sec:lin-pitfalls}
 
@@ -1234,8 +1136,6 @@ LSD 的方向或穩定性弄錯 & 先排最高位；每一趟用快速排序 & �
 I/O 次數少算一半 & 一趟只算讀，沒算寫；或漏掉產生初始串那一趟 &
 第~\ref{sec:lin-passes}~節 \\
 敗者樹記成贏家 & 內部節點寫成每場的贏家，那是勝者樹 & 第~\ref{sec:lin-loser}~節 \\
-取代選擇沒有凍結 & 新讀入的鍵比剛輸出的小，仍然放進目前的串，串就沒排好 &
-第~\ref{sec:lin-replace}~節 \\
 \bottomrule
 \end{tabular}
 \end{center}
@@ -1290,7 +1190,6 @@ $A = \langle 2_p, 0_q, 3_r, 2_s, 1_t, 0_u, 2_v \rangle$（$k = 3$，下標的字
 \item 用內部排序產生初始串，有幾個串？
 \item 用 $2$ 路、$5$ 路、$8$ 路合併，各要幾趟合併？
 \item $8$ 路合併時，包含產生初始串，總共讀寫幾個區塊？
-\item 改用取代選擇，以串的期望長度估計，$5$ 路合併要幾趟？
 \end{enumerate}
 
 \item （追蹤）用敗者樹合併五個串：
@@ -1303,24 +1202,78 @@ $R_5 = \langle 29, 44, 81 \rangle$。 用本章的編號（葉節點 $k + i - 1$
 \item 合併完總共比較幾次？
 \end{enumerate}
 
-\item （追蹤）記憶體放得下 $M = 4$ 筆，用取代選擇處理
-\[
-55, 31, 72, 18, 64, 9, 40, 83, 27, 50, 12, 66, 35, 71, 5, 44,
-\]
-寫出產生的每個串。 和用內部排序產生初始串相比，串的個數差多少？
-
-\item （證明）證明取代選擇產生的串，除了最後一個，每個都至少有 $M$ 筆。
-
-\item （證明）第~1~章第~\ref{sec:ana-cost}~節的「找重複學號」。 假設演算法只能問「$a_i = a_j$ 嗎？」（只
+\item \label{lin-q-distinct}（證明）第~1~章第~\ref{sec:ana-cost}~節的「找重複學號」。 假設演算法只能問「$a_i = a_j$ 嗎？」（只
 能測相等，不能比大小）。 證明在最壞情況下，判斷 $n$ 個數裡有沒有兩個相同，至少要問
 $\binom{n}{2}$ 次。（提示：讓對手每次都回答「不相等」。）
 \end{enumerate}
 
+\section{歷屆試題}
+\label{sec:lin-pastexam}
+
+以下是研究所入學考試的原題，題目照原卷（語言、記號、配分照錄）。 詳解在本章最後。
+
+\begin{pastexam}[label={px:lin-1}]{中央資工所 115 學年度 第 7 題}
+（多選題，每一個選項單獨計分，每題 5 分）
+
+Consider lower bounds for algorithmic problems in the comparison-based model. Select one or more correct statements.
+\begin{enumerate}[label=\Alph*.]
+\item Any comparison-based algorithm for sorting $n$ distinct elements has a worst-case lower bound of $\Omega(n\log n)$.
+\item The $\Omega(n\log n)$ lower bound for sorting applies to all sorting algorithms, including counting sort and radix sort.
+\item The decision-tree model is commonly used to prove lower bounds for comparison-based sorting.
+\item The information-theoretic argument for comparison-based sorting relies on the fact that there are $n!$ possible input permutations.
+\item A lower bound of $\Omega(n)$ for a problem implies that no algorithm can solve the problem faster than linear time in the worst case, regardless of the computational model.
+\end{enumerate}
+\end{pastexam}
+
+\begin{pastexam}[label={px:lin-2}]{中正資工所 110 學年度 第 9 題}
+(3\%) Prove or disprove with a counter example that every comparison based sorting algorithm has time complexity $\Omega$(nlgn).
+\end{pastexam}
+
+\begin{pastexam}[label={px:lin-3}]{政大資科所 108 學年度 第 4 題}
+(10\%) Design an $O(n)$ algorithm for the following task.
+
+\begin{quote}
+Input: A list of $n$ positive integers $a_1,a_2,\ldots,a_n$, where each $a_i$ satisfies $1\le a_i\le n$.\\
+Task: Sort $a_1,a_2,\ldots,a_n$ in non-decreasing order.\\
+For example, if the input contains 4 integers 3, 1, 1, and 3, then the output should be 1, 1, 3, 3.
+\end{quote}
+\end{pastexam}
+
+\begin{pastexam}[label={px:lin-4}]{中山資工所 114 學年度 第 2 題}
+The input elements for radix sort are 642, 374, 73, 29, 284, 252. Assume the radix base is 10.
+\begin{enumerate}[label=(\alph*)]
+\item (5\%) What is the sequence after the first pass finishes?
+\item (5\%) What is the sequence after the second pass finishes?
+\end{enumerate}
+\end{pastexam}
+
+\begin{pastexam}[label={px:lin-5}]{成大資訊聯招 108 學年度 第 3 題}
+Given the following 8 runs: (20\%)
+\begin{center}
+\setlength{\tabcolsep}{3pt}
+\begin{tabular}{|c|c|c|c|c|c|c|c|c|c|c|c|c|c|c|}
+\cline{1-1}\cline{3-3}\cline{5-5}\cline{7-7}\cline{9-9}\cline{11-11}\cline{13-13}\cline{15-15}
+5 & \multicolumn{1}{c|}{} & 8 & \multicolumn{1}{c|}{} & 23 & \multicolumn{1}{c|}{} & 1 & \multicolumn{1}{c|}{} & 4 & \multicolumn{1}{c|}{} & 3 & \multicolumn{1}{c|}{} & 16 & \multicolumn{1}{c|}{} & 11 \\
+\cline{1-1}\cline{3-3}\cline{5-5}\cline{7-7}\cline{9-9}\cline{11-11}\cline{13-13}\cline{15-15}
+13 & \multicolumn{1}{c|}{} & 18 & \multicolumn{1}{c|}{} & 27 & \multicolumn{1}{c|}{} & 15 & \multicolumn{1}{c|}{} & 10 & \multicolumn{1}{c|}{} & 20 & \multicolumn{1}{c|}{} & 17 & \multicolumn{1}{c|}{} & 21 \\
+\cline{1-1}\cline{3-3}\cline{5-5}\cline{7-7}\cline{9-9}\cline{11-11}\cline{13-13}\cline{15-15}
+22 & \multicolumn{1}{c|}{} & 30 & \multicolumn{1}{c|}{} & 38 & \multicolumn{1}{c|}{} & 19 & \multicolumn{1}{c|}{} & 24 & \multicolumn{1}{c|}{} & 32 & \multicolumn{1}{c|}{} & 35 & \multicolumn{1}{c|}{} & 25 \\
+\cline{1-1}\cline{3-3}\cline{5-5}\cline{7-7}\cline{9-9}\cline{11-11}\cline{13-13}\cline{15-15}
+\end{tabular}
+\end{center}
+\medskip
+\begin{enumerate}[label=(\arabic*)]
+\item Draw the corresponding winner tree. (5\%)
+\item Draw the restructured winner tree after one record has been output. (5\%)
+\item Draw the loser tree based on the answer of question (2). (5\%)
+\item Derive the total required time to merge $n$ records through a winner tree with $k$ runs. (5\%)
+\end{enumerate}
+\end{pastexam}
+
 \section{實作練習}
 \label{sec:lin-practice}
 
-下面是 Aki-Judge 上和本章相關的題目。 這一章的基數排序、敗者樹、取代選擇目前沒有對
-應的題目，請以觀念題和本章的範例程式為主。
+下面是 Aki-Judge 上和本章相關的題目。 這一章的基數排序、敗者樹目前沒有對應的題目，請以觀念題和本章的範例程式為主。
 
 \begin{center}
 \begin{tabular}{llc}
@@ -1353,10 +1306,8 @@ $k$ 路合併 & \akiref{merge-sorted-number-files-with-counts}{合併排序數�
 \item 能逐步追蹤穩定的計數排序（前綴和陣列、從右往左放），說明為什麼從右往左才穩定。
 \item 能寫出 LSD 基數排序每一趟的結果，說明為什麼內層要穩定，並依位數切法估計成本；能
 說明 MSD 和 LSD 的差別、桶子排序期望線性的理由。
-\item 給定 $N$、$M$、$B$、$k$，能算出初始串數、合併趟數和 I/O 次數；能比較用內部排序
-和取代選擇產生初始串的差別。
-\item 能逐步追蹤敗者樹的建立和每次輸出後的調整，並追蹤取代選擇產生的
-串。
+\item 給定 $N$、$M$、$B$、$k$，能算出初始串數、合併趟數和 I/O 次數。
+\item 能逐步追蹤勝者樹、敗者樹的建立和每次輸出後的調整。
 \end{itemize}
 
 \textbf{延伸閱讀}（書末會整理完整的參考資料）
@@ -1365,8 +1316,7 @@ $k$ 路合併 & \akiref{merge-sorted-number-files-with-counts}{合併排序數�
 \item Thomas H. Cormen 等，\textit{Introduction to Algorithms}，第 4 版，第 8 章：決策樹
 下界、計數排序、基數排序、桶子排序；章末問題有合併下界、平均下界等延伸。
 \item Donald E. Knuth，\textit{The Art of Computer Programming}，第 3 卷第 2 版：5.3.1 節
-最少比較次數的排序，5.4.1 節取代選擇與串的期望長度，5.4 節其他小節有多階段合併等外部
-排序的方法。
+最少比較次數的排序；5.4 節是外部排序，有多階段合併等本章沒講的方法。
 \item Steven S. Skiena，\textit{The Algorithm Design Manual}，第 3 版，第 4 章：排序的
 應用和實務上怎麼選排序方法。
 \end{itemize}
@@ -1452,9 +1402,6 @@ $8$ 路：$8^2 = 64 \ge 40$，$2$ 趟。
 
 (c) 檔案有 $N/B = 20{,}000$ 個區塊，一趟讀寫 $40{,}000$ 次。 產生初始串 $1$ 趟加合併
 $2$ 趟，共 $3 \times 40{,}000 = 120{,}000$ 次。
-
-(d) 串的期望長度約 $2M = 100{,}000$，約 $20$ 個串，$5$ 路合併 $\lceil \log_5 20 \rceil
-= 2$ 趟，比 (b) 少一趟。
 
 \item (a) $k = 5$，葉節點是節點 $5$ 到 $9$：節點 $5, 6, 7, 8, 9$ 依序代表 $R_1$ 到
 $R_5$。 節點 $4$ 的子節點是 $8$、$9$，節點 $2$ 的子節點是 $4$、$5$，節點 $3$ 的子節點
@@ -1552,19 +1499,6 @@ $2$，$R_4$、$R_5$（節點 8、9）深度 $3$。 每輸出一筆，就從那�
 筆、$R_5$ 輸出 $3$ 筆，各比 $3$ 次。 共 $4 + (2 + 3 + 2) \times 2 + (2 + 3) \times 3 =
 33$ 次。 $k$ 不是 $2$ 的次方時，不同的串每次調整的比較次數可能不同。
 
-\item 三個串：$\langle 18, 31, 55, 64, 72, 83 \rangle$、$\langle 9, 12, 27, 35, 40, 50,
-66, 71 \rangle$、$\langle 5, 44 \rangle$。 第 2 步輸出 $31$ 後讀入的 $9$、第 3 步輸出
-$55$ 後讀入的 $40$、第 5 步輸出 $72$ 後讀入的 $27$ 都凍結；第 6 步輸出 $83$ 後讀入
-$50$，記憶體四筆全部凍結，串 1 結束。 內部排序每次排 $4$ 筆會得到 $16/4 = 4$ 個串，取代選擇少一個，而且前兩個串長
-$6$、$8$，都超過 $M$。
-
-\item $N \le M$ 時只有一個串，不用證。 串 $1$ 開始時記憶體是前 $M$ 筆，全部屬於串
-$1$。 串 $r \ge 2$ 開始的那一刻，堆積裡最小的串號是 $r$，也就是記憶體裡的紀錄全部屬
-於串 $r$。 如果這時記憶體不滿，表示輸入已經讀完，之後不會再讀入紀錄，也就不會出現
-串 $r + 1$，串 $r$ 是最後一個。 所以不是最後一個的串，開始時記憶體是滿的，$M$ 筆都
-屬於它。 一個串要到記憶體裡沒有它的紀錄才結束，這 $M$ 筆全部會輸出到這個串，所以
-它至少有 $M$ 筆。
-
 \item 對手的策略：不管問哪一對，都回答「不相等」。 假設演算法問完不到 $\binom{n}{2}$
 次就停下來，那一定有一對 $(i, j)$ 沒問過。 對手手上有兩組都和所有回答一致的輸入：一組
 是 $n$ 個兩兩不同的數；另一組只把 $a_j$ 改成和 $a_i$ 一樣，其他不動，這組裡唯一相等的
@@ -1575,3 +1509,337 @@ $\binom{n}{2}$ 對，第~1~章的兩兩比較已經是這個模型裡最好的�
 的大小（第~1~章的 $M$）。
 同一個問題，下界取決於演算法被允許問什麼。
 \end{enumerate}
+
+\addcontentsline{toc}{section}{歷屆試題詳解}
+\section*{歷屆試題詳解}
+
+\pastsol{px:lin-1}{中央資工所 115 學年度 第 7 題}
+答案：A、C、D。
+\begin{itemize}
+\item A 正確。 這就是定理~\ref{thm:lin-lower}：任何比較排序在最壞情況下至少比
+$\lceil \lg(n!) \rceil$ 次，而 $\lg(n!) = \Theta(n \lg n)$。
+\item B 錯誤。 下界只管「只靠比較兩個鍵得知鍵的資訊」的演算法（第~\ref{sec:lin-lower}~節最後
+一小節）。 計數排序拿鍵當陣列的索引，一次就知道「這個鍵是幾」，不是兩種結果的比較，決
+策樹的論證不適用；它的時間是 $\Theta(n + k)$，$k = O(n)$ 時是 $\Theta(n)$，比 $n \lg n$
+小。 基數排序每一趟用計數排序，同樣不受這個下界限制。
+\item C 正確。 第~\ref{sec:lin-lower}~節就是把比較排序的所有執行過程畫成決策樹來證明下界。
+\item D 正確。 證明的第一步是：$n$ 個相異的鍵有 $n!$ 種大小順序，不同的順序必須走到不同的
+葉節點，所以葉節點至少 $n!$ 個，最壞的深度至少 $\lg(n!)$。 這個「答案有 $L$ 種可能，就
+至少要 $\lceil \lg L \rceil$ 次比較」就是資訊理論下界。
+\item E 錯誤。 下界都是在某個計算模型裡證明的，換了模型可能就不成立。 本章觀念
+題第~\ref{lin-q-distinct}~題是現成的例子：判斷 $n$ 個數有沒有重複，只能問「$a_i = a_j$
+嗎？」的模型裡最壞要問 $\binom{n}{2}$ 次，是 $\Omega(n^2)$；能比大小時先排序再比相鄰的，
+只要 $O(n \lg n)$；鍵是範圍不大的整數時查表，是線性時間。 同一個問題，在第一個模型證出
+的 $\Omega(n^2)$ 到了另外兩個模型都不成立。 $\Omega(n)$ 的下界也一樣，要先說是哪一個模
+型。
+\end{itemize}
+
+\pastsol{px:lin-2}{中正資工所 110 學年度 第 9 題}
+題目沒有說是哪一種情況的時間。 「時間複雜度」沒有特別說明時指最壞情況，這裡照這個解讀：
+敘述成立，下面證明。 最後再說明換成最好情況時為什麼不成立。
+
+\textbf{證明。} 設 $\mathcal{A}$ 是任何一個正確的比較排序，固定 $n$。 只看 $n$ 個鍵兩兩不同
+的輸入：這些輸入已經需要那麼多次比較，全部輸入的最壞情況只會更多。 鍵兩兩不同時，每次比
+較只有 $\le$、$>$ 兩種結果。
+\begin{enumerate}
+\item 把 $\mathcal{A}$ 對這些輸入的所有執行過程畫成決策樹：內部節點是一次比較 $i{:}j$，左右
+子樹對應 $a_i \le a_j$ 和 $a_i > a_j$；葉節點是演算法停下來的地方。 一次執行的比較次數就是
+走到的那個葉節點的深度。
+\item 葉節點至少 $n!$ 個。 $n$ 個相異的鍵有 $n!$ 種大小順序。 假設兩種不同的順序
+$\pi \ne \sigma$ 走到同一個葉節點，$\mathcal{A}$ 在兩個輸入上看到的比較結果完全一樣，就會做完
+全一樣的搬動，輸出同一種重排；同一種重排不可能同時把兩種不同的順序都排好，其中一個會排
+錯，和 $\mathcal{A}$ 正確矛盾。 所以 $n!$ 種順序走到 $n!$ 個不同的葉節點。
+\item 深度都不超過 $d$ 的二元樹最多有 $2^d$ 個葉節點。 對 $d$ 歸納：$d = 0$ 時只有根，$1$ 個
+葉節點；$d \ge 1$ 時左右子樹的葉節點深度都不超過 $d - 1$，各自最多 $2^{d-1}$ 個，合起來最多
+$2^d$ 個。
+\item 設最壞情況比較 $d$ 次，也就是最深的葉節點深度是 $d$。 由 2、3，$2^d \ge n!$，所以
+$d \ge \lg(n!)$。 $n!$ 裡最大的 $\lceil n/2 \rceil$ 個因數都不小於 $n/2$，所以
+$n! \ge (n/2)^{n/2}$，$\lg(n!) \ge \frac{n}{2}(\lg n - 1)$。 $n \ge 4$ 時
+$\lg n - 1 \ge \frac{1}{2}\lg n$，得到 $d \ge \frac{n}{4}\lg n$。
+\item 每次比較至少花常數時間，所以 $\mathcal{A}$ 的最壞執行時間至少是常數乘上 $\frac{n}{4}\lg n$，
+也就是 $\Omega(n \lg n)$。
+\end{enumerate}
+$\mathcal{A}$ 是任意的，所以每一個比較排序的最壞時間都是 $\Omega(n \lg n)$。 這就是
+定理~\ref{thm:lin-lower}；定理~\ref{thm:lin-avg} 說平均情況也是 $\Omega(n \lg n)$。
+
+\textbf{換成最好情況時不成立。} 反例是第~1~章的插入排序：輸入已經由小到大排好時，外層迴
+圈每一輪只比一次、不挪動，共 $n - 1$ 次比較，時間 $\Theta(n)$。 所以「每個比較排序的
+\textbf{最好}情況都是 $\Omega(n \lg n)$」是錯的。 作答時兩種情況都寫出來最安全。
+
+\pastsol{px:lin-3}{政大資科所 108 學年度 第 4 題}
+鍵是 $1$ 到 $n$ 的整數，正好是計數排序（第~\ref{sec:lin-counting}~節）的情況，$k = n$。 這題
+只有整數本身、沒有附帶資料，所以不需要前綴和和輸出陣列：數出每個值出現幾次，再由小到大
+依次數寫回去就好。
+
+\begin{pseudo}{政大 108 學年度第 4 題的解答}
+\Procedure{Sort-Small-Integers}{$a, n$}
+    \State 建立陣列 $C[1..n]$，每一格都設成 $0$
+    \For{$j \gets 1$ \To $n$}
+        \State $C[a_j] \gets C[a_j] + 1$
+    \EndFor
+    \State $t \gets 1$ \Comment{下一個要寫的位置}
+    \For{$v \gets 1$ \To $n$}
+        \For{$c \gets 1$ \To $C[v]$}
+            \State $a_t \gets v$；$t \gets t + 1$
+        \EndFor
+    \EndFor
+\EndProcedure
+\end{pseudo}
+
+\textbf{例子。} 輸入 $3, 1, 1, 3$：第 3--4 行之後 $C = [2, 0, 2, 0]$；第 6--8 行寫兩個 $1$、
+零個 $2$、兩個 $3$、零個 $4$，得到 $1, 1, 3, 3$。
+
+\textbf{正確性。} 第 3--4 行結束時，$C[v]$ 是輸入裡等於 $v$ 的個數（$1 \le a_j \le n$，所以
+$C[a_j]$ 不會越界）。 第 6--8 行依 $v = 1, 2, \ldots, n$ 的順序，每個 $v$ 寫 $C[v]$ 次，總共
+寫 $\sum_v C[v] = n$ 次，剛好填滿 $a_1..a_n$。 寫出來的序列不遞減，而且每個值出現的次數和輸
+入一樣，所以它就是輸入排好的結果。
+
+\textbf{時間。} 第 2 行 $\Theta(n)$；第 3--4 行 $\Theta(n)$；第 6--8 行外層跑 $n$ 次，內層總
+共跑 $\sum_v C[v] = n$ 次，合計 $\Theta(n)$。 總共 $\Theta(n)$ 時間、$\Theta(n)$ 額外空間。
+它沒有違反 $\Omega(n \lg n)$ 的下界，因為它拿數值當陣列索引，不是比較排序。 如果每個數還
+帶著別的資料、要求穩定，就用完整的虛擬碼~\ref{alg:lin-counting}，$k = n$，時間一樣是
+$\Theta(n)$。
+
+\pastsol{px:lin-4}{中山資工所 114 學年度 第 2 題}
+約定：LSD 基數排序（第~\ref{sec:lin-lsd}~節），第一趟依個位，第二趟依十位；每一趟把數依那
+一位分到 $0$--$9$ 十個桶子，同一個桶子裡保持上一趟的先後（穩定），再依桶子的順序串起來。
+$73$、$29$ 的百位看成 $0$。
+
+\begin{center}
+\begin{tabular}{lll}
+\toprule
+ & 依據的位 & 非空的桶子（依桶號） \\
+\midrule
+第 1 趟 & 個位：$2, 4, 3, 9, 4, 2$ & 2：$642, 252$；3：$73$；4：$374, 284$；9：$29$ \\
+第 2 趟 & 十位：$4, 5, 7, 7, 8, 2$ & 2：$29$；4：$642$；5：$252$；7：$73, 374$；8：$284$ \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+第 1 趟的「依據的位」照輸入的順序 $642, 374, 73, 29, 284, 252$ 列出；第 2 趟照第 1 趟的結果
+$642, 252, 73, 374, 284, 29$ 列出。
+
+(a) $642, 252, 73, 374, 284, 29$。
+
+(b) $29, 642, 252, 73, 374, 284$。
+
+檢查：第 2 趟之後末兩位是 $29, 42, 52, 73, 74, 84$，已經依末兩位排好。 $73$ 和 $374$ 的十位
+都是 $7$，第 2 趟保持第 1 趟「$73$ 在前」的順序，這就是穩定的作用。 再做第 3 趟（百位）就得
+到 $29, 73, 252, 284, 374, 642$。
+
+\pastsol{px:lin-5}{成大資訊聯招 108 學年度 第 3 題}
+約定：照第~\ref{sec:lin-external}~節。 八個串由左到右叫 $R_1, \ldots, R_8$，每個串目前最前
+面的鍵是一位選手，鍵小的贏（本題的鍵都不同，不會平手）。 節點編號和堆積一樣：內部節點
+$1$ 到 $7$，葉節點 $8$ 到 $15$，葉節點 $7 + i$ 代表 $R_i$。 圖中內部節點寫鍵，旁邊小字是來
+自哪個串；葉節點下面的小字是那個串還沒讀的部分。
+
+\begin{center}
+\begin{tabular}{l}
+$R_1 = \langle 5, 13, 22 \rangle$, $R_2 = \langle 8, 18, 30 \rangle$, $R_3 = \langle 23, 27, 38 \rangle$, $R_4 = \langle 1, 15, 19 \rangle$, \\
+$R_5 = \langle 4, 10, 24 \rangle$, $R_6 = \langle 3, 20, 32 \rangle$, $R_7 = \langle 16, 17, 35 \rangle$, $R_8 = \langle 11, 21, 25 \rangle$.
+\end{tabular}
+\end{center}
+
+(1) 由下往上比賽：節點 4 是 $5$ 對 $8$，$5$（$R_1$）贏；節點 5 是 $23$ 對 $1$，$1$（$R_4$）贏；節點 6
+是 $4$ 對 $3$，$3$（$R_6$）贏；節點 7 是 $16$ 對 $11$，$11$（$R_8$）贏。 節點 2 是 $5$ 對 $1$，
+$1$ 贏；節點 3 是 $3$ 對 $11$，$3$ 贏；節點 1 是 $1$ 對 $3$，冠軍是 $1$（$R_4$）。 共比 $7$ 次。
+
+\begin{center}
+\begin{tikzpicture}[x=0.62cm,y=1.00cm]
+\draw[lte] (7,-1) -- (3,-2);
+\draw[lte] (7,-1) -- (11,-2);
+\draw[lte] (3,-2) -- (1,-3);
+\draw[lte] (3,-2) -- (5,-3);
+\draw[lte] (11,-2) -- (9,-3);
+\draw[lte] (11,-2) -- (13,-3);
+\draw[lte] (1,-3) -- (0,-4);
+\draw[lte] (1,-3) -- (2,-4);
+\draw[lte] (5,-3) -- (4,-4);
+\draw[lte] (5,-3) -- (6,-4);
+\draw[lte] (9,-3) -- (8,-4);
+\draw[lte] (9,-3) -- (10,-4);
+\draw[lte] (13,-3) -- (12,-4);
+\draw[lte] (13,-3) -- (14,-4);
+\node[ltn, fill=white] at (7,-1) {$1$};
+\node[rlab, anchor=west] at (7.58,-0.95) {R4};
+\node[ltn, fill=white] at (3,-2) {$1$};
+\node[rlab, anchor=west] at (3.58,-1.95) {R4};
+\node[ltn, fill=white] at (11,-2) {$3$};
+\node[rlab, anchor=west] at (11.58,-1.95) {R6};
+\node[ltn, fill=white] at (1,-3) {$5$};
+\node[rlab, anchor=west] at (1.58,-2.95) {R1};
+\node[ltn, fill=white] at (5,-3) {$1$};
+\node[rlab, anchor=west] at (5.58,-2.95) {R4};
+\node[ltn, fill=white] at (9,-3) {$3$};
+\node[rlab, anchor=west] at (9.58,-2.95) {R6};
+\node[ltn, fill=white] at (13,-3) {$11$};
+\node[rlab, anchor=west] at (13.58,-2.95) {R8};
+\node[ltleaf, fill=white] at (0,-4) {$5$};
+\node[rlab] at (0,-4.5) {R1};
+\node[restlab] at (0,-4.85) {13 22};
+\node[ltleaf, fill=white] at (2,-4) {$8$};
+\node[rlab] at (2,-4.5) {R2};
+\node[restlab] at (2,-4.85) {18 30};
+\node[ltleaf, fill=white] at (4,-4) {$23$};
+\node[rlab] at (4,-4.5) {R3};
+\node[restlab] at (4,-4.85) {27 38};
+\node[ltleaf, fill=white] at (6,-4) {$1$};
+\node[rlab] at (6,-4.5) {R4};
+\node[restlab] at (6,-4.85) {15 19};
+\node[ltleaf, fill=white] at (8,-4) {$4$};
+\node[rlab] at (8,-4.5) {R5};
+\node[restlab] at (8,-4.85) {10 24};
+\node[ltleaf, fill=white] at (10,-4) {$3$};
+\node[rlab] at (10,-4.5) {R6};
+\node[restlab] at (10,-4.85) {20 32};
+\node[ltleaf, fill=white] at (12,-4) {$16$};
+\node[rlab] at (12,-4.5) {R7};
+\node[restlab] at (12,-4.85) {17 35};
+\node[ltleaf, fill=white] at (14,-4) {$11$};
+\node[rlab] at (14,-4.5) {R8};
+\node[restlab] at (14,-4.85) {21 25};
+\end{tikzpicture}
+\end{center}
+
+(2) 輸出冠軍 $1$，$R_4$ 補上下一個鍵 $15$，沿著 $R_4$ 的葉節點（節點 11）往上重賽，每一層和兄弟節點的贏
+家比一次：節點 5 是 $15$ 對兄弟 $R_3$ 的 $23$，$15$ 贏；節點 2 是 $15$ 對兄弟節點 4 的贏家 $5$，
+$5$（$R_1$）贏；節點 1 是 $5$ 對兄弟節點 3 的贏家 $3$，$3$（$R_6$）贏。 新的冠軍是 $3$，下一
+個輸出的就是它。 只比了 $3 = \lg 8$ 次。 橘色是重賽過的節點，綠色是剛補上新鍵的葉節點。
+
+\begin{center}
+\begin{tikzpicture}[x=0.62cm,y=1.00cm]
+\draw[lte] (7,-1) -- (3,-2);
+\draw[lte] (7,-1) -- (11,-2);
+\draw[lte] (3,-2) -- (1,-3);
+\draw[lte] (3,-2) -- (5,-3);
+\draw[lte] (11,-2) -- (9,-3);
+\draw[lte] (11,-2) -- (13,-3);
+\draw[lte] (1,-3) -- (0,-4);
+\draw[lte] (1,-3) -- (2,-4);
+\draw[lte] (5,-3) -- (4,-4);
+\draw[lte] (5,-3) -- (6,-4);
+\draw[lte] (9,-3) -- (8,-4);
+\draw[lte] (9,-3) -- (10,-4);
+\draw[lte] (13,-3) -- (12,-4);
+\draw[lte] (13,-3) -- (14,-4);
+\node[ltn, fill=white, ltchg] at (7,-1) {$3$};
+\node[rlab, anchor=west] at (7.58,-0.95) {R6};
+\node[ltn, fill=white, ltchg] at (3,-2) {$5$};
+\node[rlab, anchor=west] at (3.58,-1.95) {R1};
+\node[ltn, fill=white] at (11,-2) {$3$};
+\node[rlab, anchor=west] at (11.58,-1.95) {R6};
+\node[ltn, fill=white] at (1,-3) {$5$};
+\node[rlab, anchor=west] at (1.58,-2.95) {R1};
+\node[ltn, fill=white, ltchg] at (5,-3) {$15$};
+\node[rlab, anchor=west] at (5.58,-2.95) {R4};
+\node[ltn, fill=white] at (9,-3) {$3$};
+\node[rlab, anchor=west] at (9.58,-2.95) {R6};
+\node[ltn, fill=white] at (13,-3) {$11$};
+\node[rlab, anchor=west] at (13.58,-2.95) {R8};
+\node[ltleaf, fill=white] at (0,-4) {$5$};
+\node[rlab] at (0,-4.5) {R1};
+\node[restlab] at (0,-4.85) {13 22};
+\node[ltleaf, fill=white] at (2,-4) {$8$};
+\node[rlab] at (2,-4.5) {R2};
+\node[restlab] at (2,-4.85) {18 30};
+\node[ltleaf, fill=white] at (4,-4) {$23$};
+\node[rlab] at (4,-4.5) {R3};
+\node[restlab] at (4,-4.85) {27 38};
+\node[ltleaf, fill=white, ltnew] at (6,-4) {$15$};
+\node[rlab] at (6,-4.5) {R4};
+\node[restlab] at (6,-4.85) {19};
+\node[ltleaf, fill=white] at (8,-4) {$4$};
+\node[rlab] at (8,-4.5) {R5};
+\node[restlab] at (8,-4.85) {10 24};
+\node[ltleaf, fill=white] at (10,-4) {$3$};
+\node[rlab] at (10,-4.5) {R6};
+\node[restlab] at (10,-4.85) {20 32};
+\node[ltleaf, fill=white] at (12,-4) {$16$};
+\node[rlab] at (12,-4.5) {R7};
+\node[restlab] at (12,-4.85) {17 35};
+\node[ltleaf, fill=white] at (14,-4) {$11$};
+\node[rlab] at (14,-4.5) {R8};
+\node[restlab] at (14,-4.85) {21 25};
+\end{tikzpicture}
+\end{center}
+
+(3) 敗者樹的每個內部節點記那場比賽的\textbf{輸家}，另外用節點 $0$ 記冠軍（第~\ref{sec:lin-loser}~節）。
+(2) 的狀態下每一場比賽的兩方和勝負都已經知道，把輸家記下來就是：節點 4 記 $8$（$R_2$），節點 5
+記 $23$（$R_3$），節點 6 記 $4$（$R_5$），節點 7 記 $16$（$R_7$），節點 2 記 $15$（$R_4$），節
+點 3 記 $11$（$R_8$），節點 1 記 $5$（$R_1$），節點 0 記冠軍 $3$（$R_6$）。
+
+\begin{center}
+\begin{tikzpicture}[x=0.62cm,y=1.00cm]
+\draw[lte] (7,-1) -- (3,-2);
+\draw[lte] (7,-1) -- (11,-2);
+\draw[lte] (3,-2) -- (1,-3);
+\draw[lte] (3,-2) -- (5,-3);
+\draw[lte] (11,-2) -- (9,-3);
+\draw[lte] (11,-2) -- (13,-3);
+\draw[lte] (1,-3) -- (0,-4);
+\draw[lte] (1,-3) -- (2,-4);
+\draw[lte] (5,-3) -- (4,-4);
+\draw[lte] (5,-3) -- (6,-4);
+\draw[lte] (9,-3) -- (8,-4);
+\draw[lte] (9,-3) -- (10,-4);
+\draw[lte] (13,-3) -- (12,-4);
+\draw[lte] (13,-3) -- (14,-4);
+\draw[lte] (7,-1) -- (7,0);
+\node[ltwin] at (7,0) {$3$};
+\node[rlab, anchor=west] at (7.58,0) {R6};
+\node[ltn, fill=white] at (7,-1) {$5$};
+\node[rlab, anchor=west] at (7.58,-0.95) {R1};
+\node[ltn, fill=white] at (3,-2) {$15$};
+\node[rlab, anchor=west] at (3.58,-1.95) {R4};
+\node[ltn, fill=white] at (11,-2) {$11$};
+\node[rlab, anchor=west] at (11.58,-1.95) {R8};
+\node[ltn, fill=white] at (1,-3) {$8$};
+\node[rlab, anchor=west] at (1.58,-2.95) {R2};
+\node[ltn, fill=white] at (5,-3) {$23$};
+\node[rlab, anchor=west] at (5.58,-2.95) {R3};
+\node[ltn, fill=white] at (9,-3) {$4$};
+\node[rlab, anchor=west] at (9.58,-2.95) {R5};
+\node[ltn, fill=white] at (13,-3) {$16$};
+\node[rlab, anchor=west] at (13.58,-2.95) {R7};
+\node[ltleaf, fill=white] at (0,-4) {$5$};
+\node[rlab] at (0,-4.5) {R1};
+\node[restlab] at (0,-4.85) {13 22};
+\node[ltleaf, fill=white] at (2,-4) {$8$};
+\node[rlab] at (2,-4.5) {R2};
+\node[restlab] at (2,-4.85) {18 30};
+\node[ltleaf, fill=white] at (4,-4) {$23$};
+\node[rlab] at (4,-4.5) {R3};
+\node[restlab] at (4,-4.85) {27 38};
+\node[ltleaf, fill=white] at (6,-4) {$15$};
+\node[rlab] at (6,-4.5) {R4};
+\node[restlab] at (6,-4.85) {19};
+\node[ltleaf, fill=white] at (8,-4) {$4$};
+\node[rlab] at (8,-4.5) {R5};
+\node[restlab] at (8,-4.85) {10 24};
+\node[ltleaf, fill=white] at (10,-4) {$3$};
+\node[rlab] at (10,-4.5) {R6};
+\node[restlab] at (10,-4.85) {20 32};
+\node[ltleaf, fill=white] at (12,-4) {$16$};
+\node[rlab] at (12,-4.5) {R7};
+\node[restlab] at (12,-4.85) {17 35};
+\node[ltleaf, fill=white] at (14,-4) {$11$};
+\node[rlab] at (14,-4.5) {R8};
+\node[restlab] at (14,-4.85) {21 25};
+\end{tikzpicture}
+\end{center}
+
+檢查：從 (1) 的狀態建敗者樹，再對 $R_4$ 做一次 \proc{Adjust}（虛擬碼~\ref{alg:lin-adjust}），結
+果也是這棵樹：$15$ 在節點 5 贏了記在那裡的 $23$（$23$ 留下），在節點 2 輸給記在那裡的 $5$
+（$15$ 留下、$5$ 往上），往上走的 $5$ 在節點 1 輸給記在那裡的 $3$（$5$ 留下、$3$ 往上），冠軍 $3$ 放進節點 0。
+
+(4) 設 $k$ 個串總共有 $n$ 筆紀錄，每個串至少一筆，所以 $k \le n$。
+\begin{itemize}
+\item 建勝者樹：$k - 1$ 個內部節點各比一場，$O(k)$。
+\item 每輸出一筆：冠軍的串補上下一個鍵（讀完了補 $\infty$），從它的葉節點往上到根重賽。 有
+$k$ 個葉節點的完整二元樹，葉節點的深度不超過 $\lceil \lg k \rceil$，所以最多重賽
+$\lceil \lg k \rceil$ 層，每層比一次、做常數的工作，$O(\lg k)$。
+\item 一共輸出 $n$ 筆，$n \cdot O(\lg k)$。
+\end{itemize}
+總時間 $O(k) + O(n \lg k) = O(n \lg k)$（$k \le n$）。 和直接每次掃 $k$ 個串的最前面相比
+（每筆 $k - 1$ 次比較，總共 $O(nk)$），$k$ 大時省很多。 若問的是外部排序的一趟合併，還要
+加上讀寫區塊的時間，見第~\ref{sec:lin-passes}~節。

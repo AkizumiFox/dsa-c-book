@@ -20,6 +20,11 @@
     dp-chit/.style={dp-c, draw=optStroke, thick, fill=optFill},
     dp-key/.style={rounded corners=2pt, draw=black!65, fill=white, minimum height=0.5cm, inner sep=2pt, font=\small},
     dp-ext/.style={rectangle, draw=black!45, fill=black!6, minimum size=0.42cm, inner sep=1pt, font=\scriptsize},
+    dp-tv/.style={circle, draw=black!65, fill=white, minimum size=0.62cm, inner sep=0pt, font=\small},
+    dp-tvpick/.style={dp-tv, draw=optStroke, thick, fill=optFill},
+    dp-tw/.style={font=\scriptsize, text=black!70, inner sep=1pt},
+    dp-ew/.style={font=\scriptsize, fill=white, inner sep=1pt},
+    dp-tpath/.style={draw=memStroke, very thick},
 }
 
 系上的程式作業允許同學在截止前重交。 助教手上有同一位同學交的第一版和第二版，想知
@@ -37,10 +42,13 @@
 這一章先用一個計數的例子看出重複的子問題，比較由上而下的記憶化和由下而上的填表，再整
 理一個最佳化問題要能用動態規劃的條件。 接著五節是經典問題：矩陣鏈乘、最長共同子序列、
 最佳二元搜尋樹、0/1 背包，以及編輯距離與最長遞增子序列，每一個都照考卷的寫法把表格填完、
-再把最佳解還原出來。 最後用動態規劃的眼光看所有點對最短路徑，完整的內容在第~25~章。
+再把最佳解還原出來。 之後一節整理考卷上常見的四種題型（無限量背包、找零、加權區間排程、最
+長回文子序列），一節講以子樹為子問題的樹上動態規劃（最大權重獨立集、樹的直徑）。 最後用動
+態規劃的眼光看所有點對最短路徑，完整的內容在第~25~章。
 
 這一章用到第~\ref{sec:ana-input-size}~節的擬多項式時間、第~2~章的遞迴樹、第~7~章的卡特蘭數
-與延伸二元樹、第~9~章的二元搜尋樹，以及第~\ref{sec:dc-bsearch}~節的 \proc{Lower-Bound}。 C 程式用到《C
+與延伸二元樹和後序走訪、第~9~章的二元搜尋樹，以及第~\ref{sec:dc-bsearch}~節的 \proc{Lower-Bound}、
+\proc{Upper-Bound}。 C 程式用到《C
 程式設計基礎》第~9~章把二維表攤平成一維陣列的寫法、第~15~章的記憶化和第~19~章的
 \texttt{malloc}、\texttt{free}，用到時會先在框裡複習。
 
@@ -2154,6 +2162,788 @@ int main(void)
 第二組六個 $5$：嚴格遞增時相等的數不能接，LIS 長度是 $1$。 第三組完全遞減，每個數都取代第
 一格，長度也是 $1$。
 
+\section{常考的 DP 題型}
+\label{sec:dp-classic}
+
+考卷上除了前面幾節的經典問題，還常出現下面四種。 它們不需要新的觀念，但各有一個容易寫錯
+的細節：無限量背包的迴圈方向、找零計數時兩層迴圈的先後、加權區間排程的「前一個相容區間」，
+以及最長回文子序列的填表順序。 每一種都照第~\ref{sec:dp-steps}~節作答提醒的順序寫：狀態、轉
+移、邊界、填表順序、答案與複雜度。
+
+\subsection{無限量背包}
+\label{sec:dp-unbounded}
+
+第~\ref{sec:dp-knapsack-1d}~節已經看過：0/1 背包的一維版本如果容量由小到大跑，算出來的是每
+種物品可以拿任意多個的\textbf{無限量背包}（unbounded knapsack）。 這裡把它寫成完整的答案，再
+和 0/1 背包逐項對照。 有 $n$ 種物品，第 $i$ 種重 $w_i$、價值 $v_i$，背包容量 $W$。
+
+\textbf{狀態。} $U[i, c]$ 是只用前 $i$ 種物品（每種不限個數）、容量 $c$ 時的最大價值。
+
+\textbf{轉移。} 看第 $i$ 種拿了幾個。 一個都沒拿，剩下的就是 $U[i - 1, c]$。 至少拿一個時，
+先拿掉其中一個，剩下的物品仍然是「前 $i$ 種、容量 $c - w_i$」的一組解，第 $i$ 種還可以繼續
+拿，而且這組一定要是那個子問題的最佳解（剪下貼上）：
+\[
+U[i, c] = \begin{cases}
+U[i - 1, c], & w_i > c, \\
+\max\bigl(U[i - 1, c],\ U[i, c - w_i] + v_i\bigr), & w_i \le c .
+\end{cases}
+\]
+和 0/1 背包只差一個字：第二項是\textbf{同一列}的 $U[i, c - w_i]$，0/1 背包是上一列的
+$K[i - 1, c - w_i]$（拿了第 $i$ 件就不能再拿）。
+
+\textbf{邊界與順序。} $U[0, c] = 0$。 $U[i, c]$ 用到上一列的同一格和同一列左邊的格子，所以一
+列一列往下、每一列由左往右填。 只留一列 $d[0..W]$ 時，算 $d[c]$ 要的 $d[c - w_i]$ 正是「這一
+列已經更新過的值」，所以容量\textbf{由小到大}；0/1 背包要的是上一列的舊值，所以由大到小。
+\proc{Unbounded-Knapsack} 和虛擬碼~\ref{alg:dp-knapsack-1d} 只差第 5 行的方向。
+
+\begin{pseudo}[label=alg:dp-unbounded]{無限量背包，一維陣列}
+\Function{Unbounded-Knapsack}{$w, v, n, W$}
+    \For{$c \gets 0$ \To $W$}
+        \State $d[c] \gets 0$
+    \EndFor
+    \For{$i \gets 1$ \To $n$}
+        \For{$c \gets w_i$ \To $W$} \Comment{由小到大}
+            \State $d[c] \gets \max(d[c],\ d[c - w_i] + v_i)$
+        \EndFor
+    \EndFor
+    \State \Return $d[W]$
+\EndFunction
+\end{pseudo}
+
+\textbf{答案與複雜度。} 答案是 $U[n, W]$（一維版本的 $d[W]$），時間 $\Theta(nW)$，一維版本的空間
+$\Theta(W)$。 和 0/1 背包一樣是擬多項式時間（第~\ref{sec:dp-pseudo-poly}~節）。 把 $i$ 這一維拿掉，
+就是第~\ref{sec:dp-knapsack-1d}~節的 $U[c] = \max\bigl(0, \max_{w_i \le c}(U[c - w_i] + v_i)\bigr)$，
+兩種寫法填出的最後一列相同。
+
+\textbf{手算。} 三種物品 $(w_i, v_i) = (3, 4)$、$(4, 6)$、$(5, 8)$，容量 $W = 10$。 下表是兩種
+背包處理完每一種物品之後的那一列（也就是二維表的第 $i$ 列）：
+
+\begin{center}
+\small
+\begin{tabular}{ll*{11}{c}}
+\toprule
+& $c$ & 0 & 1 & 2 & 3 & 4 & 5 & 6 & 7 & 8 & 9 & 10 \\
+\midrule
+0/1 背包 & $i = 1$ & 0 & 0 & 0 & 4 & 4 & 4 & 4 & 4 & 4 & 4 & 4 \\
+$K[i, c]$ & $i = 2$ & 0 & 0 & 0 & 4 & 6 & 6 & 6 & 10 & 10 & 10 & 10 \\
+& $i = 3$ & 0 & 0 & 0 & 4 & 6 & 8 & 8 & 10 & 12 & 14 & \textbf{14} \\
+\midrule
+無限量背包 & $i = 1$ & 0 & 0 & 0 & 4 & 4 & 4 & 8 & 8 & 8 & 12 & 12 \\
+$U[i, c]$ & $i = 2$ & 0 & 0 & 0 & 4 & 6 & 6 & 8 & 10 & 12 & 12 & 14 \\
+& $i = 3$ & 0 & 0 & 0 & 4 & 6 & 8 & 8 & 10 & 12 & 14 & \textbf{16} \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+幾格的算法：$U[1, 6] = U[1, 3] + 4 = 8$，第 $1$ 種拿兩個；0/1 背包的 $K[1, 6]$ 只能是 $4$。
+最後一格 $K[3, 10] = \max(K[2, 10], K[2, 5] + 8) = \max(10, 14) = 14$，是第 $2$、$3$ 件；
+$U[3, 10] = \max(U[2, 10], U[3, 5] + 8) = \max(14, 16) = 16$，是第 $3$ 種拿兩個。 同一組物品，
+兩個問題的答案不同。
+
+\begin{center}
+\small
+\begin{tabular}{lll}
+\toprule
+& 0/1 背包 & 無限量背包 \\
+\midrule
+拿第 $i$ 件之後 & 接上一列 $K[i - 1, c - w_i]$ & 接同一列 $U[i, c - w_i]$ \\
+一維陣列的容量 & 由大到小 & 由小到大 \\
+這一節的例子 & $14$（第 $2$、$3$ 件） & $16$（第 $3$ 種兩個） \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+每種物品最多拿 $k_i$ 個的版本（有界背包）介於兩者之間，最直接的做法是把第 $i$ 種拆成 $k_i$
+件一樣的物品，再做 0/1 背包。
+
+\subsection{找零：最少枚數與組合數}
+\label{sec:dp-coin}
+
+面額 $c_1 < c_2 < \cdots < c_m$ 的硬幣每種都用不完，要剛好湊出金額 $x$。 這是無限量背包的
+特例：硬幣的「重量」是面額，而且要剛好湊滿。 考卷常問兩件事：最少要幾枚，以及有幾種湊法。
+例子用面額 $1, 4, 5$、金額 $x = 8$。
+
+\textbf{最少枚數。} 狀態 $M[a]$ 是湊出金額 $a$ 最少要幾枚，湊不出來記 $\infty$。 看最後放
+進去的是哪一枚：
+\[
+M[0] = 0, \qquad M[a] = 1 + \min_{c_i \le a} M[a - c_i] \quad (a \ge 1),
+\]
+沒有任何 $c_i \le a$ 時 $M[a] = \infty$。 $M[a]$ 只用到比 $a$ 小的金額，所以 $a$ 由小到大
+填，答案是 $M[x]$，時間 $\Theta(mx)$、空間 $\Theta(x)$，又是擬多項式。 要知道用了哪些硬幣，
+另外記 $\mathit{coin}[a]$ 為取到最小值的面額（平手取最小的面額），再從 $x$ 一路往回減。
+
+\begin{center}
+\small
+\begin{tabular}{l*{9}{c}}
+\toprule
+$a$ & 0 & 1 & 2 & 3 & 4 & 5 & 6 & 7 & 8 \\
+\midrule
+$M[a]$ & 0 & 1 & 2 & 3 & 1 & 1 & 2 & 3 & 2 \\
+$\mathit{coin}[a]$ & -- & 1 & 1 & 1 & 4 & 5 & 1 & 1 & 4 \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+例如 $M[8] = 1 + \min(M[7], M[4], M[3]) = 1 + \min(3, 1, 3) = 2$，最後一枚是 $4$；
+$\mathit{coin}[4] = 4$，所以是 $4 + 4$。 「能用大的就用大的」的貪心會拿 $5 + 1 + 1 + 1$，
+要 $4$ 枚。 第~19~章會整理這種貪心在什麼面額下才對。
+
+\textbf{組合數。} 狀態 $N[a]$ 是湊出 $a$ 有幾種方法，只看每種面額各用了幾枚、不管放的順
+序：$1 + 4$ 和 $4 + 1$ 算同一種。 直接把上面的 $\min$ 換成加總：
+\[
+P[a] = \sum_{c_i \le a} P[a - c_i], \qquad P[0] = 1,
+\]
+算出來的\textbf{不是}組合數。 這個式子看的是「最後放的是哪一枚」，所以 $1 + 4$（最後是
+$4$）和 $4 + 1$（最後是 $1$）被算成兩種；它數的是有順序的排法。 金額 $5$ 的組合只有
+$\{1, 1, 1, 1, 1\}$、$\{1, 4\}$、$\{5\}$ 三種，$P[5]$ 卻是 $4$。
+
+要數組合，得把「用到哪幾種面額」也放進狀態。 令 $N[i, a]$ 為只用前 $i$ 種面額湊出 $a$ 的
+組合數，依「第 $i$ 種面額有沒有用」分成兩類：
+\[
+N[i, a] = \begin{cases}
+N[i - 1, a], & c_i > a, \\
+N[i - 1, a] + N[i, a - c_i], & c_i \le a,
+\end{cases}
+\qquad N[i, 0] = 1, \quad N[0, a] = 0 \ (a \ge 1).
+\]
+第一類一枚 $c_i$ 都沒用，是 $N[i - 1, a]$；第二類至少用了一枚，拿掉一枚之後是「前 $i$ 種湊出
+$a - c_i$」的一種組合，而且這個對應是一對一的。 兩類沒有重疊，合起來也沒有漏掉，所以每一種
+組合恰好數到一次。 這和無限量背包的遞迴式形狀一樣（$\max$ 換成加法），也一樣只留一列、金額由
+小到大：
+
+\begin{pseudo}[label=alg:dp-coin-ways]{找零的組合數}
+\Function{Coin-Ways}{$c, m, x$}
+    \State $N[0] \gets 1$
+    \For{$a \gets 1$ \To $x$}
+        \State $N[a] \gets 0$
+    \EndFor
+    \For{$i \gets 1$ \To $m$} \Comment{外層跑面額}
+        \For{$a \gets c_i$ \To $x$}
+            \State $N[a] \gets N[a] + N[a - c_i]$
+        \EndFor
+    \EndFor
+    \State \Return $N[x]$
+\EndFunction
+\end{pseudo}
+
+外層跑面額時，處理完第 $i$ 種之後 $N[a]$ 就是 $N[i, a]$：一種組合被看成「先決定用幾枚
+$c_1$，再決定用幾枚 $c_2$，……」，依面額的順序只會被數到一次。 把兩層迴圈對調（外層跑金額、
+內層跑面額），每一格都變成對所有面額加總，算出來的就是上面的 $P[a]$。
+
+\begin{center}
+\small
+\begin{tabular}{l*{9}{c}}
+\toprule
+$a$ & 0 & 1 & 2 & 3 & 4 & 5 & 6 & 7 & 8 \\
+\midrule
+處理完面額 $1$ & 1 & 1 & 1 & 1 & 1 & 1 & 1 & 1 & 1 \\
+處理完面額 $4$ & 1 & 1 & 1 & 1 & 2 & 2 & 2 & 2 & 3 \\
+處理完面額 $5$ & 1 & 1 & 1 & 1 & 2 & 3 & 3 & 3 & \textbf{4} \\
+\midrule
+外層跑金額的 $P[a]$ & 1 & 1 & 1 & 1 & 2 & 4 & 6 & 8 & 11 \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+$N[8] = 4$：$\{1 \times 8\}$、$\{4, 1, 1, 1, 1\}$、$\{4, 4\}$、$\{5, 1, 1, 1\}$。 $P[8] = 11$ 數
+的是排列：$4 + 1 + 1 + 1 + 1$ 有 $5$ 種排法，$5 + 1 + 1 + 1$ 有 $4$ 種，另外兩種各 $1$ 種，
+$1 + 5 + 4 + 1 = 11$。 題目真的要排列數時（例如「上樓梯一次走 $1$ 或 $2$ 階，有幾種走法」，先
+走 $1$ 再走 $2$ 和反過來是不同走法），$P[a]$ 就是對的答案。 最少枚數不在乎順序，兩種迴圈
+順序都對；只有計數要分清楚。 兩種計數的時間都是 $\Theta(mx)$。
+
+\subsection{加權區間排程}
+\label{sec:dp-wis}
+
+第~19~章的活動選擇要挑出最多筆兩兩相容的申請，「最早結束的先挑」這個貪心就是對的。 如果每筆
+申請有不同的權重（例如租金），要讓選到的權重總和最大，就成了\textbf{加權區間排程}（weighted
+interval scheduling），貪心不再正確。 區間沿用第~19~章的寫法：第 $j$ 筆是半開區間
+$[s_j, f_j)$，權重 $v_j > 0$；$f_i \le s_j$ 時兩筆相容，一筆結束的時刻另一筆開始不算衝突。
+
+先把區間依結束時刻排好，$f_1 \le f_2 \le \cdots \le f_n$，再定義 $p(j)$ 為滿足 $f_i \le s_j$
+的最大的 $i < j$，沒有這樣的 $i$ 時 $p(j) = 0$。 $f$ 已經排好，所以 $f_i \le s_j$ 的 $i$ 正好是一段前綴 $1..p(j)$：前 $p(j)$ 筆都在第 $j$ 筆開始
+之前結束，和它相容；第 $p(j) + 1$ 到 $j - 1$ 筆都在 $s_j$ 之後才結束，又在 $f_j$ 之前（或同時）
+結束，一定和 $[s_j, f_j)$ 重疊。
+
+\textbf{狀態。} $\mathit{best}[j]$ 是只從前 $j$ 筆裡挑時，權重總和的最大值。
+
+\textbf{轉移。} 第 $j$ 筆不選，就是 $\mathit{best}[j - 1]$。 選了第 $j$ 筆，第 $p(j) + 1$ 到
+$j - 1$ 筆都不能選，前 $p(j)$ 筆都不受影響，剩下的是「前 $p(j)$ 筆」這個子問題：
+\[
+\mathit{best}[j] = \max\bigl(\mathit{best}[j - 1],\ v_j + \mathit{best}[p(j)]\bigr), \qquad
+\mathit{best}[0] = 0 .
+\]
+這和 0/1 背包一樣是「選或不選」，差別在選了之後不是退到 $j - 1$，而是跳到 $p(j)$。
+
+\textbf{順序與複雜度。} $j$ 由小到大，答案是 $\mathit{best}[n]$。 排序 $\Theta(n \lg n)$；
+$f[1..j-1]$ 已經排好，$p(j)$ 就是「最後一個不大於 $s_j$ 的位置」，用
+\proc{Upper-Bound}（虛擬碼~\ref{alg:dc-upper}）找到第一個大於 $s_j$ 的位置再減一，每次
+$O(\lg n)$。 填表本身 $\Theta(n)$，總時間 $\Theta(n \lg n)$。
+
+\begin{pseudo}[label=alg:dp-wis]{加權區間排程}
+\Function{Weighted-Interval}{$s, f, v, n$} \Comment{已依 $f$ 由小到大排好}
+    \State $\mathit{best}[0] \gets 0$
+    \For{$j \gets 1$ \To $n$}
+        \State $p[j] \gets \Call{Upper-Bound}{f, j - 1, s_j} - 1$
+        \State $\mathit{best}[j] \gets \max(\mathit{best}[j - 1],\ v_j + \mathit{best}[p[j]])$
+    \EndFor
+    \State \Return $\mathit{best}[n]$
+\EndFunction
+\end{pseudo}
+
+第 4 行在 $f[1..j-1]$ 裡找；$j = 1$ 時範圍是空的，\proc{Upper-Bound} 回傳 $1$，$p[1] = 0$。
+還原時從 $j = n$ 往回：$v_j + \mathit{best}[p(j)] > \mathit{best}[j - 1]$ 就選第 $j$ 筆、跳
+到 $p(j)$，否則退到 $j - 1$（平手時當作不選）。
+
+\begin{center}
+\begin{minipage}{\linewidth}
+\centering
+\begin{tikzpicture}[x=0.78cm, y=0.5cm]
+\ivaxis{0}{12}{-0.9}
+\ivbar{7}{1}{3}{1（$4$）}
+\ivbar[ivpick]{6}{0}{4}{2（$9$）}
+\ivbar{5}{3}{6}{3（$3$）}
+\ivbar{4}{3}{7}{4（$9$）}
+\ivbar[ivpick]{3}{5}{8}{5（$7$）}
+\ivbar{2}{5}{9}{6（$8$）}
+\ivbar[ivpick]{1}{8}{12}{7（$7$）}
+\end{tikzpicture}
+\diagcaption{七筆申請，已依結束時刻編號，括號裡是權重。 橘色的 2、5、7 是最佳選法，總權
+重 $23$。}
+\label{fig:dp-wis}
+\end{minipage}
+\end{center}
+
+\begin{center}
+\small
+\begin{tabular}{cccccl}
+\toprule
+$j$ & $[s_j, f_j)$ & $v_j$ & $p(j)$ & $\mathit{best}[j]$ & 計算 \\
+\midrule
+1 & $[1, 3)$ & 4 & 0 & 4 & $\max(0,\ 4 + 0)$ \\
+2 & $[0, 4)$ & 9 & 0 & 9 & $\max(4,\ 9 + 0)$ \\
+3 & $[3, 6)$ & 3 & 1 & 9 & $\max(9,\ 3 + 4)$ \\
+4 & $[3, 7)$ & 9 & 1 & 13 & $\max(9,\ 9 + 4)$ \\
+5 & $[5, 8)$ & 7 & 2 & 16 & $\max(13,\ 7 + 9)$ \\
+6 & $[5, 9)$ & 8 & 2 & 17 & $\max(16,\ 8 + 9)$ \\
+7 & $[8, 12)$ & 7 & 5 & 23 & $\max(17,\ 7 + 16)$ \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+例如 $p(5)$：$s_5 = 5$，$f_1 = 3$、$f_2 = 4$ 不大於 $5$，$f_3 = 6$ 開始大於 $5$，所以
+$p(5) = 2$。 $p(7) = 5$ 用到了半開區間：$f_5 = 8 = s_7$，相接不算衝突。 還原：$j = 7$ 時
+$7 + 16 = 23 > 17$，選第 $7$ 筆，跳到 $p(7) = 5$；$7 + 9 = 16 > 13$，選第 $5$ 筆，跳到
+$2$；$9 + 0 > 4$，選第 $2$ 筆。 答案是第 $2$、$5$、$7$ 筆，權重 $23$。 兩種貪心都不對：最
+早結束的先挑得到第 $1$、$3$、$7$ 筆，$4 + 3 + 7 = 14$；權重大的先挑會先拿第 $2$ 筆（和第
+$4$ 筆平手，取編號小的），再拿第 $6$ 筆，之後都排不進去，只有 $17$。
+
+\begin{examnote}
+端點相接算不算衝突要照題目。 題目用閉區間 $[s_j, f_j]$、相接也算衝突時，相容的條件變成
+$f_i < s_j$，$p(j)$ 改成「最後一個小於 $s_j$ 的位置」，也就是 $\proc{Lower-Bound}(f, j - 1,
+s_j) - 1$。 Kleinberg 與 Tardos 的 \textit{Algorithm Design} 把 $\mathit{best}[j]$ 寫成
+$\mathrm{OPT}(j)$，遞迴式和 $p(j)$ 的定義和本書相同。 寫答案時要先寫一句「區間已依結束時刻排
+序」，否則 $p(j)$ 沒有意義。
+\end{examnote}
+
+\subsection{最長回文子序列}
+\label{sec:dp-lps}
+
+正著讀和倒著讀一樣的字串叫\textbf{回文}（palindrome），例如 \texttt{RADAR}。 給一個字串
+$s = s_1 s_2 \cdots s_n$，\textbf{最長回文子序列}（longest palindromic subsequence，LPS）是本身是
+回文的子序列裡最長的一個；子序列的定義和第~\ref{sec:dp-lcs}~節相同，不必連續。 例如
+\texttt{CHARACTER} 的第 $1, 3, 4, 5, 6$ 個字元是 \texttt{CARAC}，長度 $5$。
+
+子問題用\textbf{區間}：$P[i, j]$ 是 $s_i s_{i+1} \cdots s_j$ 的 LPS 長度。 看區間的兩端：
+\[
+P[i, j] = \begin{cases}
+P[i + 1, j - 1] + 2, & s_i = s_j, \\
+\max\bigl(P[i + 1, j],\ P[i, j - 1]\bigr), & s_i \ne s_j,
+\end{cases}
+\qquad i < j,
+\]
+邊界是 $P[i, i] = 1$，以及空區間 $P[i + 1, i] = 0$（$s_i = s_{i+1}$ 時，$P[i, i+1]$ 會用到
+$P[i + 1, i]$）。
+
+兩種情形的理由。 取 $s_i..s_j$ 的任一個回文子序列 $Z$，長度至少 $2$ 時它的頭尾是同一個字
+母，記成 $Z = a\,Y\,a$，頭在位置 $p$、尾在位置 $q$，$i \le p < q \le j$。
+\begin{itemize}
+\item $s_i \ne s_j$：$Z$ 的頭尾不可能分別是 $s_i$ 和 $s_j$（否則 $s_i = a = s_j$），所以
+$p > i$ 或 $q < j$，$Z$ 整個落在 $s_{i+1}..s_j$ 或 $s_i..s_{j-1}$ 裡。 長度 $0$ 或 $1$ 的 $Z$
+也一樣。 所以取兩者較大的。
+\item $s_i = s_j$：$Y$ 落在 $s_{p+1}..s_{q-1}$ 裡，也就落在 $s_{i+1}..s_{j-1}$ 裡，所以
+$|Z| \le P[i + 1, j - 1] + 2$；長度 $0$ 或 $1$ 的 $Z$ 更不用說。 反過來，在 $s_{i+1}..s_{j-1}$
+的 LPS 前後接上 $s_i$、$s_j$，就是長度 $P[i + 1, j - 1] + 2$ 的回文。 所以這時不用再和
+$P[i + 1, j]$、$P[i, j - 1]$ 比，和 LCS 的 $x_i = y_j$ 是同一個道理。
+\end{itemize}
+
+\textbf{順序。} $P[i, j]$ 用到的都是比較短的區間，所以和矩陣鏈乘一樣依區間長度
+$\ell = j - i + 1$ 由短到長填；也可以 $i$ 從 $n$ 往下、$j$ 從 $i + 1$ 往上。 不能 $i$ 由小
+到大一列一列填：算 $P[1, j]$ 時需要的 $P[2, j]$ 還沒算。 答案是 $P[1, n]$，時間和空間都是
+$\Theta(n^2)$。
+
+\begin{pseudo}[label=alg:dp-lps]{最長回文子序列的長度}
+\Function{LPS-Length}{$s, n$}
+    \For{$i \gets 1$ \To $n$}
+        \State $P[i, i] \gets 1$
+        \State $P[i + 1, i] \gets 0$ \Comment{空區間}
+    \EndFor
+    \For{$\ell \gets 2$ \To $n$} \Comment{區間長度}
+        \For{$i \gets 1$ \To $n - \ell + 1$}
+            \State $j \gets i + \ell - 1$
+            \If{$s_i = s_j$}
+                \State $P[i, j] \gets P[i + 1, j - 1] + 2$
+            \Else
+                \State $P[i, j] \gets \max(P[i + 1, j],\ P[i, j - 1])$
+            \EndIf
+        \EndFor
+    \EndFor
+    \State \Return $P[1, n]$
+\EndFunction
+\end{pseudo}
+
+表的列 $i$ 要從 $1$ 開到 $n + 1$，才放得下 $P[n + 1, n]$。 還原時從 $[1, n]$ 出發：兩端相同
+就把兩端都收進回文，走到 $[i + 1, j - 1]$；不同就走向值比較大的一邊，平手時走 $[i + 1, j]$
+（丟掉左端）；走到 $i = j$ 時那個字元是正中間，走到 $i > j$ 就結束。
+
+\begin{center}
+\begin{minipage}{\linewidth}
+\centering
+\begin{tikzpicture}[x=0.80cm, y=0.60cm]
+\node[dp-hd] at (0,1.6) {$j$};
+\node[dp-hd] at (-1.1,0.9) {$i$};
+\node[dp-hd] at (1,1.6) {1};
+\node[dp-hd] at (1,0.9) {\texttt{C}};
+\node[dp-hd] at (2,1.6) {2};
+\node[dp-hd] at (2,0.9) {\texttt{H}};
+\node[dp-hd] at (3,1.6) {3};
+\node[dp-hd] at (3,0.9) {\texttt{A}};
+\node[dp-hd] at (4,1.6) {4};
+\node[dp-hd] at (4,0.9) {\texttt{R}};
+\node[dp-hd] at (5,1.6) {5};
+\node[dp-hd] at (5,0.9) {\texttt{A}};
+\node[dp-hd] at (6,1.6) {6};
+\node[dp-hd] at (6,0.9) {\texttt{C}};
+\node[dp-hd] at (7,1.6) {7};
+\node[dp-hd] at (7,0.9) {\texttt{T}};
+\node[dp-hd] at (8,1.6) {8};
+\node[dp-hd] at (8,0.9) {\texttt{E}};
+\node[dp-hd] at (9,1.6) {9};
+\node[dp-hd] at (9,0.9) {\texttt{R}};
+\node[dp-hd] at (-1.1,0) {1};
+\node[dp-hd] at (-0.4,0) {\texttt{C}};
+\node[dp-c0, minimum width=0.80cm, minimum height=0.60cm] at (1,0) {1};
+\node[dp-c, minimum width=0.80cm, minimum height=0.60cm] at (2,0) {1};
+\node[dp-c, minimum width=0.80cm, minimum height=0.60cm] at (3,0) {1};
+\node[dp-c, minimum width=0.80cm, minimum height=0.60cm] at (4,0) {1};
+\node[dp-c, minimum width=0.80cm, minimum height=0.60cm] at (5,0) {3};
+\node[dp-chit, minimum width=0.80cm, minimum height=0.60cm] at (6,0) {5};
+\node[dp-cpath, minimum width=0.80cm, minimum height=0.60cm] at (7,0) {5};
+\node[dp-cpath, minimum width=0.80cm, minimum height=0.60cm] at (8,0) {5};
+\node[dp-cpath, minimum width=0.80cm, minimum height=0.60cm] at (9,0) {5};
+\node[dp-hd] at (-1.1,-1) {2};
+\node[dp-hd] at (-0.4,-1) {\texttt{H}};
+\node[dp-c0, minimum width=0.80cm, minimum height=0.60cm] at (2,-1) {1};
+\node[dp-c, minimum width=0.80cm, minimum height=0.60cm] at (3,-1) {1};
+\node[dp-c, minimum width=0.80cm, minimum height=0.60cm] at (4,-1) {1};
+\node[dp-cpath, minimum width=0.80cm, minimum height=0.60cm] at (5,-1) {3};
+\node[dp-c, minimum width=0.80cm, minimum height=0.60cm] at (6,-1) {3};
+\node[dp-c, minimum width=0.80cm, minimum height=0.60cm] at (7,-1) {3};
+\node[dp-c, minimum width=0.80cm, minimum height=0.60cm] at (8,-1) {3};
+\node[dp-c, minimum width=0.80cm, minimum height=0.60cm] at (9,-1) {3};
+\node[dp-hd] at (-1.1,-2) {3};
+\node[dp-hd] at (-0.4,-2) {\texttt{A}};
+\node[dp-c0, minimum width=0.80cm, minimum height=0.60cm] at (3,-2) {1};
+\node[dp-c, minimum width=0.80cm, minimum height=0.60cm] at (4,-2) {1};
+\node[dp-chit, minimum width=0.80cm, minimum height=0.60cm] at (5,-2) {3};
+\node[dp-c, minimum width=0.80cm, minimum height=0.60cm] at (6,-2) {3};
+\node[dp-c, minimum width=0.80cm, minimum height=0.60cm] at (7,-2) {3};
+\node[dp-c, minimum width=0.80cm, minimum height=0.60cm] at (8,-2) {3};
+\node[dp-c, minimum width=0.80cm, minimum height=0.60cm] at (9,-2) {3};
+\node[dp-hd] at (-1.1,-3) {4};
+\node[dp-hd] at (-0.4,-3) {\texttt{R}};
+\node[dp-chit, minimum width=0.80cm, minimum height=0.60cm] at (4,-3) {1};
+\node[dp-c, minimum width=0.80cm, minimum height=0.60cm] at (5,-3) {1};
+\node[dp-c, minimum width=0.80cm, minimum height=0.60cm] at (6,-3) {1};
+\node[dp-c, minimum width=0.80cm, minimum height=0.60cm] at (7,-3) {1};
+\node[dp-c, minimum width=0.80cm, minimum height=0.60cm] at (8,-3) {1};
+\node[dp-c, minimum width=0.80cm, minimum height=0.60cm] at (9,-3) {3};
+\node[dp-hd] at (-1.1,-4) {5};
+\node[dp-hd] at (-0.4,-4) {\texttt{A}};
+\node[dp-c0, minimum width=0.80cm, minimum height=0.60cm] at (5,-4) {1};
+\node[dp-c, minimum width=0.80cm, minimum height=0.60cm] at (6,-4) {1};
+\node[dp-c, minimum width=0.80cm, minimum height=0.60cm] at (7,-4) {1};
+\node[dp-c, minimum width=0.80cm, minimum height=0.60cm] at (8,-4) {1};
+\node[dp-c, minimum width=0.80cm, minimum height=0.60cm] at (9,-4) {1};
+\node[dp-hd] at (-1.1,-5) {6};
+\node[dp-hd] at (-0.4,-5) {\texttt{C}};
+\node[dp-c0, minimum width=0.80cm, minimum height=0.60cm] at (6,-5) {1};
+\node[dp-c, minimum width=0.80cm, minimum height=0.60cm] at (7,-5) {1};
+\node[dp-c, minimum width=0.80cm, minimum height=0.60cm] at (8,-5) {1};
+\node[dp-c, minimum width=0.80cm, minimum height=0.60cm] at (9,-5) {1};
+\node[dp-hd] at (-1.1,-6) {7};
+\node[dp-hd] at (-0.4,-6) {\texttt{T}};
+\node[dp-c0, minimum width=0.80cm, minimum height=0.60cm] at (7,-6) {1};
+\node[dp-c, minimum width=0.80cm, minimum height=0.60cm] at (8,-6) {1};
+\node[dp-c, minimum width=0.80cm, minimum height=0.60cm] at (9,-6) {1};
+\node[dp-hd] at (-1.1,-7) {8};
+\node[dp-hd] at (-0.4,-7) {\texttt{E}};
+\node[dp-c0, minimum width=0.80cm, minimum height=0.60cm] at (8,-7) {1};
+\node[dp-c, minimum width=0.80cm, minimum height=0.60cm] at (9,-7) {1};
+\node[dp-hd] at (-1.1,-8) {9};
+\node[dp-hd] at (-0.4,-8) {\texttt{R}};
+\node[dp-c0, minimum width=0.80cm, minimum height=0.60cm] at (9,-8) {1};
+\end{tikzpicture}
+\diagcaption{\texttt{CHARACTER} 的 $P$ 表，只用 $i \le j$ 的上三角，灰底的是長度 $1$ 的區間。
+加框的是還原時走過的格子，粉紅色的是兩端相同、收進回文的格子（$[4, 4]$ 是正中間）。 答案
+$P[1, 9] = 5$。}
+\label{fig:dp-lps-table}
+\end{minipage}
+\end{center}
+
+還原的過程：$[1, 9]$ 的 \texttt{C} 和 \texttt{R} 不同，$P[2, 9] = 3 < P[1, 8] = 5$，走到
+$[1, 8]$；同理走到 $[1, 7]$、$[1, 6]$。 $s_1 = s_6 = \texttt{C}$，收進頭尾，走到 $[2, 5]$。
+\texttt{H} 和 \texttt{A} 不同，$P[3, 5] = 3 > P[2, 4] = 1$，走到 $[3, 5]$。 $s_3 = s_5 =
+\texttt{A}$，收進來，走到 $[4, 4]$，\texttt{R} 是正中間。 得到 \texttt{CARAC}。 再看兩格怎麼
+填的：$P[3, 5] = P[4, 4] + 2 = 3$；$P[1, 6] = P[2, 5] + 2 = 5$，而 $P[2, 5]$ 本身是
+$\max(P[3, 5], P[2, 4]) = \max(3, 1) = 3$。
+
+\textbf{和 LCS 的關係。} 令 $r$ 是 $s$ 倒過來寫的字串。 $s$ 的回文子序列倒過來還是它自己，所
+以它也是 $r$ 的子序列，是 $s$ 和 $r$ 的共同子序列；因此 LPS 的長度不超過 $s$ 和 $r$ 的 LCS 長
+度。 反方向也成立（觀念題第~\ref{dp-q-lps}~題），所以兩者相等，只要長度的話，直接把 $s$ 和 $r$
+丟給 \proc{LCS-Length} 也可以，時間一樣是 $\Theta(n^2)$。 但\textbf{共同子序列不一定是回文}：
+\texttt{ABCAB} 和 \texttt{BACBA} 的 LCS 長度是 $3$，\texttt{ACB} 就是其中一個 LCS，它不是回文。
+要還原出回文，直接用 $P$ 表比較穩當。
+
+\section{樹上的動態規劃}
+\label{sec:dp-tree}
+
+前面的子問題是前綴、區間或「以某個元素結尾」。 輸入是一棵樹時，最自然的子問題是\textbf{子樹}。
+
+\subsection{子樹當子問題}
+\label{sec:dp-tree-sub}
+
+這一節的樹是無向的：$n$ 個點、$n - 1$ 條邊，連通，任兩點之間恰好有一條路徑（第~21~章會正式
+定義這種沒有指定根的樹）。 每個點的鄰居存在一條串列 $\mathit{Adj}[v]$ 裡。 做 DP 時先任選一點
+$r$ 當根，樹就變成第~7~章的有根樹：$v$ 的子節點是除了父節點以外的鄰居，$T_v$ 表示以 $v$ 為根
+的子樹。
+
+$T_v$ 的答案只和 $v$ 本身、以及各個子節點的子樹有關，所以照\textbf{後序}（第~\ref{sec:bt-walk}~
+節：先處理所有子樹，最後處理根）算，用到子節點的值時它一定已經算好了。 寫成遞迴時多傳一個
+參數 $p$，表示是從哪個點走過來的；跳過 $p$ 就不會走回頭。 每個點處理一次，每條邊在兩端各看
+一次，時間 $\Theta(n)$。
+
+樹可能是一條長鏈，遞迴深度會到 $n$。 $n$ 到 $10^5$ 以上時，C 的呼叫堆疊可能不夠，可以改成不
+遞迴：先用一個佇列從根出發一層一層走訪，記下每個點的父節點和走訪順序，再把順序倒過來處理。
+倒過來的順序裡，每個點都排在它所有子節點的後面，效果和後序一樣。
+
+\subsection{最大權重獨立集}
+\label{sec:dp-tree-mis}
+
+圖上的一組點，如果其中任兩點都不相鄰，就叫\textbf{獨立集}（independent set）。 每個點有權重
+$w(v) > 0$，要找權重總和最大的獨立集。 社團幹部之間的直屬學長姐關係是一棵樹，籌備小組不能同
+時有直屬的兩個人，每個人能投入的時數不同，要讓小組的總時數最多，就是這個問題。 一般的圖上
+這是 NP 難的問題（第~28~章），在樹上卻可以線性時間解。
+
+只記「$T_v$ 的最大獨立集」不夠：$v$ 的父節點要選自己的話，必須知道 $v$ 有沒有被選。 所以每
+個點記兩個值，和 LIS 要多記「以誰結尾」是同一種理由：
+\begin{itemize}
+\item $\mathit{take}[v]$：$T_v$ 裡\textbf{包含} $v$ 的獨立集，權重和的最大值；
+\item $\mathit{skip}[v]$：$T_v$ 裡\textbf{不含} $v$ 的獨立集，權重和的最大值。
+\end{itemize}
+選了 $v$，它的子節點都不能選；不選 $v$，每個子節點選不選都可以，各自取比較好的那一種：
+\[
+\mathit{take}[v] = w(v) + \sum_{u \text{ 是 } v \text{ 的子節點}} \mathit{skip}[u], \qquad
+\mathit{skip}[v] = \sum_{u \text{ 是 } v \text{ 的子節點}} \max\bigl(\mathit{take}[u], \mathit{skip}[u]\bigr).
+\]
+葉節點的 $\mathit{take} = w(v)$、$\mathit{skip} = 0$（空的和是 $0$），答案是
+$\max(\mathit{take}[r], \mathit{skip}[r])$。 不同子節點的子樹之間沒有邊，它們互相只透過
+「$v$ 有沒有選」影響，所以 $v$ 的狀態定了以後，每棵子樹各自取最好的再加起來就是最好的；有哪一
+棵子樹不是最好的，換成最好的就能讓總和變大（剪下貼上）。
+
+\begin{pseudo}[label=alg:dp-tree-is]{樹上的最大權重獨立集}
+\Procedure{Tree-IS}{$v, p$} \Comment{$p$ 是 $v$ 的父節點，根的是 \NIL}
+    \State $\mathit{take}[v] \gets w(v)$
+    \State $\mathit{skip}[v] \gets 0$
+    \For{每個 $u \in \mathit{Adj}[v]$}
+        \If{$u \ne p$}
+            \State \Call{Tree-IS}{$u, v$}
+            \State $\mathit{take}[v] \gets \mathit{take}[v] + \mathit{skip}[u]$
+            \State $\mathit{skip}[v] \gets \mathit{skip}[v] + \max(\mathit{take}[u], \mathit{skip}[u])$
+        \EndIf
+    \EndFor
+\EndProcedure
+\end{pseudo}
+
+呼叫 $\proc{Tree-IS}(r, \NIL)$。 還原時從根往下：根在 $\mathit{take}[r] > \mathit{skip}[r]$
+時選（平手不選）；一個點選了，它的子節點一律不選；一個點沒選，子節點各自照同樣的比較決定。
+
+\begin{pseudo}[label=alg:dp-tree-is-pick]{還原獨立集}
+\Procedure{Tree-IS-Pick}{$v, p, \mathit{can}$} \Comment{$\mathit{can}$：父節點沒選，$v$ 可以選}
+    \If{$\mathit{can}$ \AND $\mathit{take}[v] > \mathit{skip}[v]$}
+        \State 印出 $v$
+        \State $\mathit{can} \gets \FALSE$ \Comment{子節點都不能選}
+    \Else
+        \State $\mathit{can} \gets \TRUE$
+    \EndIf
+    \For{每個 $u \in \mathit{Adj}[v]$}
+        \If{$u \ne p$}
+            \State \Call{Tree-IS-Pick}{$u, v, \mathit{can}$}
+        \EndIf
+    \EndFor
+\EndProcedure
+\end{pseudo}
+
+\begin{center}
+\begin{minipage}{\linewidth}
+\centering
+\begin{tikzpicture}[x=1.1cm, y=1.0cm]
+\node[dp-tv] (t1) at (3,0) {1};
+\node[dp-tvpick] (t2) at (1.5,-1.2) {2};
+\node[dp-tvpick] (t3) at (4.5,-1.2) {3};
+\node[dp-tv] (t4) at (0.7,-2.4) {4};
+\node[dp-tv] (t5) at (2.3,-2.4) {5};
+\node[dp-tv] (t6) at (4.5,-2.4) {6};
+\node[dp-tvpick] (t7) at (1.8,-3.6) {7};
+\node[dp-tvpick] (t8) at (2.8,-3.6) {8};
+\node[dp-tvpick] (t9) at (4.5,-3.6) {9};
+\draw[dp-e] (t1) -- (t2);
+\draw[dp-e] (t1) -- (t3);
+\draw[dp-e] (t2) -- (t4);
+\draw[dp-e] (t2) -- (t5);
+\draw[dp-e] (t3) -- (t6);
+\draw[dp-e] (t5) -- (t7);
+\draw[dp-e] (t5) -- (t8);
+\draw[dp-e] (t6) -- (t9);
+\node[dp-tw, right=1pt] at (t1.east) {6};
+\node[dp-tw, left=1pt] at (t2.west) {9};
+\node[dp-tw, right=1pt] at (t3.east) {4};
+\node[dp-tw, left=1pt] at (t4.west) {3};
+\node[dp-tw, right=1pt] at (t5.east) {7};
+\node[dp-tw, right=1pt] at (t6.east) {5};
+\node[dp-tw, left=1pt] at (t7.west) {2};
+\node[dp-tw, right=1pt] at (t8.east) {4};
+\node[dp-tw, right=1pt] at (t9.east) {3};
+\end{tikzpicture}
+\diagcaption{九個點的樹，以 $1$ 為根；圓圈裡是編號，旁邊的小字是權重 $w(v)$。 粉紅色的
+$2, 3, 7, 8, 9$ 是最大權重獨立集，總和 $22$。}
+\label{fig:dp-tree-is}
+\end{minipage}
+\end{center}
+
+圖~\ref{fig:dp-tree-is} 的樹，鄰居由小到大，後序是 $4, 7, 8, 5, 2, 9, 6, 3, 1$：
+
+\begin{center}
+\small
+\begin{tabular}{cccll}
+\toprule
+$v$ & $w(v)$ & 子節點 & $\mathit{take}[v]$ & $\mathit{skip}[v]$ \\
+\midrule
+4 & 3 & -- & $3$ & $0$ \\
+7 & 2 & -- & $2$ & $0$ \\
+8 & 4 & -- & $4$ & $0$ \\
+5 & 7 & 7, 8 & $7 + 0 + 0 = 7$ & $\max(2, 0) + \max(4, 0) = 6$ \\
+2 & 9 & 4, 5 & $9 + 0 + 6 = 15$ & $\max(3, 0) + \max(7, 6) = 10$ \\
+9 & 3 & -- & $3$ & $0$ \\
+6 & 5 & 9 & $5 + 0 = 5$ & $\max(3, 0) = 3$ \\
+3 & 4 & 6 & $4 + 3 = 7$ & $\max(5, 3) = 5$ \\
+1 & 6 & 2, 3 & $6 + 10 + 5 = 21$ & $\max(15, 10) + \max(7, 5) = 22$ \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+答案是 $\max(21, 22) = 22$。 還原：根 $1$ 的 $\mathit{skip}$ 比較大，不選；子節點 $2$、$3$ 自由，
+$15 > 10$、$7 > 5$，都選；$2$ 選了，$4$、$5$ 不選；$5$ 沒選，$7$、$8$ 自由，都選；$3$ 選了，
+$6$ 不選；$9$ 自由，選。 得到 $\{2, 3, 7, 8, 9\}$，$9 + 4 + 2 + 4 + 3 = 22$。
+
+貪心在這裡也不對。 每次挑剩下權重最大的點、刪掉它的鄰居：先挑 $2$（刪掉 $1$、$4$、$5$），再挑
+$6$（刪掉 $3$、$9$），再挑 $8$、$7$，總和 $20$。 根只差一點：$\mathit{take}[1] = 21$，選了根
+的最好結果只比答案少 $1$，不把兩種狀態都算出來是看不出來的。
+
+和獨立集成對出現的是\textbf{頂點覆蓋}（vertex cover）：一組點，讓每一條邊至少有一端在裡面。
+$S$ 是獨立集若且唯若 $V - S$ 是頂點覆蓋（觀念題第~\ref{dp-q-tree-is}~題），所以最小權重的頂點
+覆蓋就是總權重減掉最大權重獨立集。 也可以直接對頂點覆蓋寫兩個狀態的 DP：$v$ 不在覆蓋裡時，
+邊 $(v, u)$ 只能靠 $u$ 蓋住，所以子節點一律要選。
+
+\subsection{樹的直徑}
+\label{sec:dp-tree-diam}
+
+每條邊 $\{u, v\}$ 有長度 $w(u, v)$。 樹上任兩點 $u$、$v$ 之間只有一條路徑，把路上的邊長加起
+來記成 $\operatorname{dist}(u, v)$。 所有點對的 $\operatorname{dist}$ 裡最大的叫\textbf{直徑}
+（diameter）。 沒有邊長時每條邊算 $1$，直徑就是最長路徑的邊數。
+
+\begin{center}
+\begin{minipage}{\linewidth}
+\centering
+\begin{tikzpicture}[x=1.1cm, y=1.0cm]
+\node[dp-tv] (d1) at (3,0) {1};
+\node[dp-tv] (d2) at (1.5,-1.2) {2};
+\node[dp-tv] (d3) at (4.5,-1.2) {3};
+\node[dp-tv] (d4) at (0.6,-2.4) {4};
+\node[dp-tv] (d5) at (2.4,-2.4) {5};
+\node[dp-tv] (d6) at (4.5,-2.4) {6};
+\node[dp-tv] (d7) at (1.9,-3.6) {7};
+\node[dp-tv] (d8) at (2.9,-3.6) {8};
+\draw[dp-e] (d1) -- node[dp-ew] {3} (d2);
+\draw[dp-e] (d1) -- node[dp-ew] {1} (d3);
+\draw[dp-tpath] (d2) -- node[dp-ew] {8} (d4);
+\draw[dp-tpath] (d2) -- node[dp-ew] {1} (d5);
+\draw[dp-e] (d3) -- node[dp-ew] {1} (d6);
+\draw[dp-tpath] (d5) -- node[dp-ew] {5} (d7);
+\draw[dp-e] (d5) -- node[dp-ew] {2} (d8);
+\end{tikzpicture}
+\diagcaption{八個點的樹，邊上的數字是長度。 粗線是直徑 $4 - 2 - 5 - 7$，長度
+$8 + 1 + 5 = 14$。}
+\label{fig:dp-tree-diam}
+\end{minipage}
+\end{center}
+
+\textbf{做法一：兩次搜尋。}
+\begin{enumerate}
+\item 從任一點 $s$ 出發，算出 $s$ 到每一點的距離，找出最遠的點 $u$。
+\item 從 $u$ 出發再算一次，最遠的點 $v$；$\operatorname{dist}(u, v)$ 就是直徑。
+\end{enumerate}
+樹上從 $s$ 到每一點只有一條路徑，走訪時沿路把邊長加起來就是距離，用遞迴往下走（深度優先）或
+用佇列一層一層走（廣度優先，第~21~章的 DFS 和 BFS）都可以，不需要第~25~章的最短路徑演算法。
+
+\begin{pseudo}[label=alg:dp-tree-dist]{從 $s$ 算出到每一點的距離}
+\Procedure{Tree-Dist}{$v, p, d$} \Comment{$d$ 是從起點走到 $v$ 的長度}
+    \State $\mathit{dist}[v] \gets d$
+    \For{每個 $u \in \mathit{Adj}[v]$}
+        \If{$u \ne p$}
+            \State \Call{Tree-Dist}{$u, v, d + w(v, u)$}
+        \EndIf
+    \EndFor
+\EndProcedure
+\end{pseudo}
+
+呼叫 $\proc{Tree-Dist}(s, \NIL, 0)$，掃一遍 $\mathit{dist}$ 找最大的，再從那一點做一次，兩次都
+是 $\Theta(n)$。 圖~\ref{fig:dp-tree-diam} 從 $s = 1$ 出發：到 $2, 3, \ldots, 8$ 的距離依序是
+$3, 1, 11, 4, 2, 9, 6$，最遠的是 $u = 4$。 從 $4$ 出發：到 $1, 2, 3, 5, 6, 7, 8$ 依序是
+$11, 8, 12, 9, 13, 14, 11$，最遠的是 $v = 7$，直徑 $14$。
+
+\begin{theorem}
+\label{thm:dp-two-search}
+邊長都不是負的時候，從任一點 $s$ 出發最遠的點 $u$，一定是某一條直徑的端點：存在 $v$ 使
+$\operatorname{dist}(u, v)$ 等於直徑。
+\end{theorem}
+
+\begin{proof}
+設直徑是 $a$ 到 $b$ 的路徑 $Q$，長度 $D = \operatorname{dist}(a, b)$。 從 $s$ 往 $Q$ 走，第一個
+碰到的 $Q$ 上的點記成 $t$（$s$ 在 $Q$ 上時 $t = s$）。 $s$ 到 $a$、到 $b$ 的路徑都先走到 $t$，
+所以 $\operatorname{dist}(s, a) = \operatorname{dist}(s, t) + \operatorname{dist}(t, a)$，$b$ 也
+一樣。 再令 $z$ 為 $s \leadsto u$ 和 $s \leadsto t$ 兩條路徑最後一個共同的點。 我們證明
+$\operatorname{dist}(u, a) \ge D$ 或 $\operatorname{dist}(u, b) \ge D$；而 $D$ 是最大值，所以等號
+成立，$u$ 就是一條直徑的端點。
+
+\textbf{情形一：$z \ne t$。} $s \leadsto u$ 在到達 $t$ 之前就分岔了，而且分岔之後不會再碰到 $Q$：
+如果碰到 $Q$ 上的某點 $y$，從 $z$ 到 $y$ 就有「經過 $u$ 那一側」和「經過 $t$」兩條不同的路徑，
+樹上不可能。 所以 $u$ 到 $a$ 的路徑是 $u \leadsto z \leadsto t \leadsto a$。 由 $u$ 最遠，
+$\operatorname{dist}(s, u) \ge \operatorname{dist}(s, b)$，兩邊都扣掉共同的 $s \leadsto z$，得
+$\operatorname{dist}(z, u) \ge \operatorname{dist}(z, t) + \operatorname{dist}(t, b)$。 於是
+\[
+\operatorname{dist}(u, a) = \operatorname{dist}(u, z) + \operatorname{dist}(z, t) + \operatorname{dist}(t, a)
+\ge 2\operatorname{dist}(z, t) + \operatorname{dist}(t, b) + \operatorname{dist}(t, a) \ge D ,
+\]
+最後一步用到 $\operatorname{dist}(z, t) \ge 0$，也就是邊長不是負的。
+
+\textbf{情形二：$z = t$。} $s \leadsto u$ 經過 $t$，$\operatorname{dist}(s, u) =
+\operatorname{dist}(s, t) + \operatorname{dist}(t, u)$。 由 $u$ 最遠，$\operatorname{dist}(t, u) \ge
+\operatorname{dist}(t, a)$ 而且 $\operatorname{dist}(t, u) \ge \operatorname{dist}(t, b)$。 從 $t$
+往 $u$ 走的第一條邊，不可能同時是往 $a$ 和往 $b$ 的方向。 如果它不是往 $a$ 的方向，$u$ 到 $a$
+的路徑經過 $t$，$\operatorname{dist}(u, a) = \operatorname{dist}(u, t) + \operatorname{dist}(t, a)
+\ge \operatorname{dist}(t, b) + \operatorname{dist}(t, a) = D$；否則它不是往 $b$ 的方向，同理
+$\operatorname{dist}(u, b) \ge D$。
+\end{proof}
+
+定理說 $u$ 是一條直徑的端點，所以第二次從 $u$ 出發，最遠的距離就是直徑。 證明裡只有情形一用到
+邊長不是負的，而這個條件不能拿掉。 圖~\ref{fig:dp-tree-neg} 從 $s = 1$ 出發，到 $3$、$4$、$5$
+都要經過長度 $-10$ 的邊，距離是 $-10$、$-5$、$-5$，最遠的是 $u = 2$（距離 $2$）。 從 $2$ 出發，
+最遠的是 $1$，算出來的「直徑」是 $2$；真正的直徑是 $4 - 3 - 5$，長度 $10$。
+
+\begin{center}
+\begin{minipage}{\linewidth}
+\centering
+\begin{tikzpicture}[x=1.2cm, y=1.0cm]
+\node[dp-tv] (n1) at (1,0) {1};
+\node[dp-tv] (n2) at (0,-1.1) {2};
+\node[dp-tv] (n3) at (2,-1.1) {3};
+\node[dp-tv] (n4) at (1.3,-2.2) {4};
+\node[dp-tv] (n5) at (2.7,-2.2) {5};
+\draw[dp-e] (n1) -- node[dp-ew] {2} (n2);
+\draw[dp-e] (n1) -- node[dp-ew] {$-10$} (n3);
+\draw[dp-tpath] (n3) -- node[dp-ew] {5} (n4);
+\draw[dp-tpath] (n3) -- node[dp-ew] {5} (n5);
+\end{tikzpicture}
+\diagcaption{有負邊長時兩次搜尋會錯：從 $1$ 出發找到 $2$，再從 $2$ 出發只得到 $2$；粗線
+$4 - 3 - 5$ 才是直徑，長度 $10$。}
+\label{fig:dp-tree-neg}
+\end{minipage}
+\end{center}
+
+\textbf{做法二：DP。} 以 $r$ 為根，對每個點算兩個值：
+\begin{itemize}
+\item $\mathit{down}[v]$：從 $v$ 往下（只走進 $T_v$）的最長路徑長，可以一步都不走，所以至少是 $0$；
+\item $\mathit{peak}[v]$：最高點是 $v$ 的路徑裡最長的長度。
+\end{itemize}
+令 $t_u = \mathit{down}[u] + w(v, u)$，$u$ 是 $v$ 的子節點，表示「從 $v$ 先走到 $u$ 再往下」能
+走多長。 一條最高點是 $v$ 的路徑，最多往兩個子節點的方向往下走，所以
+\[
+\mathit{down}[v] = \max\bigl(0,\ \max_u t_u\bigr),
+\]
+$\mathit{peak}[v]$ 則是把所有的 $t_u$ 再加上兩個 $0$，取其中最大的兩個相加。 補兩個 $0$ 是為了
+涵蓋只往一邊走（或一步都不走）的路徑。 樹上每條路徑都有唯一一個離根最近的點，就
+是它的最高點，所以直徑 $= \max_v \mathit{peak}[v]$。 這個做法沒有用到邊長不是負的，有負邊長
+也對。 寫程式時不必真的找「最大的兩個」：依序處理子節點，每處理一個 $u$，就拿 $t_u$ 加上目前
+為止的 $\mathit{down}[v]$（之前處理過的子節點裡最長的一條，或 $0$）更新答案，再更新
+$\mathit{down}[v]$。
+
+\begin{pseudo}[label=alg:dp-tree-diam]{樹的直徑（DP）}
+\Procedure{Tree-Diameter}{$v, p$} \Comment{呼叫前 $\mathit{best} \gets 0$}
+    \State $\mathit{down}[v] \gets 0$
+    \For{每個 $u \in \mathit{Adj}[v]$}
+        \If{$u \ne p$}
+            \State \Call{Tree-Diameter}{$u, v$}
+            \State $t \gets \mathit{down}[u] + w(v, u)$
+            \State $\mathit{best} \gets \max(\mathit{best},\ \mathit{down}[v] + t)$
+            \State $\mathit{down}[v] \gets \max(\mathit{down}[v],\ t)$
+        \EndIf
+    \EndFor
+\EndProcedure
+\end{pseudo}
+
+呼叫 $\proc{Tree-Diameter}(r, \NIL)$ 之後，$\mathit{best}$ 就是直徑，時間 $\Theta(n)$。 第 7 行
+用的是\textbf{更新前}的 $\mathit{down}[v]$，所以 $t$ 不會和自己配對。 圖~\ref{fig:dp-tree-diam}
+以 $1$ 為根，後序是 $4, 7, 8, 5, 2, 6, 3, 1$：
+
+\begin{center}
+\small
+\begin{tabular}{clcc}
+\toprule
+$v$ & 各子節點的 $t_u = \mathit{down}[u] + w(v, u)$ & $\mathit{down}[v]$ & $\mathit{peak}[v]$ \\
+\midrule
+4, 7, 8, 6 & --（葉節點） & 0 & 0 \\
+5 & $u = 7$：$0 + 5 = 5$；$u = 8$：$0 + 2 = 2$ & 5 & $5 + 2 = 7$ \\
+2 & $u = 4$：$0 + 8 = 8$；$u = 5$：$5 + 1 = 6$ & 8 & $8 + 6 = \mathbf{14}$ \\
+3 & $u = 6$：$0 + 1 = 1$ & 1 & $1 + 0 = 1$ \\
+1 & $u = 2$：$8 + 3 = 11$；$u = 3$：$1 + 1 = 2$ & 11 & $11 + 2 = 13$ \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+最大的 $\mathit{peak}$ 在 $v = 2$，直徑 $14$，和兩次搜尋的結果一樣；它的最高點是 $2$，不是根，
+所以只看 $\mathit{peak}[r]$ 是不夠的。 把同一個 DP 用在圖~\ref{fig:dp-tree-neg}（以 $1$ 為根）：
+$\mathit{down}[3] = 5$、$\mathit{peak}[3] = 10$；$\mathit{peak}[1] = 2 + 0 = 2$，因為 $t_3 = 5 - 10 =
+-5$ 比補上的 $0$ 小。 答案是 $10$。
+
+兩種做法都是 $\Theta(n)$。 兩次搜尋寫起來短，但只能用在邊長不是負的時候；DP 對任何邊長都對，
+還順便算出每個點往下的最長路徑，很多變形題（例如每個點到最遠點的距離）要的就是這些值。
+
+\begin{examnote}
+先看題目的直徑怎麼數：本節數的是邊的長度和，沒有權重時是邊數；有些題目數的是路徑上的點數，
+比邊數多一。 用兩次搜尋時要寫出第一次的起點是任選的，並說明這個方法要求邊長不是負的；題目
+有負邊長，就用 DP。
+\end{examnote}
+
 \section{所有點對最短路徑的 DP 觀點}
 \label{sec:dp-apsp}
 
@@ -2247,14 +3037,20 @@ LCS & 兩個前綴 $X_i, Y_j$ & $\Theta(mn)$ & $O(1)$ & $\Theta(mn)$ \\
 0/1 背包 & 前 $i$ 件、容量 $c$ & $\Theta(nW)$ & $2$ & $\Theta(nW)$，擬多項式 \\
 編輯距離 & 兩個前綴 $X_i, Y_j$ & $\Theta(mn)$ & $3$ & $\Theta(mn)$ \\
 LIS & 以 $A[i]$ 結尾 & $n$ & $O(n)$ & $\Theta(n^2)$；改寫後 $O(n \lg n)$ \\
+無限量背包 & 前 $i$ 種、容量 $c$ & $\Theta(nW)$ & $2$ & $\Theta(nW)$，擬多項式 \\
+找零（組合數） & 前 $i$ 種面額、金額 $a$ & $\Theta(mx)$ & $2$ & $\Theta(mx)$，擬多項式 \\
+加權區間排程 & 前 $j$ 筆 & $n$ & $2$ & $\Theta(n \lg n)$（含排序） \\
+最長回文子序列 & 區間 $s_i..s_j$ & $\Theta(n^2)$ & $O(1)$ & $\Theta(n^2)$ \\
+樹上獨立集、直徑 & 子樹 $T_v$ & $\Theta(n)$ & 子節點數 & $\Theta(n)$ \\
 Floyd--Warshall & 中間點限 $\{1..k\}$ & $\Theta(n^3)$ & $2$ & $\Theta(n^3)$ \\
 \bottomrule
 \end{tabular}
 \end{center}
 
-常見的子問題只有幾種形狀：\textbf{前綴}（LCS、編輯距離、背包的前 $i$ 件）、\textbf{區間}（矩陣
-鏈乘、最佳二元搜尋樹）、\textbf{以某個元素結尾}（LIS），以及多加一個\textbf{數值參數}（背包的容
-量、Floyd--Warshall 的 $k$）。 遇到新問題時，先試這幾種，再看最佳解的「最後一步」有幾種選
+常見的子問題只有幾種形狀：\textbf{前綴}（LCS、編輯距離、背包的前 $i$ 件、加權區間排程）、
+\textbf{區間}（矩陣鏈乘、最佳二元搜尋樹、最長回文子序列）、\textbf{以某個元素結尾}（LIS）、
+\textbf{子樹}（樹上的 DP），以及多加一個\textbf{數值參數}（背包的容量、找零的金額、
+Floyd--Warshall 的 $k$）。 遇到新問題時，先試這幾種，再看最佳解的「最後一步」有幾種選
 擇。 只要值時，前綴型和背包型的表通常都可以只留一兩列；區間型的表依賴的格子散在各列，不容
 易這樣省。
 
@@ -2278,8 +3074,8 @@ Floyd--Warshall & 中間點限 $\{1..k\}$ & $\Theta(n^3)$ & $2$ & $\Theta(n^3)$ 
 第~\ref{sec:dp-lcs}~節 \\
 最佳二元搜尋樹的成本模型混用 & 外部節點用深度加一算成本，空樹卻寫 $e[i, i-1] = 0$；
 $w(i, j)$ 的 $q$ 從 $q_i$ 開始加 & 第~\ref{sec:dp-obst}~節 \\
-一維背包的方向 & 0/1 背包的容量由小到大跑，同一件物品被拿很多次 &
-第~\ref{sec:dp-knapsack-1d}~節 \\
+一維背包的方向 & 0/1 背包的容量由小到大跑，同一件物品被拿很多次；無限量背包反而由大到小跑，
+每種只拿到一個 & 第~\ref{sec:dp-knapsack-1d}、\ref{sec:dp-unbounded}~節 \\
 說背包 DP 是多項式時間 & $\Theta(nW)$ 是 $W$ 的數值的多項式，不是位元數的 &
 第~\ref{sec:dp-pseudo-poly}~節 \\
 編輯距離的邊界 & 把 $D[i, 0]$、$D[0, j]$ 都設成 $0$ & 第~\ref{sec:dp-edit}~節 \\
@@ -2287,6 +3083,16 @@ LIS 的答案 & 答案寫成 $L[n]$，不是 $\max_i L[i]$；把最後的 tail �
 第~\ref{sec:dp-lis}、\ref{sec:dp-lis-fast}~節 \\
 嚴格和非嚴格遞增 & 嚴格遞增卻找第一個 $>$ 的格子，相等的數被接在一起 &
 第~\ref{sec:dp-lis-fast}~節 \\
+找零的組合數算成排列數 & 外層跑金額、內層跑面額，$1 + 4$ 和 $4 + 1$ 被算成兩種 &
+第~\ref{sec:dp-coin}~節 \\
+加權區間排程接錯子問題 & 選了第 $j$ 筆之後接 $\mathit{best}[j - 1]$，沒有跳到 $p(j)$；或沒有先依
+結束時刻排序 & 第~\ref{sec:dp-wis}~節 \\
+區間型的填表順序 & 最長回文子序列 $i$ 由小到大一列一列填，算 $P[1, j]$ 時 $P[2, j]$ 還沒算 &
+第~\ref{sec:dp-lps}~節 \\
+樹上 DP 只記一個值 & 獨立集只記「子樹的最大值」，父節點不知道子節點有沒有選 &
+第~\ref{sec:dp-tree-mis}~節 \\
+兩次搜尋法用在負邊長 & 有負的邊長時，第一次找到的最遠點不一定是直徑的端點 &
+第~\ref{sec:dp-tree-diam}~節 \\
 Floyd--Warshall 的迴圈順序 & 把 $k$ 放在最內層 & 第~\ref{sec:dp-apsp}~節 \\
 \bottomrule
 \end{longtable}
@@ -2372,6 +3178,53 @@ $f_3(h)$ & 0 & 4 & 6 & 7 & 8 \\
 \end{tabular}
 \end{center}
 
+\item \label{dp-q-coin}（計算）面額 $1, 3, 4$，金額 $6$。
+\begin{enumerate}
+\item 填出 $M[0..6]$ 和 $\mathit{coin}[0..6]$，寫出最少枚數和一種湊法。 「能用大的就用大的」的
+貪心要幾枚？
+\item 用 \proc{Coin-Ways} 寫出處理完每一種面額之後的 $N[0..6]$，並列出所有組合。
+\item 把 \proc{Coin-Ways} 的兩層迴圈對調，$N[6]$ 會變成多少？ 它數的是什麼？
+\end{enumerate}
+
+\item \label{dp-q-wis}（追蹤）六筆申請已依結束時刻編號，權重寫在括號裡：$[0, 3)$（$5$）、
+$[2, 4)$（$9$）、$[2, 5)$（$5$）、$[4, 6)$（$7$）、$[7, 11)$（$8$）、$[8, 12)$（$9$）。
+\begin{enumerate}
+\item 求 $p(1..6)$ 和 $\mathit{best}[0..6]$，還原最佳的選法。
+\item 「最早結束的先挑」的貪心得到多少？
+\item 如果改成閉區間 $[s_j, f_j]$，端點相接也算衝突，$p$ 和答案各變成什麼？
+\end{enumerate}
+
+\item \label{dp-q-lps}（追蹤、證明）$r$ 表示把字串 $s$ 倒過來寫。
+\begin{enumerate}
+\item $s = \texttt{ABCAB}$，用 \proc{LPS-Length} 填出 $P$ 表，照本章的規則還原一個最長回文子
+序列。
+\item 證明：對任何字串 $s$，最長回文子序列的長度不小於 $s$ 和 $r$ 的 LCS 長度。 提示：取一
+個長度 $L$ 的共同子序列 $z_1 z_2 \cdots z_L$，它在 $s$ 裡的位置是 $a_1 < a_2 < \cdots < a_L$；
+它在 $r$ 裡的位置換算回 $s$ 的位置是 $c_1 > c_2 > \cdots > c_L$，也就是
+$z_k = s_{a_k} = s_{c_k}$。 看 $a_k \le c_k$ 成立的最後一個 $k$。
+\item 寫出 $\texttt{ABCAB}$ 和它倒過來的字串的所有 LCS，指出哪些不是回文。
+\end{enumerate}
+
+\item \label{dp-q-tree-is}（追蹤、證明）一棵樹的邊是 $\{1,2\}$、$\{1,3\}$、$\{1,4\}$、$\{2,5\}$、
+$\{2,6\}$、$\{4,7\}$、$\{7,8\}$，每個點的權重都是 $1$，以 $1$ 為根。
+\begin{enumerate}
+\item 照後序（鄰居由小到大）填出 $\mathit{take}$ 和 $\mathit{skip}$，求最大獨立集的大小，用
+\proc{Tree-IS-Pick} 還原一個最大獨立集。
+\item 證明：在任何無向圖 $G = (V, E)$ 上，$S$ 是獨立集若且唯若 $V - S$ 是頂點覆蓋。 由此寫出
+這棵樹的一個最小頂點覆蓋和它的大小。
+\item (b) 的關係在一般的圖上也成立。 那為什麼一般的圖不能用這一節的方法求最大獨立集？
+\end{enumerate}
+
+\item \label{dp-q-diam}（計算）一棵不加權的樹（每條邊長 $1$），邊是 $\{1,2\}$、$\{1,3\}$、
+$\{2,4\}$、$\{2,5\}$、$\{3,6\}$、$\{6,7\}$、$\{6,8\}$、$\{8,9\}$。
+\begin{enumerate}
+\item 從 $1$ 出發做兩次搜尋，寫出每一次到每一點的距離和最遠的點（平手取編號小的），以及直
+徑和直徑的兩個端點。
+\item 以 $1$ 為根，照後序算出每一點的 $\mathit{down}$ 和 $\mathit{peak}$。 直徑的最高點是哪一
+點？
+\item 邊長可以是負的時候，兩次搜尋法算出的值可能比真正的直徑大嗎？ 可能比較小嗎？
+\end{enumerate}
+
 \item \label{dp-q-fw}（追蹤）三個點，邊是 $1 \to 2$（$5$）、$1 \to 3$（$4$）、$2 \to 1$
 （$2$）、$2 \to 3$（$-3$）、$3 \to 1$（$4$）。 寫出 $D^{(0)}$、$D^{(1)}$、$D^{(2)}$、$D^{(3)}$。
 
@@ -2382,6 +3235,115 @@ $f_3(h)$ & 0 & 4 & 6 & 7 & 8 \\
 \item 帶權有向圖上，從 $s$ 到 $t$、恰好走 $k$ 條邊（點可以重複）的最小權重走法。
 \end{enumerate}
 \end{enumerate}
+
+\section{歷屆試題}
+\label{sec:dp-pastexam}
+
+以下是研究所入學考試的原題，題目照原卷（語言、記號、配分照錄）。 詳解在本章最後。
+
+\begin{pastexam}[label={px:dp-1}]{北科大資工所 110 學年度 第 2 題}
+\textbf{Problem 2 [12\%] [ 2-1, 3\%] [ 2-2-i, 2-2-ii, each 3\%] [ 2-3-i, 1\%, 2-3-ii, 2\%]}
+
+The following Python code will print the Fibonacci sequence. The output of f(8) is ``0, 1, 1, 2, 3, 5, 8, 13,''.
+\begin{minted}[linenos, numbersep=1.5mm, xleftmargin=2em, fontsize=\small]{python}
+def fibonacci(n):
+    if n<=0:
+        return 0
+    elif n==1 or n==2:
+        return 1
+    else:
+        return fibonacci(n-1)+fibonacci(n-2)
+
+def f(x):
+    i = 0
+    while i<x:
+        print(fibonacci(i), end=', ')
+        i = i + 1
+\end{minted}
+\begin{enumerate}[label=(\arabic*)]
+\item (3\%) If f(8) is executed, how many times will fibonacci(4) be called?
+\item (6\%) Please complete the following ``Loop version'' Python code of the Fibonacci function. The output of h(8) is ``0, 1, 1, 2, 3, 5, 8, 13,''.\\
+(i) (3\%) Line 4: \underline{\hspace{4em}}\\
+(ii) (3\%) Line 5: \underline{\hspace{4em}}
+\begin{minted}[linenos, numbersep=1.5mm, xleftmargin=2em, fontsize=\small]{python}
+def fibonaccii(n):
+    data = [0 for i in range(0, n+1)]
+    data[1]=1
+    for i in range(_____, n+1):        # (i)
+        data[i] = _______________      # (ii)
+    return data
+
+def h(x):
+    data = fibonaccii(x)
+    for i in range(x):
+        print(data[i], end=', ')
+\end{minted}
+\item (3\%) The following code is modified from the code of the above problem (1).
+\begin{minted}[linenos, numbersep=1.5mm, xleftmargin=2em, fontsize=\small]{python}
+def fibonacci3(n, data):
+    if n>5: print(n,' * ', end='')
+    if n<=0: return 0
+    elif n==1 or n==2: data[n] = 1
+    elif data[n]==0:
+        data[n] = fibonacci3(n-1, data)+fibonacci3(n-2, data)
+    return data[n]
+
+def p(x):
+    data = [0 for i in range(x+1)]
+    for i in range(x):
+        fibonacci3(i, data)
+\end{minted}
+(i) (1\%) What is the output of p(8)?\\
+(ii) (2\%) Please compare fibonacci3 with Fibonacci function according to the computing time and space.
+\end{enumerate}
+\end{pastexam}
+
+\begin{pastexam}[label={px:dp-2}]{臺大資工所 113 學年度 第 7 題}
+（第 6、7 題共用第 6 題的題幹，節錄如下。 本題為複選題。）
+
+We want to multiply a sequence of matrices $M_1,\ldots,M_n$ with the minimum number of multiplications. Since the matrix multiplication is associative, we can parenthesize the matrix multiplication in all possible orders. Let $m_{i,j}$ be the minimum number of multiplications to multiply $M_i,\ldots,M_j$. We can derive a recursion of $m_{i,j}$, where $r_i$ and $c_i$ are the numbers of rows and columns of the matrix $M_i$ respectively.
+\begin{equation*}
+m_{i,j}=\min_{i\le k<j}(m_{i,k}+m_{k+1,j}+r_ic_kc_j) \tag{1}
+\end{equation*}
+
+7. (5 points) When we compute all $m_{i,j}$'s with Equation 1, we must follow an order of $i$ and $j$ so that the $m$'s on the right-hand side are all known when we compute $m_{i,j}$. Please select all the correct orders in the following choices.
+\begin{enumerate}[label=\Alph*.]
+\item decreasing order of $i+j$
+\item increasing order of $i+j$
+\item increasing order of $(i-j)^2$
+\item decreasing order of $(i-j)^3$
+\item increasing order of $|(i+j)(i-j)|$
+\end{enumerate}
+\end{pastexam}
+
+\begin{pastexam}[label={px:dp-3}]{中央資工所 115 學年度 第 3 題}
+多選題(每一個選項單獨計分)：每題 5 分
+
+Let dp[i][j] represent the length of the Longest Common Subsequence of strings X[1\ldots i] and Y[1\ldots j]. Which of the following statements are correct?
+\begin{enumerate}[label=\Alph*.]
+\item If X[i] == Y[j], then dp[i][j] = dp[i-1][j-1] + 1.
+\item If X[i] != Y[j], then dp[i][j] = dp[i-1][j-1].
+\item The time complexity of the standard DP solution for LCS is O($n\times m$), where m and n are the lengths of the two input sequences.
+\item The DP table can be optimized to use only two rows without affecting correctness.
+\item LCS can always be solved using a greedy strategy by matching characters as early as possible.
+\end{enumerate}
+\end{pastexam}
+
+\begin{pastexam}[label={px:dp-4}]{中山資工所 112 學年度 第 4 題}
+(10\%) The stamp cost problem (SCP) is to stick the exact cost of stamps on an envelope. In the post office, there are five types of stamps: 1, 2, 3, 4, 5 dollars. You are asked to calculate all possible combination ways for getting $j$ dollars. Let $g(i,j)$ denote the number of combination ways for $j$ dollars, where only stamps with $1, 2, \ldots, i$ dollars are used. Note that $i$ and $j$ are both positive integers, $1\le i\le 5$ and $1\le j\le n$ (an integer constant). For example, $g(2,3)=2$, since there are two ways for constituting 3 dollars with 1-dollar and 2-dollar stamps: 1+1+1 and 1+2. As another example, $g(3,4)=4$, since four ways can be used to get 4 dollars with 1-dollar, 2-dollar and 3-dollar stamps: 1+1+1+1, 1+1+2, 2+2 and 1+3. However, the stamps with 3-dollar and 4-dollar have been sold out (no such stamps) today. Other stamps are assumed to be unlimited. Please give the recursive formula to calculate $g(i,j)$. You can assume that $g(i,0)=1$, $g(i,j)=0$ for $1\le i\le 5$ and $j\le -1$.
+\end{pastexam}
+
+\begin{pastexam}[label={px:dp-5}]{政大資科所 108 學年度 第 3 題}
+(15\%) A vertex cover of a graph $G=(V,E)$ is a subset of vertices $S\subseteq V$ that includes at least one endpoint of every edge in $E$. Use dynamic programming to design a linear time algorithm that outputs the smallest vertex cover in a tree. For example, in the following tree, $\{\mathrm{A,C,D,F}\}$ is a vertex cover, and $\{\mathrm{C,E,F}\}$ is not a vertex cover. The smallest vertex cover in the following tree is $\{\mathrm{B,E,G}\}$.
+\begin{center}
+\begin{tikzpicture}[x=0.8cm,y=0.8cm,thick,dp-pxv/.style={circle,draw,minimum size=6.5mm,inner sep=0pt,font=\sffamily}]
+\node[dp-pxv] (A) at (3.6,-0.6) {A}; \node[dp-pxv] (B) at (2.15,-1.55) {B}; \node[dp-pxv] (C) at (3.6,-2.5) {C};
+\node[dp-pxv] (E) at (5.0,-1.55) {E}; \node[dp-pxv] (D) at (6.4,-0.6) {D}; \node[dp-pxv] (F) at (6.4,-2.5) {F};
+\node[dp-pxv] (G) at (7.85,-1.55) {G};
+\draw (A)--(B) (B)--(C) (A)--(E) (E)--(D) (E)--(F) (F)--(G);
+\end{tikzpicture}
+\end{center}
+\end{pastexam}
 
 \section{實作練習}
 \label{sec:dp-practice}
@@ -2397,11 +3359,11 @@ $f_3(h)$ & 0 & 4 & 6 & 7 & 8 \\
 DP 的要素 & \akiref{cheapest-route-across-a-grid}{網格上最便宜的路線} & 暖身 \\
 DP 的要素 & \akiref{cheapest-grid-route-with-blocked-cells}{含封鎖格的最便宜路線} & 基本 \\
 DP 的要素 & \akiref{mandatory-checkpoints-on-a-down-right-route}{送貨機器人的必經格} & 進階 \\
-DP 的要素 & \akiref{heaviest-set-of-non-adjacent-tree-nodes}{樹上互不相鄰節點的最大權重和} & 進階 \\
+樹上 DP & \akiref{heaviest-set-of-non-adjacent-tree-nodes}{樹上互不相鄰節點的最大權重和} & 進階 \\
 LCS & \akiref{length-of-the-longest-common-subsequence}{最長共同子序列長度} & 基本 \\
 LCS & \akiref{common-subsequence-without-repeated-neighbors}{相鄰不重複的共同子序列} & 進階 \\
 0/1 背包 & \akiref{best-value-within-a-weight-limit}{重量上限內的最大價值} & 基本 \\
-0/1 背包 & \akiref{best-value-with-unlimited-copies}{可重複取用的最大價值} & 基本 \\
+無限量背包 & \akiref{best-value-with-unlimited-copies}{可重複取用的最大價值} & 基本 \\
 編輯距離 & \akiref{minimum-edits-between-two-strings}{兩字串之間的最少編輯次數} & 基本 \\
 LIS & \akiref{longest-strictly-increasing-subsequence-small-n}{最長嚴格遞增子序列（小範圍）} & 基本 \\
 LIS & \akiref{longest-strictly-increasing-subsequence-large-n}{最長嚴格遞增子序列（大範圍）} & 進階 \\
@@ -2414,12 +3376,13 @@ LIS & \akiref{longest-strictly-increasing-subsequence-large-n}{最長嚴格遞�
 \item 兩題網格路線：每一步只能往右或往下，所以一格只會從上面或左邊走進來，照列、照欄的順
 序填就好。 封鎖格當成成本 $\infty$，走不到終點時輸出題目指定的值。 「必經格」那一題要兩張
 表：從起點走不走得到這一格、從這一格走不走得到終點，兩者都成立的格子才在某條路線上。
-\item 樹上的題目，子問題是「以 $v$ 為根的子樹，$v$ 選或不選」兩種狀態。 $n$ 到 $2 \times 10^5$，
-樹可能是一條長鏈，遞迴太深，請先用 BFS 排出順序，再倒著由葉往根算。
+\item 樹上的題目就是第~\ref{sec:dp-tree-mis}~節的最大權重獨立集，子問題是「以 $v$ 為根的子樹，
+$v$ 選或不選」兩種狀態。 $n$ 到 $2 \times 10^5$，樹可能是一條長鏈，遞迴太深，請照
+第~\ref{sec:dp-tree-sub}~節先一層一層走訪排出順序，再倒著由葉往根算。
 \item 「相鄰不重複的共同子序列」是 LCS 的變形：除了兩個位置，子問題還要記住上一個選進來的
 字母（$26$ 種加上「還沒選」），用記憶化最順手。
 \item 0/1 背包那題 $n \le 1000$、$W \le 10^5$，二維表太大，要用第~\ref{sec:dp-knapsack-1d}~節的一維
-陣列、容量由大到小；可重複取用那題正好相反。
+陣列、容量由大到小；可重複取用那題是第~\ref{sec:dp-unbounded}~節的無限量背包，容量由小到大。
 \item 兩題 LCS、編輯距離的字串長度到 $2000$，整張表約四百萬格，可以開；只留兩列更省。
 \item LIS 大範圍那題 $n$ 到 $10^6$，要用 $O(n \lg n)$ 的做法，注意是嚴格遞增。
 \end{itemize}
@@ -2439,6 +3402,10 @@ LIS & \akiref{longest-strictly-increasing-subsequence-large-n}{最長嚴格遞�
 什麼是擬多項式時間。
 \item 寫出 LIS 的 $O(n^2)$ 和 $O(n \lg n)$ 做法並還原一個 LIS；寫出 Floyd--Warshall 的遞迴式，
 說明 $k$ 為什麼在最外層。
+\item 寫出無限量背包、找零（最少枚數和組合數）、加權區間排程、最長回文子序列的狀態、轉移、
+邊界和填表順序；說明組合數為什麼外層要跑面額，$p(j)$ 怎麼用二分搜尋求。
+\item 在樹上照後序做 DP：用兩個狀態求最大權重獨立集並還原，由它得到最小頂點覆蓋；用兩次搜
+尋和 DP 求樹的直徑，說明兩次搜尋為什麼只能用在邊長不是負的時候。
 \end{itemize}
 
 \textbf{延伸閱讀}（書末會整理完整的參考資料）
@@ -2450,7 +3417,9 @@ LIS & \akiref{longest-strictly-increasing-subsequence-large-n}{最長嚴格遞�
 \item Steven S. Skiena，\textit{The Algorithm Design Manual}，第 3 版，第 10 章：用很多實際例
 子講怎麼「想出」子問題，包括編輯距離的各種變形。
 \item Antti Laaksonen，\textit{Competitive Programmer's Handbook}，第 7 章：篇幅短，有 LIS、
-網格路徑、背包和編輯距離的程式寫法。
+網格路徑、背包、找零和編輯距離的程式寫法；第 14 章有樹的直徑的兩種做法和樹上的 DP。
+\item Jon Kleinberg、\'Eva Tardos，\textit{Algorithm Design}，第 6 章：從加權區間排程開始講動態規劃，
+$p(j)$ 和「選或不選」的寫法和本章相同。
 \item D. E. Knuth，``Optimum Binary Search Trees''，\textit{Acta Informatica} 1(1)，1971：最佳
 二元搜尋樹的 $\Theta(n^2)$ 方法，也就是本章提到的 $\mathit{root}$ 單調性。
 \item D. S. Hirschberg，``A Linear Space Algorithm for Computing Maximal Common
@@ -2622,6 +3591,120 @@ $G[3, t]$ & 0 & 5 & 9 & 12 & 16 \\
 科分 $2$ 小時；剩 $G[1, 1]$，第 $1$ 科分 $1$ 小時。 最高 $16$ 分（$5 + 7 + 4$）。 一般情況有
 $n(T+1)$ 格，每格最多試 $T + 1$ 個 $h$，時間 $\Theta(nT^2)$。 這也是擬多項式（$T$ 是數值）。
 
+\item (a) 面額由小到大試，平手保留先試到的：
+\begin{center}
+\begin{tabular}{l*{7}{c}}
+\toprule
+$a$ & 0 & 1 & 2 & 3 & 4 & 5 & 6 \\
+\midrule
+$M[a]$ & 0 & 1 & 2 & 1 & 1 & 2 & 2 \\
+$\mathit{coin}[a]$ & -- & 1 & 1 & 3 & 4 & 1 & 3 \\
+\bottomrule
+\end{tabular}
+\end{center}
+例如 $M[6] = 1 + \min(M[5], M[3], M[2]) = 1 + \min(2, 1, 2) = 2$，最後一枚是 $3$，再看
+$\mathit{coin}[3] = 3$：$3 + 3$，$2$ 枚。 貪心先拿 $4$，剩下的 $2$ 只能用兩個 $1$，共 $3$ 枚。
+(b) 處理完面額 $1$：$N = \langle 1, 1, 1, 1, 1, 1, 1 \rangle$；處理完 $3$：$\langle 1, 1, 1, 2,
+2, 2, 3 \rangle$；處理完 $4$：$\langle 1, 1, 1, 2, 3, 3, 4 \rangle$。 $N[6] = 4$：$\{1 \times
+6\}$、$\{3, 1, 1, 1\}$、$\{3, 3\}$、$\{4, 1, 1\}$。
+(c) 外層跑金額時 $P[a] = P[a - 1] + P[a - 3] + P[a - 4]$（只加 $a - c_i \ge 0$ 的項），
+$P = \langle 1, 1, 1, 2, 4, 6, 9 \rangle$，$P[6] = 9$。 它數的是有順序的排法：$1 \times 6$ 一
+種，$3 + 1 + 1 + 1$ 的排法 $4$ 種，$3 + 3$ 一種，$4 + 1 + 1$ 的排法 $3$ 種，共 $9$ 種。
+
+\item (a) 半開區間：
+\begin{center}
+\begin{tabular}{cccccl}
+\toprule
+$j$ & $[s_j, f_j)$ & $v_j$ & $p(j)$ & $\mathit{best}[j]$ & 計算 \\
+\midrule
+1 & $[0, 3)$ & 5 & 0 & 5 & $\max(0, 5 + 0)$ \\
+2 & $[2, 4)$ & 9 & 0 & 9 & $\max(5, 9 + 0)$ \\
+3 & $[2, 5)$ & 5 & 0 & 9 & $\max(9, 5 + 0)$ \\
+4 & $[4, 6)$ & 7 & 2 & 16 & $\max(9, 7 + 9)$ \\
+5 & $[7, 11)$ & 8 & 4 & 24 & $\max(16, 8 + 16)$ \\
+6 & $[8, 12)$ & 9 & 4 & 25 & $\max(24, 9 + 16)$ \\
+\bottomrule
+\end{tabular}
+\end{center}
+$p(4) = 2$ 是因為 $f_2 = 4 = s_4$，相接不衝突，而 $f_3 = 5 > 4$。 還原：$9 + 16 = 25 > 24$，
+選第 $6$ 筆，跳到 $4$；$7 + 9 = 16 > 9$，選第 $4$ 筆，跳到 $2$；$9 + 0 > 5$，選第 $2$ 筆。
+答案是第 $2$、$4$、$6$ 筆，權重 $25$。
+(b) 先挑第 $1$ 筆 $[0, 3)$；第 $2$、$3$ 筆在 $3$ 之前開始，跳過；第 $4$ 筆 $[4, 6)$ 可以；第
+$5$ 筆 $[7, 11)$ 可以；第 $6$ 筆在 $11$ 之前開始，跳過。 得到 $5 + 7 + 8 = 20$，比 $25$ 少。
+(c) 相容的條件變成 $f_i < s_j$。 只有 $p(4)$ 改變：$f_2 = 4$ 不再小於 $s_4 = 4$，
+$p(4) = 1$。 $p = \langle 0, 0, 0, 1, 4, 4 \rangle$，$\mathit{best} = \langle 0, 5, 9, 9, 12,
+20, 21 \rangle$（$\mathit{best}[4] = \max(9, 7 + 5) = 12$），答案是第 $1$、$4$、$6$ 筆，權重
+$21$。 $p(j)$ 改用 $\proc{Lower-Bound}(f, j - 1, s_j) - 1$。
+
+\item (a) 表如下（列 $i$、欄 $j$）：
+\begin{center}
+\begin{tabular}{cc*{5}{c}}
+& & \texttt{A} & \texttt{B} & \texttt{C} & \texttt{A} & \texttt{B} \\
+\midrule
+1 & \texttt{A} & 1 & 1 & 1 & 3 & 3 \\
+2 & \texttt{B} & & 1 & 1 & 1 & 3 \\
+3 & \texttt{C} & & & 1 & 1 & 1 \\
+4 & \texttt{A} & & & & 1 & 1 \\
+5 & \texttt{B} & & & & & 1 \\
+\end{tabular}
+\end{center}
+例如 $P[1, 4] = P[2, 3] + 2 = 3$（兩端都是 \texttt{A}）。 還原：$[1, 5]$ 的 \texttt{A}、\texttt{B}
+不同，$P[2, 5] = P[1, 4] = 3$ 平手，走 $[2, 5]$；兩端都是 \texttt{B}，收進來，走 $[3, 4]$；
+\texttt{C}、\texttt{A} 不同，$P[4, 4] = P[3, 3] = 1$ 平手，走 $[4, 4]$，\texttt{A} 是正中間。
+得到 \texttt{BAB}，長度 $3$。
+(b) $a_k$ 遞增、$c_k$ 遞減，所以 $c_k - a_k$ 嚴格遞減，$a_k \le c_k$ 成立的 $k$ 是一段前綴
+$1..t$（$0 \le t \le L$），$k > t$ 時 $a_k > c_k$。 造兩個回文：
+\begin{itemize}
+\item 位置 $a_1 < \cdots < a_t \le c_t < c_{t-1} < \cdots < c_1$ 上的字元依序是
+$z_1 \cdots z_t\, z_t \cdots z_1$。 $a_t < c_t$ 時這是長度 $2t$ 的回文子序列；$a_t = c_t$ 時同
+一個位置用了兩次，去掉一次，得到長度 $2t - 1$ 的回文子序列 $z_1 \cdots z_{t-1} z_t z_{t-1}
+\cdots z_1$。 （$t = 0$ 時是空字串。）
+\item 位置 $c_L < c_{L-1} < \cdots < c_{t+1} < a_{t+1} < \cdots < a_L$ 上的字元依序是
+$z_L \cdots z_{t+1}\, z_{t+1} \cdots z_L$，長度 $2(L - t)$ 的回文子序列。
+\end{itemize}
+兩個長度加起來至少是 $2t - 1 + 2(L - t) = 2L - 1$，兩個整數的和至少 $2L - 1$，較大的那一個至
+少是 $L$。 所以最長回文子序列的長度至少是 $L$。 再加上本節正文的另一個方向，兩者相等。
+(c) $r = \texttt{BACBA}$，LCS 長度 $3$，共有六個：\texttt{ABA}、\texttt{ACA}、\texttt{BAB}、
+\texttt{BCB}、\texttt{ACB}、\texttt{BCA}。 後兩個不是回文。 以 \texttt{ACB} 為例，它在 $s$ 裡
+是第 $1, 3, 5$ 個字元，在 $r$ 裡是第 $2, 3, 4$ 個字元。
+
+\item (a) 後序是 $5, 6, 2, 3, 8, 7, 4, 1$：
+\begin{center}
+\begin{tabular}{ccll}
+\toprule
+$v$ & 子節點 & $\mathit{take}[v]$ & $\mathit{skip}[v]$ \\
+\midrule
+5, 6, 3, 8 & -- & $1$ & $0$ \\
+2 & 5, 6 & $1 + 0 + 0 = 1$ & $1 + 1 = 2$ \\
+7 & 8 & $1 + 0 = 1$ & $\max(1, 0) = 1$ \\
+4 & 7 & $1 + 1 = 2$ & $\max(1, 1) = 1$ \\
+1 & 2, 3, 4 & $1 + 2 + 0 + 1 = 4$ & $2 + 1 + 2 = 5$ \\
+\bottomrule
+\end{tabular}
+\end{center}
+最大獨立集的大小是 $5$。 還原：$1$ 不選（$4 < 5$）；$2$ 的 $1 < 2$ 不選，$5$、$6$ 都選；$3$
+選；$4$ 的 $2 > 1$ 選，$7$ 不能選；$8$ 自由，選。 得到 $\{3, 4, 5, 6, 8\}$。
+(b) ($\Rightarrow$) 任取一條邊 $\{u, v\}$。 $S$ 是獨立集，$u$、$v$ 不會都在 $S$ 裡，至少一端在
+$V - S$ 裡，所以 $V - S$ 蓋住每一條邊。 ($\Leftarrow$) 如果 $S$ 裡有兩點 $u$、$v$ 相鄰，邊
+$\{u, v\}$ 的兩端都不在 $V - S$ 裡，和 $V - S$ 是頂點覆蓋矛盾。 所以「取補集」把獨立集和頂點
+覆蓋一對一對應起來，大小相加是 $n$：最大的獨立集對應最小的頂點覆蓋，最小頂點覆蓋的大小
+$= n - (\text{最大獨立集的大小})$。 這棵樹是 $8 - 5 = 3$，例如 $\{1, 2, 7\}$。
+(c) 這一節的 DP 依賴兩件事：子問題是子樹，而且不同子樹之間沒有邊，所以 $v$ 的狀態定了以後各
+子樹可以分開取最好的。 一般的圖有環，拿掉一個點以後剩下的部分仍然互相牽連，沒有這種切法。
+一般圖的最大獨立集是 NP 難的（第~28~章），目前沒有已知的多項式時間演算法。
+
+\item (a) 從 $1$ 出發，到 $2, 3, \ldots, 9$ 的距離依序是 $1, 1, 2, 2, 2, 3, 3, 4$，最遠的是
+$9$。 從 $9$ 出發，到 $1, 2, \ldots, 8$ 的距離依序是 $4, 5, 3, 6, 6, 2, 3, 1$，最遠的是 $4$ 和
+$5$（都是 $6$），取 $4$。 直徑是 $6$，端點 $9$ 和 $4$，路徑 $9 - 8 - 6 - 3 - 1 - 2 - 4$。
+(b) 後序是 $4, 5, 2, 7, 9, 8, 6, 3, 1$。 葉節點 $4, 5, 7, 9$ 的 $\mathit{down} = \mathit{peak} =
+0$；$2$：$t = 1, 1$，$\mathit{down} = 1$、$\mathit{peak} = 2$；$8$：$t = 1$，$\mathit{down} = 1$、
+$\mathit{peak} = 1$；$6$：$t_7 = 1$、$t_8 = 2$，$\mathit{down} = 2$、$\mathit{peak} = 3$；$3$：
+$t_6 = 3$，$\mathit{down} = 3$、$\mathit{peak} = 3$；$1$：$t_2 = 2$、$t_3 = 4$，$\mathit{down} =
+4$、$\mathit{peak} = 6$。 最大的 $\mathit{peak}$ 是 $6$，在 $1$，所以直徑的最高點是根 $1$。
+(c) 不會比較大：兩次搜尋最後回傳的 $\operatorname{dist}(u, v)$ 是 $u$、$v$ 之間真正的路徑長，而
+直徑是所有這種長度的最大值。 會比較小：圖~\ref{fig:dp-tree-neg} 就是例子，算出 $2$，直徑是
+$10$。
+
 \item 四個矩陣如下，粗體是這一層變小的格子。
 {\small
 \[
@@ -2641,3 +3724,231 @@ $u$ 能走到 $v$、$v$ 又能走到 $u$，形成環，矛盾；所以剪下貼�
 去掉最後一條邊 $(u, t)$ 後，一定是恰好 $k - 1$ 條邊到 $u$ 的最佳走法；點可以重複，兩段不會互
 相限制。 這就是第~\ref{sec:dp-apsp}~節「限制邊數」的子問題。
 \end{enumerate}
+
+\addcontentsline{toc}{section}{歷屆試題詳解}
+\section*{歷屆試題詳解}
+
+\pastsol{px:dp-1}{北科大資工所 110 學年度 第 2 題}
+答案：(1) $7$ 次；(2)(i) \texttt{2}，(ii) \texttt{data[i-1]+data[i-2]}；(3)(i) 依序印出 $6$、$7$、$6$，空格的寫法見下；(ii) 見下。
+
+(1) \texttt{f(8)} 依序呼叫 \texttt{fibonacci(0)} 到 \texttt{fibonacci(7)}，各自是一棵獨立的遞迴樹。
+令 $C(n)$ 為呼叫一次 \texttt{fibonacci(n)} 時，\texttt{fibonacci(4)} 被呼叫的次數（含它自己）。
+$n \le 3$ 時遞迴樹裡只有 $3$ 以下的參數，$C(n) = 0$；$C(4) = 1$；$n \ge 5$ 時第 7 行呼叫
+\texttt{n-1} 和 \texttt{n-2}，所以 $C(n) = C(n - 1) + C(n - 2)$：
+\[
+C(5) = C(4) + C(3) = 1, \quad C(6) = C(5) + C(4) = 2, \quad C(7) = C(6) + C(5) = 3 .
+\]
+合計 $C(0) + C(1) + \cdots + C(7) = 0 + 0 + 0 + 0 + 1 + 1 + 2 + 3 = 7$。 這正是第~\ref{sec:dp-overlap}~
+節說的重疊子問題：同一個參數被重算很多次。 （用程式數過，\texttt{f(8)} 一共呼叫
+\texttt{fibonacci} $60$ 次，其中 \texttt{fibonacci(4)} $7$ 次。）
+
+(2) \texttt{data[0]} $= 0$、\texttt{data[1]} $= 1$ 已經設好，迴圈要從 $2$ 開始：(i) 填 \texttt{2}，
+\texttt{range(2, n+1)} 讓 \texttt{i} 跑 $2, 3, \ldots, n$。 (ii) 填 \texttt{data[i-1]+data[i-2]}。
+這是第~\ref{sec:dp-bottomup}~節的由下而上：算 \texttt{data[i]} 時，用到的兩格都已經填好。
+\texttt{h(8)} 呼叫 \texttt{fibonaccii(8)} 得到 \texttt{data[0..8]}，印出前 $8$ 個，是
+\texttt{0, 1, 1, 2, 3, 5, 8, 13,}，和題目要的一樣。
+
+(3)(i) \texttt{p(8)} 對 $i = 0, 1, \ldots, 7$ 依序呼叫 \texttt{fibonacci3(i, data)}，
+\texttt{data} 是同一個串列，前面算過的值會留著。 第 2 行只在參數大於 $5$ 時印東西，而且它在檢
+查 \texttt{data[n]} 之前就印，所以每一次參數是 $6$ 或 $7$ 的呼叫都會印一次：
+\begin{itemize}
+\item $i \le 5$：參數都不超過 $5$，不印。 $i = 5$ 結束時 \texttt{data[1..5]} 都已經算好。
+\item $i = 6$：印出 \texttt{6}；\texttt{data[6]} 還是 $0$，第 6 行呼叫 \texttt{fibonacci3(5)}、
+\texttt{fibonacci3(4)}，兩個都直接回傳，不印。
+\item $i = 7$：印出 \texttt{7}；\texttt{data[7]} 是 $0$，第 6 行先呼叫 \texttt{fibonacci3(6)}，
+它在第 2 行又印出 \texttt{6}，再回傳 \texttt{data[6]}；接著 \texttt{fibonacci3(5)} 不印。
+\end{itemize}
+所以依序印出 6、7、6 三次。 Python 的 \texttt{print(n, ' * ', end='')} 會在兩個參數之間補一個空
+格，每次印出的是「數字、兩個空格、星號、一個空格」，完整輸出是
+\begin{center}
+\verb*|6  * 7  * 6  * |
+\end{center}
+（\verb*| | 表示空格。 只寫 \texttt{6 * 7 * 6 *} 的話，三次的順序對了，空格數不同。 用 Python
+執行過，輸出相同。）
+
+(ii) \texttt{fibonacci} 沒有記錄算過的值，呼叫次數 $T(n) = 1 + T(n - 1) + T(n - 2)$（$n \ge 3$），
+和費氏數一樣以約 $1.618^n$ 的速度成長，時間是指數級的；額外空間只有遞迴的堆疊，深度
+$\Theta(n)$。 \texttt{fibonacci3} 是第~\ref{sec:dp-memo}~節的記憶化：每個 \texttt{data[k]} 第一次
+被問到時算一次，之後直接回傳，所以算 \texttt{fibonacci3(n)} 只要 $O(n)$ 次呼叫，時間 $O(n)$；
+\texttt{p(8)} 因為前面的值都留著，每個 $i$ 最多再多兩次呼叫，總共 $18$ 次。 代價是多一個長度
+$n + 1$ 的串列 \texttt{data}，空間 $\Theta(n)$（遞迴深度一樣最多 $\Theta(n)$）。 也就是用
+$\Theta(n)$ 的記憶體，把指數時間換成線性時間。
+
+\pastsol{px:dp-2}{臺大資工所 113 學年度 第 7 題}
+答案：C、D、E。
+
+先整理依賴關係。 $i < j$ 時，$m_{i,j}$ 用到的是 $m_{i,k}$ 和 $m_{k+1,j}$，$i \le k < j$：同一列
+（列號 $i$）左邊的格子，以及同一欄（欄號 $j$）下面的格子。 一個順序是對的，只要每個 $m_{i,j}$
+用到的格子都排在它前面。 只要找到一個值 $\mathrm{key}(i, j)$，讓每個被用到的格子的 key 都
+\textbf{嚴格小於} $m_{i,j}$ 的 key，依 key 由小到大算就一定對：key 相同的格子彼此不依賴，誰
+先誰後都可以。 反過來，只要有一個被用到的格子排在後面，順序就錯。 以下都假設 $n \ge 3$。
+
+A.\ 錯。 $m_{1,3}$ 用到 $m_{1,2}$；$1 + 3 = 4 > 1 + 2 = 3$，依 $i + j$ 遞減時 $m_{1,3}$ 先算，
+這時 $m_{1,2}$ 還沒算。
+
+B.\ 錯。 $m_{1,3}$ 也用到 $m_{2,3}$；$2 + 3 = 5 > 4$，依 $i + j$ 遞增時 $m_{2,3}$ 排在後面。 看
+依賴關係就知道 $i + j$ 不行：左邊的格子 $i + k$ 比較小，下面的格子 $(k + 1) + j$ 比較大，不管
+遞增或遞減，總有一邊排錯。
+
+C.\ 對。 $(i - j)^2 = (j - i)^2$，由小到大就是依鏈長由短到長，正是虛擬碼~\ref{alg:dp-mc-order}
+的順序（第~\ref{sec:dp-matrix}~節）。 被用到的 $m_{i,k}$ 和 $m_{k+1,j}$ 的 $j - i$ 分別是
+$k - i$ 和 $j - k - 1$，都小於 $j - i$，平方也嚴格比較小。
+
+D.\ 對。 只會用到 $i \le j$ 的格子，$(i - j)^3 = -(j - i)^3 \le 0$。 依 $(i - j)^3$ 遞減，就是依
+$(j - i)^3$ 遞增，也就是依鏈長由短到長，和 C 相同。
+
+E.\ 對。 $i \le j$ 時 $|(i + j)(i - j)| = (i + j)(j - i) = j^2 - i^2$。 被用到的格子：
+$m_{i,k}$ 的 key 是 $k^2 - i^2 < j^2 - i^2$（因為 $k < j$）；$m_{k+1,j}$ 的 key 是
+$j^2 - (k + 1)^2 < j^2 - i^2$（因為 $k + 1 > i \ge 1$）。 都嚴格比較小，所以這個順序對。 它和依
+鏈長的順序不一樣，例如 $m_{1,3}$（key $8$）排在 $m_{4,5}$（key $9$）前面，但這兩格互不依賴，沒
+有關係。 另外，$m_{i,i}$ 的 key 是 $0$，在 C、D、E 三種順序裡都是最先算的，不必另外假設已經初
+始化。
+
+（用程式對 $n = 3$ 到 $8$ 檢查過所有依賴：C、D、E 每個被用到的格子 key 都嚴格比較小，A、B 在
+$m_{1,3}$ 就出錯。）
+
+\pastsol{px:dp-3}{中央資工所 115 學年度 第 3 題}
+答案：A、C、D。
+
+A.\ 對。 這是定理~\ref{thm:dp-lcs} 的第一種情形：$X[i] = Y[j]$ 時把這個字元接在
+$X[1..i-1]$、$Y[1..j-1]$ 的 LCS 後面，而且不會有更長的。
+
+B.\ 錯。 $X[i] \ne Y[j]$ 時應該是 $\max(dp[i-1][j],\ dp[i][j-1])$。 反例：$X = \texttt{AB}$、
+$Y = \texttt{A}$，$i = 2$、$j = 1$。 $X[2] = \texttt{B} \ne \texttt{A}$，照 B 的式子
+$dp[2][1] = dp[1][0] = 0$，但 \texttt{AB} 和 \texttt{A} 的 LCS 是 \texttt{A}，長度 $1$。 B 的
+式子把 $X[i]$ 和 $Y[j]$ 同時丟掉，漏掉了只丟一個的情形。
+
+C.\ 對。 表有 $(m + 1)(n + 1)$ 格，每格 $O(1)$，時間 $\Theta(mn)$（第~\ref{sec:dp-lcs}~節）。
+
+D.\ 對。 第 $i$ 列只用到第 $i - 1$ 列和自己左邊的格子，只留兩列算出的 LCS 長度完全一樣（第~
+\ref{sec:dp-lcs-space}~節）。 本解把「correctness」讀成算出的長度正確。 要注意的是，只留兩列就
+不能沿著表還原出 LCS 本身；題目如果要的是子序列，還要用 Hirschberg 的分治或整張表。
+
+E.\ 錯。 「依 $X$ 的順序，每個字元配到 $Y$ 裡上一個配對位置之後最早出現的同樣字元」：
+$X = \texttt{CAB}$、$Y = \texttt{ABC}$，\texttt{C} 先配到 $Y$ 的最後一個位置，之後的 \texttt{A}、
+\texttt{B} 都配不到，只得到長度 $1$；真正的 LCS 是 \texttt{AB}，長度 $2$。 改成依 $Y$ 的順序
+配，把兩個字串對調就是反例。 早配的字元可能擋住後面更多的配對，LCS 沒有貪心選擇的性質，要用
+動態規劃。
+
+\pastsol{px:dp-4}{中山資工所 112 學年度 第 4 題}
+\textbf{題意說明。} 題目先用五種郵票都有的情況舉例（$g(2,3) = 2$、$g(3,4) = 4$），最後才說今
+天 $3$ 元和 $4$ 元郵票賣完了。 本解先寫五種都有時的遞迴式，再寫今天的版本，並用題目的兩個例
+子驗算。 題目只定義了 $i \ge 1$，所以 $i = 1$ 直接寫成邊界。
+
+\textbf{一般的遞迴式。} 「只用 $1..i$ 元湊出 $j$ 元」的組合分成兩類：一張 $i$ 元都沒用，是
+$g(i - 1, j)$；至少用一張 $i$ 元，拿掉一張後是「只用 $1..i$ 元湊出 $j - i$ 元」的一種組合，而且
+一一對應，共 $g(i, j - i)$ 種。 兩類不重疊、也沒有遺漏（第~\ref{sec:dp-coin}~節的
+$N[i, a]$），所以
+\[
+g(i, j) = \begin{cases}
+1, & i = 1,\ j \ge 0, \\
+g(i - 1, j) + g(i, j - i), & 2 \le i \le 5,\ j \ge 1,
+\end{cases}
+\]
+再加上題目給的 $g(i, 0) = 1$、$j \le -1$ 時 $g(i, j) = 0$。 （只用 $1$ 元時只有一種湊法；若想
+從 $i = 0$ 開始，可以補 $g(0, 0) = 1$、$g(0, j) = 0$（$j \ge 1$），$i = 1$ 那一行就會自動得到。）
+驗算：$g(2, 3) = g(1, 3) + g(2, 1) = 1 + \bigl(g(1, 1) + g(2, -1)\bigr) = 1 + 1 + 0 = 2$；
+$g(2, 4) = g(1, 4) + g(2, 2) = 1 + 2 = 3$，$g(3, 1) = g(2, 1) + g(3, -2) = 1$，所以
+$g(3, 4) = g(2, 4) + g(3, 1) = 3 + 1 = 4$，和題目的例子相同。
+
+\textbf{今天的遞迴式（沒有 $3$、$4$ 元郵票）。} 第 $i$ 種郵票沒有時，「至少用一張」那一類是空
+的：
+\[
+g(i, j) = \begin{cases}
+1, & i = 1,\ j \ge 0, \\
+g(i - 1, j) + g(i, j - i), & i \in \{2, 5\},\ j \ge 1, \\
+g(i - 1, j), & i \in \{3, 4\},\ j \ge 1,
+\end{cases}
+\]
+邊界同上，答案是 $g(5, n)$。 例如今天 $g(3, 4) = g(2, 4) = 3$，只剩 $1 + 1 + 1 + 1$、$1 + 1 + 2$、
+$2 + 2$。
+
+\textbf{填表順序與時間。} $g(i, j)$ 用到上一列的同一格和同一列左邊的格子，$i$ 由 $1$ 到 $5$、每
+一列 $j$ 由 $0$ 到 $n$ 填，共 $5(n + 1)$ 格，每格 $O(1)$，時間和空間都是 $O(n)$；只留一列時就是
+\proc{Coin-Ways}（面額 $1, 2, 5$）。 今天的表的前幾欄如下（用程式和窮舉比對過）：
+\begin{center}
+\small
+\begin{tabular}{c*{11}{c}}
+\toprule
+$j$ & 0 & 1 & 2 & 3 & 4 & 5 & 6 & 7 & 8 & 9 & 10 \\
+\midrule
+$g(1, j)$ & 1 & 1 & 1 & 1 & 1 & 1 & 1 & 1 & 1 & 1 & 1 \\
+$g(2, j) = g(3, j) = g(4, j)$ & 1 & 1 & 2 & 2 & 3 & 3 & 4 & 4 & 5 & 5 & 6 \\
+$g(5, j)$ & 1 & 1 & 2 & 2 & 3 & 4 & 5 & 6 & 7 & 8 & 10 \\
+\bottomrule
+\end{tabular}
+\end{center}
+例如 $g(5, 5) = g(4, 5) + g(5, 0) = 3 + 1 = 4$：$1 \times 5$、$1 + 1 + 1 + 2$、$1 + 2 + 2$、$5$。
+
+\pastsol{px:dp-5}{政大資科所 108 學年度 第 3 題}
+\textbf{子問題。} 任選一點 $r$ 當根（第~\ref{sec:dp-tree-sub}~節）。 對每個點 $v$ 記兩個值：
+$\mathit{take}[v]$ 是子樹 $T_v$ 的頂點覆蓋中\textbf{包含} $v$ 的最小大小（只看 $T_v$ 裡的邊），
+$\mathit{skip}[v]$ 是\textbf{不含} $v$ 的最小大小。
+
+\textbf{遞迴式。} $v$ 在覆蓋裡時，邊 $\{v, u\}$ 都已經蓋住，每個子節點 $u$ 選不選都可以，取小
+的；$v$ 不在覆蓋裡時，邊 $\{v, u\}$ 只能靠 $u$ 蓋住，每個子節點都必須選：
+\[
+\mathit{take}[v] = 1 + \sum_{u} \min\bigl(\mathit{take}[u], \mathit{skip}[u]\bigr), \qquad
+\mathit{skip}[v] = \sum_{u} \mathit{take}[u],
+\]
+$u$ 跑過 $v$ 的所有子節點；葉節點 $\mathit{take} = 1$、$\mathit{skip} = 0$。 答案是
+$\min(\mathit{take}[r], \mathit{skip}[r])$。 正確性：$T_v$ 的任何覆蓋，限制在 $T_u$ 上仍然蓋住
+$T_u$ 的所有邊；$v$ 的狀態定了以後，各子樹之間只透過邊 $\{v, u\}$ 互相影響，上面已經把這個條件
+寫進去，其餘部分各自取最小就是最小（剪下貼上，和第~\ref{sec:dp-tree-mis}~節的獨立集相同）。
+
+\begin{pseudo}[label=alg:dp-px-vc]{樹的最小頂點覆蓋}
+\Procedure{Tree-VC}{$v, p$}
+    \State $\mathit{take}[v] \gets 1$
+    \State $\mathit{skip}[v] \gets 0$
+    \For{每個 $u \in \mathit{Adj}[v]$}
+        \If{$u \ne p$}
+            \State \Call{Tree-VC}{$u, v$}
+            \State $\mathit{take}[v] \gets \mathit{take}[v] + \min(\mathit{take}[u], \mathit{skip}[u])$
+            \State $\mathit{skip}[v] \gets \mathit{skip}[v] + \mathit{take}[u]$
+        \EndIf
+    \EndFor
+\EndProcedure
+\Statex
+\Procedure{Tree-VC-Pick}{$v, p, \mathit{must}$} \Comment{$\mathit{must}$：父節點沒選，$v$ 一定要選}
+    \If{$\mathit{must}$ \OR $\mathit{take}[v] < \mathit{skip}[v]$}
+        \State 印出 $v$
+        \State $\mathit{must} \gets \FALSE$
+    \Else
+        \State $\mathit{must} \gets \TRUE$ \Comment{$v$ 沒選，子節點都要選}
+    \EndIf
+    \For{每個 $u \in \mathit{Adj}[v]$}
+        \If{$u \ne p$}
+            \State \Call{Tree-VC-Pick}{$u, v, \mathit{must}$}
+        \EndIf
+    \EndFor
+\EndProcedure
+\end{pseudo}
+
+先呼叫 $\proc{Tree-VC}(r, \NIL)$，再呼叫 $\proc{Tree-VC-Pick}(r, \NIL, \FALSE)$ 輸出覆蓋；平手時不
+選。 \textbf{時間}：每個點各被兩個程序處理一次，每條邊在兩端各看一次，共 $\Theta(n)$，是線性
+時間。 $n$ 很大時把遞迴改成第~\ref{sec:dp-tree-sub}~節的倒序走訪。
+
+\textbf{題目的樹。} 以 A 為根，A 的子節點是 B、E，B 的是 C，E 的是 D、F，F 的是 G。 後序是 C、B、
+D、G、F、E、A：
+\begin{center}
+\small
+\begin{tabular}{ccll}
+\toprule
+$v$ & 子節點 & $\mathit{take}[v]$ & $\mathit{skip}[v]$ \\
+\midrule
+C、D、G & -- & $1$ & $0$ \\
+B & C & $1 + \min(1, 0) = 1$ & $1$ \\
+F & G & $1 + \min(1, 0) = 1$ & $1$ \\
+E & D、F & $1 + \min(1, 0) + \min(1, 1) = 2$ & $1 + 1 = 2$ \\
+A & B、E & $1 + \min(1, 1) + \min(2, 2) = 4$ & $1 + 2 = 3$ \\
+\bottomrule
+\end{tabular}
+\end{center}
+最小頂點覆蓋的大小是 $\min(4, 3) = 3$。 還原：A 的 $\mathit{skip} = 3 < 4$，不選，B、E 一定要選；
+B 選了，C 的 $1 > 0$，不選；E 選了，D 不選，F 的 $1 = 1$ 平手，不選，於是 G 一定要選。 輸出
+$\{\mathrm{B, E, G}\}$，和題目給的答案相同。 平手時改成選 F，會得到 $\{\mathrm{B, E, F}\}$，也
+是大小 $3$ 的頂點覆蓋（窮舉檢查過，大小 $3$ 的頂點覆蓋只有這兩個）。
+
+另一種寫法：用第~\ref{sec:dp-tree-mis}~節的最大獨立集 DP（每點權重 $1$），再取補集（觀念題
+第~\ref{dp-q-tree-is}~題）。 這棵樹用 \proc{Tree-IS-Pick} 還原出的最大獨立集是
+$\{\mathrm{A, C, D, G}\}$，大小 $4 = 7 - 3$，補集 $\{\mathrm{B, E, F}\}$ 也是最小頂點覆蓋。

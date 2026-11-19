@@ -1723,6 +1723,67 @@ int cmp_gpa(const void *p, const void *q)
 \end{code}
 \end{enumerate}
 
+\section{歷屆試題}
+\label{sec:so-pastexam}
+
+以下是研究所入學考試的原題，題目照原卷（語言、記號、配分照錄）。 詳解在本章最後。
+
+\begin{pastexam}[label={px:so-1}]{中央資工所 113 學年度 第 16 題}
+（複選題，每題 5 分，全部答對才給分）
+
+Which of the following statements about sorting algorithms are incorrect?
+\begin{enumerate}[label=(\Alph*)]
+\item The merge sort and quick sort are designed based on the similar algorithm design principle.
+\item If most of the numbers are in the correct order, quick sort is the best algorithm.
+\item The worst-case time complexity of quick sort, merge sort, and heap sort is $O(n\log n)$.
+\item The worst-case time complexity and the expected time complexity of both merge sort and heap sort are in the same order.
+\item No sorting algorithm has time complexity lower than $O(n\log n)$.
+\end{enumerate}
+\end{pastexam}
+
+\begin{pastexam}[label={px:so-2}]{政大資科所 110 學年度 第 1 題}
+(10\%) Prove or disprove the following statements ($n$ is the size of the input array):
+\begin{enumerate}[label=\alph*.]
+\item (5\%) The time complexity of any sorting algorithm is $O(n^2)$.
+\item (5\%) The best-case time complexity of insertion sort is $\theta(n\log n)$.
+\end{enumerate}
+\end{pastexam}
+
+\begin{pastexam}[label={px:so-3}]{臺大資工所 109 學年度 第 2、3 題}
+Please select \textit{all} the correct answer(s) to question 1 to 10. Note that there could be 0 to 5 correct answers. If none of the answer is correct, answer ``none''.
+\begin{enumerate}[label=\arabic*., start=2]
+\item (3 points) Given two sorted list $A$ and $B$ (in increasing key order), the following recursive algorithm merges $A$ and $B$ into a sorted list $C$ (also in increasing key order).
+\begin{itemize}
+\item If either $A$ or $B$ is \textit{empty} then the result is the other list.
+\item If both $A$ or $B$ are \textit{not} empty, we compare the keys of the first nodes of $A$ and $B$, and select the \textit{smaller} one (denoted as $s$), and remove it from the list. Then we \textit{recursively} merge the remaining parts of $A$ and $B$ into a new sorted list $C'$, then we concatenate $s$ with $C'$ into the final sorted list $C$.
+\end{itemize}
+Let $f(n,m)$ be the \textit{minimum} number of comparisons of this algorithm, where $n$ and $m$ are the numbers of nodes in $A$ and $B$ respectively. $f(n,m)$ is?
+\begin{enumerate}[label=\arabic*.]
+\item $\Omega(n)$
+\item $\Omega(m)$
+\item $\Omega(n+m)$
+\item $\Omega(mn)$
+\item $\Omega(mn(\log m+\log n))$
+\end{enumerate}
+\item (3 points) We now use the merge algorithm in the previous question to sort a set of keys. We first make each key a list of a single node. Then we merge the first and the second lists into a sorted list of length two, the third and the fourth lists into a sorted list of length two, and so on. If we start with $n$ keys now we have roughly $n/2$ sorted list of length two now. We then merge these lists of length two into roughly $n/4$ sorted list of length four, and so on. Finally we will have a sorted list of length $n$. Let $f(n)$ denote the \textit{maximum possible} total number of comparisons of this algorithm, then $f(n)$ is? Note that all the answers are in little-o notation.
+\begin{enumerate}[label=\arabic*.]
+\item $o(n)$
+\item $o(n\sqrt{n})$
+\item $o(n\log n)$
+\item $o(n(\log n)^2)$
+\item $o(n^2)$
+\end{enumerate}
+\end{enumerate}
+\end{pastexam}
+
+\begin{pastexam}[label={px:so-4}]{中正資工所 109 學年度 第 12 題}
+(5\%) You are given the following ten numbers: 55, 45, 25, 35, 85, 95, 65, 75, 105, 15. Please sort these numbers using quick sort, where the first element of a sublist is always picked as the pivot. Note that you have to write the number sequence for each pass.
+\end{pastexam}
+
+\begin{pastexam}[label={px:so-5}]{成大資訊聯招 112 學年度 第 13 題}
+(10\%) Illustrate the operation of HEAPSORT on the array $S$=[5, 13, 2, 25, 7, 17, 20, 8, 4]
+\end{pastexam}
+
 \section{實作練習}
 \label{sec:so-practice}
 
@@ -1936,3 +1997,235 @@ $3.9$ 和 $3.2$，\texttt{qsort} 可以把 $3.9$ 排在 $3.2$ 前面。 更嚴�
 \texttt{qsort} 在這種比較函式下會做什麼。 改成只比較、不相減：最後一行寫成
 \texttt{return (a->gpa > b->gpa) - (a->gpa < b->gpa);}。
 \end{enumerate}
+
+\addcontentsline{toc}{section}{歷屆試題詳解}
+\section*{歷屆試題詳解}
+
+\pastsol{px:so-1}{中央資工所 113 學年度 第 16 題}
+題目問的是\textbf{錯誤}的敘述。 答案：(B)、(C)、(E)。
+\begin{itemize}
+\item (A) 正確，不選。 合併排序和快速排序都是分治法：切成小問題、遞迴解、再組合起來。 差
+別只在主要的工作放在哪裡：合併排序在遞迴之後合併，快速排序在遞迴之前分割
+（第~\ref{sec:so-quick}~節開頭）。
+\item (B) 錯誤，要選。 數字大部分已經在正確位置時，逆序對個數 $I$ 很小，插入排序的時間是
+$\Theta(n + I)$，接近線性（第~\ref{sec:so-terms}~節）。 快速排序若固定取第一個或最後一個
+當基準，排好的輸入正是它的最壞情況：第~\ref{sec:so-quick}~節實際數過，$2000$ 個排好的數
+比了 $1{,}999{,}000$ 次。 改成隨機基準也還是 $\Theta(n \lg n)$，比不上插入排序。
+\item (C) 錯誤，要選。 合併排序、堆積排序最壞是 $O(n \lg n)$，快速排序最壞是 $\Theta(n^2)$
+（每次都切成 $0$ 和 $m - 1$ 個）。
+\item (D) 正確，不選。 合併排序不管輸入如何都是 $\Theta(n \lg n)$；堆積排序最壞
+$O(n \lg n)$，鍵互不相同時平均也是 $\Theta(n \lg n)$。 兩者的最壞和平均同一級
+（第~\ref{sec:so-compare}~節的比較表）。
+\item (E) 錯誤，要選。 這句用 $O$ 寫，意思是「沒有任何排序比 $n \log n$ 快」。 $\Omega(n \lg n)$
+的下界只管比較排序（第~15~章）；鍵是 $0$ 到 $k$ 的整數、$k = O(n)$ 時，計數排序是
+$\Theta(n)$。 就算只看比較排序，插入排序在排好的輸入上也只要 $\Theta(n)$。
+\end{itemize}
+
+\pastsol{px:so-2}{政大資科所 110 學年度 第 1 題}
+兩個敘述都不成立。
+
+(a) 要否定「\textbf{任何}排序演算法都是 $O(n^2)$」，只要舉出一個正確的排序演算法，它的時間
+不是 $O(n^2)$。
+
+\textbf{反例：排列排序。} 依字典序一個一個產生 $1, 2, \ldots, n$ 的排列 $\pi$，每產生一個就檢
+查 $A[\pi(1)] \le A[\pi(2)] \le \cdots \le A[\pi(n)]$ 是否成立；成立就照 $\pi$ 輸出，停止。
+$n!$ 個排列裡一定有一個能把 $A$ 排好，所以它一定會停，而且輸出正確。 輸入由大到小排好
+（鍵互不相同）時，唯一能排好的排列是 $\langle n, n-1, \ldots, 1 \rangle$，它是字典序的最後
+一個，所以要檢查全部 $n!$ 個排列，每個至少花一步，時間至少 $n!$。 $n \ge 6$ 時
+$(n-1)(n-2) = n^2/2 + (n^2/2 - 3n + 2) \ge n^2/2$，所以
+\[
+n! \ge n(n-1)(n-2) \ge \frac{n^3}{2}, \qquad \frac{n!}{n^2} \ge \frac{n}{2}.
+\]
+$n/2$ 會無限變大，不可能有常數 $c$ 使 $n! \le cn^2$。 這個演算法的最壞時間不是 $O(n^2)$，敘述不成立。
+
+不那麼刻意的例子也有：計數排序（第~15~章）在鍵的範圍是 $0$ 到 $n^3$ 時要 $\Theta(n + n^3)$。
+本章的比較排序最壞都不超過 $O(n^2)$，但題目說的是「任何」排序演算法。
+
+(b) 插入排序（第~1~章虛擬碼~\ref{alg:insertion}）的最好情況是 $\Theta(n)$，不是
+$\Theta(n \lg n)$。
+
+\textbf{證明。} 輸入已經由小到大排好時，外層迴圈的每一輪，第 5 行第一次檢查 $A[j] > \mathit{key}$
+就不成立，不挪動。 每一輪做常數的工作，$n - 1$ 輪共 $\Theta(n)$，所以最好情況的時間
+$B(n) \le c_1 n$（第~1~章第~\ref{sec:ana-cases}~節）。 假設 $B(n) = \Theta(n \lg n)$，就有常數
+$c_2 > 0$ 使 $n$ 夠大時 $c_2 n \lg n \le B(n) \le c_1 n$，也就是 $\lg n \le c_1 / c_2$；但
+$\lg n$ 會無限變大，矛盾。 所以敘述不成立，正確的說法是插入排序的最好情況是
+$\Theta(n)$。
+
+\pastsol{px:so-3}{臺大資工所 109 學年度 第 2、3 題}
+\textbf{第 2 題}　答案：none。
+
+先求 $f(n, m)$。 每次比較恰好拿走一個節點（較小的那個）；只要有一邊空了，另一邊直接接上，
+不再比較。 所以比較的次數等於「某一邊被拿空之前拿走的節點數」。 $A$ 先被拿空，$A$ 的 $n$
+個節點都是比較之後拿走的，至少 $n$ 次；$B$ 先空，至少 $m$ 次。 所以至少 $\min(n, m)$ 次。
+反過來，如果比較短的那一邊每個鍵都比另一邊的第一個鍵小（例如 $A = \langle 1, 2 \rangle$、
+$B = \langle 3, 4, 5 \rangle$），比 $\min(n, m)$ 次之後短的那邊就空了。 因此
+\[
+f(n, m) = \min(n, m),
+\]
+這和第~\ref{sec:so-merge}~節說的「比較次數介於 $\min(m_1, m_2)$ 和 $m_1 + m_2 - 1$ 之間」一致。
+
+逐一看選項。
+\begin{itemize}
+\item 1. $\Omega(n)$：取 $m = 1$，對所有 $n \ge 1$ 都有 $f(n, 1) = 1$，不可能有常數 $c > 0$ 使
+$1 \ge cn$ 對所有夠大的 $n$ 成立。 不對。
+\item 2. $\Omega(m)$：和 1 對稱，取 $n = 1$。 不對。
+\item 3、4、5：$n + m$、$mn$、$mn(\log m + \log n)$ 都不小於 $n$（$m \ge 1$、$n \ge 2$ 時），
+$f$ 連 $\Omega(n)$ 都不是，這三個更不可能。 不對。
+\end{itemize}
+五個都不對，依題目的規定答 none。 如果題目其實假設兩個串列一樣長（$n = m$），那時
+$f = n = m$，選項 1、2、3 會成立；但題目用兩個變數，沒有這個假設。
+
+\textbf{第 3 題}　答案：2、4、5。
+
+這就是由下而上的合併排序（第~\ref{sec:so-merge}~節），只是落單的那一段直接留到下一輪。 先證
+明 $f(n) = \Theta(n \log n)$。
+\begin{itemize}
+\item 上界：合併長度 $a$、$b$ 的兩段最多比 $a + b - 1 < a + b$ 次，同一輪的各次合併加起來少於
+$n$ 次。 段數每一輪從 $s$ 變成 $\lceil s/2 \rceil$，從 $n$ 變到 $1$ 要 $\lceil \lg n \rceil$ 輪。
+所以 $f(n) \le n \lceil \lg n \rceil \le n \lg n + n$。
+\item 下界：這是一個比較排序，由第~15~章的比較排序下界，最壞至少比 $\lceil \lg(n!) \rceil$ 次，
+而 $\lg(n!) = \Theta(n \lg n)$。 （$n$ 是 $2$ 的次方時也可以直接用本章觀念題第 4 題：最壞剛好
+$n \lg n - n + 1$ 次。）
+\end{itemize}
+用程式窮舉 $n \le 9$ 的所有排列，$f(1), \ldots, f(9) = 0, 1, 3, 5, 9, 11, 14, 17, 25$，都落在
+$\lceil \lg(n!) \rceil$ 和 $n \lceil \lg n \rceil$ 之間。
+
+逐一看選項（$g(n) = o(h(n))$ 的意思是 $g(n)/h(n) \to 0$）：
+\begin{itemize}
+\item 1. $o(n)$：$f(n)/n$ 是 $\Theta(\log n)$，不趨近 $0$。 不對。
+\item 2. $o(n\sqrt{n})$：$f(n)/(n\sqrt{n}) = \Theta(\log n / \sqrt{n}) \to 0$。 對。
+\item 3. $o(n \log n)$：$f(n)/(n \log n)$ 夾在兩個正的常數之間，不趨近 $0$。 不對。
+\item 4. $o(n(\log n)^2)$：比值是 $\Theta(1/\log n) \to 0$。 對。
+\item 5. $o(n^2)$：比值是 $\Theta(\log n / n) \to 0$。 對。
+\end{itemize}
+
+\pastsol{px:so-4}{中正資工所 109 學年度 第 12 題}
+題目只規定「取子串列的第一個當基準」，沒有規定分割的細節。 這裡採用第~\ref{sec:so-quick}~節
+作答提醒說的那一種寫法（台灣常見的課本多半用它）：兩個指標從兩端往中間找，交錯之後把基準
+換到分界上，所以每次分割結束時基準就在最後的位置，遞迴的範圍和 Lomuto 一樣是 $[p..j-1]$ 和
+$[j+1..r]$。 寫成虛擬碼：
+
+\begin{pseudo}{中正 109 學年度第 12 題採用的分割}
+\Function{Partition-First}{$A, p, r$}
+    \State $x \gets A[p]$；$i \gets p + 1$；$j \gets r$ \Comment{基準是第一個}
+    \While{\TRUE}
+        \While{$i \le r$ \AND $A[i] < x$}
+            \State $i \gets i + 1$
+        \EndWhile
+        \While{$A[j] > x$}
+            \State $j \gets j - 1$
+        \EndWhile
+        \If{$i \ge j$}
+            \State 交換 $A[p]$ 和 $A[j]$；\Return $j$
+        \EndIf
+        \State 交換 $A[i]$ 和 $A[j]$；$i \gets i + 1$；$j \gets j - 1$
+    \EndWhile
+\EndFunction
+\end{pseudo}
+
+第 6 行的 $j$ 最晚停在 $A[p] = x$，不會越界。 「一個 pass」取一次分割（範圍至少兩個數），依
+遞迴呼叫的先後。
+
+\textbf{第一次分割的細節}（$x = 55$，粗體是交換的兩格）：
+\begin{center}
+\small
+\begin{tabular}{l*{10}{c}}
+\toprule
+步驟 & 1 & 2 & 3 & 4 & 5 & 6 & 7 & 8 & 9 & 10 \\
+\midrule
+開始 & 55 & 45 & 25 & 35 & 85 & 95 & 65 & 75 & 105 & 15 \\
+$i = 5$、$j = 10$，交換 & 55 & 45 & 25 & 35 & \textbf{15} & 95 & 65 & 75 & 105 & \textbf{85} \\
+$i = 6$、$j = 5$，交錯 & \textbf{15} & 45 & 25 & 35 & \textbf{55} & 95 & 65 & 75 & 105 & 85 \\
+\bottomrule
+\end{tabular}
+\end{center}
+$i$ 跳過 $45, 25, 35$，停在 $85$；$j$ 停在 $15$，交換。 接著 $i$ 停在 $95$，$j$ 往左走過
+$105, 75, 65, 95$，停在 $15$（位置 5），已經交錯，把基準 $55$ 換到位置 5，回傳 $5$。
+
+\textbf{每一個 pass}（粗體是這次歸位的基準）：
+\begin{center}
+\small
+\begin{tabular}{cc*{10}{c}}
+\toprule
+範圍 & $x$ & 1 & 2 & 3 & 4 & 5 & 6 & 7 & 8 & 9 & 10 \\
+\midrule
+開始 & & 55 & 45 & 25 & 35 & 85 & 95 & 65 & 75 & 105 & 15 \\
+$[1..10]$ & 55 & 15 & 45 & 25 & 35 & \textbf{55} & 95 & 65 & 75 & 105 & 85 \\
+$[1..4]$ & 15 & \textbf{15} & 45 & 25 & 35 & 55 & 95 & 65 & 75 & 105 & 85 \\
+$[2..4]$ & 45 & 15 & 35 & 25 & \textbf{45} & 55 & 95 & 65 & 75 & 105 & 85 \\
+$[2..3]$ & 35 & 15 & 25 & \textbf{35} & 45 & 55 & 95 & 65 & 75 & 105 & 85 \\
+$[6..10]$ & 95 & 15 & 25 & 35 & 45 & 55 & 85 & 65 & 75 & \textbf{95} & 105 \\
+$[6..8]$ & 85 & 15 & 25 & 35 & 45 & 55 & 75 & 65 & \textbf{85} & 95 & 105 \\
+$[6..7]$ & 75 & 15 & 25 & 35 & 45 & 55 & 65 & \textbf{75} & 85 & 95 & 105 \\
+\bottomrule
+\end{tabular}
+\end{center}
+說明幾個比較不直觀的 pass。 $[1..4]$：基準 $15$ 是最小的，$i$ 停在 $45$，$j$ 一路走回
+位置 1，基準和自己交換，左邊是空的。 $[6..10] = \langle 95, 65, 75, 105, 85 \rangle$：$i$ 停
+在 $105$、$j$ 停在 $85$，交換成 $\langle 95, 65, 75, 85, 105 \rangle$；再走一次 $i$ 停在
+$105$、$j$ 停在 $85$，交錯，$95$ 換到位置 9。 只有一個數的範圍（例如 $[1..0]$、$[10..10]$）
+直接返回，不寫。 最後結果是 $15, 25, 35, 45, 55, 65, 75, 85, 95, 105$。
+
+若改用本章虛擬碼~\ref{alg:so-hoare} 的 Hoare 分割（基準不一定歸位，遞迴 $[p..j]$ 和
+$[j+1..r]$），中間的陣列會不同，例如第一次分割後是
+$\langle 15, 45, 25, 35, 85, 95, 65, 75, 105, 55 \rangle$、回傳 $j = 4$。 所以作答時一定要
+先寫出用哪一種分割。
+
+\pastsol{px:so-5}{成大資訊聯招 112 學年度 第 13 題}
+約定：照第~\ref{sec:so-heap}~節的 \proc{Heapsort}（虛擬碼~\ref{alg:so-heapsort}）：先用
+\proc{Build-Max-Heap} 由下而上建最大堆積，再反覆把根換到尾端、堆積大小減一、對根做
+\proc{Sift-Down}。 下沉時兩個子節點相等就換左邊（本題沒有相等的數）。 $n = 9$，陣列從 $1$
+開始。
+
+\textbf{建堆積}：$i$ 從 $\lfloor 9/2 \rfloor = 4$ 做到 $1$，每一列是那一次下沉之後的陣列。
+\begin{center}
+\small
+\begin{tabular}{lc*{9}{c}}
+\toprule
+& 交換 & 1 & 2 & 3 & 4 & 5 & 6 & 7 & 8 & 9 \\
+\midrule
+開始 & & 5 & 13 & 2 & 25 & 7 & 17 & 20 & 8 & 4 \\
+$i = 4$ & 0 & 5 & 13 & 2 & 25 & 7 & 17 & 20 & 8 & 4 \\
+$i = 3$ & 1 & 5 & 13 & 20 & 25 & 7 & 17 & 2 & 8 & 4 \\
+$i = 2$ & 1 & 5 & 25 & 20 & 13 & 7 & 17 & 2 & 8 & 4 \\
+$i = 1$ & 3 & 25 & 13 & 20 & 8 & 7 & 17 & 2 & 5 & 4 \\
+\bottomrule
+\end{tabular}
+\end{center}
+$i = 4$：$25$ 比子節點 $8$、$4$ 大，不動。 $i = 3$：$2$ 和較大的子節點 $20$ 交換。 $i = 2$：
+$13$ 和 $25$ 交換，到位置 4 後比 $8$、$4$ 大，停。 $i = 1$：$5$ 依序和 $25$、$13$、$8$ 交換，
+停在位置 8。 建好的堆積：
+
+\begin{center}
+\begin{tikzpicture}
+\soheap{0,0}{7.2}{25/n,13/n,20/n,8/n,7/n,17/n,2/n,5/n,4/n}{pxh}
+\end{tikzpicture}
+\end{center}
+
+\textbf{排序}：每一列是第 3 行的迴圈做完一輪之後的陣列，「交換」是那一次下沉交換了幾次，灰
+色是已經排好、不在堆積裡的格子。
+\begin{center}
+\small
+\begin{tabular}{lc*{9}{c}}
+\toprule
+& 交換 & 1 & 2 & 3 & 4 & 5 & 6 & 7 & 8 & 9 \\
+\midrule
+建好堆積 & & 25 & 13 & 20 & 8 & 7 & 17 & 2 & 5 & 4 \\
+取出 25 & 2 & 20 & 13 & 17 & 8 & 7 & 4 & 2 & 5 & \sofin{25} \\
+取出 20 & 1 & 17 & 13 & 5 & 8 & 7 & 4 & 2 & \sofin{20} & \sofin{25} \\
+取出 17 & 2 & 13 & 8 & 5 & 2 & 7 & 4 & \sofin{17} & \sofin{20} & \sofin{25} \\
+取出 13 & 2 & 8 & 7 & 5 & 2 & 4 & \sofin{13} & \sofin{17} & \sofin{20} & \sofin{25} \\
+取出 8 & 1 & 7 & 4 & 5 & 2 & \sofin{8} & \sofin{13} & \sofin{17} & \sofin{20} & \sofin{25} \\
+取出 7 & 1 & 5 & 4 & 2 & \sofin{7} & \sofin{8} & \sofin{13} & \sofin{17} & \sofin{20} & \sofin{25} \\
+取出 5 & 1 & 4 & 2 & \sofin{5} & \sofin{7} & \sofin{8} & \sofin{13} & \sofin{17} & \sofin{20} & \sofin{25} \\
+取出 4 & 0 & 2 & \sofin{4} & \sofin{5} & \sofin{7} & \sofin{8} & \sofin{13} & \sofin{17} & \sofin{20} & \sofin{25} \\
+\bottomrule
+\end{tabular}
+\end{center}
+以第一輪為例：$25$ 和 $A[9] = 4$ 交換，堆積大小變成 $8$；$4$ 在根，子節點 $13$、$20$，和
+$20$ 交換；到位置 3，子節點 $17$、$2$，和 $17$ 交換；到位置 6，子節點的位置 $12$ 超過堆積
+大小，停。 共交換 $2$ 次。 第二輪 $20$ 和 $A[8] = 5$ 交換，$5$ 下沉時子節點是 $13$、$17$，換
+$17$；到位置 3，子節點 $4$、$2$ 都比 $5$ 小，停，只交換 $1$ 次。
+
+結果：$S = [2, 4, 5, 7, 8, 13, 17, 20, 25]$。 檢查：每一列前面那段都滿足
+$A[i] \ge A[2i]$、$A[2i + 1]$，後面灰色的那段由小到大，而且都不小於前面那段的任何數。

@@ -46,7 +46,12 @@
 % 頁首寫「第 N 章 章名」，不用英文的 CHAPTER。
 \renewcommand{\chaptermark}[1]{\markboth{第~\thechapter~章\quad #1}{}}
 % 全書超過 999 頁，目錄的頁碼欄放寬，四位數頁碼才不會超出右邊界。
-\makeatletter\renewcommand{\@pnumwidth}{2.2em}\makeatother
+\makeatletter
+\renewcommand{\@pnumwidth}{2.2em}
+% 節號到兩位數（21.10）時，預設的 2.3em 放不下，標題會黏在號碼後面
+\renewcommand*\l@section{\@dottedtocline{1}{1.5em}{3.1em}}
+\renewcommand*\l@subsection{\@dottedtocline{2}{4.6em}{3.9em}}
+\makeatother
 
 % 行內程式碼（\texttt）不能斷行，允許 TeX 多拉開一點字距。
 \setlength{\emergencystretch}{3em}

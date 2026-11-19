@@ -48,8 +48,8 @@
 search，BFS）從起點一圈一圈往外擴，順便求出到每個點最少要走幾條邊；\textbf{深度優先搜
 尋}（depth-first search，DFS）沿著一條路走到底，走不下去才退回上一個岔路口，它留下的
 「發現時間」和「完成時間」可以把圖的邊分成四類。 第~22~章的拓樸排序、第~23~章的強連
-通元件和割點，都建立在這些時間上。 最後用兩種搜尋解三個問題：連通元件、二分圖、有向
-環。
+通元件和割點，都建立在這些時間上。 接著用兩種搜尋解三個問題：連通元件、二分圖、有向
+環。 最後一節換個角度，問能不能把每一條\textbf{邊}恰好走一次（歐拉路徑），找法也是 DFS 的變形。
 
 這一章用到《C 程式設計基礎》第~14~章的結構指標、第~15~章的遞迴，以及第~19~章的
 \texttt{malloc}、指標的指標和串列。 本書第~5~章的串列插入、第~6~章的佇列和堆疊、
@@ -1485,6 +1485,259 @@ $11 - 8 = 3$ 條後向邊。
 的多起點 BFS。 要注意遞迴深度：$1000 \times 1000$ 的方格，DFS 可能一路彎彎曲曲走過大部分
 的格子，遞迴深度到幾十萬層，這時用 BFS 或第~\ref{sec:gtr-dfs-iter}~節的迴圈版。
 
+\section{歐拉路徑與歐拉迴路}
+\label{sec:gtr-euler}
+
+登山社每年開山前要派人巡一次步道，看看有沒有倒木、坍方。 巡山員想把\textbf{每一段步道}都走到，
+而且每段只走一次，最好最後回到出發點。 這和前面幾節不一樣：BFS、DFS 要的是每個\textbf{頂點}都
+到過，這裡要的是每一條\textbf{邊}都走過。 這是圖論最早的問題：1736 年 Euler 證明了柯尼斯堡
+（Königsberg）的七座橋沒辦法每座只過一次就走完，他用的論證就是下面的度數條件。 中文常說的
+「一筆畫」也是同一件事。
+
+\subsection{定義}
+
+\begin{definition}[歐拉路徑、歐拉迴路]
+\label{def:gtr-euler}
+圖 $G$ 的\textbf{歐拉路徑}（Euler path，也叫 Euler trail）是一條經過 $G$ 的每一條邊\textbf{恰好一次}
+的路徑；起點等於終點的歐拉路徑叫\textbf{歐拉迴路}（Euler circuit）。 有向圖的歐拉路徑要順著箭
+頭走。
+\end{definition}
+
+這裡的「路徑」用的是第~\ref{sec:gtr-terms}~節的定義，頂點可以重複，邊不能重複。 所以歐拉迴路通
+常\textbf{不是}定義~\ref{def:gtr-cycle} 的環：環不能重複經過頂點，歐拉迴路常常要經過同一個頂點好
+幾次。 Euler 也有人譯作「尤拉」。
+
+孤立的頂點沒有邊要走，不影響答案，下面的條件都只看「至少有一條邊的頂點」。
+
+\subsection{無向圖的條件}
+
+\begin{theorem}
+\label{thm:gtr-euler}
+無向圖 $G$ 至少有一條邊，而且所有度數不是 $0$ 的頂點都在同一個連通元件裡。
+\begin{enumerate}
+\item $G$ 有歐拉迴路，若且唯若每個頂點的度數都是偶數。
+\item $G$ 有歐拉路徑但沒有歐拉迴路，若且唯若度數是奇數的頂點恰好有兩個；這時每一條歐拉路徑都從
+其中一個奇數度頂點出發，在另一個結束。
+\end{enumerate}
+沒有「同一個連通元件」這個條件時（有邊的頂點分在兩個以上的元件），一定沒有歐拉路徑。
+\end{theorem}
+
+\begin{proof}[必要性]
+沿著一條歐拉路徑 $\langle v_0, v_1, \ldots, v_m \rangle$ 走，數每個頂點用掉幾條邊。 路徑中間每經過
+頂點 $v$ 一次（$v = v_i$，$0 < i < m$），進來用一條邊、出去用一條邊，一次用掉兩條。 起點 $v_0$ 多
+用一條出去的邊，終點 $v_m$ 多用一條進來的邊。 每條邊恰好用一次，所以 $\deg(v)$ 就是 $v$ 用掉的邊
+數：
+\begin{itemize}
+\item 不是起點也不是終點的頂點，度數是偶數；
+\item 起點等於終點（迴路）時，起點多出來的那兩條也湊成一對，所以每個頂點都是偶數；
+\item 起點不等於終點時，恰好起點、終點兩個頂點的度數是奇數。
+\end{itemize}
+所以有歐拉迴路就全部是偶數；有歐拉路徑而起點、終點不同，就恰好兩個奇數度頂點，而且路徑的兩端
+就是它們。 由第~\ref{sec:gtr-terms}~節的握手定理，奇數度頂點的個數一定是偶數，「恰好一個」不可
+能發生，兩種情形不會重疊。 最後，路徑經過的頂點彼此連通，有邊的頂點分在兩個元件時，一條路徑不
+可能走遍兩邊的邊。
+\end{proof}
+
+充分性（度數合乎條件就一定走得出來）比較長，下面用 Hierholzer 演算法把它\textbf{構造}出來，正
+確性的證明就是充分性的證明。
+
+先拿章首的步道圖 $G_1$ 試一下。 它的度數是 $2, 2, 3, 3, 3, 3, 2, 1, 2, 1$，奇數度的頂點有 $3$、
+$4$、$5$、$6$、$8$、$10$ 共六個，而且有邊的頂點分在兩個元件裡，兩個條件都不合，巡山員不管怎麼排
+路線，都得重複走一些步道。 圖~\ref{fig:gtr-euler} 是東峰的另一張步道圖 $G_3$：六個點、九段步道，
+度數依序是 $2, 4, 4, 2, 4, 2$，全是偶數，而且連通，所以有歐拉迴路。
+
+\begin{center}
+\begin{tikzpicture}[x=1cm, y=1cm]
+\node[gtr-v] (e1) at (0, 2.6) {1};
+\node[gtr-v] (e2) at (-0.75, 1.3) {2};
+\node[gtr-v] (e3) at (0.75, 1.3) {3};
+\node[gtr-v] (e4) at (-1.5, 0) {4};
+\node[gtr-v] (e5) at (0, 0) {5};
+\node[gtr-v] (e6) at (1.5, 0) {6};
+\foreach \a/\b in {1/2, 1/3, 2/3, 2/4, 2/5, 4/5, 3/5, 3/6, 5/6}
+    \draw[gtr-e] (e\a) -- (e\b);
+\node[font=\small, align=left, anchor=west] at (2.6, 1.3) {
+$\mathit{Adj}[1]$: 2, 3\\ $\mathit{Adj}[2]$: 1, 3, 4, 5\\ $\mathit{Adj}[3]$: 1, 2, 5, 6\\
+$\mathit{Adj}[4]$: 2, 5\\ $\mathit{Adj}[5]$: 2, 3, 4, 6\\ $\mathit{Adj}[6]$: 3, 5};
+\end{tikzpicture}
+\diagcaption{東峰步道圖 $G_3$：$n = 6$、$m = 9$，每個頂點的度數都是偶數。 右邊是鄰接串列，鄰居由小
+到大。}
+\label{fig:gtr-euler}
+\end{center}
+
+\subsection{有向圖的條件}
+
+有向圖把「度數是偶數」換成「進出相等」。 證明和無向圖一樣數進出的次數：路徑中間每經過 $v$ 一次，
+用掉一條進來的邊和一條出去的邊。
+
+\begin{theorem}
+\label{thm:gtr-euler-dir}
+有向圖 $G$ 至少有一條邊，而且把邊都當成無向邊之後，所有有邊的頂點在同一個連通元件裡（也就是第~\ref{sec:gtr-terms}~節的弱連通，孤立頂點不算）。
+\begin{enumerate}
+\item $G$ 有歐拉迴路，若且唯若每個頂點都有 $\deg^{+}(v) = \deg^{-}(v)$。
+\item $G$ 有歐拉路徑但沒有歐拉迴路，若且唯若恰好有一個頂點 $s$ 滿足 $\deg^{+}(s) - \deg^{-}(s) = 1$、
+恰好有一個頂點 $t$ 滿足 $\deg^{-}(t) - \deg^{+}(t) = 1$，其他頂點都進出相等；這時歐拉路徑從
+$s$ 出發、在 $t$ 結束。
+\end{enumerate}
+\end{theorem}
+
+注意條件裡的連通是\textbf{弱連通}，不是強連通。 進出相等的圖如果弱連通，由定理會有歐拉迴路，沿
+著迴路每個有邊的頂點都走得到其他每個有邊的頂點，所以其實是強連通的。 反過來，強連通並不保證進出
+相等：三個頂點、邊 $1 \to 2$、$2 \to 3$、$3 \to 1$、$1 \to 3$ 是強連通的，但
+$\deg^{+}(1) = 2 \ne 1 = \deg^{-}(1)$，沒有歐拉迴路。
+
+\subsection{Hierholzer 演算法}
+
+直接照著走會出問題。 在 $G_3$ 上從 $1$ 出發，每次挑編號最小、還沒走過的邊：$1 \to 2 \to 3 \to 1$，
+回到 $1$ 時 $1$ 的兩條邊都用掉了，走不下去，可是還有六條邊沒走。 Hierholzer 演算法的想法是：走不
+下去沒關係，退回最近一個還有邊沒走的頂點（這裡是 $3$），從那裡再繞一圈出去，把繞出去的那一圈
+\textbf{插進}原本的路線。 $3 \to 5 \to 2 \to 4 \to 5 \to 6 \to 3$ 正好是從 $3$ 繞回 $3$ 的一圈，插進
+$1, 2, 3, 1$ 的 $3$ 那個位置，得到 $1, 2, 3, 5, 2, 4, 5, 6, 3, 1$。
+
+用堆疊實作時，「退回」和「插進去」都不必另外處理。 堆疊放目前這條路線，頂端是現在所在的頂點；頂
+端還有沒走過的邊，就走過去、推入；頂端沒有邊可走了，就把它彈出，插到答案的\textbf{最前面}。 這和
+第~\ref{sec:gtr-dfs-iter}~節的迴圈版 DFS 幾乎一樣，差別是 DFS 標記的是頂點，這裡標記的是邊：頂點可
+以進堆疊很多次，每條邊只能走一次。 無向圖的每條邊在兩個串列裡各出現一次，所以給每條邊一個編號
+$1..m$，串列節點同時存鄰居 $\mathit{vertex}$ 和邊的編號 $\mathit{edge}$，用 $\mathit{used}[e]$ 記錄
+邊 $e$ 走過沒有；$\mathit{next}[u]$ 和虛擬碼~\ref{alg:gtr-dfs-iter} 一樣，指向 $u$ 的串列裡下一個要看
+的節點。
+
+\begin{pseudo}[label=alg:gtr-hierholzer]{Hierholzer 演算法（無向圖）}
+\Function{Hierholzer}{$G, s$}
+    \For{每條邊 $e$}
+        \State $\mathit{used}[e] \gets \FALSE$
+    \EndFor
+    \For{每個頂點 $u \in V$}
+        \State $\mathit{next}[u] \gets \mathit{Adj}[u]$ 的第一個節點
+    \EndFor
+    \State $S \gets$ 空堆疊；\Call{Push}{$S, s$}；$C \gets$ 空串列
+    \While{$S$ 不是空的}
+        \State $u \gets \Call{Top}{S}$
+        \While{$\mathit{next}[u] \ne \NIL$ \AND $\mathit{used}[\mathit{next}[u].\mathit{edge}]$}
+            \State $\mathit{next}[u] \gets \mathit{next}[u].\mathit{next}$ \Comment{跳過另一端已經走過的邊}
+        \EndWhile
+        \If{$\mathit{next}[u] \ne \NIL$}
+            \State $v \gets \mathit{next}[u].\mathit{vertex}$；$e \gets \mathit{next}[u].\mathit{edge}$
+            \State $\mathit{used}[e] \gets \TRUE$；$\mathit{next}[u] \gets \mathit{next}[u].\mathit{next}$
+            \State \Call{Push}{$S, v$} \Comment{走邊 $e$ 到 $v$}
+        \Else
+            \State \Call{Pop}{$S$}；把 $u$ 插到 $C$ 的最前面
+        \EndIf
+    \EndWhile
+    \State \Return $C$
+\EndFunction
+\end{pseudo}
+
+第 9--10 行把 $\mathit{next}[u]$ 往後移，跳過從另一端已經走過的邊。 第 11--14 行還有邊可走：標記
+這條邊、推入另一端。 第 16 行走不下去：彈出，插到 $C$ 的最前面。 要找歐拉迴路時 $s$ 可以是任何
+一個有邊的頂點；要找歐拉路徑（恰好兩個奇數度頂點）時，$s$ 必須是其中一個奇數度頂點。 有向圖更簡
+單：每條邊只在起點的串列裡出現一次，$\mathit{next}[u]$ 往後移本身就代表那條邊走過了，第 2--3、9--10
+行和 $\mathit{used}$ 都可以拿掉。
+
+\textbf{時間。} $\mathit{next}[u]$ 只會往後移，每個串列節點最多被經過一次，無向圖共 $2m$ 個節點，第
+9--10 行和第 11--14 行合起來是 $O(n + m)$。 每條邊被走一次、推入一個頂點，加上一開始的 $s$，共推入
+$m + 1$ 次，也彈出 $m + 1$ 次，$C$ 最後有 $m + 1$ 個頂點。 加上初始化，總時間 $\Theta(n + m)$，堆
+疊和 $C$ 最多 $m + 1$ 個元素。
+
+\textbf{手算追蹤。} 在 $G_3$ 上從 $1$ 開始，串列照圖~\ref{fig:gtr-euler}。 堆疊左邊是底。
+
+\begin{center}
+\small
+\begin{tabular}{rlll}
+\toprule
+步 & 動作 & 之後的堆疊 & 之後的 $C$ \\
+\midrule
+1 & 頂端 $1$，走 $\{1, 2\}$，推入 $2$ & $1\ 2$ & \\
+2 & 頂端 $2$，$\{2, 1\}$ 走過了，走 $\{2, 3\}$ & $1\ 2\ 3$ & \\
+3 & 頂端 $3$，走 $\{3, 1\}$ & $1\ 2\ 3\ 1$ & \\
+4 & 頂端 $1$，邊都走過了，彈出 $1$ & $1\ 2\ 3$ & $1$ \\
+5 & 頂端 $3$，$1$、$2$ 都走過了，走 $\{3, 5\}$ & $1\ 2\ 3\ 5$ & $1$ \\
+6 & 頂端 $5$，走 $\{5, 2\}$ & $1\ 2\ 3\ 5\ 2$ & $1$ \\
+7 & 頂端 $2$，走 $\{2, 4\}$ & $1\ 2\ 3\ 5\ 2\ 4$ & $1$ \\
+8 & 頂端 $4$，走 $\{4, 5\}$ & $1\ 2\ 3\ 5\ 2\ 4\ 5$ & $1$ \\
+9 & 頂端 $5$，$2$、$3$、$4$ 都走過了，走 $\{5, 6\}$ & $1\ 2\ 3\ 5\ 2\ 4\ 5\ 6$ & $1$ \\
+10 & 頂端 $6$，走 $\{6, 3\}$ & $1\ 2\ 3\ 5\ 2\ 4\ 5\ 6\ 3$ & $1$ \\
+11 & 頂端 $3$，邊都走過了，彈出 $3$ & $1\ 2\ 3\ 5\ 2\ 4\ 5\ 6$ & $3\ 1$ \\
+12--19 & 剩下的頂點都沒有邊可走，依序彈出 & （空） & $1\ 2\ 3\ 5\ 2\ 4\ 5\ 6\ 3\ 1$ \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+第 12--19 步依序彈出 $6, 5, 4, 2, 5, 3, 2, 1$，每次插到最前面，最後
+\[
+C = 1, 2, 3, 5, 2, 4, 5, 6, 3, 1,
+\]
+$10$ 個頂點、$9$ 段，九條邊各一次。 第 4 步是第一次走不下去，卡住的頂點正是起點 $1$；第 11 步第二
+次卡住，卡在 $3$，正好是第一次卡住之後露出來的堆疊頂端。 下面的證明說明這不是巧合。
+
+\begin{whybox}[Hierholzer 演算法]
+設 $G$ 符合定理~\ref{thm:gtr-euler} 的條件：迴路的情形 $s$ 是任一個有邊的頂點；路徑的情形奇數度
+頂點是 $s$、$t$，從 $s$ 開始。 先看兩個隨時成立的事實。 (i) 堆疊由底到頂是一條從 $s$ 出發的路徑，
+每一段用的是不同的邊（推入時用的邊立刻標成走過）。 (ii) 一條從 $a$ 到 $b$ 的路徑（$a \ne b$），在
+$a$、$b$ 各用掉奇數條邊，在其他頂點各用掉偶數條；$a = b$ 時每個頂點都是偶數。 所以一個頂點「還
+沒走過的邊數」的奇偶，等於它的度數的奇偶，再依它是不是某條已走路徑的端點翻轉。
+
+\textbf{第一次卡住在 $z$：迴路時 $z = s$，路徑時 $z = t$。} 卡住之前沒有彈出過，走過的邊就是堆疊
+上那一條路徑 $s \leadsto u$。 卡住表示 $u$ 沒有剩下的邊（$0$ 條，偶數）。 迴路的情形每個度數都是
+偶數，$u \ne s$ 時 $u$ 是路徑的端點，剩下的邊數是奇數，不可能是 $0$，所以 $u = s$。 路徑的情形，
+$u = s$ 時 $s$ 度數奇數、用掉偶數條，剩奇數條；$u$ 不是 $s$、$t$ 時度數偶數、用掉奇數條，也剩奇數
+條；只能 $u = t$。
+
+\textbf{之後每次卡住的頂點，都等於上一次彈出後露出來的頂端。} 設上一次彈出之後頂端是 $w$，接著從
+$w$ 推入了 $y_1, \ldots, y_r$，卡在 $y_r$（$r = 0$ 時就是 $w$ 自己，不用證）。 對彈出的次數歸納可以
+知道：已經彈出的頂點，連同它們被推入時用的邊，是一條從 $w$ 到 $z$ 的路徑（每彈出一個頂點 $x$，$x$
+被推入時用的邊連接 $x$ 和它下面那一格，也就是新露出來的頂端，這條路徑就往前長一段）。 所以到
+$y_r$ 卡住為止，走過的邊分成兩條路徑：堆疊上的 $s \leadsto w \leadsto y_r$，和彈出部分的
+$w \leadsto z$。 用 (ii) 數奇偶：迴路時 $z = s$，路徑時 $s$、$z = t$ 原本就是奇數度，兩種情形算
+下來，剩下的邊數是奇數的頂點只可能是 $y_r$ 和 $w$，而且 $y_r \ne w$ 時兩個都是奇數。 $y_r$ 卡住，
+剩 $0$ 條，所以 $y_r = w$。
+
+因此每彈出一個頂點，它和前一個插進 $C$ 的頂點之間，正好隔著推入前一個頂點時走的那條邊。 $C$ 是一
+條從 $s$ 到 $z$ 的路徑，每條走過的邊恰好用一次。
+
+\textbf{每條邊都會走到。} 假設結束時還有邊沒走。 $C$ 裡的頂點彈出時都沒有剩下的邊，所以沒走的邊兩
+端都不在 $C$ 裡。 但有邊的頂點彼此連通，從 $s$ 到某條沒走的邊的端點有一條路徑；沿著它走，第一條
+離開「$C$ 的頂點」的邊，一端在 $C$ 裡、而且沒走過（走過的邊兩端都在 $C$ 裡），矛盾。 所以 $C$ 是
+歐拉迴路（$z = s$）或從 $s$ 到 $t$ 的歐拉路徑，定理~\ref{thm:gtr-euler} 的充分性也就證完了。 有向圖
+把奇偶換成「出度減入度」，同樣的步驟證明定理~\ref{thm:gtr-euler-dir}。
+\end{whybox}
+
+條件不合的圖丟進演算法，它照樣會停，但 $C$ 不會是歐拉路徑（少於 $m + 1$ 個頂點，或某兩個相鄰頂點
+不是用新的邊連起來）。 所以先用 $\Theta(n + m)$ 數度數、做一次 DFS 或 BFS 檢查連通，條件合了再跑。
+
+\begin{examnote}
+判斷題的寫法：(1) 先寫出每個頂點的度數（有向圖寫出度、入度）；(2) 說明有邊的頂點是否連通（有向圖說
+弱連通）；(3) 套定理~\ref{thm:gtr-euler} 或定理~\ref{thm:gtr-euler-dir}，有歐拉路徑時寫出起點和終點必
+須是哪兩個頂點。 要你「找出一條」時，用 Hierholzer 演算法並寫出堆疊的變化，或至少寫出「先走一圈、
+再從還有邊的頂點補一圈插進去」的過程，最後逐條核對每條邊恰好一次。 名詞方面，有的課本用 Euler
+trail、Euler tour、Eulerian walk，有的把迴路叫「歐拉環」；題目說的 cycle 如果允許重複頂點，就是本
+節的迴路。
+\end{examnote}
+
+\subsection{和哈密頓環比較}
+
+名字很像的另一個問題，是第~28~章的\textbf{哈密頓環}：經過每個\textbf{頂點}恰好一次的環（定義在
+第~\ref{sec:npc-np}~節）。 兩者只差「邊」和「頂點」一個字，難度卻差很多。
+
+\begin{center}
+\small
+\begin{tabular}{>{\raggedright\arraybackslash}p{0.2\linewidth}>{\raggedright\arraybackslash}p{0.34\linewidth}>{\raggedright\arraybackslash}p{0.34\linewidth}}
+\toprule
+ & 歐拉迴路 & 哈密頓環 \\
+\midrule
+要求 & 每條邊恰好一次，頂點可以重複 & 每個頂點恰好一次，邊不必全用 \\
+有沒有 & 數度數、檢查連通，$\Theta(n + m)$ & 沒有已知的多項式時間演算法，是 NP 完備問題（第~\ref{sec:npc-tsp}~節） \\
+找一個 & Hierholzer，$\Theta(n + m)$ & 一般只能回溯（第~20~章），最壞指數時間 \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+兩者互不蘊含。 兩個共用一個頂點的三角形（第~28~章圖~\ref{fig:npc-ham} 的 $H_2$）每個度數都是偶數、連通，有歐拉迴路；
+但共用的頂點是割點，哈密頓環經過它之後回不去另一邊，所以沒有哈密頓環。 反過來，完全圖 $K_4$ 有哈
+密頓環 $1, 2, 3, 4, 1$，但四個頂點的度數都是 $3$，沒有歐拉路徑。 $G_3$ 兩個都有：歐拉迴路是上面求
+出的 $C$，哈密頓環是 $1, 2, 4, 5, 6, 3, 1$。 考試常把這兩個放在一起考，看到題目先確認問的是邊還是頂
+點。
+
 \section{C 實作}
 \label{sec:gtr-c}
 
@@ -1920,6 +2173,10 @@ DFS 改成迴圈時推進就標記 & 走出 $A, B, C, D, E$，已經不是 DFS �
 元件；忘了外層迴圈 & 第~\ref{sec:gtr-app}~節 \\
 用鄰接矩陣卻寫 $\Theta(n + m)$ & 矩陣上列出鄰居要掃整列，BFS、DFS 是 $\Theta(n^2)$ &
 第~\ref{sec:gtr-repr}~節 \\
+歐拉迴路只看度數 & 兩個分開的三角形，度數全是 $2$，卻沒有歐拉迴路；有邊的頂點要在同一個元件 &
+第~\ref{sec:gtr-euler}~節 \\
+歐拉路徑隨便挑起點 & 恰好兩個奇數度頂點時，從偶數度頂點出發一定走不完 & 第~\ref{sec:gtr-euler}~節 \\
+把歐拉迴路和哈密頓環搞混 & 前者每條邊一次，後者每個頂點一次；判斷的難度差很多 & 第~\ref{sec:gtr-euler}~節 \\
 \bottomrule
 \end{tabular}
 \end{center}
@@ -2025,7 +2282,101 @@ $G_1$ 從 $1$ 出發的結果。
 
 \item \label{q:gtr-leaf}（證明）對連通的無向圖做 DFS，$u$ 是 DFS 樹裡的葉節點（沒有子節點），而
 且不是根。 證明 $u$ 的每一個鄰居都是 $u$ 的祖先。
+
+\item \label{q:gtr-euler-kn}（計算、追蹤）
+\begin{enumerate}
+\item $n \ge 2$。 完全圖 $K_n$ 在哪些 $n$ 有歐拉迴路？ 哪些 $n$ 有歐拉路徑、但沒有歐拉迴路？
+\item 有向圖 $D$ 的頂點是 $1$ 到 $5$，邊是 $2 \to 1$、$2 \to 3$、$3 \to 4$、$4 \to 2$、$4 \to 5$、
+$5 \to 4$。 判斷 $D$ 有沒有歐拉迴路、歐拉路徑。 有歐拉路徑的話，從正確的起點執行 Hierholzer 演算
+法（鄰接串列由小到大），寫出每一步之後的堆疊和 $C$，以及得到的路徑。
+\item 承 (b)，從同一個起點「每次走編號最小、還沒走過的出邊，走不下去就停」，會走出什麼？
+Hierholzer 演算法怎麼補救？
 \end{enumerate}
+
+\item \label{q:gtr-euler-cover}（證明）$G$ 是連通的無向圖，度數是奇數的頂點有 $2k$ 個，$k \ge 1$。
+證明：$G$ 的邊可以分成 $k$ 條路徑，每條邊恰好屬於其中一條；而且不能分成少於 $k$ 條。 章首的巡山員
+要把 $G_1$ 裡 $\{1, 2, \ldots, 7\}$ 那一塊的步道各走一次，最少要分幾趟？ 寫出一種走法。
+\end{enumerate}
+
+\section{歷屆試題}
+\label{sec:gtr-pastexam}
+
+以下是研究所入學考試的原題，題目照原卷（語言、記號、配分照錄）。 詳解在本章最後。
+
+\begin{pastexam}[label={px:gtr-1}]{中央資工所 112 學年度 複選題第 7 題}
+（複選題，每題 5 分。）
+
+Given an undirected graph $G$, where n denotes the number of vertices and m denotes the number of edges (m >> n). Which of the following statement(s) is (are) true about the graph $G$?
+\begin{enumerate}[label=(\Alph*)]
+\item If G is represented by an adjacency matrix, the space complexity is O(n$^2$).
+\item If G is represented by an adjacency list, the space complexity is $\Theta$(m).
+\item If G is represented by an adjacency multilist, the space complexity is $\Theta$(m).
+\item If G is represented by an adjacency matrix, the time complexity of determining whether G is connected is O(m).
+\end{enumerate}
+\end{pastexam}
+
+\begin{pastexam}[label={px:gtr-2}]{臺大資工所 115 學年度 第 24 題}
+(4 points) Let $G=(V,E)$ be a directed graph represented using adjacency lists without edge weights. A standard Breadth-First Search (BFS) is run from a source vertex $s$, producing distance labels $d[v]$ for all reachable vertices $v$. Which of the following statements is always true?
+\begin{enumerate}[label=(\Alph*)]
+\item For every edge $(u,v)\in E$, we must have $d[v]\le d[u]+1$.
+\item If $d[v]=d[u]+1$, then $(u,v)$ must be a tree edge in the BFS tree.
+\item In a directed graph, BFS always produces a shortest-path tree that is also a topological ordering of the reachable subgraph.
+\item If the graph is represented by an adjacency matrix instead of adjacency lists, BFS may compute incorrect distances due to repeated edge relaxations.
+\item If BFS discovers vertices in the order $v_1,v_2,\ldots,v_k$, then this order is a shortest-path ordering for all pairs of vertices.
+\end{enumerate}
+\end{pastexam}
+
+\begin{pastexam}[label={px:gtr-3}]{北科大資工所 115 學年度 第 4 題}
+Please answer the following questions about the graph $G$ in Figure 1. (10\%)
+\begin{center}
+\begin{tikzpicture}[x=0.0035cm,y=-0.0035cm,>={Stealth[length=1.8mm,width=1.4mm]},
+  every node/.style={circle,draw,line width=0.6pt,minimum size=7.6mm,inner sep=0pt}]
+\node (A) at (380,330) {A};
+\node (C) at (1425,300) {C};
+\node (B) at (390,810) {B};
+\node (F) at (1730,800) {F};
+\node (D) at (1365,1065) {D};
+\node (E) at (910,1285) {E};
+\node (H) at (405,1475) {H};
+\node (G) at (1655,1455) {G};
+\begin{scope}[line width=0.6pt]
+\draw[->] (C) -- (A);
+\draw[->] (A) -- (B);
+\draw[->] (B) -- (C);
+\draw[->] (B) -- (F);
+\draw[->] (B) -- (D);
+\draw[->] (C) -- (D);
+\draw[->] (C) -- (H);
+\draw[->] (F) -- (C);
+\draw[->] (D) -- (F);
+\draw[->] (D) -- (E);
+\draw[->] (E) -- (B);
+\draw[->] (H) -- (E);
+\draw[->] (E) -- (G);
+\draw[->] (F) -- (G);
+\draw[->] (G) -- (H);
+\end{scope}
+\end{tikzpicture}
+
+Figure 1. A digraph $G$ for problem 4
+\end{center}
+\begin{enumerate}[label=(\arabic*)]
+\item List the nodes as the depth-first search (DFS) starting from node A and suppose the adjacency-list of each node is ordered in strict alphabetical order. (3\%)
+\item How many edges at least should be removed to make $G$ be a directed acyclic graph (DAG)? (3\%)
+\item Perform a breadth-first search (BFS) traversal, starting from node A, with alphabetical adjacency-list ordering. Please show the corresponding BFS-tree. (4\%)
+\end{enumerate}
+\end{pastexam}
+
+\begin{pastexam}[label={px:gtr-4}]{成大資訊聯招 108 學年度 第 5 題}
+(10\%) Give an algorithm that determines whether or not a given undirected graph G=(V,E) contains a cycle. Your algorithm should run in O(V) time, independent of $|$E$|$.
+\end{pastexam}
+
+\begin{pastexam}[label={px:gtr-5}]{北科大資工所 113 學年度 第 4 題（節錄 (1) 小題）}
+Please answer the following questions: (12 pts)
+\begin{enumerate}[label=(\arabic*)]
+\item Let $G$ be an undirected, connected graph with at least one vertex of odd degree. Show that $G$ contains no \textit{Eulerian walk}. An Eulerian walk is a cycle in which each edge in $G$ is passed exactly once. (4 pts)
+\end{enumerate}
+\end{pastexam}
 
 \section{實作練習}
 \label{sec:gtr-practice}
@@ -2095,6 +2446,8 @@ DFS 的迴圈版 & \akiref{stack-based-depth-first-visit-order}{用堆疊實作�
 \item 用 C 寫出鄰接串列、BFS（陣列佇列）、遞迴和迴圈兩種 DFS，知道遞迴深度的限制。
 \item 用 BFS 或 DFS 求連通元件、判斷二分圖（找出奇環）、判斷有向圖有沒有環，並說出它們和
 互斥集合各自適合的場合。
+\item 用度數和連通判斷無向圖、有向圖有沒有歐拉路徑或歐拉迴路，用 Hierholzer 演算法找出一條，並說出它和
+哈密頓環的差別。
 \end{itemize}
 
 \textbf{延伸閱讀}（書末會整理完整的參考資料）
@@ -2112,6 +2465,9 @@ Structures in C}，第 6 章：鄰接多重串列、十字串列、循序表示�
 \item Robert E. Tarjan，``Depth-First Search and Linear Graph Algorithms''，\textit{SIAM
 Journal on Computing} 1(2)，1972：用 DFS 在線性時間解決強連通元件和雙連通元件的經典論
 文，第~23~章會再用到。
+\item Carl Hierholzer、Chr.~Wiener，``Ueber die M\"oglichkeit, einen Linienzug ohne Wiederholung und
+ohne Unterbrechung zu umfahren''，\textit{Mathematische Annalen} 6，1873：本章歐拉迴路演算法的出處，
+證明了「連通而且度數全是偶數」就走得出來。
 \end{itemize}
 
 \addcontentsline{toc}{section}{觀念題解答}
@@ -2285,4 +2641,269 @@ $\{5, 7\}$ 後，$L = \{1, 4, 5, 7, 8, 10\}$、$R = \{2, 3, 6, 9\}$。 兩種分
 連接父子：$u$ 沒有子節點，所以 $w$ 只能是 $u$ 的父節點，是祖先。 後向邊連接一個頂點和它的祖
 先：若 $u$ 是 $w$ 的祖先，$w$ 就是 $u$ 的子孫，但葉節點沒有子孫，所以只能是 $w$ 為 $u$ 的祖先。
 第~23~章的割點判斷，靠的就是無向圖 DFS 的這個性質：不是樹邊的邊只會連到祖先。
+\item
+\begin{enumerate}
+\item $K_n$ 連通，每個頂點的度數都是 $n - 1$。 $n$ 是奇數時 $n - 1$ 是偶數，由定理~\ref{thm:gtr-euler}
+有歐拉迴路。 $n$ 是偶數時 $n$ 個頂點的度數全是奇數；有歐拉路徑而沒有迴路，需要恰好兩個奇數度頂
+點，所以只有 $n = 2$（$K_2$ 就是一條邊，路徑 $1, 2$）。 $n \ge 4$ 的偶數兩者都沒有。
+\item 出度、入度依序是：$1$：$0, 1$；$2$：$2, 1$；$3$：$1, 1$；$4$：$2, 2$；$5$：$1, 1$。 把邊當成無
+向邊，五個頂點連成一塊。 $2$ 的出度多一、$1$ 的入度多一，其他進出相等，由
+定理~\ref{thm:gtr-euler-dir}，沒有歐拉迴路，有歐拉路徑，而且一定從 $2$ 出發、在 $1$ 結束。
+鄰接串列 $\mathit{Adj}[2] = 1, 3$，$\mathit{Adj}[3] = 4$，$\mathit{Adj}[4] = 2, 5$，$\mathit{Adj}[5] = 4$。
+從 $2$ 執行（堆疊左邊是底）：
+\begin{center}
+\small
+\begin{tabular}{rlll}
+\toprule
+步 & 動作 & 堆疊 & $C$ \\
+\midrule
+1 & 走 $2 \to 1$ & $2\ 1$ & \\
+2 & $1$ 沒有出邊，彈出 & $2$ & $1$ \\
+3 & 走 $2 \to 3$ & $2\ 3$ & $1$ \\
+4 & 走 $3 \to 4$ & $2\ 3\ 4$ & $1$ \\
+5 & 走 $4 \to 2$ & $2\ 3\ 4\ 2$ & $1$ \\
+6 & $2$ 的出邊用完，彈出 & $2\ 3\ 4$ & $2\ 1$ \\
+7 & 走 $4 \to 5$ & $2\ 3\ 4\ 5$ & $2\ 1$ \\
+8 & 走 $5 \to 4$ & $2\ 3\ 4\ 5\ 4$ & $2\ 1$ \\
+9--13 & 依序彈出 $4, 5, 4, 3, 2$ & （空） & $2\ 3\ 4\ 5\ 4\ 2\ 1$ \\
+\bottomrule
+\end{tabular}
+\end{center}
+歐拉路徑是 $2 \to 3 \to 4 \to 5 \to 4 \to 2 \to 1$，六條邊各一次。
+\item 第一步就走 $2 \to 1$，$1$ 沒有出邊，只走了一條邊就停住，剩下五條。 Hierholzer 演算法在第 2 步
+把 $1$ 彈出、放到 $C$ 的最前面（它最後會變成路徑的終點），再從露出來的 $2$ 繼續走 $2 \to 3 \to 4 \to 2$；
+第 6 步又在 $2$ 卡住，退回 $4$ 補走 $4 \to 5 \to 4$。 每一圈都插在退回的那個頂點上，不必事先知道哪一條
+邊要留到最後。
 \end{enumerate}
+
+\item \textbf{不能少於 $k$ 條。} 由定理~\ref{thm:gtr-euler} 必要性的數法，一條路徑在頂點 $v$ 用掉的邊數是奇
+數，只發生在 $v$ 是它的兩端之一、而且兩端不同的時候。 若 $G$ 的邊分成 $r$ 條路徑，$\deg(v)$ 等於各條
+路徑在 $v$ 用掉的邊數之和；$\deg(v)$ 是奇數，其中至少有一項是奇數，所以 $v$ 至少是一條路徑的端點。
+$r$ 條路徑最多 $2r$ 個端點，要蓋住 $2k$ 個奇數度頂點，得 $2r \ge 2k$，$r \ge k$。
+
+\textbf{$k$ 條做得到。} 加一個新頂點 $x$，從 $x$ 連一條邊到每個奇數度頂點，得到 $G'$。 原本奇數度的頂
+點多了一，變成偶數；$x$ 的度數是 $2k$；$G'$ 仍然連通。 由定理~\ref{thm:gtr-euler}，$G'$ 有歐拉迴路，
+讓它從 $x$ 出發。 迴路每經過 $x$ 一次（起點和終點合起來算一次）用掉 $x$ 的兩條邊，所以 $x$ 在迴路上出
+現 $k$ 次，把迴路切成 $k$ 段，每段長得像 $x, u, \ldots, w, x$。 去掉頭尾兩條新邊，中間是 $G$ 裡從 $u$ 到
+$w$ 的一條路徑。 中間至少有一條 $G$ 的邊：否則這段是 $x, u, x$，要走兩次 $x$--$u$，但 $x$ 和 $u$ 之間只
+有一條邊。 $G'$ 的每條邊在迴路上恰好一次，所以這 $k$ 條路徑恰好把 $G$ 的每條邊各用一次。
+
+\textbf{巡山員。} $\{1, \ldots, 7\}$ 那一塊的度數是 $2, 2, 3, 3, 3, 3, 2$，奇數度頂點是 $3, 4, 5, 6$，
+$k = 2$，最少兩趟。 例如 $3, 1, 2, 4, 3, 5, 6$ 和 $4, 6, 7, 5$：第一趟六段、第二趟三段，九段步道各一次。
+\end{enumerate}
+
+\addcontentsline{toc}{section}{歷屆試題詳解}
+\section*{歷屆試題詳解}
+
+\pastsol{px:gtr-1}{中央資工所 112 學年度 複選題第 7 題}
+答案是 (A)、(B)、(C)。 各種表示法的空間見第~\ref{sec:gtr-repr}~節。
+\begin{itemize}
+\item (A) 對。 鄰接矩陣有 $n^2$ 格，空間 $\Theta(n^2)$，當然是 $O(n^2)$。
+\item (B) 對。 鄰接串列是陣列的 $n$ 格加上 $2m$ 個串列節點，$\Theta(n + m)$。 題目假設 $m$ 遠
+大於 $n$，這時 $n + m \le 2m$，$\Theta(n + m) = \Theta(m)$。 沒有這個假設時（例如很多孤立頂點）
+要寫 $\Theta(n + m)$。
+\item (C) 對。 鄰接多重串列每條邊只有一個節點，加上 $n$ 個串列頭，也是 $\Theta(n + m) = \Theta(m)$。
+\item (D) 錯。 判斷連通要做一次 DFS 或 BFS（第~\ref{sec:gtr-app}~節），用鄰接矩陣時每個頂點都要掃
+一整列找鄰居，是 $\Theta(n^2)$（第~\ref{sec:gtr-repr}~節的比較表）。 「$m$ 遠大於 $n$」不代表
+$m = \Theta(n^2)$：例如 $m = n^{1.5}$ 時，$n^2 / m = n^{0.5}$ 會無限變大，$n^2$ 不是 $O(m)$。 換一
+個角度看，只拿到矩陣的演算法，沒有讀過的格子都可能正好是連接兩群頂點的唯一一條邊，一般要讀
+$\Theta(n^2)$ 格才能確定，不可能保證 $O(m)$。
+\end{itemize}
+
+\pastsol{px:gtr-2}{臺大資工所 115 學年度 第 24 題}
+答案是 (A)。
+\begin{itemize}
+\item (A) 對。 第~\ref{sec:gtr-bfs-proof}~節的事實 (a)：每條邊 $(u, v)$ 都有 $\delta(s, v) \le
+\delta(s, u) + 1$；定理~\ref{thm:gtr-bfs} 說 BFS 結束時 $d = \delta$，所以 $d[v] \le d[u] + 1$。
+題目只替可到達的頂點定義 $d$；$u$ 到不了時照本書的約定 $d[u] = \infty$，不等式自動成立（$u$ 可到
+達時 $v$ 也可到達，不會出現 $d[v]$ 沒有定義的情形）。
+\item (B) 錯。 反例：邊 $s \to a$、$s \to b$、$a \to c$、$b \to c$，串列依字母排。 BFS 依序發現
+$a$、$b$（$d = 1$），拿出 $a$ 時發現 $c$，$\pi[c] = a$、$d[c] = 2$。 $(b, c)$ 也滿足 $d[c] =
+d[b] + 1$，卻不是樹邊：每個頂點只有一個 $\pi$，由誰先發現決定。
+\item (C) 錯。 可到達的部分可能有環，例如 $s \to a$、$a \to s$，根本沒有拓樸順序（第~22~章）。
+就算沒有環，BFS 的順序也不一定是拓樸順序：邊 $s \to a$、$s \to b$、$b \to a$，發現順序是
+$s, a, b$，但邊 $b \to a$ 從後面指向前面。
+\item (D) 錯。 表示法只影響時間（矩陣是 $\Theta(n^2)$）。 BFS 的 $d[v]$ 在 $v$ 第一次被發現時設定一
+次，之後不再修改（虛擬碼~\ref{alg:gtr-bfs} 第 11--15 行只處理白色頂點），沒有「重複放鬆」這回事，
+算出來的距離和用串列時一樣。 放鬆是第~25~章加權最短路徑的操作。
+\item (E) 錯。 發現順序只保證「從 $s$ 出發的距離」不減（第~\ref{sec:gtr-bfs-proof}~節的 (c)），
+和其他頂點之間的距離無關。 用 (C) 的第二個例子：發現順序是 $s, a, b$，但從 $a$ 根本到不了 $b$，
+從 $b$ 到 $a$ 卻只要一步。
+\end{itemize}
+
+\pastsol{px:gtr-3}{北科大資工所 115 學年度 第 4 題}
+照題目的約定，鄰接串列依字母排：
+\[
+A\colon B \quad B\colon C, D, F \quad C\colon A, D, H \quad D\colon E, F \quad
+E\colon B, G \quad F\colon C, G \quad G\colon H \quad H\colon E
+\]
+
+(1) 照虛擬碼~\ref{alg:gtr-dfs} 從 $A$ 開始，一個時間一列（灰色頂點由底到頂）：
+
+\begin{center}
+\small
+\begin{tabular}{cll}
+\toprule
+時間 & 事件 & 灰色頂點 \\
+\midrule
+1 & 發現 $A$ & $A$ \\
+2 & 發現 $B$（$\mathit{Adj}[A]$ 第一個） & $A\ B$ \\
+3 & 發現 $C$（$\mathit{Adj}[B]$ 第一個） & $A\ B\ C$ \\
+4 & $C \to A$：$A$ 是灰色（後向邊）；發現 $D$ & $A\ B\ C\ D$ \\
+5 & 發現 $E$（$\mathit{Adj}[D]$ 第一個） & $A\ B\ C\ D\ E$ \\
+6 & $E \to B$：灰色（後向邊）；發現 $G$ & $A\ B\ C\ D\ E\ G$ \\
+7 & 發現 $H$ & $A\ B\ C\ D\ E\ G\ H$ \\
+8 & $H \to E$：灰色（後向邊）；完成 $H$ & $A\ B\ C\ D\ E\ G$ \\
+9 & 完成 $G$ & $A\ B\ C\ D\ E$ \\
+10 & 完成 $E$ & $A\ B\ C\ D$ \\
+11 & 回到 $D$，發現 $F$ & $A\ B\ C\ D\ F$ \\
+12 & $F \to C$ 後向邊；$F \to G$ 交叉邊（$G$ 黑、$d[F] > d[G]$）；完成 $F$ & $A\ B\ C\ D$ \\
+13 & 完成 $D$ & $A\ B\ C$ \\
+14 & $C \to H$：黑色、$d[C] < d[H]$（前向邊）；完成 $C$ & $A\ B$ \\
+15 & $B \to D$、$B \to F$ 都是前向邊；完成 $B$ & $A$ \\
+16 & 完成 $A$ & （空） \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+所以 DFS 拜訪（發現）的順序是 $A, B, C, D, E, G, H, F$。
+
+(2) 至少要刪 $4$ 條。
+\begin{itemize}
+\item \textbf{$4$ 條就夠。} (1) 的 DFS 有 $4$ 條後向邊：$C \to A$、$E \to B$、$H \to E$、$F \to C$。 由觀
+念題第~\ref{q:gtr-acyclic}~題 (a)，把一次 DFS 的後向邊全部刪掉，剩下的圖沒有環。
+\item \textbf{少於 $4$ 條不夠。} 下面四個環兩兩沒有共同的邊：
+\[
+A \to B \to C \to A,\quad B \to D \to E \to B,\quad C \to D \to F \to C,\quad E \to G \to H \to E.
+\]
+每個環至少要刪掉一條自己的邊才會斷，四個環的邊互不相同，刪 $3$ 條最多斷掉 $3$ 個環。
+\end{itemize}
+注意上界和下界都要寫：DFS 的後向邊條數一般\textbf{不是}最少的刪法（觀念題第~\ref{q:gtr-acyclic}~題
+(b) 有反例），這裡剛好相等，是靠下界的四個環證明的。 用程式把 $15$ 條邊的所有子集合試過一遍，最少
+也是 $4$ 條。
+
+(3) 照虛擬碼~\ref{alg:gtr-bfs} 從 $A$ 開始：
+
+\begin{center}
+\small
+\begin{tabular}{cll>{\raggedright\arraybackslash}p{0.3\linewidth}l}
+\toprule
+輪 & 拿出 & 依序看的鄰居 & 新發現：$d$，$\pi$ & 之後的佇列 \\
+\midrule
+0 & --- & --- & $A$：$d = 0$ & $A$ \\
+1 & $A$ & $B$ & $B$：$1$，$A$ & $B$ \\
+2 & $B$ & $C$，$D$，$F$ & $C$、$D$、$F$：$2$，$B$ & $C\ D\ F$ \\
+3 & $C$ & $A$（黑），$D$（灰），$H$ & $H$：$3$，$C$ & $D\ F\ H$ \\
+4 & $D$ & $E$，$F$（灰） & $E$：$3$，$D$ & $F\ H\ E$ \\
+5 & $F$ & $C$（黑），$G$ & $G$：$3$，$F$ & $H\ E\ G$ \\
+6 & $H$ & $E$（灰） & --- & $E\ G$ \\
+7 & $E$ & $B$（黑），$G$（灰） & --- & $G$ \\
+8 & $G$ & $H$（黑） & --- & （空） \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+拜訪順序 $A, B, C, D, F, H, E, G$。 BFS 樹的邊是 $(\pi[v], v)$：
+
+\begin{center}
+\begin{tikzpicture}[x=1.1cm, y=1cm]
+\node[gtr-lvl] at (-1.3, 0) {距離 $0$};
+\node[gtr-lvl] at (-1.3, -1) {距離 $1$};
+\node[gtr-lvl] at (-1.3, -2) {距離 $2$};
+\node[gtr-lvl] at (-1.3, -3) {距離 $3$};
+\node[gtr-v] (pA) at (1, 0) {$A$};
+\node[gtr-v] (pB) at (1, -1) {$B$};
+\node[gtr-v] (pC) at (0, -2) {$C$};
+\node[gtr-v] (pD) at (1, -2) {$D$};
+\node[gtr-v] (pF) at (2, -2) {$F$};
+\node[gtr-v] (pH) at (0, -3) {$H$};
+\node[gtr-v] (pE) at (1, -3) {$E$};
+\node[gtr-v] (pG) at (2, -3) {$G$};
+\foreach \a/\b in {A/B, B/C, B/D, B/F, C/H, D/E, F/G}
+    \draw[gtr-treea] (p\a) -- (p\b);
+\end{tikzpicture}
+\end{center}
+
+也就是 $A \to B$；$B \to C$、$B \to D$、$B \to F$；$C \to H$、$D \to E$、$F \to G$。
+
+\pastsol{px:gtr-4}{成大資訊聯招 108 學年度 第 5 題}
+假設圖用鄰接串列存（用鄰接矩陣時光是找一個頂點的鄰居就要 $\Theta(n)$，做不到 $O(n)$），而且是簡
+單圖。 下面 $n = |V|$。
+
+\textbf{想法。} 由第~\ref{sec:gtr-app}~節，無向圖有環若且唯若 DFS 會出現後向邊。 DFS 一遇到「不是父節
+點、又已經發現過」的鄰居，就可以回答有環並停止。 沒有環的圖是森林，最多 $n - 1$ 條邊；有環的圖則
+在看到第一條後向邊時就停了，所以 DFS 實際看的邊數和 $m$ 無關。
+
+\begin{pseudo}[label=alg:gtr-px-ucycle]{判斷無向圖有沒有環，$O(n)$}
+\Function{Undirected-Has-Cycle}{$G$}
+    \For{每個頂點 $u \in V$}
+        \State $\mathit{color}[u] \gets \gtrwhite$
+    \EndFor
+    \For{每個頂點 $u \in V$}
+        \If{$\mathit{color}[u] = \gtrwhite$ \AND \Call{Visit-U}{$G, u, \NIL$}}
+            \State \Return \TRUE
+        \EndIf
+    \EndFor
+    \State \Return \FALSE
+\EndFunction
+\Function{Visit-U}{$G, u, p$} \Comment{$p$ 是 $u$ 的父節點}
+    \State $\mathit{color}[u] \gets \gtrgray$
+    \For{每個 $v \in \mathit{Adj}[u]$}
+        \If{$v = p$}
+            \State 跳過 \Comment{樹邊的另一端}
+        \ElsIf{$\mathit{color}[v] \ne \gtrwhite$}
+            \State \Return \TRUE \Comment{後向邊}
+        \ElsIf{\Call{Visit-U}{$G, v, u$}}
+            \State \Return \TRUE
+        \EndIf
+    \EndFor
+    \State $\mathit{color}[u] \gets \gtrblack$
+    \State \Return \FALSE
+\EndFunction
+\end{pseudo}
+
+\textbf{正確性。} 這就是第~\ref{sec:gtr-dfs}~節的 DFS，只是提早停。
+\begin{itemize}
+\item 回傳 \TRUE 時一定有環。 第 16 行回傳，是因為更深一層已經回傳 \TRUE；追到最深處，一定是第 13 行成立：$v$ 不是 $p$、已經發現過。 由定理~\ref{thm:gtr-undirected}，
+$u$、$v$ 一個是另一個的祖先。 $v$ 若是灰色，它是 $u$ 的祖先而且不是父節點，$\{u, v\}$ 是後向邊，
+樹路徑 $v \leadsto u$ 至少兩條邊，再加上 $\{u, v\}$ 就是環（觀念題第~\ref{q:gtr-tf}~題 (b)）。 $v$ 若
+是黑色，它是 $u$ 已經完成的子孫，但不是經由這條邊發現的（簡單圖裡 $u$、$v$ 之間只有這一條邊，而這
+個串列節點現在才被看到），所以 $\{u, v\}$ 也是一條後向邊，同樣有環。（實際上這種情形不會發生：$v$
+處理自己的串列時已經看到灰色的 $u$，早就回傳了。）
+\item 有環時一定回傳 \TRUE：完整的 DFS 會出現後向邊（第~\ref{sec:gtr-app}~節：無向圖有環若且唯若有
+後向邊）。 第一次看到某條後向邊時，第 13 行的條件成立。
+\item 沒有環時，DFS 照常走完，每次第 13 行都不成立，最後回傳 \FALSE。
+\end{itemize}
+
+\textbf{時間。} 在回傳之前，\proc{Visit-U} 看到的每個串列節點只有兩種：第 11 行的父節點（每個非根
+頂點恰好一次），或第 15 行的白色頂點（變成樹邊，全部最多 $n - 1$ 次）。 所以回傳之前最多看
+$2(n - 1)$ 個串列節點，再加上讓它回傳的那一個。 兩個外層迴圈各 $\Theta(n)$。 總共 $O(n)$，和 $m$ 無
+關。 圖的邊再多，DFS 也只會走到第一條後向邊為止。
+
+另一種寫法：如果圖的邊數 $m$ 已經存好，可以先看 $m \ge n$ 是否成立。 由引理~\ref{lem:gtr-count}，
+沒有環的圖有 $c$ 個連通元件時 $m = n - c \le n - 1$，所以 $m \ge n$ 一定有環；否則 $m < n$，再做一次完
+整的 DFS 也只要 $O(n + m) = O(n)$。 但如果 $m$ 要自己數，數一遍就是 $\Theta(m)$，還是上面的提早停止
+比較好。
+
+\pastsol{px:gtr-5}{北科大資工所 113 學年度 第 4 題（節錄 (1) 小題）}
+題目說的 Eulerian walk 是「每條邊恰好走一次、回到起點」的走法，就是第~\ref{sec:gtr-euler}~節的歐拉迴
+路；它說的 cycle 允許重複經過頂點，不是本書定義~\ref{def:gtr-cycle} 的環。 這題就是
+定理~\ref{thm:gtr-euler} 必要性的一半，寫完整如下。
+
+\begin{proof}
+設 $G$ 有一條歐拉迴路 $W = \langle v_0, v_1, \ldots, v_m \rangle$，$v_m = v_0$，第 $i$ 段用的邊是
+$e_i = \{v_{i-1}, v_i\}$，$e_1, \ldots, e_m$ 恰好是 $G$ 的 $m$ 條邊，各一次。 任取一個頂點 $v$，數
+「$W$ 在 $v$ 用掉幾條邊」：
+\begin{itemize}
+\item 每個 $0 < i < m$ 而 $v_i = v$ 的位置，$W$ 從 $e_i$ 進來、從 $e_{i+1}$ 出去，用掉兩條和 $v$ 關聯的
+邊；
+\item $v = v_0 = v_m$ 時，起點出去的 $e_1$ 和終點進來的 $e_m$ 也湊成兩條。
+\end{itemize}
+$G$ 沒有自環，每條和 $v$ 關聯的邊在上面剛好被數到一次（它在 $W$ 裡出現恰好一次，而且只有一端是
+$v$）；和 $v$ 不關聯的邊不會被數到。 所以 $\deg(v) = 2 \times$（$v$ 在 $W$ 上出現的次數，起點和終點
+算一次），是偶數。 每個頂點的度數都是偶數，和「至少有一個頂點的度數是奇數」矛盾。 所以 $G$ 沒有
+Eulerian walk。
+\end{proof}
+
+證明沒有用到「連通」這個條件；連通是反方向（全部偶數就一定有歐拉迴路）才需要的，
+見定理~\ref{thm:gtr-euler}。

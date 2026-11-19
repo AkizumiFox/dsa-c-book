@@ -1512,6 +1512,81 @@ int f(int n)
 \end{enumerate}
 \end{enumerate}
 
+\section{歷屆試題}
+\label{sec:sq-pastexam}
+
+以下是研究所入學考試的原題，題目照原卷（語言、記號、配分照錄）。 詳解在本章最後。
+
+\begin{pastexam}[label={px:sq-1}]{臺大資工所 108 學年度 第 1 題}
+（原卷說明：Note: NO partial score will be given for partially correct answer for
+subproblems in each problem (or for a single problem without subproblems). Unless
+otherwise noted, only the final solution is needed.）
+
+(10\%) Let $b_n$ be the number of different permutations obtainable by passing the
+numbers 1, 2, 3, \ldots, $n$ through a stack and deleting in all possible ways. (a) Give
+the recursive formula for $b_n$. (b) Give the analytic formula for $b_n$.
+\end{pastexam}
+
+\begin{pastexam}[label={px:sq-2}]{中央資工所 111 學年度 第 1 題}
+（原卷為複選題，每題 5 分，全對才給分，答錯倒扣 1 分，倒扣至複選題 0 分為止。）
+
+Which of the following statements are true?
+\begin{enumerate}[label=(\Alph*)]
+\item Consider the convert the infix expression a*(b+c/d)*(e-f)+g to its postfix form.
+There are at most 4 tokens in this stack at any moment during the conversion.
+\item The postfix form of infix expression (a+b-c)*(d-e) is abc+-de-*
+\item The infix expression of postfix expression 3k-2m4+*+pab-*/ is
+((3-k)+2(m+4))/(p*(a-b))
+\item Consider the convert the infix expression a*(b+c/d)*(e-f) to its postfix form.
+There are at most 3 tokens in this stack at any moment during the conversion.
+\end{enumerate}
+\end{pastexam}
+
+\begin{pastexam}[label={px:sq-3}]{中山資工所甲組 113 學年度 第 1 題（節錄 (b) 小題）}
+What is printed by each of the following C program?
+
+(b) (10\%)
+\begin{minted}[fontsize=\small]{c++}
+int x[ ]={ 8, 5, 3, 9, 7, 4, 6, 2};
+int max(int left, int right) {
+   int mid=(int) (left+right)/2;       // e.g. 7/2=3, 6/2=3
+   int b;
+   if (left==right)
+      b=x[mid];
+   else {
+      int c=max(left, mid);
+      if (c > max(mid+1, right))
+         b=c;
+      else
+         b=max(mid+1, right);
+   }
+   cout << b << endl;
+   return b;
+}
+int main( ) {
+   max(1,5);
+}
+\end{minted}
+\end{pastexam}
+
+\begin{pastexam}[label={px:sq-4}]{成大電機所 113 學年度 簡答題第 1 題}
+(8 pts) Please show the locations of the points---\textit{front} and \textit{rear} in the
+following array for a circular queue. Moreover, give the mechanism to check if a queue is
+empty or is full by the data structure?
+\begin{center}
+\small\setlength{\tabcolsep}{4pt}
+\begin{tabular}{*{16}{|c}|}
+\multicolumn{1}{c}{[0]} & \multicolumn{1}{c}{[1]} & \multicolumn{1}{c}{[2]} &
+\multicolumn{1}{c}{[3]} & \multicolumn{1}{c}{[4]} & \multicolumn{1}{c}{[5]} &
+\multicolumn{1}{c}{[6]} & \multicolumn{1}{c}{[7]} & \multicolumn{1}{c}{[8]} &
+\multicolumn{1}{c}{[9]} & \multicolumn{1}{c}{[10]} & \multicolumn{1}{c}{[11]} &
+\multicolumn{1}{c}{[12]} & \multicolumn{1}{c}{[13]} & \multicolumn{1}{c}{[14]} &
+\multicolumn{1}{c}{[15]} \\ \hline
+$C$ & $D$ & $E$ & $F$ & $G$ & & & & & & & & & & $A$ & $B$ \\ \hline
+\end{tabular}
+\end{center}
+\end{pastexam}
+
 \section{實作練習}
 \label{sec:sq-practice}
 
@@ -1770,3 +1845,179 @@ $b[3] = 8$、$b[4] = 12$；$t[1] = 0$、$t[2] = 4$、$t[3] = 8$。
 $A[9]$，$t[2] = 9$。 最後 $b = (0, 4, 9, 12)$，$t = (0, 9, 9)$。
 \end{enumerate}
 \end{enumerate}
+
+\addcontentsline{toc}{section}{歷屆試題詳解}
+\section*{歷屆試題詳解}
+
+\pastsol{px:sq-1}{臺大資工所 108 學年度 第 1 題}
+答案：(a) $b_0 = 1$，$b_n = \sum_{k=0}^{n-1} b_k\, b_{n-1-k}$（$n \ge 1$）。 (b) $b_n =
+\dfrac{1}{n+1}\dbinom{2n}{n} = \dfrac{(2n)!}{(n+1)!\,n!}$，即卡特蘭數。 前幾項是
+$b_1, \ldots, b_6 = 1, 2, 5, 14, 42, 132$（用程式枚舉所有 push、pop 序列驗算過）。
+
+先說明「排列」和「操作序列」的關係。 第~\ref{sec:sq-perm}~節說過，一個做得到的輸出
+順序只對應唯一的一串 push、pop：輪到要輸出的數時，它不在頂端就一定要繼續 push，在頂
+端就一定要 pop，沒有選擇。 所以 $b_n$ 也等於「$n$ 個 push、$n$ 個 pop、任何前綴的 pop
+都不比 push 多」的序列個數。
+
+\textbf{(a) 遞迴式。} 看 $1$ 是第幾個輸出的。 設 $1$ 是第 $k + 1$ 個輸出（$0 \le k \le
+n - 1$）。 $1$ 最先 push、壓在最底下，它被 pop 時堆疊裡只剩它，所以在它之前輸出的
+$k$ 個數，正是在它之前 push 進來、又已經 pop 掉的數。 這些數是連續 push 的
+$2, 3, \ldots, k + 1$，它們在 $1$ 的上面進出，就像用一個空堆疊處理 $k$ 個數，有
+$b_k$ 種順序。 $1$ 出來之後堆疊是空的，剩下的 $k + 2, \ldots, n$ 共 $n - 1 - k$ 個數
+從頭來過，有 $b_{n-1-k}$ 種。 前後兩段互不影響，相乘；再對 $k$ 加總，就是 (a) 的式
+子。 $b_0 = 1$ 代表「沒有數」只有一種（什麼都不做）。
+
+\textbf{(b) 公式。} 數合法的操作序列。 $n$ 個 push、$n$ 個 pop 任意排有
+$\binom{2n}{n}$ 種。 不合法的序列有第一個「pop 比 push 多一個」的位置；把這個位置之
+後的每一步 push、pop 對調，得到一個 $n - 1$ 個 push、$n + 1$ 個 pop 的序列。 這個對
+應是一對一而且映成的（反方向：$n + 1$ 個 pop 的序列一定也有第一個「pop 多一個」的位
+置，對調回去），所以不合法的有 $\binom{2n}{n-1}$ 種，
+\[
+b_n = \binom{2n}{n} - \binom{2n}{n-1} = \binom{2n}{n} - \frac{n}{n+1}\binom{2n}{n}
+= \frac{1}{n+1}\binom{2n}{n}.
+\]
+完整的論證在定理~\ref{thm:sq-catalan} 後面的說明框。 驗算：$n = 3$ 時
+$\frac{1}{4}\binom{6}{3} = 5$，六種排列裡只有 $3, 1, 2$ 做不到；遞迴式也給
+$b_3 = b_0 b_2 + b_1 b_1 + b_2 b_0 = 2 + 1 + 2 = 5$。
+
+\pastsol{px:sq-2}{中央資工所 111 學年度 第 1 題}
+答案是 (A)、(C)。 (C) 的「$2(m+4)$」照一般數學寫法讀成 $2 \times (m + 4)$。
+
+(A)、(D) 照第~\ref{sec:sq-infix-postfix}~節的規則轉換。 (D) 的運算式是 (A) 去掉最後
+的 \texttt{+g}，兩者前面完全相同，所以一起追蹤（堆疊由底到頂寫，左括號也放進堆疊）：
+{\small
+\begin{longtable}{clcl}
+\toprule
+記號 & 動作 & 堆疊 & 輸出 \\
+\midrule
+\endfirsthead
+\toprule
+記號 & 動作 & 堆疊 & 輸出 \\
+\midrule
+\endhead
+a & 輸出 & & a \\
+$*$ & push & $*$ & a \\
+( & push & $*\;($ & a \\
+b & 輸出 & $*\;($ & a b \\
+$+$ & 頂端是 (，push & $*\;(\;+$ & a b \\
+c & 輸出 & $*\;(\;+$ & a b c \\
+$/$ & $/$ 比 $+$ 高，push & $*\;(\;+\;/$ & a b c \\
+d & 輸出 & $*\;(\;+\;/$ & a b c d \\
+) & pop $/$、$+$，丟掉 ( & $*$ & a b c d $/$ $+$ \\
+$*$ & pop $*$（一樣高、由左往右），push & $*$ & a b c d $/$ $+$ $*$ \\
+( & push & $*\;($ & \ldots{} $*$ \\
+e & 輸出 & $*\;($ & \ldots{} $*$ e \\
+$-$ & 頂端是 (，push & $*\;(\;-$ & \ldots{} $*$ e \\
+f & 輸出 & $*\;(\;-$ & \ldots{} $*$ e f \\
+) & pop $-$，丟掉 ( & $*$ & \ldots{} $*$ e f $-$ \\
+\midrule
+$+$（只有 (A)）& pop $*$，push & $+$ & \ldots{} e f $-$ $*$ \\
+g & 輸出 & $+$ & \ldots{} $*$ g \\
+結束 & pop $+$ & & \ldots{} g $+$ \\
+\bottomrule
+\end{longtable}}
+(A) 的後序是 \texttt{abcd/+*ef-*g+}，(D) 的後序是 \texttt{abcd/+*ef-*}。
+
+\begin{itemize}
+\item (A) 對。 堆疊最多的時候是讀到 $/$ 之後，$*\;(\;+\;/$ 共 $4$ 個記號，其他時候都
+不超過 $4$，所以「at most 4」成立。
+\item (B) 錯。 $(a + b - c)$ 由左往右結合，是 $((a + b) - c)$，後序是
+\texttt{ab+c-}，整個是 \texttt{ab+c-de-*}。 題目的 \texttt{abc+-} 是
+$a - (b + c)$，和 $a + b - c$ 不是同一個運算式（例如 $a = b = c = 1$ 時，前者是 $-1$、
+後者是 $1$）。
+\item (C) 對。 用第~\ref{sec:sq-postfix-eval}~節的方法，堆疊裡放子運算式：
+\texttt{3 k -} 得 $(3 - k)$；\texttt{2 m 4 +} 得 $2$、$(m + 4)$，\texttt{*} 得
+$2 * (m + 4)$；\texttt{+} 得 $(3 - k) + 2 * (m + 4)$；\texttt{p a b -} 得 $p$、
+$(a - b)$，\texttt{*} 得 $p * (a - b)$；最後 \texttt{/} 得
+$((3 - k) + 2 * (m + 4)) / (p * (a - b))$，和選項相同（選項省略了乘號）。
+\item (D) 錯。 (D) 讀到 $/$ 時堆疊也有 $4$ 個記號（上表前八列和 (A) 一樣），超過 $3$。
+\end{itemize}
+
+補充：(D) 是否成立取決於左括號算不算「堆疊裡的記號」。 本書（以及一般課本）的演算
+法會把左括號 push 進堆疊，它佔一格，所以算；如果某個版本的作法不把左括號放進堆疊，
+最大值會變成 $3$（$*\;+\;/$），(D) 就對了。 作答時照題目用的演算法來數。
+
+\pastsol{px:sq-3}{中山資工所甲組 113 學年度 第 1 題（節錄 (b) 小題）}
+答案（每個數一行）：
+\begin{center}
+\texttt{5 \quad 3 \quad 5 \quad 9 \quad 9 \quad 9 \quad 7 \quad 4 \quad 7 \quad 9}
+\end{center}
+
+約定：程式照題目給的片段補上 \texttt{\#include <iostream>} 和
+\texttt{using namespace std;} 就能編譯，輸出就是 \texttt{cout} 印的十行。 陣列從
+$0$ 開始，\texttt{max(1,5)} 只看 $x[1..5] = 5, 3, 9, 7, 4$，$x[0] = 8$ 不在範圍內，
+所以最後的答案是 $9$ 而不是 $8$。
+
+先看函式的結構：一段 $[\mathit{left}, \mathit{right}]$ 只有一個元素時直接回傳；否則
+切成 $[\mathit{left}, \mathit{mid}]$ 和 $[\mathit{mid} + 1, \mathit{right}]$，先算左半
+的最大值 $c$，再呼叫右半比較。 要注意 \texttt{if} 的條件和 \texttt{else} 底下\textbf{各呼叫一次}
+\texttt{max(mid+1, right)}：$c$ 比右半大時只呼叫一次，否則右半會被整段再算一次、
+再印一次。 每次呼叫都在返回前印出自己的 $b$，所以印的順序是「呼叫結束」的順序，也
+就是呼叫樹的後序（第~\ref{sec:sq-recursion}~節：最後呼叫的最先返回）。
+
+呼叫樹（縮排表示被誰呼叫，最後一欄是印出的值和它是輸出的第幾行）：
+\begin{center}
+\small
+\begin{tabular}{lll}
+\toprule
+呼叫 & 做的事 & 印出 \\
+\midrule
+\texttt{max(1,5)}，$\mathit{mid} = 3$ & 先算 \texttt{max(1,3)} & \\
+\quad \texttt{max(1,3)}，$\mathit{mid} = 2$ & 先算 \texttt{max(1,2)} & \\
+\qquad \texttt{max(1,2)}，$\mathit{mid} = 1$ & 先算 \texttt{max(1,1)} & \\
+\qquad\quad \texttt{max(1,1)} & $x[1]$ & 第 1 行：$5$ \\
+\qquad\quad \texttt{max(2,2)}（比較用）& $x[2]$ & 第 2 行：$3$ \\
+\qquad \texttt{max(1,2)} 返回 & $5 > 3$，$b = 5$ & 第 3 行：$5$ \\
+\quad\quad \texttt{max(3,3)}（比較用）& $x[3]$ & 第 4 行：$9$ \\
+\quad\quad \texttt{max(3,3)}（$5 > 9$ 不成立，再呼叫一次）& $x[3]$ & 第 5 行：$9$ \\
+\quad \texttt{max(1,3)} 返回 & $b = 9$ & 第 6 行：$9$ \\
+\quad \texttt{max(4,5)}（比較用），$\mathit{mid} = 4$ & 先算 \texttt{max(4,4)} & \\
+\qquad \texttt{max(4,4)} & $x[4]$ & 第 7 行：$7$ \\
+\qquad \texttt{max(5,5)}（比較用）& $x[5]$ & 第 8 行：$4$ \\
+\quad \texttt{max(4,5)} 返回 & $7 > 4$，$b = 7$ & 第 9 行：$7$ \\
+\texttt{max(1,5)} 返回 & $9 > 7$，$b = 9$，不再呼叫 & 第 10 行：$9$ \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+一共呼叫 $10$ 次、印 $10$ 行。 呼叫堆疊最深時有 $4$ 層（例如
+\texttt{max(1,5)}、\texttt{max(1,3)}、\texttt{max(1,2)}、\texttt{max(1,1)}）。 把
+程式補成可以編譯的 C 版本實際執行，輸出和上面相同。 如果先把 \texttt{max(mid+1, right)} 的結果存進變數再比較，右半
+就不會重算，輸出的第 5 行也不會出現。
+
+\pastsol{px:sq-4}{成大電機所 113 學年度 簡答題第 1 題}
+佇列裡由前到後是 $A, B, C, D, E, F, G$：前端 $A$ 在 $[14]$，接著 $B$ 在 $[15]$，然後
+繞回 $[0]$ 的 $C$，一路到 $[4]$ 的 $G$。 陣列大小 $n = 16$。 題目沒有規定
+\textit{front}、\textit{rear} 指的是哪一格，下面先照本書第~\ref{sec:sq-circular}~節的約
+定回答，再給另一種常見約定的答案。
+
+\textbf{本書的約定}（\textit{front} 指向前端元素，\textit{rear} 指向下一個要放的位置）：
+\[
+\mathit{front} = 14, \qquad \mathit{rear} = 5 .
+\]
+驗算個數：$(\mathit{rear} - \mathit{front} + n) \bmod n = (5 - 14 + 16) \bmod 16 = 7$，
+正是 $A$ 到 $G$ 七個。
+\begin{itemize}
+\item 加入 $x$：先檢查滿了沒有，再 $Q[\mathit{rear}] \gets x$，
+$\mathit{rear} \gets (\mathit{rear} + 1) \bmod 16$。 取出：先檢查空了沒有，再拿
+$Q[\mathit{front}]$，$\mathit{front} \gets (\mathit{front} + 1) \bmod 16$。
+\item 空：$\mathit{front} = \mathit{rear}$。
+\item 滿：$(\mathit{rear} + 1) \bmod 16 = \mathit{front}$，也就是留一格不用，最多放
+$15$ 個。 這一格不能省：只靠兩個索引，空和滿都會是 $\mathit{front} = \mathit{rear}$，
+分不出來（觀念題第~\ref{q:sq-pigeon}~題證明了這一點）。
+\end{itemize}
+
+\textbf{另一種約定}（很多中文課本用：\textit{front} 指向前端元素的前一格，\textit{rear}
+指向尾端元素本身）：
+\[
+\mathit{front} = 13, \qquad \mathit{rear} = 4 .
+\]
+加入是先 $\mathit{rear} \gets (\mathit{rear} + 1) \bmod 16$ 再放；取出是先
+$\mathit{front} \gets (\mathit{front} + 1) \bmod 16$ 再拿。 空和滿的條件和上面的式子
+一樣（$\mathit{front} = \mathit{rear}$ 是空；$(\mathit{rear} + 1) \bmod 16 =
+\mathit{front}$ 是滿），個數 $(4 - 13 + 16) \bmod 16 = 7$（觀念題
+第~\ref{q:sq-front-before}~題）。
+
+如果要 $16$ 格都能用，就要多存資訊：多記一個個數 $\mathit{count}$（$0$ 是空、$16$
+是滿），或多記一個旗標，記住最近一次操作是加入還是取出（第~\ref{sec:sq-circular}~節的
+三種解法）。 作答時先寫一句「依本答案的約定，front 指向……」，再給位置和條件。

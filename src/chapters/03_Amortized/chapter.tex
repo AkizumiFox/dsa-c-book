@@ -1027,6 +1027,146 @@ $\Phi = 2 \times (\text{已刪除的格數})$ 證明每種操作的平攤成本�
 範例~\ref{ex:counter-flips} 的輸出驗證 $n = 16$ 和 $n = 10^6$。
 \end{enumerate}
 
+\section{歷屆試題}
+\label{sec:amo-pastexam}
+
+以下是研究所入學考試的原題，題目照原卷（語言、記號、配分照錄）。 詳解在本章最後。
+
+\begin{pastexam}[label={px:amo-1}]{成大資訊聯招 107 學年度 第 4 題}
+(10\%) Please compute the total cost of executing $n$ of the stack operations (PUSH, POP,
+and MULTIPOP ).
+
+\textbf{Stack Operations}: PUSH , POP , and MULTIPOP
+
+\textbf{PUSH ($S$, $x$)} pushes object x onto stack S
+
+\textbf{POP ($S$)} pops the top of stack $S$ and returns the popped object. Calling POP on
+an empty stack generates an error.
+
+\textbf{MUTIPOP($S$, $k$)} removes the $k$ top objectives of stack $S$, popping the entire
+stack if the stack contains fewer than $k$ objects. The following pseudo code presents the
+procedure of the MUTIPOP operation
+
+\textbf{MUTIPOP ($S$, $k$)}
+
+\begin{tabular}{ll}
+1 & \textbf{while} not STACK -EMPTY ($S$) and $k>0$ \\
+2 & \quad POP ($S$) \\
+3 & \quad $k$=$k$-1
+\end{tabular}
+
+Both PUSH and POP take O(1) time. The cost of MUTIPOP ($S$, $k$) is 1+ min($s$, $k$) where
+$s$ is the number of objects in stack $S$.
+
+Suppose that there are $n$ stack operations (PUSH, POP, and MULTIPOP ) executed.
+
+The stack is empty before those operations start and it is empty after those operations
+finished.
+\end{pastexam}
+
+\begin{pastexam}[label={px:amo-2}]{中正資工所甲組 115 學年度 第 12 題}
+(For Questions 1 to 24.) Select \textbf{multiple} correct answers 複選題(可選多個選項):
+Choose all \textbf{(one or more)} that apply. \textbf{NO} partial credit is given.
+
+(5\%) (\qquad) A stack supports operations push, pop, and multipop($k$) (which pops up to
+$k$ elements).
+
+Let $S$ be the stack and $|S|$ be the stack size, consider the potential function:
+\[\Phi(S)=|S|\]
+Assume:
+\begin{itemize}
+\item push costs 2,
+\item pop costs 0,
+\item multipop($k$) costs the number of elements actually popped.
+\end{itemize}
+The amortized cost of multipop($k$) can be described as a function $g(k)$.
+
+Find the \textbf{true} statements below.\\
+(a) $g(k)\in O(k)$ \quad (b) $g(k)\in\Theta(1)$ \quad (c) $g(k)\in\omega(\log k)$\\
+(d) The amortized cost of multipop($k$) also depends on the current stack size $|S|$.\\
+(e) none of the above
+\end{pastexam}
+
+\begin{pastexam}[label={px:amo-3}]{臺大資網所 114 學年度 第 18 題}
+(5 points) Consider the task of incrementing a $k$-bit binary counter from all zeroes to
+all ones. Let $A$ be an array of length $k$ that simulates the counter, where $A[0]$
+represents the least significant bit and $A[k-1]$ represents the most significant bit.
+We implement the \textsc{Increment}() operation as follows:
+\begin{center}
+\begin{tabular}{l}
+\hline
+\textbf{function} \textsc{Increment}() \\
+\quad $i=0$ \\
+\quad \textbf{while} $A[i]==1$ \textbf{do} \\
+\quad\quad $A[i]=0$ \\
+\quad\quad $i=i+1$ \\
+\quad $A[i]=1$ \\
+\hline
+\end{tabular}
+\end{center}
+Unfortunately, this counter is implemented on a deficient random access machine (RAM). On
+this machine, each read-access to a single array entry takes 1 unit of time. However, a
+write to an entry may take different amount of time. In particular, for any index $i$
+($0\le i<k$), if $i$ is a multiple of 3 but not a multiple of 5, the memory stick will
+fizz and it will take exactly $3^{i/3}$ units of time to write the data into $A[i]$. If
+$i$ is a multiple of 5 but not a multiple of 3, the memory stick will buzz and it will
+take exactly $5^{i/5}$ units of time to write the data into $A[i]$. Writing into all
+other entries not mentioned above takes 1 unit of time as usual.
+
+Please design a potential function $\Phi(A)$ such that the amortized time (using
+$\Phi(A)$) per \textsc{Increment}() operation is still $O(1)$ when incrementing from
+zero. Make sure your potential function is rigurously defined, can be evaluated into an
+actual number by human beings, and as clean and clear without ambiguity. For example, if
+you left any undetermined variable (such as ``for some constant $c$'') in your
+expression, you \textbf{must} state an actual number for that variable (e.g.,
+``$c=1$''). You do \textbf{not} need to verify your answer in the answer sheet. This
+problem has no partial score.
+\end{pastexam}
+
+\begin{pastexam}[label={px:amo-4}]{臺大資工所 115 學年度 第 19 題}
+(4 points) Consider a dynamic table that: (1) starts empty with capacity 1; (2) doubles
+its capacity when full; (3) shrinks its capacity by a factor of $1/2$ when the capacity
+$\ge 4$ and the number of stored elements falls below one quarter of the capacity.
+Assume that inserting or deleting an element costs 1, and resizing a table of size $k$
+costs $\Theta(k)$. Which statement is true when considering $n$ insertion and removal
+operations?
+\begin{enumerate}[label=(\Alph*)]
+\item The worst-case cost of any single operation is $O(1)$, so amortized analysis is
+unnecessary.
+\item Using aggregate analysis, the amortized cost per operation is $\Theta(\log n)$.
+\item If shrinking were performed when the table becomes half full instead of one
+quarter full, the amortized cost would still remain $O(1)$.
+\item With the one-quarter shrinking rule, the amortized cost per operation is $O(1)$,
+but shrinking more aggressively to half capacity when the table is half-full can destroy
+this bound.
+\item The amortized cost depends on the order of operations and cannot be bounded
+independently of the operation sequence.
+\end{enumerate}
+\end{pastexam}
+
+\begin{pastexam}[label={px:amo-5}]{中興資工所甲組 114 學年度 PART 2 第 6 題}
+Design and describe the implementation of a dynamic array-like container that can grow
+as elements are added, without requiring a fixed size to be declared at initialization.
+Your explanation should include (10 \%):
+\begin{itemize}
+\item \textbf{Memory Management:}\\
+How do you allocate and deallocate memory for the underlying storage? What functions or
+mechanisms would you use to manage this memory dynamically?
+\item \textbf{Capacity Expansion Strategy:}\\
+When the container runs out of capacity as new elements are inserted, how do you decide
+to increase its size? Discuss the growth factor and the trade-offs it involves in terms
+of memory usage and performance.
+\item \textbf{Indexing Operations:}\\
+How can you ensure O(1) random access to elements by index? What data structure or
+access method do you use to guarantee this?
+\item \textbf{Insertion and Deletion Complexity:}\\
+What is the expected time complexity for inserting and deleting elements at arbitrary
+positions, and how does this scale as the size of the container grows? Address the
+concept of amortized complexity and explain why it might differ from the worst-case
+scenario.
+\end{itemize}
+\end{pastexam}
+
 \section{實作練習}
 \label{sec:amo-practice}
 
@@ -1216,3 +1356,189 @@ $2$ 剛好付得起整理。 第~12~章雜湊表的「刪除標記」會用到�
 $10^6 = 11110100001001000000_2$，$b = 7$，$2 \times 10^6 - 7 = 1{,}999{,}993$，都和
 程式的輸出一樣。
 \end{enumerate}
+
+\addcontentsline{toc}{section}{歷屆試題詳解}
+\section*{歷屆試題詳解}
+
+\pastsol{px:amo-1}{成大資訊聯招 107 學年度 第 4 題}
+題目的成本和第~\ref{sec:amo-aggregate}~節略有不同：\proc{Multipop} 的成本是
+$1 + \min(s, k)$，多了檢查的那個 $1$。 PUSH、POP 是 $O(1)$，這裡各算成本 $1$。 原題
+的 MUTIPOP、objectives 是 MULTIPOP、objects 的筆誤。
+
+答案：總成本恰好是 $n + P - Q$，其中 $P$、$Q$ 是 PUSH、POP 的次數；它不超過
+$2n - 1$，所以是 $\Theta(n)$，每次操作的平攤成本是 $O(1)$。
+
+用聚合法。 設 $n$ 次操作裡有 $P$ 次 PUSH、$Q$ 次 POP、$M$ 次 MULTIPOP，
+$P + Q + M = n$；第 $j$ 次 MULTIPOP 實際拿掉 $m_j$ 個。 總成本是
+\[
+P \cdot 1 + Q \cdot 1 + \sum_{j=1}^{M} (1 + m_j) = n + \sum_{j=1}^{M} m_j .
+\]
+每個被拿掉的元素都被 PUSH 過，而一開始和最後堆疊都是空的，所以每個放進去的元素剛
+好被拿掉一次：$Q + \sum_j m_j = P$。 代進去，總成本 $= n + P - Q$。
+
+上界：$n \ge 1$ 時不可能 $n$ 次全是 PUSH（最後堆疊會不是空的），所以 $P \le n - 1$，
+總成本 $\le n + (n - 1) = 2n - 1$。 這個上界達得到：先 PUSH $n - 1$ 次，再一次
+MULTIPOP$(S, k)$（$k \ge n - 1$），成本 $(n - 1) + 1 + (n - 1) = 2n - 1$。 下界：每次
+操作至少花 $1$，總成本至少 $n$。 所以總成本是 $\Theta(n)$，平攤到每次操作不超過 $2$。
+（用程式窮舉 $n \le 8$ 的所有操作串，最大總成本都是 $2n - 1$。）
+
+\pastsol{px:amo-2}{中正資工所甲組 115 學年度 第 12 題}
+答案：(a)。
+
+照第~\ref{sec:amo-potential}~節的定義，平攤成本 $=$ 實際成本 $+$ 位能的變化，
+$\Phi = |S|$。 從空堆疊開始時 $\Phi(D_0) = 0$，而且 $\Phi \ge 0$，這個位能可以用。
+\begin{itemize}
+\item push：實際 $2$，$|S|$ 加 $1$，平攤 $3$。
+\item pop：實際 $0$，$|S|$ 減 $1$，平攤 $-1$。 平攤成本可以是負的。
+\item multipop$(k)$：實際拿掉 $k' = \min(k, |S|)$ 個，實際成本 $k'$，$|S|$ 減 $k'$，
+平攤 $k' - k' = 0$。
+\end{itemize}
+所以 $g(k) = 0$，對每個 $k$、每個 $|S|$ 都是 $0$。
+\begin{itemize}
+\item (a) 對。 $0 \le 0 \le c \cdot k$，任何 $c > 0$ 都行（定義~\ref{def:big-o}）。
+\item (b) 錯。 $\Theta(1)$ 要求存在 $c_1 > 0$，$k$ 夠大時 $c_1 \cdot 1 \le g(k)$
+（定義~\ref{def:theta}），$g(k) = 0$ 做不到。 $0$ 屬於 $O(1)$，但不屬於 $\Theta(1)$。
+把 $\Theta(1)$ 粗略讀成「常數」的人會選 (b)；照定義不能選。
+\item (c) 錯。 $\omega(\log k)$ 要 $g(k)$ 比 $c\log k$ 大，$0$ 不會。
+\item (d) 錯。 multipop 的\textbf{實際}成本 $\min(k, |S|)$ 和 $|S|$ 有關，但平攤成本恆
+為 $0$，和 $|S|$ 無關。
+\item (e) 錯，因為 (a) 對。
+\end{itemize}
+
+\pastsol{px:amo-3}{臺大資網所 114 學年度 第 18 題}
+寫 $w(i)$ 表示寫入 $A[i]$ 的時間：$i$ 是 $3$ 的倍數但不是 $5$ 的倍數時
+$w(i) = 3^{i/3}$；$i$ 是 $5$ 的倍數但不是 $3$ 的倍數時 $w(i) = 5^{i/5}$；其他
+$w(i) = 1$（包括 $i = 0$、$15$、$30$ 這些同時是兩者倍數的）。 令
+$L_i(A) = \sum_{j=0}^{i-1} A[j]\, 2^j$，也就是計數器最低 $i$ 位表示的數。
+
+\textbf{答案}：
+\[
+\Phi(A) = \sum_{i=1}^{k-1} \frac{w(i) + 1}{2^{\,i-1}} \, L_i(A) .
+\]
+式子裡沒有未定的常數。 例如 $k = 4$、$A[3..0] = 0110$：$L_1 = 0$、$L_2 = 2$、
+$L_3 = 6$，$w(1) = w(2) = 1$、$w(3) = 3$，$\Phi = 2 \cdot 0 + \frac{2}{2} \cdot 2 +
+\frac{4}{4} \cdot 6 = 8$。
+
+\textbf{想法}。 第~\ref{sec:amo-potential}~節的位能「$1$ 的個數」在這裡不夠用。 只看
+哪些位是 $1$ 的位能（例如每個 $1$ 存 $w(i) + 1$），在把 $A[t]$ 從 $0$ 寫成 $1$ 的那一
+次，要付這次寫入的 $w(t)$，還要替它存下以後清回 $0$ 的錢，平攤成本大約是 $2w(t)$，
+$t$ 大的時候沒有上界。 所以寫入 $A[t]$ 的錢（不論寫 $0$ 或寫
+$1$）必須在\textbf{之前}就存好。 $A[i]$ 每 $2^i$ 次加一才被寫一次（最低 $i$ 位從全
+$1$ 進位的時候），$L_i$ 正好記錄「上次寫 $A[i]$ 之後又加了幾次」：每次加一 $L_i$ 加
+$1$，進位到第 $i$ 位時歸零。 每次加一替第 $i$ 位存 $(w(i) + 1)/2^{i-1}$，存 $2^i - 1$
+次之後就夠付一次讀加寫。
+
+\textbf{驗證}（題目說答案卷上不用寫，這裡寫完整）。 一開始全是 $0$，$\Phi = 0$；每一
+項都不是負的，$\Phi \ge 0$，所以定理~\ref{thm:potential} 的條件成立。 從全 $0$ 加到全
+$1$ 的過程中不會溢位。 設某次加一之前，最低位起有連續 $t$ 個 $1$（$0 \le t \le k -
+1$），$A[t] = 0$。
+\begin{itemize}
+\item 實際成本：\textbf{while} 讀了 $A[0], \ldots, A[t]$ 共 $t + 1$ 次；寫了
+$A[0..t-1]$ 為 $0$、$A[t]$ 為 $1$。 $c = \sum_{i=0}^{t} \bigl(1 + w(i)\bigr)$。
+\item $1 \le i \le t$：最低 $i$ 位原本全是 $1$，加一後全是 $0$，$L_i$ 從 $2^i - 1$ 變
+成 $0$。
+\item $i \ge t + 1$：最低 $i$ 位裡沒有進位出去（$A[t]$ 原本是 $0$），$L_i$ 剛好加 $1$。
+\end{itemize}
+所以平攤成本是
+\[
+\hat{c} = \bigl(1 + w(0)\bigr)
++ \sum_{i=1}^{t} \bigl(w(i) + 1\bigr)\left(1 - \frac{2^i - 1}{2^{\,i-1}}\right)
++ \sum_{i=t+1}^{k-1} \frac{w(i) + 1}{2^{\,i-1}} .
+\]
+$w(0) = 1$。 $i \ge 1$ 時 $\frac{2^i - 1}{2^{i-1}} = 2 - 2^{1-i} \ge 1$，中間的每一項
+都 $\le 0$。 所以
+\[
+\hat{c} \le 2 + \sum_{i=1}^{\infty} \frac{w(i) + 1}{2^{\,i-1}} .
+\]
+這個無窮級數收斂：$5^{1/5} \approx 1.380 < 3^{1/3} \approx 1.442$，所以每個 $i$ 都有
+$w(i) \le (3^{1/3})^i$。 令 $r = 3^{1/3}/2 < 0.73$，
+\[
+\sum_{i \ge 1} \frac{w(i)}{2^{i-1}} \le 2 \sum_{i \ge 1} r^i = \frac{2r}{1 - r}
+< \frac{2 \times 0.73}{0.27} < 5.5, \qquad \sum_{i \ge 1} \frac{1}{2^{i-1}} = 2 ,
+\]
+因此每次 \textsc{Increment} 的平攤成本 $\hat{c} < 2 + 2 + 5.5 = 9.5$，和 $k$ 無關，
+是 $O(1)$。 由定理~\ref{thm:potential}，從全 $0$ 開始做 $N$ 次加一的實際總時間不超過
+$9.5N$。 實際把級數加起來大約是 $5.20$，所以 $\hat{c} \le 7.2$；用程式模擬 $k = 20$
+從全 $0$ 加到全 $1$，逐次算出的 $\hat{c}$ 最大是 $7.19$。
+
+\pastsol{px:amo-4}{臺大資工所 115 學年度 第 19 題}
+答案：(D)。
+
+(A) 錯。 表滿了再插入時要先加倍，容量 $m$ 的表要搬 $m$ 個，那一次是 $\Theta(m)$。
+
+(B) 錯。 下面 (D) 說明平攤成本是 $O(1)$，不是 $\Theta(\log n)$。
+
+(C) 錯。 「剛好半滿就減半」會來回換容量（第~\ref{sec:amo-dynarray}~節）。 設容量 $m$
+（$m \ge 4$）已經放滿 $m$ 個：插入，表滿了，加倍成 $2m$、搬 $m$ 個，現在 $m + 1$ 個；
+刪除，剩 $m$ 個，剛好半滿，減半成 $m$、搬 $m$ 個，又回到放滿的狀態。 之後每做一對
+「插入、刪除」就花 $\Theta(m)$。 先插入 $n/2$ 個讓 $m$ 和 $n$ 同一級，剩下的操作全部
+這樣交替，總成本 $\Theta(n^2)$，平攤 $\Theta(n)$。 （如果把條件讀成「少於一半」，
+改用第~\ref{sec:amo-dynarray}~節「插入、刪除、刪除、插入」的循環，結論一樣。）
+
+(D) 對。 前半句是定理~\ref{thm:dyn-array}；這題的規則和本書只差兩點：容量從 $1$
+開始，而且容量小於 $4$ 時不縮小（本書刪到空時縮成 $0$）。 證明照搬：用
+$\Phi = |2 \cdot \mathit{num} - \mathit{cap}|$，一開始 $\Phi = 1$；加入、不縮小的刪
+除，平攤成本的計算和定理裡一樣，都 $\le 3$。 刪除而縮小時，原本容量 $m \ge 4$、剩
+$r$ 個（$4r < m$）：$r \ge 1$ 和定理裡的算法相同；$r = 0$ 時實際成本 $1$，$\Phi$ 從
+$m - 2$ 變成 $m/2$，平攤 $3 - m/2 \le 1$。 所以 $n$ 次操作的總成本不超過 $3n + 1$。
+題目說換容量的成本是 $\Theta(k)$；縮小時 $k$ 和搬動的個數只差常數倍（縮小前
+$\mathit{cap} \le 4 \cdot \mathit{num}$），把位能乘上適當的常數，結論不變。 後半句就
+是 (C) 的反例。 （用程式窮舉長度 $18$ 以內的所有插入、刪除序列，這個 $\Phi$ 算出的
+平攤成本最大是 $3$；半滿就縮小的規則下，$m = 1024$ 時每次操作平均要花約 $400$。）
+
+(E) 錯。 $3n + 1$ 這個上界對任何操作順序都成立，平攤分析保證的正是這件事
+（定義~\ref{def:amortized}）。
+
+\pastsol{px:amo-5}{中興資工所甲組 114 學年度 PART 2 第 6 題}
+這是一題設計說明題，照題目的四個項目回答。 本章的範例~\ref{ex:dyn-array} 就是一份完
+整的 C 實作。
+
+\textbf{記憶體管理}。 用一個結構記住三件事：指向資料的指標 \texttt{data}、目前的個數
+$\mathit{num}$、容量 $\mathit{cap}$。 一開始用 \texttt{malloc} 配置一小塊（或
+$\mathit{cap} = 0$、\texttt{data} 是 \texttt{NULL}）。 要換容量時用 \texttt{realloc}；
+它失敗會回傳 \texttt{NULL} 而舊的那塊仍然有效，所以先用暫存指標接，確定成功才換掉
+\texttt{data}。 容器不用了，或容量變成 $0$ 時，用 \texttt{free} 還回去。
+
+\textbf{擴充策略}。 放滿時把容量乘上一個固定的倍數 $r > 1$，常用 $r = 2$
+（虛擬碼~\ref{alg:table-push}）。 取捨是：
+\begin{itemize}
+\item 時間：容量是等比級數，$n$ 次加入的搬動總數小於 $\frac{r}{r - 1}\, n$，每次加入
+的平攤成本是 $O(1)$。 $r = 2$ 時搬動小於 $2n$，總成本小於 $3n$
+（第~\ref{sec:amo-dynarray}~節）。
+\item 空間：剛擴充完只用了大約 $1/r$，最多浪費大約 $1 - 1/r$ 的空間。 $r$ 越大搬得越
+少、浪費越多；$r$ 越接近 $1$ 越省空間、搬得越多。
+\item 不能每次只加固定的 $d$ 格：搬動總數是等差級數，$\Theta(n^2/d)$，平攤
+$\Theta(n)$（觀念題第~\ref{amo-q-add4}~題）。
+\item 會刪除的話，縮小的門檻要比擴充後的使用率低，例如少於四分之一才減半
+（虛擬碼~\ref{alg:table-pop}），否則會在門檻上來回換容量。
+\end{itemize}
+
+\textbf{索引}。 元素放在一塊連續的記憶體裡，第 $i$ 個元素的位址是起始位址加上
+$i \times$ 元素大小（第~\ref{sec:arr-address}~節），一次乘法加一次加法，$O(1)$。 擴
+充時整塊搬到新位置，所以外面只能記下標，不能長期保存指向元素的指標。 存取前檢查
+$0 \le i < \mathit{num}$。
+
+\textbf{插入和刪除的時間}。 在任意位置插入要把後面的元素往後挪一格：
+\begin{pseudo}[unbreakable]{在第 $p$ 個位置插入（$1 \le p \le T.\mathit{num} + 1$）}
+\Procedure{Table-Insert-At}{$T, p, x$}
+    \If{$T.\mathit{num} = T.\mathit{cap}$}
+        \State 和 \proc{Table-Push} 一樣把容量加倍（容量是 $0$ 時變成 $1$）
+    \EndIf
+    \For{$i \gets T.\mathit{num}$ \DownTo $p$}
+        \State $T.\mathit{data}[i + 1] \gets T.\mathit{data}[i]$ \Comment{往後挪一格}
+    \EndFor
+    \State $T.\mathit{data}[p] \gets x$
+    \State $T.\mathit{num} \gets T.\mathit{num} + 1$
+\EndProcedure
+\end{pseudo}
+第 4、5 行把 $\mathit{data}[p..\mathit{num}]$ 依序往後挪，從後面開始挪才不會蓋掉還沒
+挪的元素；挪完 $\mathit{data}[p]$ 空出來放 $x$，原本的順序不變。 挪動 $\mathit{num} -
+p + 1$ 次，最壞（$p = 1$）是 $\Theta(n)$；插入位置均勻隨機時平均挪 $n/2$ 次左右，期
+望仍是 $\Theta(n)$。 刪除第 $p$ 個要把後面的往前挪，同樣是 $\Theta(\mathit{num} -
+p)$。 只有在尾端加入、刪除時不用挪：單一次最壞是擴充或縮小那一次，$\Theta(n)$；但任意
+一串 $n$ 次操作的總成本不超過 $3n$（定理~\ref{thm:dyn-array}），平攤 $O(1)$。
+
+\textbf{平攤和最壞情況的差別}。 最壞情況看的是單一次操作最多花多少，擴充那一次要搬全
+部元素。 平攤看的是任意一串操作的總和除以次數（定義~\ref{def:amortized}）：貴的擴充
+之前一定有一長串便宜的加入，總和被攤平。 平攤不是機率上的平均，對最壞的操作順序也成
+立；但它不保證每一次都快，需要每次回應都快的程式不能只靠平攤上界。

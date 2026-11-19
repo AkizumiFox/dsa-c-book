@@ -1,4 +1,4 @@
-\chapter{多路搜尋樹：2-3 樹、2-3-4 樹、B 樹與 \texorpdfstring{B$^{+}$}{B+} 樹}
+\chapter{多路搜尋樹與 trie：2-3 樹、B 樹、\texorpdfstring{B$^{+}$}{B+} 樹與數位搜尋樹}
 \label{ch:multiway}
 
 % 本章的圖共用的樣式。樹的圖由模擬程式依照本章的演算法產生，每一步都和演算法一致。
@@ -20,6 +20,15 @@
         inner sep=0pt, font=\small},
     mwgrp/.style={rounded corners=2.5mm, fill=black!8, draw=black!25, inner sep=1.5pt},
     mwsub/.style={font=\scriptsize, text=black!70},
+    mwtc/.style={circle, draw=black!65, minimum size=0.5cm, inner sep=0pt, font=\small},
+    mwtend/.style={double=white, double distance=0.9pt, draw=black!75},
+    mwdn/.style={rectangle, draw=black!65, inner sep=2pt, minimum height=0.42cm, font=\footnotesize},
+    mwel/.style={rectangle, draw=black!65, fill=black!6, inner sep=2pt, minimum height=0.42cm, font=\footnotesize},
+    mwbn/.style={circle, draw=black!65, minimum size=0.46cm, inner sep=0pt, font=\footnotesize},
+    mwpn/.style={rectangle, draw=black!65, inner sep=2pt, minimum height=0.42cm, font=\footnotesize},
+    mwbitl/.style={circle, draw=black!55, fill=white, inner sep=0.5pt, minimum size=0.3cm, font=\scriptsize},
+    mwback/.style={-{Stealth[length=1.4mm]}, draw=mwRed, densely dashed},
+    mwbk/.style={font=\scriptsize, text=mwRed, inner sep=1pt},
 }
 
 學校圖書館的館藏目錄有幾百萬筆，存在硬碟上。 從硬碟讀一次資料，比在記憶體裡比較
@@ -35,9 +44,11 @@
 第~10~章紅黑樹的對應；第~\ref{sec:mw-btree}~節推廣成任意階數的 B 樹，證明高度的
 上下界，寫出搜尋與插入的 C 程式，插入和刪除各做一次完整的追蹤；
 第~\ref{sec:mw-bplus}~節講資料庫和檔案系統實際用的 B$^{+}$ 樹，以及怎麼估計讀幾次
-磁碟。
+磁碟；第~\ref{sec:mw-index}~節介紹 ISAM、多重串列、倒排檔這幾種較早的索引檔案組織，和
+B$^{+}$ 樹比較。 第~\ref{sec:mw-trie}~節換一種思路：鍵是字串或位元串時，一次看一個字元
+（或位元）決定往哪裡走，這就是 trie、數位搜尋樹和 Patricia。
 
-這一章用到《C 程式設計基礎》第~14~章的結構和結構指標、第~19~章的
+這一章用到《C 程式設計基礎》第~11~章的字串、第~14~章的結構和結構指標、第~19~章的
 \texttt{malloc}、\texttt{free}。 樹的名詞見第~7~章，二元搜尋樹見第~9~章，紅黑樹見
 第~10~章。 高度照全書的定義數節點：只有根的樹高度是 $1$，根在第 $1$ 層。
 
@@ -2023,6 +2034,1014 @@ $m$ 可以到 $256$，比 B 樹的 $171$ 大。 有些課本還會提到 \textbf
 時先把鍵分給兄弟，兄弟也滿了才把兩個節點分成三個，讓非根節點至少 $2/3$ 滿。 想法和
 B 樹相同，本書不細講。
 
+\section{索引檔案的組織}
+\label{sec:mw-index}
+
+B$^{+}$ 樹是現在資料庫最常用的索引，但資料結構課（和比較早的考卷）還會提到幾種更早的
+檔案組織。 這一節用同一個小例子把它們講一遍，最後和 B$^{+}$ 樹比較。
+
+先講幾個名詞。 \textbf{檔案}（file）是一筆一筆\textbf{記錄}（record）的集合，存在磁碟
+的區塊裡；每筆記錄有幾個欄位。 能唯一決定一筆記錄的欄位叫\textbf{主鍵}（primary key），
+例如學號；其他常被拿來查詢的欄位叫\textbf{次鍵}（secondary key），例如系別、年級。
+\textbf{索引}（index）是另外存的一張對照表，從鍵查到記錄所在的位址（區塊編號或記錄編
+號），查詢時先讀索引，再只讀需要的記錄。 每筆記錄在索引裡都有一項，叫\textbf{稠密索引}
+（dense index）；記錄已經照鍵排好、每個區塊只放一項（例如區塊裡最大的鍵），叫
+\textbf{稀疏索引}（sparse index）。 次鍵沒有照順序存，它的索引一定是稠密的。
+
+\subsection{ISAM：索引循序存取}
+\label{sec:mw-isam}
+
+\textbf{ISAM}（indexed sequential access method，索引循序存取方法）用在「大部分時間照
+主鍵順序整批處理，偶爾查單筆」的檔案。 做法：
+\begin{itemize}
+\item 記錄照主鍵排好，依序放進區塊，所以照順序讀整個檔案就是一個區塊接一個區塊讀。
+\item 在上面建稀疏索引：每個資料區塊一項，記下區塊裡最大的鍵。 索引太大時再對索引建一
+層索引。 早期的 ISAM 照硬碟的構造分成主索引、磁柱索引（cylinder index）、磁軌索引
+（track index）三層。
+\item 索引在建檔時一次建好，之後\textbf{不再改變}。 新記錄要放進一個已經滿的區塊時，不
+分裂區塊，而是放到\textbf{溢位區}（overflow area），從原來的區塊用指標串起來。
+\end{itemize}
+
+\begin{center}
+\begin{tikzpicture}[mwk/.append style={minimum width=0.62cm}]
+\foreach \k [count=\i] in {25, 47, 66, 90} {
+  \node[mwk] (ix\i) at ({2.3*\i}, 0) {\k};
+}
+\node[mwlab, anchor=east] at (1.15, 0) {索引};
+\foreach \ks [count=\i] in {{12,18,25}, {31,40,47}, {53,60,66}, {72,81,90}} {
+  \foreach \k [count=\j] in \ks {
+    \node[mwk] (d\i\j) at ({2.3*\i + 0.62*(\j - 2)}, -1.3) {\k};
+  }
+}
+\node[mwlab, anchor=east] at (1.15, -1.3) {資料區塊};
+\foreach \i in {1,2,3,4} { \draw[mwlink] (ix\i.south) -- (d\i2.north); }
+\node[mwk, mwkN] (ov) at (4.0, -2.4) {44};
+\node[mwlab, anchor=east] at (3.55, -2.4) {溢位區};
+\draw[mwlink] (d23.south) |- (ov.east);
+\end{tikzpicture}
+\diagcaption{一層稀疏索引的 ISAM 檔，每個區塊放 $3$ 筆記錄（圖上只寫主鍵）。 索引的每
+一項是一個區塊裡最大的鍵。 插入 $44$ 時第 $2$ 個區塊已經滿了，$44$ 放進溢位區，從第
+$2$ 個區塊串過去。}
+\label{fig:mw-isam}
+\end{center}
+
+找主鍵 $k$：在索引裡找第一個 $\ge k$ 的項，讀它指的區塊；不在區塊裡，就沿著這個區塊的溢
+位串列找。 圖~\ref{fig:mw-isam} 找 $44$ 要讀索引、第 $2$ 個區塊、溢位區，共 $3$ 個區塊；
+找 $40$ 只要讀 $2$ 個。
+
+ISAM 的問題在插入多了以後。 溢位串列越來越長，找一筆要多讀好幾個區塊，照順序讀整個檔案
+也不再是一個區塊接一個區塊。 這時只能停下來\textbf{重組}（reorganize）：把資料和溢位區
+合併、重新排好，再重建索引。 刪除通常只在記錄上做刪除標記，空間要等重組才拿回來。
+
+B$^{+}$ 樹可以看成「會自己長」的 ISAM：葉子相當於資料區塊（或指向資料），內部節點相當
+於多層索引。 差別在 B$^{+}$ 樹的節點滿了就分裂、太空就借或合併，所以不管插入刪除多少
+次，樹都保持平衡，不需要溢位區，也不需要停機重組。 代價是每次插入刪除都可能改到索引，
+程式比較複雜。 ISAM 的索引不變，好處是簡單，而且很多使用者同時讀的時候不必鎖住索引。
+
+\subsection{多重串列與倒排檔}
+\label{sec:mw-inverted}
+
+主鍵的查詢用 ISAM 或 B$^{+}$ 樹處理；次鍵的查詢（「資工系二年級的學生」）一個次鍵值會
+對到很多筆記錄，要另外組織。 用下面這個檔案當例子，記錄依位址 $1$ 到 $8$ 存放：
+\begin{center}
+\begin{tabular}{cccccc}
+\toprule
+位址 & 學號 & 系 & 年級 & 同系的下一筆 & 同年級的下一筆 \\
+\midrule
+1 & 1101 & 資工 & 2 & 3 & 4 \\
+2 & 1102 & 電機 & 1 & 6 & 3 \\
+3 & 1103 & 資工 & 1 & 5 & 7 \\
+4 & 1104 & 數學 & 2 & 7 & 5 \\
+5 & 1105 & 資工 & 2 & 8 & 6 \\
+6 & 1106 & 電機 & 2 & -- & -- \\
+7 & 1107 & 數學 & 1 & -- & 8 \\
+8 & 1108 & 資工 & 1 & -- & -- \\
+\bottomrule
+\end{tabular}
+\end{center}
+最右邊兩欄是多重串列才有的欄位，下面說明。
+
+\textbf{多重串列}（multilist）：每筆記錄對每個要索引的次鍵多帶一個指標欄，把次鍵值相同
+的記錄串成一條串列。 索引只記每個次鍵值的串列開頭和長度：
+\begin{center}
+\begin{tabular}{lll}
+\toprule
+次鍵值 & 開頭 & 長度 \\
+\midrule
+系 $=$ 資工 & 1 & 4 \\
+系 $=$ 電機 & 2 & 2 \\
+系 $=$ 數學 & 4 & 2 \\
+年級 $= 1$ & 2 & 4 \\
+年級 $= 2$ & 1 & 4 \\
+\bottomrule
+\end{tabular}
+\end{center}
+資工系的串列是 $1 \to 3 \to 5 \to 8$，看「同系的下一筆」那一欄就能走完。 一筆記錄同時在
+好幾條串列上（每個次鍵一條），所以叫多重串列。 查「系 $=$ 資工 \textbf{and} 年級 $= 2$」：從
+索引看出兩條串列一樣長（都是 $4$），挑一條，例如資工系，沿著串列讀 $1, 3, 5, 8$ 四筆記
+錄，每讀一筆檢查年級，留下 $1$ 和 $5$。 要讀的記錄數是較短的那條串列的長度，即使最後符合的
+只有幾筆。
+
+\textbf{倒排檔}（inverted file）：記錄本身不帶指標，改成在索引裡把每個次鍵值對到的記錄
+位址\textbf{整條列出來}，而且照位址排好：
+\[
+\begin{array}{ll}
+\text{系} = \text{資工}: \langle 1, 3, 5, 8 \rangle &
+\text{年級} = 1: \langle 2, 3, 7, 8 \rangle \\
+\text{系} = \text{電機}: \langle 2, 6 \rangle &
+\text{年級} = 2: \langle 1, 4, 5, 6 \rangle \\
+\text{系} = \text{數學}: \langle 4, 7 \rangle &
+\end{array}
+\]
+查詢時先在索引裡處理：\textbf{and} 就是兩條排好的串列求交集，像第~\ref{sec:so-merge}~節合併排序的 \proc{Merge} 那樣
+從頭往後掃，$\langle 1, 3, 5, 8 \rangle \cap \langle 1, 4, 5, 6 \rangle = \langle 1, 5 \rangle$，
+時間和兩條串列的長度和成正比；\textbf{or} 是聯集，\textbf{not} 是對全部位址取差集。 算出答案
+的位址之後，只讀那 $2$ 筆記錄。 和多重串列比，倒排檔讀的記錄只有真正符合的那幾筆，代價
+是索引比較大（每個次鍵值要存一整串位址），插入一筆記錄時要把它的位址插進每個次鍵對應的
+那條排好的串列。
+
+搜尋引擎用的就是倒排檔：把每個字詞（次鍵值）對到含有它的文件編號串列，查「同時含
+$w_1$ 和 $w_2$ 的文件」就是兩條串列求交集。 字詞本身很多，要找到某個字詞的那一條串列，
+這一層通常再用 B$^{+}$ 樹、雜湊表（第~12~章）或第~\ref{sec:mw-trie}~節的 trie 存。
+
+有些課本還會提到這兩種的變形：\textbf{環狀串列}（coral ring）把多重串列的每一條接成環，
+從任何一筆出發都能走回索引；\textbf{細胞分割}（cellular partition）讓每條串列只串同一個
+區塊（細胞）裡的記錄，索引記下每個次鍵值出現在哪些區塊，查詢時可以跳過沒有符合記錄的
+區塊。
+
+\subsection{和 \texorpdfstring{B$^{+}$}{B+} 樹索引比較}
+
+\begin{center}
+\small
+\begin{tabular}{p{0.13\linewidth}p{0.23\linewidth}p{0.25\linewidth}p{0.27\linewidth}}
+\toprule
+ & 用在 & 插入、刪除 & 缺點 \\
+\midrule
+ISAM & 主鍵；整批循序處理為主 & 索引不變，滿了放溢位區 & 插入多了變慢，要定期重組 \\
+B$^{+}$ 樹 & 主鍵或次鍵；點查詢和範圍查詢 & 分裂、借、合併，一直保持平衡 & 每次更新可能改到好幾層 \\
+多重串列 & 次鍵 & 新記錄接到每條串列的開頭，索引的長度加 $1$ & 查詢要讀整條串列上的記錄 \\
+倒排檔 & 次鍵；多條件查詢 & 位址插進每條排好的串列 & 索引大；串列要保持排序 \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+實際的系統把這些組合起來用：主鍵用 B$^{+}$ 樹存資料；次鍵也建一棵 B$^{+}$ 樹，葉子裡每
+個次鍵值帶一串主鍵或記錄位址，這就是用 B$^{+}$ 樹存的倒排檔。
+
+\begin{examnote}
+這一節的名詞在考卷上多半是名詞解釋或「依查詢型態選一種檔案組織」。 作答時寫出三件事：
+索引存什麼（區塊的最大鍵、串列開頭和長度、整串位址）、一次查詢要讀哪些區塊、插入時要
+改哪些地方。 多條件查詢要比較讀取的記錄數時，多重串列讀的是較短那條串列的長度，倒排檔
+讀的是交集的大小，用題目給的數字各算一次。
+\end{examnote}
+
+\section{Trie 與數位搜尋樹}
+\label{sec:mw-trie}
+
+前面每一種搜尋樹，往下走都靠「拿要找的鍵和節點裡的鍵比大小」。 鍵是字串或位元串的時
+候，還有另一種走法：一次只看鍵的\textbf{一個字元}（或一個位元），用它直接決定往哪個子
+節點走。 這一類樹統稱\textbf{數位樹}（digital tree），搜尋的成本看的是鍵的長度，和樹
+裡有幾個鍵沒有直接關係。 這一節先講處理字串的 trie，再講處理固定長度位元串的數位搜尋
+樹、二元 trie 和 Patricia。
+
+\subsection{Trie（字典樹）}
+\label{sec:mw-trie-basic}
+
+設字母表 $\Sigma$ 有 $R$ 個字元，例如小寫英文字母 $R = 26$。 \textbf{trie}（念作 try，
+名稱來自 re\textbf{trie}val；中文常叫\textbf{字典樹}或\textbf{前綴樹}，prefix tree）
+是一棵 $R$ 路樹：
+\begin{itemize}
+\item 每個節點有 $R$ 個子指標，$x.c[a]$ 是沿著字元 $a$ 往下走到的子節點，沒有就是
+\NIL；另外有一個布林欄位 $x.\mathit{end}$。
+\item 根代表空字串。 從根往下走，經過的字元依序接起來，就是那個節點\textbf{代表的字串}。
+\item $x.\mathit{end} = \TRUE$ 表示 $x$ 代表的字串是一個鍵。
+\end{itemize}
+圖~\ref{fig:mw-trie}(a) 是 $\mathit{an}, \mathit{and}, \mathit{ant}, \mathit{bad},
+\mathit{ban}, \mathit{bat}, \mathit{bee}$ 七個鍵的 trie，雙圈是 $\mathit{end}$ 為真的節
+點。 節點裡寫的是走進這個節點的那個字元，不是存在節點裡的鍵：鍵沒有存在任何地方，是由
+路徑拼出來的。
+
+\begin{center}
+\begin{tikzpicture}[baseline=(current bounding box.north), level distance=0.82cm,
+    level 1/.style={sibling distance=2.3cm},
+    level 2/.style={sibling distance=1.15cm},
+    level 3/.style={sibling distance=0.62cm},
+    every node/.style={mwtc}, edge from parent/.style={draw=black!60}]
+\node {}
+  child {node {a}
+    child {node[mwtend] {n}
+      child {node[mwtend] {d}}
+      child {node[mwtend] {t}}}}
+  child {node {b}
+    child {node {a}
+      child {node[mwtend] {d}}
+      child {node[mwtend] {n}}
+      child {node[mwtend] {t}}}
+    child {node {e}
+      child {node[mwtend] {e}}}};
+\node[mwlab, draw=none, rectangle, minimum size=0pt] at (0,-3.15) {(a) 七個鍵};
+\end{tikzpicture}\hspace{1.2cm}%
+\begin{tikzpicture}[baseline=(current bounding box.north), level distance=0.82cm,
+    level 1/.style={sibling distance=2.0cm},
+    level 2/.style={sibling distance=1.15cm},
+    level 3/.style={sibling distance=0.62cm},
+    every node/.style={mwtc}, edge from parent/.style={draw=black!60}]
+\node {}
+  child {node {a}
+    child {node[mwkN] {n}
+      child {node[mwtend] {d}}
+      child {node[mwtend] {t}}}}
+  child {node {b}
+    child {node {a}
+      child {node[mwtend] {n}}
+      child {node[mwtend] {t}}}};
+\node[mwlab, draw=none, rectangle, minimum size=0pt] at (0,-3.15) {(b) 刪除 $\mathit{an}, \mathit{bee}, \mathit{bad}$ 之後};
+\end{tikzpicture}
+\diagcaption{(a) 七個鍵的 trie。 雙圈的節點代表一個鍵，例如從根走 $\mathtt{b}$、
+$\mathtt{a}$、$\mathtt{t}$ 到的雙圈是 $\mathit{bat}$。 (b) 刪除三個鍵之後：藍底的
+$\mathtt{n}$ 只是取消標記（它下面還有 $\mathit{and}$、$\mathit{ant}$），$\mathit{bee}$
+的兩個節點、$\mathit{bad}$ 的一個節點拿掉了。}
+\label{fig:mw-trie}
+\end{center}
+
+從定義可以直接看出 trie 的幾個性質：
+\begin{itemize}
+\item 每個節點代表一個不同的字串，而且是某個鍵的前綴（包括空字串和鍵本身）。 所以\textbf{節點
+數等於所有鍵的不同前綴個數}，最多 $1 + \sum |s|$（$s$ 跑過所有的鍵）。 圖的七個鍵總長
+$20$，但共用前綴，只有 $12$ 個節點。
+\item 樹的形狀只由鍵的集合決定，和插入順序無關。 這和第~9~章的二元搜尋樹不同。
+\item 一個鍵是另一個鍵的前綴時（$\mathit{an}$ 和 $\mathit{and}$），前一個鍵停在內部節點，
+靠 $\mathit{end}$ 標記區分。 有些課本改成在每個鍵後面加一個不在 $\Sigma$ 裡的結束字元，
+例如 \texttt{\$}，讓每個鍵都停在葉節點。
+\item 先序走訪時子節點照字元順序走，經過 $\mathit{end}$ 為真的節點就輸出，得到的是照字典
+順序排好的鍵。
+\end{itemize}
+
+\textbf{搜尋與插入。} 字串寫成 $s[1..L]$。 搜尋從根出發，第 $i$ 步沿著 $s[i]$ 往下；
+中途遇到 \NIL 就是不在，走完 $L$ 步再看停下的節點是不是鍵。 插入走同一條路，缺的節點就
+建出來，最後把停下的節點標成鍵。
+
+\begin{pseudo}[label=alg:mw-trie, unbreakable]{trie 的搜尋與插入，$s = s[1..L]$}
+\Function{Trie-Search}{$T, s$}
+    \State $x \gets T.\mathit{root}$
+    \For{$i \gets 1$ \To $L$}
+        \State $x \gets x.c[s[i]]$
+        \If{$x = \NIL$}
+            \State \Return \FALSE
+        \EndIf
+    \EndFor
+    \State \Return $x.\mathit{end}$
+\EndFunction
+\Procedure{Trie-Insert}{$T, s$}
+    \State $x \gets T.\mathit{root}$
+    \For{$i \gets 1$ \To $L$}
+        \If{$x.c[s[i]] = \NIL$}
+            \State $x.c[s[i]] \gets$ 新節點（子指標都是 \NIL，$\mathit{end} = \FALSE$）
+        \EndIf
+        \State $x \gets x.c[s[i]]$
+    \EndFor
+    \State $x.\mathit{end} \gets \TRUE$
+\EndProcedure
+\end{pseudo}
+
+例如搜尋 $\mathit{ba}$：走 $\mathtt{b}$、$\mathtt{a}$ 都有節點，但停下的節點
+$\mathit{end}$ 是假，第 7 行回傳 \FALSE；$\mathit{ba}$ 只是前綴，不是鍵。 搜尋
+$\mathit{bean}$：走到 $\mathit{be}$ 之後沒有 $\mathtt{a}$ 子節點，第 6 行回傳 \FALSE。
+
+\textbf{刪除。} 先把鍵的節點的 $\mathit{end}$ 改成假。 這時如果它沒有子節點，它已經不代表
+任何鍵的前綴，可以拿掉；拿掉之後它的父節點可能也變成「不是鍵、沒有子節點」，一路往上
+檢查。 用遞迴寫，回程時順便拿掉：
+
+\begin{pseudo}[label=alg:mw-trie-del, unbreakable]{從 $x$ 的子樹刪除 $s[i..L]$；回傳 $x$ 是否可以拿掉}
+\Function{Trie-Delete}{$x, s, i$}
+    \If{$i > L$}
+        \State $x.\mathit{end} \gets \FALSE$
+    \Else
+        \State $y \gets x.c[s[i]]$
+        \If{$y = \NIL$}
+            \State \Return \FALSE \Comment{$s$ 不在 trie 裡}
+        \EndIf
+        \If{\Call{Trie-Delete}{$y, s, i + 1$}}
+            \State 釋放 $y$，$x.c[s[i]] \gets \NIL$
+        \EndIf
+    \EndIf
+    \State \Return $x.\mathit{end} = \FALSE$ \AND $x$ 的子指標都是 \NIL
+\EndFunction
+\end{pseudo}
+
+從根呼叫 \proc{Trie-Delete}$(T.\mathit{root}, s, 1)$，根的回傳值不用理會（空的 trie 也
+留著根）。 圖~\ref{fig:mw-trie}(b) 依序刪除三個鍵：
+\begin{itemize}
+\item $\mathit{an}$：第 3 行把 $\mathtt{n}$ 的標記拿掉；它還有子節點 $\mathtt{d}$、
+$\mathtt{t}$，第 10 行回傳假，沒有節點被拿掉。
+\item $\mathit{bee}$：第二個 $\mathtt{e}$ 取消標記後沒有子節點，回傳真，它的父節點
+$\mathit{be}$ 在第 9 行釋放它。 $\mathit{be}$ 不是鍵、也沒有子節點了，回傳真，再被
+$\mathtt{b}$ 釋放。 $\mathtt{b}$ 還有子節點 $\mathtt{a}$，停止。 拿掉 $2$ 個節點。
+\item $\mathit{bad}$：拿掉 $\mathtt{d}$ 一個節點；$\mathit{ba}$ 還有 $\mathtt{n}$、$\mathtt{t}$。
+\end{itemize}
+
+\textbf{時間和空間。} 子指標存在大小 $R$ 的陣列裡，往下一層是 $O(1)$，所以搜尋和插入都
+是 $O(L)$，\textbf{和鍵的個數 $n$ 無關}。 刪除每層要檢查 $R$ 個子指標，是 $O(RL)$；節點
+多存一個「子節點個數」欄位就降到 $O(L)$。 對照第~10~章的平衡樹：每次比較兩個字串要
+$O(L)$，搜尋是 $O(L \lg n)$。 trie 的代價是空間：每個節點有 $R$ 個指標，大部分是
+\NIL。 圖~\ref{fig:mw-trie}(a) 有 $12$ 個節點、$12 \times 26 = 312$ 個指標，用到的只有
+$11$ 個（每個非根節點被一個指標指到）。 常見的省法：
+\begin{itemize}
+\item 子節點改用串列存（第~\ref{sec:bt-lcrs}~節的左孩子右兄弟），只存真的有的子節點；空間
+降到和節點數成正比，但往下一層要掃串列，最壞 $O(R)$。
+\item 每個節點放一個小雜湊表（第~12~章），平均 $O(1)$ 找到子節點。
+\item 一長串只有一個子節點的節點縮成一個，下面第~\ref{sec:mw-patricia}~節的壓縮 trie 就
+是這個想法。
+\end{itemize}
+
+\textbf{前綴查詢}是 trie 最常被拿來用的地方：輸入法、搜尋框的自動完成、路由器查 IP 位
+址的最長前綴。 要列出所有以 $p$ 開頭的鍵，先沿著 $p$ 走到它的節點，再對這個節點的子樹
+做先序走訪；時間是 $O(|p|)$ 加上子樹的大小。 二元搜尋樹也做得到（找到第一個 $\ge p$ 的
+鍵再往後列），雜湊表則做不到，因為雜湊把相近的字串打散了。
+
+\begin{examnote}
+有些課本（例如 Horowitz 等人的資料結構課本）畫的 trie 有兩種節點：\textbf{分支節點}
+（branch node）是 $R + 1$ 個指標的陣列（多的一格給「字串結束」），\textbf{元素節點}
+（element node）放一整個鍵。 往下分支時，只要某棵子樹只剩一個鍵，就直接放一個元素節點，
+不再往下分。 搜尋走到元素節點時，要把整個鍵比一次。 圖~\ref{fig:mw-trie}(a) 的七個鍵用
+這種畫法：根、$\mathtt{a}$、$\mathit{an}$、$\mathtt{b}$、$\mathit{ba}$ 是分支節點，共 $5$
+個，元素節點 $7$ 個（$\mathit{bee}$ 在 $\mathtt{b}$ 的下一層就是元素節點）。 考卷問
+「分支節點（內部節點）有幾個」時，先看題目用的是哪一種畫法，再數。
+\end{examnote}
+
+\subsubsection{C 程式}
+
+\texttt{trie.c} 照虛擬碼~\ref{alg:mw-trie}、\ref{alg:mw-trie-del} 寫，只收小寫英文字母。
+\texttt{main} 建出圖~\ref{fig:mw-trie}(a) 的 trie（插入順序故意打亂，結果一樣），做幾次搜
+尋和前綴查詢，再刪除圖 (b) 的三個鍵。 全域變數 \texttt{nodes} 記錄目前的節點數，配置
+時加一、釋放時減一。
+
+\begin{cbookrecap}[第~10~章 10.6 節，第~11~章 11.1、11.4 節]
+字串是以 \texttt{'\textbackslash 0'} 結尾的字元陣列，\texttt{const char *s} 指向第一個
+字元，\texttt{s + 1} 指向去掉第一個字元的剩下部分，\texttt{*s == '\textbackslash 0'} 表示
+走到結尾。 小寫字母在 ASCII 裡是連續的，\texttt{*s - 'a'} 把 \texttt{'a'} 到 \texttt{'z'}
+換成 $0$ 到 $25$，正好當陣列下標。
+\end{cbookrecap}
+
+\begin{example}[label=ex:mw-trie]{c}{(trie.c) trie 的插入、搜尋、刪除與前綴查詢}
+#include <stdio.h>
+#include <stdlib.h>
+
+#define R 26                        // 字母表大小：'a' 到 'z'
+#define MAXLEN 32                   // 單字長度上限
+
+typedef struct TNode {
+    struct TNode *child[R];
+    int end;                        // 1：從根到這裡的字串是鍵
+} TNode;
+
+static int nodes;                   // 目前的節點數
+
+static TNode *new_node(void)
+{
+    TNode *x = malloc(sizeof *x);
+    if (x == NULL) {
+        exit(1);
+    }
+    for (int c = 0; c < R; c++) {
+        x->child[c] = NULL;
+    }
+    x->end = 0;
+    nodes++;
+    return x;
+}
+
+void trie_insert(TNode *root, const char *s)
+{
+    TNode *x = root;
+    for (; *s != '\0'; s++) {
+        int c = *s - 'a';
+        if (x->child[c] == NULL) {
+            x->child[c] = new_node();
+        }
+        x = x->child[c];
+    }
+    x->end = 1;
+}
+
+int trie_search(const TNode *root, const char *s)
+{
+    const TNode *x = root;
+    for (; *s != '\0' && x != NULL; s++) {
+        x = x->child[*s - 'a'];
+    }
+    return x != NULL && x->end;
+}
+
+static int has_child(const TNode *x)
+{
+    for (int c = 0; c < R; c++) {
+        if (x->child[c] != NULL) {
+            return 1;
+        }
+    }
+    return 0;
+}
+
+// 從 x 的子樹刪除 s；回傳 1 表示 x 已經沒有用，可以拿掉
+static int del(TNode *x, const char *s)
+{
+    if (*s == '\0') {
+        x->end = 0;
+    } else {
+        int c = *s - 'a';
+        if (x->child[c] == NULL) {
+            return 0;               // s 不在樹裡
+        }
+        if (del(x->child[c], s + 1)) {
+            free(x->child[c]);
+            x->child[c] = NULL;
+            nodes--;
+        }
+    }
+    return !x->end && !has_child(x);
+}
+
+void trie_delete(TNode *root, const char *s)
+{
+    del(root, s);                   // 根代表空字串，不拿掉
+}
+
+// 印出 x 的子樹裡所有的鍵；buf[0..len-1] 是從根走到 x 的字串
+static void collect(const TNode *x, char *buf, int len)
+{
+    if (x->end) {
+        buf[len] = '\0';
+        printf(" %s", buf);
+    }
+    for (int c = 0; c < R; c++) {
+        if (x->child[c] != NULL) {
+            buf[len] = (char)('a' + c);
+            collect(x->child[c], buf, len + 1);
+        }
+    }
+}
+
+void print_prefix(const TNode *root, const char *p)
+{
+    char buf[MAXLEN + 1];
+    int len = 0;
+    const TNode *x = root;
+    printf("prefix %s:", p);
+    for (; p[len] != '\0' && x != NULL; len++) {
+        buf[len] = p[len];
+        x = x->child[p[len] - 'a'];
+    }
+    if (x != NULL) {
+        collect(x, buf, len);
+    }
+    putchar('\n');
+}
+
+void free_trie(TNode *x)
+{
+    for (int c = 0; c < R; c++) {
+        if (x->child[c] != NULL) {
+            free_trie(x->child[c]);
+        }
+    }
+    free(x);
+}
+
+int main(void)
+{
+    const char *words[] = {"bat", "an", "bee", "ant", "bad", "and", "ban"};
+    TNode *root = new_node();
+    for (int i = 0; i < 7; i++) {
+        trie_insert(root, words[i]);
+    }
+    printf("nodes: %d\n", nodes);
+    const char *q[] = {"ba", "bat", "bean"};
+    for (int i = 0; i < 3; i++) {
+        printf("search %s: %s\n", q[i], trie_search(root, q[i]) ? "yes" : "no");
+    }
+    print_prefix(root, "an");
+    print_prefix(root, "b");
+    const char *d[] = {"an", "bee", "bad"};
+    for (int i = 0; i < 3; i++) {
+        trie_delete(root, d[i]);
+        printf("delete %s: nodes %d\n", d[i], nodes);
+    }
+    print_prefix(root, "an");
+    print_prefix(root, "b");
+    free_trie(root);
+    return 0;
+}
+\end{example}
+\iosample{}{nodes: 12 \\ search ba: no \\ search bat: yes \\ search bean: no \\ prefix an: an and ant \\ prefix b: bad ban bat bee \\ delete an: nodes 12 \\ delete bee: nodes 10 \\ delete bad: nodes 9 \\ prefix an: and ant \\ prefix b: ban bat}
+
+\texttt{del} 的寫法和虛擬碼~\ref{alg:mw-trie-del} 一樣，回傳 $1$ 的子節點由父節點釋放。
+\texttt{collect} 帶著一個字元陣列 \texttt{buf} 往下走，\texttt{buf[0..len-1]} 是目前節點代
+表的字串，所以不需要在節點裡存字元。 子節點照 \texttt{c = 0..25} 的順序走，印出來的鍵自
+然是字典順序。 輸出的節點數和圖~\ref{fig:mw-trie} 一致：$12$ 個，刪除 $\mathit{an}$ 不變，
+刪除 $\mathit{bee}$ 少 $2$ 個，刪除 $\mathit{bad}$ 再少 $1$ 個。
+
+\subsection{數位搜尋樹}
+\label{sec:mw-dst}
+
+接下來的三種結構，鍵都是長度 $b$ 的位元串（例如整數的二進位）。 $\mathit{bit}(k, i)$ 表示
+$k$ 從左邊數來的第 $i$ 個位元，$i = 1, 2, \ldots, b$。
+
+\textbf{數位搜尋樹}（digital search tree）是一棵二元樹，每個節點放一個鍵；第 $1$ 層的根
+用第 $1$ 個位元決定往左（$0$）還是往右（$1$），第 $\ell$ 層的節點用第 $\ell$ 個位元。
+插入 $k$ 時從根往下走，每經過一個節點先比整個鍵（相同就是已經在樹裡），不同就照這一層的
+位元往下，走到空的位置就放進去。 搜尋走同一條路，比到相同就找到，走到空的位置就是不在。
+
+
+圖~\ref{fig:mw-dst} 把六個 $5$ 位元的鍵 $10011, 00101, 11010, 00111, 10110, 01000$ 依序插
+入。 $10011$ 成為根。 $00101$ 第 $1$ 位是 $0$，放在根的左邊。 $11010$ 第 $1$ 位是 $1$，
+放在根的右邊。 $00111$ 第 $1$ 位 $0$ 走到 $00101$，第 $2$ 位 $0$ 往左，放進去。
+$10110$ 第 $1$ 位 $1$ 走到 $11010$，第 $2$ 位 $0$ 往左。 $01000$ 第 $1$ 位 $0$ 走到
+$00101$，第 $2$ 位 $1$ 往右。
+
+\begin{center}
+\begin{tikzpicture}[baseline=(current bounding box.north)]
+\node[mwdn,mwkN] (n0) at (0.575,-1.800) {00111};
+\node[mwdn] (n1) at (1.725,-1.800) {01000};
+\node[mwdn,mwkN] (n2) at (1.150,-0.900) {00101};
+\node[mwdn] (n3) at (2.875,-1.800) {10110};
+\node[mwdn] (n4) at (3.275,-0.900) {11010};
+\node[mwdn,mwkN] (n5) at (2.212,0.000) {10011};
+\draw[mwe] (n2) -- (n0);
+\draw[mwe] (n2) -- (n1);
+\draw[mwe] (n4) -- (n3);
+\draw[mwe] (n5) -- (n2);
+\draw[mwe] (n5) -- (n4);
+\end{tikzpicture}
+\diagcaption{依序插入 $10011, 00101, 11010, 00111, 10110, 01000$ 的數位搜尋樹，往左是
+$0$、往右是 $1$。 藍底是搜尋 $00111$ 經過的節點：比了 $3$ 次整個鍵。}
+\label{fig:mw-dst}
+\end{center}
+
+搜尋 $00111$：和根比，不同，第 $1$ 位 $0$ 往左；和 $00101$ 比，不同，第 $2$ 位 $0$ 往左；
+和 $00111$ 比，相同，找到。 搜尋 $01100$：根、$00101$ 都不同，到 $01000$ 也不同，第 $3$
+位是 $1$，$01000$ 沒有右子節點，不在樹裡。
+
+插入寫成虛擬碼如下；搜尋走同一個迴圈，第 4 行比到相同就回傳 $x$，迴圈結束就是不在。
+
+\begin{pseudo}[label=alg:mw-dst, unbreakable]{數位搜尋樹的插入}
+\Procedure{DST-Insert}{$T, k$}
+    \State $p \gets \NIL$；$x \gets T.\mathit{root}$；$i \gets 0$
+    \While{$x \ne \NIL$}
+        \If{$x.\mathit{key} = k$}
+            \State \Return \Comment{已經在樹裡}
+        \EndIf
+        \State $p \gets x$；$i \gets i + 1$
+        \If{$\mathit{bit}(k, i) = 0$}
+            \State $x \gets x.\mathit{left}$
+        \Else
+            \State $x \gets x.\mathit{right}$
+        \EndIf
+    \EndWhile
+    \State $z \gets$ 新節點，$z.\mathit{key} \gets k$
+    \If{$p = \NIL$}
+        \State $T.\mathit{root} \gets z$
+    \ElsIf{$\mathit{bit}(k, i) = 0$}
+        \State $p.\mathit{left} \gets z$
+    \Else
+        \State $p.\mathit{right} \gets z$
+    \EndIf
+\EndProcedure
+\end{pseudo}
+
+數位搜尋樹的性質：
+\begin{itemize}
+\item $n$ 個鍵剛好 $n$ 個節點。 第 $\ell$ 層的節點，它的鍵前 $\ell - 1$ 個位元就是從根走
+下來的方向，兩個不同的 $b$ 位元鍵最多前 $b - 1$ 位相同，所以樹高最多 $b + 1$。 搜尋最
+多比 $b + 1$ 次整個鍵，和 $n$ 無關。
+\item 它\textbf{不是}二元搜尋樹。 左子樹的鍵第 $\ell$ 位是 $0$、右子樹是 $1$，所以左子樹都
+比右子樹小；但節點自己的鍵和兩棵子樹沒有大小關係。 圖~\ref{fig:mw-dst} 的中序是
+$00111, 00101, 01000, \ldots$，沒有排好。
+\item 形狀和插入順序有關：每個鍵放在它插入時路上第一個空位。
+\item 刪除 $x$ 的鍵：$x$ 是葉節點就直接拿掉；否則從 $x$ 的子樹裡任選一個葉節點，把它的鍵
+搬到 $x$，再拿掉那個葉節點。 $x$ 子樹裡的鍵前面幾位都和 $x$ 的位置相符，所以搬上去以後
+每個鍵仍然在自己的路上。
+\end{itemize}
+
+數位搜尋樹每經過一個節點就比一次整個鍵。 鍵很長（例如幾百位元的字串）時，這比看一個位
+元貴得多。 下面的兩種結構讓搜尋只比\textbf{一次}整個鍵。
+
+\subsection{二元 trie、壓縮二元 trie 與 Patricia}
+\label{sec:mw-patricia}
+
+\textbf{二元 trie}（binary trie）就是 $R = 2$ 的 trie，但鍵只放在葉節點。 它有兩種節點：
+\textbf{分支節點}不放鍵，只用某個位元決定往左（$0$）或往右（$1$）；\textbf{元素節點}放
+一個鍵。 第 $\ell$ 層的分支節點看第 $\ell$ 個位元；某棵子樹只剩一個鍵時，那個位置直接放
+元素節點，不再往下分。 搜尋 $k$：照位元一路往下，走到元素節點時把整個鍵比一次，走到空
+的位置就是不在。
+
+圖~\ref{fig:mw-bintrie}(a) 是同樣六個鍵的二元 trie，圓圈是分支節點，裡面的數字是它看的
+位元。 $00101$ 和 $00111$ 前 $3$ 位都是 $001$，第 $3$ 層的分支節點只有右子節點，它什麼也
+沒分開。 這種只有一個子節點的分支節點，只是讓路變長。
+
+\textbf{壓縮二元 trie}（compressed binary trie）把只有一個子節點的分支節點全部拿掉，子節
+點直接接上來。 拿掉之後，分支節點看的位元不再等於它的層數，所以每個分支節點要記下自己
+看第幾個位元，叫做 \textit{bitNumber}（圖~\ref{fig:mw-bintrie}(b)）。
+
+\begin{center}
+\begin{tikzpicture}[baseline=(current bounding box.north)]
+\node[mwel] (n0) at (1.075,-3.600) {00101};
+\node[mwel] (n1) at (2.225,-3.600) {00111};
+\node[mwbn] (n2) at (1.650,-2.700) {4};
+\node[mwbn] (n3) at (1.250,-1.800) {3};
+\node[mwel] (n4) at (3.375,-1.800) {01000};
+\node[mwbn] (n5) at (2.312,-0.900) {2};
+\node[mwel] (n6) at (4.525,-2.700) {10011};
+\node[mwel] (n7) at (5.675,-2.700) {10110};
+\node[mwbn] (n8) at (5.100,-1.800) {3};
+\node[mwel] (n9) at (6.825,-1.800) {11010};
+\node[mwbn] (n10) at (5.963,-0.900) {2};
+\node[mwbn] (n11) at (4.138,0.000) {1};
+\node[mwlab] at (3.950,-4.200) {(a) 二元 trie};
+\draw[mwe] (n2) -- (n0);
+\draw[mwe] (n2) -- (n1);
+\draw[mwe] (n3) -- (n2);
+\draw[mwe] (n5) -- (n3);
+\draw[mwe] (n5) -- (n4);
+\draw[mwe] (n8) -- (n6);
+\draw[mwe] (n8) -- (n7);
+\draw[mwe] (n10) -- (n8);
+\draw[mwe] (n10) -- (n9);
+\draw[mwe] (n11) -- (n5);
+\draw[mwe] (n11) -- (n10);
+\end{tikzpicture}\hspace{0.5cm}\begin{tikzpicture}[baseline=(current bounding box.north)]
+\node[mwel] (n0) at (0.575,-2.700) {00101};
+\node[mwel] (n1) at (1.725,-2.700) {00111};
+\node[mwbn] (n2) at (1.150,-1.800) {4};
+\node[mwel] (n3) at (2.875,-1.800) {01000};
+\node[mwbn] (n4) at (2.013,-0.900) {2};
+\node[mwel] (n5) at (4.025,-2.700) {10011};
+\node[mwel] (n6) at (5.175,-2.700) {10110};
+\node[mwbn] (n7) at (4.600,-1.800) {3};
+\node[mwel] (n8) at (6.325,-1.800) {11010};
+\node[mwbn] (n9) at (5.463,-0.900) {2};
+\node[mwbn] (n10) at (3.738,0.000) {1};
+\node[mwlab] at (3.450,-3.300) {(b) 壓縮二元 trie};
+\draw[mwe] (n2) -- (n0);
+\draw[mwe] (n2) -- (n1);
+\draw[mwe] (n4) -- (n2);
+\draw[mwe] (n4) -- (n3);
+\draw[mwe] (n7) -- (n5);
+\draw[mwe] (n7) -- (n6);
+\draw[mwe] (n9) -- (n7);
+\draw[mwe] (n9) -- (n8);
+\draw[mwe] (n10) -- (n4);
+\draw[mwe] (n10) -- (n9);
+\end{tikzpicture}
+\diagcaption{同樣六個鍵的 (a) 二元 trie 和 (b) 壓縮二元 trie。 圓圈是分支節點，數字是
+它看的位元（\textit{bitNumber}）；方框是元素節點。 (a) 左邊看第 $3$ 位的分支節點只有一
+個子節點，(b) 把它拿掉了。}
+\label{fig:mw-bintrie}
+\end{center}
+
+壓縮二元 trie 的每個分支節點都剛好兩個子節點，有 $n$ 個葉節點（元素節點），所以剛好
+$n - 1$ 個分支節點，總共 $2n - 1$ 個節點（定理~\ref{thm:bt-n0n2}：$n_0 = n_2 + 1$）。 從根往下，\textit{bitNumber} 嚴格遞增。 一個分支節點的
+\textit{bitNumber} 是它子樹裡所有的鍵\textbf{第一個不全相同的位元}；壓縮二元 trie 的形
+狀只由鍵的集合決定。
+
+\textbf{Patricia}（practical algorithm to retrieve information coded in alphanumeric）
+再省一步：把元素節點也拿掉，鍵放進分支節點。 $n - 1$ 個分支節點放不下 $n$ 個鍵，所以再
+加一個\textbf{標頭節點}（header），它的 \textit{bitNumber} 是 $0$，只用左指標，指向原
+本的根。 這樣有 $n$ 個節點、$n$ 個鍵，每個節點：
+\begin{itemize}
+\item 欄位有 $\mathit{key}$、$\mathit{bit}$（\textit{bitNumber}）、$\mathit{left}$、
+$\mathit{right}$。
+\item 壓縮二元 trie 裡指向分支節點的指標，在 Patricia 裡照舊往下指，叫\textbf{往下的指
+標}。
+\item 壓縮二元 trie 裡指向元素節點的指標，在 Patricia 裡改成指向\textbf{放著那個鍵的節點}。
+這個節點在路徑的上方（或就是自己），叫\textbf{往回的指標}（back pointer）。
+\end{itemize}
+所以判斷一個指標往下還是往回，只要看 $\mathit{bit}$：從 $x$ 指到 $y$，$y.\mathit{bit} >
+x.\mathit{bit}$ 是往下，$y.\mathit{bit} \le x.\mathit{bit}$ 是往回。
+
+\textbf{搜尋}從標頭的左指標開始，照 $\mathit{bit}$ 指定的位元往下走，直到走了一個往回的
+指標，停下來的節點的鍵和 $k$ 比一次：
+
+\begin{pseudo}[label=alg:mw-pat-search, unbreakable]{Patricia 的搜尋：回傳搜尋停下的節點}
+\Function{Pat-Search}{$T, k$}
+    \If{$T.\mathit{head} = \NIL$}
+        \State \Return \NIL
+    \EndIf
+    \State $p \gets T.\mathit{head}$；$x \gets p.\mathit{left}$
+    \While{$x.\mathit{bit} > p.\mathit{bit}$}
+        \State $p \gets x$
+        \If{$\mathit{bit}(k, x.\mathit{bit}) = 0$}
+            \State $x \gets x.\mathit{left}$
+        \Else
+            \State $x \gets x.\mathit{right}$
+        \EndIf
+    \EndWhile
+    \State \Return $x$
+\EndFunction
+\end{pseudo}
+
+呼叫的人看回傳的節點：不是 \NIL 而且 $\mathit{key} = k$ 就是找到，否則不在。 只有一個鍵
+時，標頭的左指標指向自己，第 5 行一開始就不成立，直接回傳標頭。
+
+\textbf{插入} $k$ 分三步。 (1) 先搜尋 $k$，停在節點 $y$；$y.\mathit{key} = k$ 就是已經在
+裡面。 (2) 找出 $k$ 和 $y.\mathit{key}$ 第一個不同的位元 $j$。 $k$ 和 $y.\mathit{key}$
+前 $j - 1$ 位相同，所以 $k$ 在壓縮二元 trie 裡會和 $y.\mathit{key}$ 走同一條路，直到某
+個要看第 $j$ 位（或更後面）的地方，新的分支節點就放在那裡。 (3) 從標頭重新往下走，遇到
+往回的指標或 $\mathit{bit} \ge j$ 的節點就停，在停下的那個指標上插入新節點 $z$：
+$z.\mathit{bit} = j$，$z$ 在第 $j$ 位上和 $k$ 相同的那一邊指向自己，另一邊接原本那個指
+標指的東西。
+
+\begin{pseudo}[label=alg:mw-pat-insert, unbreakable]{Patricia 的插入}
+\Procedure{Pat-Insert}{$T, k$}
+    \If{$T.\mathit{head} = \NIL$}
+        \State $T.\mathit{head} \gets$ 新節點：$\mathit{key} = k$，$\mathit{bit} = 0$，$\mathit{left}$ 指向自己
+        \State \Return
+    \EndIf
+    \State $y \gets$ \Call{Pat-Search}{$T, k$}
+    \If{$y.\mathit{key} = k$}
+        \State \Return \Comment{已經在裡面}
+    \EndIf
+    \State $j \gets$ 最小的 $i$ 使 $\mathit{bit}(k, i) \ne \mathit{bit}(y.\mathit{key}, i)$
+    \State $p \gets T.\mathit{head}$；$x \gets p.\mathit{left}$
+    \While{$x.\mathit{bit} > p.\mathit{bit}$ \AND $x.\mathit{bit} < j$}
+        \State $p \gets x$
+        \State 照 $\mathit{bit}(k, x.\mathit{bit})$ 讓 $x \gets x.\mathit{left}$ 或 $x.\mathit{right}$
+    \EndWhile
+    \State $z \gets$ 新節點：$z.\mathit{key} \gets k$，$z.\mathit{bit} \gets j$
+    \If{$\mathit{bit}(k, j) = 0$}
+        \State $z.\mathit{left} \gets z$；$z.\mathit{right} \gets x$
+    \Else
+        \State $z.\mathit{left} \gets x$；$z.\mathit{right} \gets z$
+    \EndIf
+    \If{$p = T.\mathit{head}$}
+        \State $p.\mathit{left} \gets z$
+    \ElsIf{$\mathit{bit}(k, p.\mathit{bit}) = 0$}
+        \State $p.\mathit{left} \gets z$
+    \Else
+        \State $p.\mathit{right} \gets z$
+    \EndIf
+\EndProcedure
+\end{pseudo}
+
+第 10 行的迴圈有兩個停止條件。 遇到往回的指標而停，表示 $k$ 一路上看的位元都在 $j$ 之
+前，新節點接在路的最下面；遇到 $\mathit{bit} \ge j$ 的往下指標而停，表示新節點要插在
+路的中間，原本那棵子樹整棵接到 $z$ 的另一邊（第 15 或 17 行）。
+
+圖~\ref{fig:mw-pat} 把同樣六個鍵依序插入 Patricia。 每個節點左上角的小圓圈是
+$\mathit{bit}$；往回的指標畫成紅色虛線，終點寫它指向的節點的鍵，不再畫一條彎回去的線。
+把每個紅色的終點換成一個元素節點，就是圖~\ref{fig:mw-bintrie}(b) 的壓縮二元 trie。
+
+\begin{figure}[tbp]
+\centering
+\begin{tikzpicture}[baseline=(current bounding box.north)]
+\node[mwbk] (n0) at (0.575,-0.900) {10011};
+\node[mwpn,mwkN,label={[mwbitl]above left:0}] (n1) at (0.975,0.000) {10011};
+\node[mwlab] at (0.775,-1.500) {(a) 插入 $10011$};
+\draw[mwback] (n1) -- (n0);
+\end{tikzpicture}\hspace{0.4cm}\begin{tikzpicture}[baseline=(current bounding box.north)]
+\node[mwbk] (n0) at (0.575,-1.800) {00101};
+\node[mwbk] (n1) at (1.725,-1.800) {10011};
+\node[mwpn,mwkN,label={[mwbitl]above left:1}] (n2) at (1.150,-0.900) {00101};
+\node[mwpn,label={[mwbitl]above left:0}] (n3) at (1.550,0.000) {10011};
+\node[mwlab] at (1.150,-2.400) {(b) 插入 $00101$};
+\draw[mwback] (n2) -- (n0);
+\draw[mwback] (n2) -- (n1);
+\draw[mwe] (n3) -- (n2);
+\end{tikzpicture}\hspace{0.4cm}\begin{tikzpicture}[baseline=(current bounding box.north)]
+\node[mwbk] (n0) at (0.575,-1.800) {00101};
+\node[mwbk] (n1) at (1.725,-2.700) {10011};
+\node[mwbk] (n2) at (2.875,-2.700) {11010};
+\node[mwpn,mwkN,label={[mwbitl]above left:2}] (n3) at (2.300,-1.800) {11010};
+\node[mwpn,label={[mwbitl]above left:1}] (n4) at (1.438,-0.900) {00101};
+\node[mwpn,label={[mwbitl]above left:0}] (n5) at (1.837,0.000) {10011};
+\node[mwlab] at (1.725,-3.300) {(c) 插入 $11010$};
+\draw[mwback] (n3) -- (n1);
+\draw[mwback] (n3) -- (n2);
+\draw[mwback] (n4) -- (n0);
+\draw[mwe] (n4) -- (n3);
+\draw[mwe] (n5) -- (n4);
+\end{tikzpicture}\hspace{0.4cm}\begin{tikzpicture}[baseline=(current bounding box.north)]
+\node[mwbk] (n0) at (0.575,-2.700) {00101};
+\node[mwbk] (n1) at (1.725,-2.700) {00111};
+\node[mwpn,mwkN,label={[mwbitl]above left:4}] (n2) at (1.150,-1.800) {00111};
+\node[mwbk] (n3) at (2.875,-2.700) {10011};
+\node[mwbk] (n4) at (4.025,-2.700) {11010};
+\node[mwpn,label={[mwbitl]above left:2}] (n5) at (3.450,-1.800) {11010};
+\node[mwpn,label={[mwbitl]above left:1}] (n6) at (2.300,-0.900) {00101};
+\node[mwpn,label={[mwbitl]above left:0}] (n7) at (2.700,0.000) {10011};
+\node[mwlab] at (2.300,-3.300) {(d) 插入 $00111$};
+\draw[mwback] (n2) -- (n0);
+\draw[mwback] (n2) -- (n1);
+\draw[mwback] (n5) -- (n3);
+\draw[mwback] (n5) -- (n4);
+\draw[mwe] (n6) -- (n2);
+\draw[mwe] (n6) -- (n5);
+\draw[mwe] (n7) -- (n6);
+\end{tikzpicture}\\*[0.6em]
+\begin{tikzpicture}[baseline=(current bounding box.north)]
+\node[mwbk] (n0) at (0.575,-2.700) {00101};
+\node[mwbk] (n1) at (1.725,-2.700) {00111};
+\node[mwpn,label={[mwbitl]above left:4}] (n2) at (1.150,-1.800) {00111};
+\node[mwbk] (n3) at (2.875,-3.600) {10011};
+\node[mwbk] (n4) at (4.025,-3.600) {10110};
+\node[mwpn,mwkN,label={[mwbitl]above left:3}] (n5) at (3.450,-2.700) {10110};
+\node[mwbk] (n6) at (5.175,-2.700) {11010};
+\node[mwpn,label={[mwbitl]above left:2}] (n7) at (4.312,-1.800) {11010};
+\node[mwpn,label={[mwbitl]above left:1}] (n8) at (2.731,-0.900) {00101};
+\node[mwpn,label={[mwbitl]above left:0}] (n9) at (3.131,0.000) {10011};
+\node[mwlab] at (2.875,-4.200) {(e) 插入 $10110$};
+\draw[mwback] (n2) -- (n0);
+\draw[mwback] (n2) -- (n1);
+\draw[mwback] (n5) -- (n3);
+\draw[mwback] (n5) -- (n4);
+\draw[mwe] (n7) -- (n5);
+\draw[mwback] (n7) -- (n6);
+\draw[mwe] (n8) -- (n2);
+\draw[mwe] (n8) -- (n7);
+\draw[mwe] (n9) -- (n8);
+\end{tikzpicture}\hspace{0.8cm}\begin{tikzpicture}[baseline=(current bounding box.north)]
+\node[mwbk] (n0) at (0.575,-3.600) {00101};
+\node[mwbk] (n1) at (1.725,-3.600) {00111};
+\node[mwpn,label={[mwbitl]above left:4}] (n2) at (1.150,-2.700) {00111};
+\node[mwbk] (n3) at (2.875,-2.700) {01000};
+\node[mwpn,mwkN,label={[mwbitl]above left:2}] (n4) at (2.013,-1.800) {01000};
+\node[mwbk] (n5) at (4.025,-3.600) {10011};
+\node[mwbk] (n6) at (5.175,-3.600) {10110};
+\node[mwpn,label={[mwbitl]above left:3}] (n7) at (4.600,-2.700) {10110};
+\node[mwbk] (n8) at (6.325,-2.700) {11010};
+\node[mwpn,label={[mwbitl]above left:2}] (n9) at (5.463,-1.800) {11010};
+\node[mwpn,label={[mwbitl]above left:1}] (n10) at (3.738,-0.900) {00101};
+\node[mwpn,label={[mwbitl]above left:0}] (n11) at (4.138,0.000) {10011};
+\node[mwlab] at (3.450,-4.200) {(f) 插入 $01000$};
+\draw[mwback] (n2) -- (n0);
+\draw[mwback] (n2) -- (n1);
+\draw[mwe] (n4) -- (n2);
+\draw[mwback] (n4) -- (n3);
+\draw[mwback] (n7) -- (n5);
+\draw[mwback] (n7) -- (n6);
+\draw[mwe] (n9) -- (n7);
+\draw[mwback] (n9) -- (n8);
+\draw[mwe] (n10) -- (n4);
+\draw[mwe] (n10) -- (n9);
+\draw[mwe] (n11) -- (n10);
+\end{tikzpicture}
+\diagcaption{依序插入 $10011, 00101, 11010, 00111, 10110, 01000$ 的 Patricia。 小圓圈是
+$\mathit{bit}$，藍底是剛插入的鍵；紅色虛線是往回的指標，終點寫它指向的那個節點的鍵（指
+向自己也一樣畫）。 標頭只有左指標。}
+\label{fig:mw-pat}
+\end{figure}
+
+\begin{itemize}
+\item (a) 空的時候插入 $10011$：成為標頭，左指標指向自己。
+\item (b) 插入 $00101$：搜尋停在標頭，$y = 10011$，第 $1$ 位就不同，$j = 1$。 重新往下
+走，標頭的左指標往回，停下。 新節點 $\mathit{bit} = 1$，$00101$ 的第 $1$ 位是 $0$，左指
+標指向自己，右指標接原本的東西（指回標頭 $10011$）。
+\item (c) 插入 $11010$：搜尋走 $00101$（第 $1$ 位 $1$，往右）回到標頭，$y = 10011$；
+$11010$ 和 $10011$ 第 $2$ 位不同，$j = 2$。 重新走到 $00101$ 的右指標（往回）停下，新節點
+插在那裡，右邊指自己，左邊指回 $10011$。
+\item (d) 插入 $00111$：搜尋停在 $00101$ 自己，第 $4$ 位不同，$j = 4$，插在 $00101$ 的
+左指標上。
+\item (e) 插入 $10110$：搜尋經過 $00101$、$11010$（第 $2$ 位 $0$ 往左）回到標頭，
+$y = 10011$，第 $3$ 位不同，$j = 3$，插在 $11010$ 的左指標上。
+\item (f) 插入 $01000$：搜尋經過 $00101$、$00111$（第 $4$ 位 $0$ 往左）回到 $00101$，
+$y = 00101$。 $01000$ 和 $00101$ 第 $2$ 位就不同，$j = 2$。 重新往下走：$00101$ 的
+$\mathit{bit} = 1 < 2$，繼續；它的左指標指向 $00111$，$\mathit{bit} = 4 \ge 2$，停在這
+個\textbf{往下}的指標上。 新節點 $\mathit{bit} = 2$ 插在 $00101$ 和 $00111$ 之間：
+$01000$ 第 $2$ 位是 $1$，右指標指自己，左指標接整棵 $00111$ 的子樹。
+\end{itemize}
+
+(f) 是插在路中間的例子，對照圖~\ref{fig:mw-bintrie}(b)：$01000$ 和 $\{00101, 00111\}$ 從
+第 $2$ 位分開，所以看第 $2$ 位的分支節點在看第 $4$ 位的上面。
+
+\textbf{刪除}。 設要刪的鍵 $k$ 放在節點 $p$，搜尋 $k$ 時最後是從節點 $q$ 的某個往回指標
+到達 $p$。 在壓縮二元 trie 裡，$k$ 是 $q$ 那個分支節點的一個葉節點；拿掉 $k$ 之後，那個
+分支節點只剩一個子節點，要壓縮掉。 所以 Patricia 要拿掉的是 $q$ 這個位置的節點：
+\begin{itemize}
+\item \textbf{$q = p$}（$p$ 有一個指標指向自己）：$p$ 的另一個指標記為 $o$。 把父節點指
+向 $p$ 的那個往下指標改成 $o$，釋放 $p$。
+\item \textbf{$q \ne p$}：$q$ 的節點要拿掉，但它的鍵 $k_q$ 還要留著，就搬到 $p$
+（$p$ 保留自己的 $\mathit{bit}$）。 原本指向 $q$ 的往回指標（搜尋 $k_q$ 時最後走的那一
+個，可能是 $q$ 自己的）改成指向 $p$。 $q$ 的兩個指標裡，搜尋 $k$ 時走的那個指向 $p$，
+另一個記為 $o$；把 $q$ 的父節點指向 $q$ 的指標改成 $o$，釋放 $q$。
+\item 只剩一個鍵（標頭指向自己）時，刪掉就變成空的。
+\end{itemize}
+
+從圖~\ref{fig:mw-pat}(f) 依序刪除 $00111$、$00101$（圖~\ref{fig:mw-pat-del}）。 搜尋
+$00111$ 最後走的是 $00111$ 自己的右指標，$q = p$：$00111$ 的另一個指標指回 $00101$，所以
+父節點 $01000$ 的左指標改成指回 $00101$。 搜尋 $00101$ 經過 $00101$、$01000$，從
+$01000$ 的左指標回到 $00101$，$q = 01000 \ne p$。 把 $01000$ 搬進 $p$（$\mathit{bit}$
+仍是 $1$）；搜尋 $01000$ 最後走的是 $q$ 自己的右指標，改成指向 $p$。 $q$ 的兩個指標現在
+都指向 $p$，$o$ 就是指回 $p$；$q$ 的父節點是 $p$，$p$ 的左指標改成指回自己。 結果和
+直接插入剩下四個鍵的 Patricia 有一樣的形狀。
+
+\begin{center}
+\begin{tikzpicture}[baseline=(current bounding box.north)]
+\node[mwbk] (n0) at (0.575,-2.700) {00101};
+\node[mwbk] (n1) at (1.725,-2.700) {01000};
+\node[mwpn,label={[mwbitl]above left:2}] (n2) at (1.150,-1.800) {01000};
+\node[mwbk] (n3) at (2.875,-3.600) {10011};
+\node[mwbk] (n4) at (4.025,-3.600) {10110};
+\node[mwpn,label={[mwbitl]above left:3}] (n5) at (3.450,-2.700) {10110};
+\node[mwbk] (n6) at (5.175,-2.700) {11010};
+\node[mwpn,label={[mwbitl]above left:2}] (n7) at (4.312,-1.800) {11010};
+\node[mwpn,label={[mwbitl]above left:1}] (n8) at (2.731,-0.900) {00101};
+\node[mwpn,label={[mwbitl]above left:0}] (n9) at (3.131,0.000) {10011};
+\node[mwlab] at (2.875,-4.200) {(a) 刪除 $00111$};
+\draw[mwback] (n2) -- (n0);
+\draw[mwback] (n2) -- (n1);
+\draw[mwback] (n5) -- (n3);
+\draw[mwback] (n5) -- (n4);
+\draw[mwe] (n7) -- (n5);
+\draw[mwback] (n7) -- (n6);
+\draw[mwe] (n8) -- (n2);
+\draw[mwe] (n8) -- (n7);
+\draw[mwe] (n9) -- (n8);
+\end{tikzpicture}\hspace{1cm}\begin{tikzpicture}[baseline=(current bounding box.north)]
+\node[mwbk] (n0) at (0.575,-1.800) {01000};
+\node[mwbk] (n1) at (1.725,-3.600) {10011};
+\node[mwbk] (n2) at (2.875,-3.600) {10110};
+\node[mwpn,label={[mwbitl]above left:3}] (n3) at (2.300,-2.700) {10110};
+\node[mwbk] (n4) at (4.025,-2.700) {11010};
+\node[mwpn,label={[mwbitl]above left:2}] (n5) at (3.162,-1.800) {11010};
+\node[mwpn,mwkN,label={[mwbitl]above left:1}] (n6) at (1.869,-0.900) {01000};
+\node[mwpn,label={[mwbitl]above left:0}] (n7) at (2.269,0.000) {10011};
+\node[mwlab] at (2.300,-4.200) {(b) 刪除 $00101$};
+\draw[mwback] (n3) -- (n1);
+\draw[mwback] (n3) -- (n2);
+\draw[mwe] (n5) -- (n3);
+\draw[mwback] (n5) -- (n4);
+\draw[mwback] (n6) -- (n0);
+\draw[mwe] (n6) -- (n5);
+\draw[mwe] (n7) -- (n6);
+\end{tikzpicture}
+\diagcaption{從圖~\ref{fig:mw-pat}(f) 依序刪除 (a) $00111$、(b) $00101$。 (b) 的藍底是
+從 $q$ 搬上來的鍵 $01000$，它留在原本 $00101$ 的節點（$\mathit{bit} = 1$）。}
+\label{fig:mw-pat-del}
+\end{center}
+
+\textbf{成本。} 搜尋路上的 $\mathit{bit}$ 嚴格遞增，最多看 $\min(b, n - 1)$ 個位元，最後只
+比\textbf{一次}整個鍵。 插入多一次搜尋、比一次找出 $j$，都是 $O(b)$。 空間：$n$ 個節點，每
+個節點一個鍵、一個整數、兩個指標；壓縮二元 trie 有 $2n - 1$ 個節點，二元 trie 可能更多。
+
+\begin{examnote}
+位元的編號各書不同：本書（以及 Horowitz 等人的課本）從左邊的第 $1$ 位數起，標頭是
+$0$；有的書從右邊、從 $0$ 數起，Knuth 原本的 Patricia 存的是「跳過幾個位元」。 題目會
+定義，作答前先看清楚。 考卷上畫 Patricia 時，每個往回的指標都要真的畫出來（彎回去指到
+那個節點），每個節點旁寫 $\mathit{bit}$；畫完用這兩件事檢查：從標頭往下的
+$\mathit{bit}$ 嚴格遞增，每個鍵搜尋一次都停在放自己的節點。
+\end{examnote}
+
+\subsection{和二元搜尋樹、雜湊表比較}
+\label{sec:mw-trie-compare}
+
+字串鍵（長度 $L$，共 $n$ 個）：
+\begin{center}
+\small
+\begin{tabular}{p{0.19\linewidth}p{0.20\linewidth}p{0.22\linewidth}p{0.26\linewidth}}
+\toprule
+ & 搜尋時間 & 空間 & 依序列出、前綴查詢 \\
+\midrule
+平衡樹（第~10~章） & $O(L \lg n)$ & $n$ 個節點 & 可以 \\
+雜湊表（第~12~章） & 平均 $O(L)$，最壞 $O(nL)$ & $n$ 個鍵加上表 & 不行 \\
+trie & 最壞 $O(L)$ & 最多 $1 + \sum |s|$ 個節點，每個 $R$ 個指標 & 可以，前綴查詢最直接 \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+$b$ 位元的鍵（$n$ 個）：
+\begin{center}
+\small
+\begin{tabular}{p{0.20\linewidth}p{0.17\linewidth}p{0.25\linewidth}p{0.25\linewidth}}
+\toprule
+ & 節點數 & 搜尋時比幾次整個鍵 & 搜尋時看幾個位元 \\
+\midrule
+數位搜尋樹 & $n$ & 最多 $b + 1$ & 最多 $b$ \\
+二元 trie & 分支節點最多 $nb$ 個，加 $n$ 個元素節點 & $1$（走到元素節點時） & 最多 $b$ \\
+壓縮二元 trie & $2n - 1$ & $1$ & 最多 $\min(b, n - 1)$ \\
+Patricia & $n$（含標頭） & $1$ & 最多 $\min(b, n - 1)$ \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+trie 系列不必比大小，鍵也不必能排序，只要能一個字元一個字元拆開；形狀只看鍵的位元或字
+元，最壞情況不會退化成一條長鏈。 在鍵很多、但共同前綴很長的應用裡（字典、IP 位址、DNA
+序列），trie 一層一層往下的路徑剛好對應這些共同前綴。
+
+\subsection{後綴 trie}
+\label{sec:mw-suffix}
+
+把一個文字 $T$ 的\textbf{所有後綴}都插進一個 trie，就是 $T$ 的\textbf{後綴 trie}
+（suffix trie）。 字串 $P$ 在 $T$ 裡出現，等於 $P$ 是 $T$ 某個後綴的前綴，也就是從根照
+$P$ 往下走走得完。 所以建好之後，每次查一個子字串只要 $O(|P|)$，和 $T$ 的長度無關；走
+到的節點底下有幾個後綴，$P$ 就出現幾次。 例如 $T = \mathtt{abab\$}$（結尾加
+\texttt{\$}，讓每個後綴都停在葉節點），五個後綴是 $\mathtt{abab\$}$、$\mathtt{bab\$}$、
+$\mathtt{ab\$}$、$\mathtt{b\$}$、$\mathtt{\$}$；查 $\mathtt{ab}$ 走 $\mathtt{a}$、$\mathtt{b}$ 兩步，
+底下有 $\mathtt{abab\$}$ 和 $\mathtt{ab\$}$ 兩個後綴，所以 $\mathtt{ab}$ 出現在第 $1$、$3$ 個位
+置。 問題是大小：長度 $n$ 的字串，後綴總長 $n(n+1)/2$，後綴 trie 最多有 $n(n+1)/2 + 1$ 個
+節點。 把只有一個子節點的鏈壓縮起來（邊上記字串的起訖位置），得到\textbf{後綴樹}（suffix
+tree），節點數降到 $O(n)$，也有 $O(n)$ 時間的建法，本書不講。 第~27~章的字串比對處理的是
+「一個樣式、一個文字」；同一個文字要查很多次時，就輪到後綴樹。
+
 \section{本章常見錯誤}
 \label{sec:mw-pitfalls}
 
@@ -2048,6 +3067,12 @@ $\lceil 5/2 \rceil = 3$ 個子節點、$2$ 個鍵 & 定義~\ref{def:mw-btree} \\
 第~\ref{sec:mw-delete}~節 \\
 由上而下、由下而上混用 & 2-3-4 樹題目指定由上而下，卻等到葉子溢位才分裂 &
 第~\ref{sec:mw-234}~節 \\
+trie 的節點數數錯 & 把節點數當成鍵數或字元總數；應該數不同的前綴（含空字串）。 題目若用分支節點、元素節點的畫法，數法又不同 &
+第~\ref{sec:mw-trie-basic}~節 \\
+數位搜尋樹當成二元搜尋樹 & 用大小決定往左往右；應該用這一層的位元，節點的鍵和子樹沒有大小關係 &
+第~\ref{sec:mw-dst}~節 \\
+Patricia 只接在最下面 & 插入時遇到 $\mathit{bit} \ge j$ 的往下指標沒有停，新節點接錯層，$\mathit{bit}$ 不再遞增 &
+圖~\ref{fig:mw-pat}(f) \\
 \bottomrule
 \end{tabular}
 \end{center}
@@ -2128,14 +3153,100 @@ $\lceil L/2 \rceil$ 個鍵（葉子不只一片）。 這棵樹的高度（包�
 是多少？
 \end{enumerate}
 
+\item （計算、追蹤）把 $\mathit{dot}, \mathit{dog}, \mathit{do}, \mathit{dock}, \mathit{door},
+\mathit{dove}, \mathit{eat}$ 插入空的 trie，字母表是 $26$ 個小寫字母，子指標用大小 $26$
+的陣列存。
+\begin{enumerate}
+\item trie 有幾個節點？ 有幾個節點的 $\mathit{end}$ 為真？
+\item 所有節點的子指標裡，有幾個是 \NIL？
+\item 用虛擬碼~\ref{alg:mw-trie-del} 依序刪除 $\mathit{do}, \mathit{door}, \mathit{eat}$，
+每次刪除之後有幾個節點？
+\item 改用第~\ref{sec:mw-trie-basic}~節作答提醒裡「分支節點、元素節點」的畫法（某棵子樹
+只剩一個鍵就放元素節點），原本的七個鍵有幾個分支節點？
 \end{enumerate}
+
+\item （追蹤）$4$ 位元的鍵 $0110, 1011, 0100, 1110, 0001, 1010$ 依序插入，位元從左邊數起。
+\begin{enumerate}
+\item 畫出數位搜尋樹。 搜尋 $1000$ 時，依序和哪些鍵比過？
+\item 二元 trie 有幾個分支節點？ 畫出壓縮二元 trie，從根做 BFS（先左後右），依序寫出分支
+節點的 \textit{bitNumber}。
+\item 依序插入 Patricia，寫出每次插入的 $j$ 和新節點接在哪個指標上，畫出最後的 Patricia。
+\item 從 (c) 的結果依序刪除 $0110$、$1110$，寫出每次是第~\ref{sec:mw-patricia}~節的哪一種
+情況，寫出結果。
+\end{enumerate}
+
+\item （計算）一個檔案有 $10{,}000$ 筆記錄，每筆在不同的區塊。 次鍵 $A$ 的值 $a$ 對到
+$1200$ 筆，次鍵 $B$ 的值 $b$ 對到 $300$ 筆，兩個條件都滿足的有 $40$ 筆。 索引已經在記
+憶體裡，只算讀記錄區塊的次數。
+\begin{enumerate}
+\item 用多重串列處理「$A = a$ \textbf{and} $B = b$」，最少要讀幾個區塊？ 怎麼做到？
+\item 用倒排檔（位址串列已排好），要讀幾個區塊？ 在記憶體裡求交集，最多比較幾次？
+\item 查詢改成「$A = a$ \textbf{or} $B = b$」，兩種組織各要讀幾次區塊？
+\item 插入一筆 $A = a$、$B = b$ 的新記錄，兩種組織各要改哪些地方？
+\end{enumerate}
+
+\end{enumerate}
+
+\section{歷屆試題}
+\label{sec:mw-pastexam}
+
+以下是研究所入學考試的原題，題目照原卷（語言、記號、配分照錄）。 詳解在本章最後。
+
+\begin{pastexam}[label={px:mw-1}]{中正資工所 114 學年度 第 2 題}
+(5\%) (Select \underline{multiple} correct answers) Please select all the correct statement(s).
+\begin{enumerate}[label=(\alph*), topsep=4pt]
+\item A 2-3-4 tree is a B-tree of order 5.
+\item A red-black tree is a binary tree form of a 2-3 tree.
+\item All the external nodes in a B-tree are on the same level.
+\item Any internal node (excluding the root) has at least $\lceil \frac{m}{2}\rceil$ children in a B-tree of order $m$.
+\item None of the above.
+\end{enumerate}
+\end{pastexam}
+
+\begin{pastexam}[label={px:mw-2}]{中山資工所 107 學年度 第 6 題（節錄 (1) 小題）}
+\textbf{[Advanced Data Structures: 15\%]}
+\begin{enumerate}[label=(\arabic*)]
+\item Given an $n$-key B-tree with minimum degree $t$, what is the upper bound of tree height? Prove the correctness of your answer. (8\%)
+\end{enumerate}
+\end{pastexam}
+
+\begin{pastexam}[label={px:mw-3}]{政大資科所 113 學年度 第 15 題}
+(15\%) A B-tree can be parameterized by the minimum degree $t$. Every node other than the root must store at least $t-1$ keys.
+\begin{enumerate}[label=\Alph*.]
+\item (5\%) Explain the advantage of B-trees over red-black trees when the parameter $t$ is set appropriately.
+\item (5\%) True or false: the height of a B-tree decreases as $t$ increases. Please explain your answer.
+\item (5\%) True or false: the time complexity of insertion decreases as $t$ increases. Please explain your answer.
+\end{enumerate}
+\end{pastexam}
+
+\begin{pastexam}[label={px:mw-4}]{臺大資工所 115 學年度 第 21 題}
+(4 points) Let $T$ be a B-tree of minimum degree $t\ge 2$. During the deletion of a key $k$ from an internal node $x$, suppose $k$ is stored in $x$ at index $i$. Which of the following actions correctly preserves all B-tree invariants before the recursive deletion proceeds?
+\begin{enumerate}[label=(\Alph*)]
+\item Always replace $k$ with its inorder predecessor from the left subtree, regardless of the number of keys in the subtrees.
+\item Replace $k$ with either the predecessor or successor arbitrarily, since both choices always produce valid B-trees.
+\item Merge the two children of $k$ immediately, even if both have at least $t$ keys.
+\item Delete $k$ directly from node $x$ and rebalance only if an underflow occurs afterward.
+\item Replace $k$ with the key preceeding $k$ in the left child if the left child has at least $t$ keys; otherwise, replace it with the key following $k$ if the right child has at least $t$ keys.
+\end{enumerate}
+\end{pastexam}
+
+\begin{pastexam}[label={px:mw-5}]{成大資訊聯招 115 學年度 第一大題 第 1、2 題}
+\begin{enumerate}
+\item[1.] [3\%] A campus system stores device IDs. Each ID is a 6-bit binary string. Given the following seven 6-bit keys: 000001, 000010, 000011, 001111, 100000, 101011, 111110. Please insert the 7 keys into an empty digital search tree in the order given above. When searching for key 001111, list the keys visited on the search path, in order.\par\smallskip
+\fbox{Answer format: key1->key2->\dots}\par\smallskip
+
+\item[2.] [4\%] (Continue Question 1) Build the compressed binary trie for the same seven 6-bit keys. For each branch node, define its \textit{bitNumber} as the bit index used at that node to choose the left or right child. The leftmost bit is index 1 and the rightmost bit is index 6. Perform BFS starting from the root. When visiting a branch node, enqueue the left child before the right child. List the \textit{bitNumber} of each visited branch node in BFS order.\par\smallskip
+\fbox{Answer format: bitNum1, bitNum2, \dots}
+\end{enumerate}
+\end{pastexam}
 
 \section{實作練習}
 \label{sec:mw-practice}
 
-Aki-Judge 目前還沒有和本章對應的題目，請用觀念題和範例~\ref{ex:mw-btree} 練習；寫刪
-除時，可以照虛擬碼~\ref{alg:mw-deldown}、\ref{alg:mw-fix} 加進範例的程式，用
-圖~\ref{fig:mw-b-del} 的例子檢查每一步。
+Aki-Judge 目前還沒有和本章對應的題目，請用觀念題和範例~\ref{ex:mw-btree}、\ref{ex:mw-trie}
+練習；寫刪除時，可以照虛擬碼~\ref{alg:mw-deldown}、\ref{alg:mw-fix} 加進範例的程式，用
+圖~\ref{fig:mw-b-del} 的例子檢查每一步。 Patricia 可以照虛擬碼~\ref{alg:mw-pat-search}、
+\ref{alg:mw-pat-insert} 寫，鍵用 \texttt{unsigned} 整數，用圖~\ref{fig:mw-pat} 檢查每一步。
 
 \section{讀完你應該會}
 \label{sec:mw-checklist}
@@ -2149,6 +3260,12 @@ Aki-Judge 目前還沒有和本章對應的題目，請用觀念題和範例~\re
 \item 能把 2-3-4 樹畫成紅黑樹、把紅黑樹畫成 2-3-4 樹，說出紅黑樹插入和刪除的各種情況
 對應分裂、合併還是借。
 \item 能說明 B$^{+}$ 樹和 B 樹的差別，用區塊大小算出階數和要讀幾次磁碟。
+\item 能說明 ISAM、多重串列、倒排檔的索引存什麼，算出多條件查詢要讀幾筆記錄，並和
+B$^{+}$ 樹比較。
+\item 能畫出一組字串的 trie、算出節點數，做搜尋、插入和刪除，說出 trie 和二元搜尋樹、雜湊
+表的取捨；能寫出 trie 的 C 程式。
+\item 能對位元串的鍵做數位搜尋樹、二元 trie、壓縮二元 trie 和 Patricia 的追蹤，算出
+\textit{bitNumber}，做 Patricia 的插入和刪除。
 \end{itemize}
 
 \textbf{延伸閱讀}（書末會整理完整的參考資料）
@@ -2163,6 +3280,13 @@ Aki-Judge 目前還沒有和本章對應的題目，請用觀念題和範例~\re
 樹講到左傾紅黑樹，和本章第~\ref{sec:mw-rb}~節的對應互相參照。
 \item Douglas Comer，``The Ubiquitous B-Tree''，\textit{ACM Computing Surveys}
 11(2)，1979：B 樹和 B$^{+}$ 樹在資料庫、檔案系統裡的用法，篇幅短。
+\item Donald E. Knuth，\textit{The Art of Computer Programming}，第 3 冊，第 6.3 節：
+trie、數位搜尋樹和 Patricia 的原始講法與平均情況的分析。
+\item Ellis Horowitz、Sartaj Sahni、Susan Anderson-Freed，\textit{Fundamentals of Data
+Structures in C}，第 2 版：數位搜尋樹、二元 trie、Patricia 和多路 trie 的講法，本章作答提
+醒提到的「分支節點、元素節點」畫法和 \textit{bitNumber} 從左邊數起的約定，都和這本一致。
+\item Donald R. Morrison，``PATRICIA---Practical Algorithm To Retrieve Information Coded
+in Alphanumeric''，\textit{Journal of the ACM} 15(4)，1968：Patricia 的原始論文。
 \end{itemize}
 
 \addcontentsline{toc}{section}{觀念題解答}
@@ -2295,4 +3419,293 @@ $n + 1 = E \ge 2c^{h-1}$。
 最矮：$342^2 = 116{,}964$ 不夠，$342^3 = 40{,}001{,}688$ 夠，$H \ge 4$。
 最高：$2 \cdot 171^{H-2} \le 5{,}847{,}953$，$171^2 = 29{,}241$ 可以，$171^3 = 5{,}000{,}211$
 不行，$H \le 4$。 所以高度一定是 $4$，查一筆資料讀 $4$ 個區塊。
+
+\item (a) 節點數等於不同前綴的個數：空字串、$\mathit{d}$、$\mathit{do}$、$\mathit{dot}$、
+$\mathit{dog}$、$\mathit{doc}$、$\mathit{dock}$、$\mathit{doo}$、$\mathit{door}$、
+$\mathit{dov}$、$\mathit{dove}$、$\mathit{e}$、$\mathit{ea}$、$\mathit{eat}$，共 $14$ 個。
+$\mathit{end}$ 為真的是七個鍵各自的節點，$7$ 個（$\mathit{do}$ 是內部節點，也標成鍵）。
+(b) 共 $14 \times 26 = 364$ 個指標。 除了根，每個節點剛好被一個指標指到，非 \NIL 的有
+$13$ 個，所以 \NIL 有 $364 - 13 = 351$ 個。
+(c) 刪除 $\mathit{do}$：只取消標記，它還有 $\mathtt{t}, \mathtt{g}, \mathtt{c}, \mathtt{o},
+\mathtt{v}$ 五個子節點，仍是 $14$ 個。 刪除 $\mathit{door}$：$\mathtt{r}$ 取消標記後沒有
+子節點，拿掉；$\mathit{doo}$ 不是鍵、沒有子節點了，也拿掉；$\mathit{do}$ 還有其他子節點，
+停止，剩 $12$ 個。 刪除 $\mathit{eat}$：$\mathtt{t}$、$\mathit{ea}$、$\mathit{e}$ 依序拿
+掉，根還有子節點 $\mathtt{d}$，剩 $9$ 個。
+(d) 根要分開 $\mathtt{d}$ 和 $\mathtt{e}$，是分支節點；$\mathtt{e}$ 那棵子樹只有
+$\mathit{eat}$，直接放元素節點。 $\mathtt{d}$ 底下六個鍵第 $2$ 個字元都是 $\mathtt{o}$，
+$\mathit{d}$ 是分支節點（只有一個子節點）；$\mathit{do}$ 用第 $3$ 個字元分成「結束」
+（$\mathit{do}$）、$\mathtt{t}, \mathtt{g}, \mathtt{c}, \mathtt{o}, \mathtt{v}$ 六支，
+每支只剩一個鍵，都是元素節點。 分支節點是根、$\mathit{d}$、$\mathit{do}$，共 $3$ 個。
+
+\item 這一題的樹用文字寫：$[k](L, R)$ 是放 $k$ 的節點和它的左右子樹，$-$ 是空的。
+\begin{itemize}
+\item (a) $0110$ 是根；$1011$ 第 $1$ 位 $1$ 放右邊；$0100$ 第 $1$ 位 $0$ 放左邊；$1110$ 經
+$1011$、第 $2$ 位 $1$ 放右邊；$0001$ 經 $0100$、第 $2$ 位 $0$ 放左邊；$1010$ 經 $1011$、第
+$2$ 位 $0$ 放左邊。 結果 $[0110]([0100]([0001], -), [1011]([1010], [1110]))$。 搜尋
+$1000$：和 $0110$ 比（第 $1$ 位 $1$，往右）、和 $1011$ 比（第 $2$ 位 $0$，往左）、和
+$1010$ 比（第 $3$ 位 $0$，左邊是空的），依序比了 $0110, 1011, 1010$，找不到。
+\item (b) 二元 trie：根看第 $1$ 位；左邊 $\{0001, 0100, 0110\}$ 用第 $2$ 位分成 $0001$ 和
+$\{0100, 0110\}$，後者再用第 $3$ 位分開；右邊 $\{1010, 1011, 1110\}$ 用第 $2$ 位分成
+$\{1010, 1011\}$ 和 $1110$，前者第 $3$ 位都是 $1$，要多一個只有一個子節點的分支節點，再
+用第 $4$ 位分開。 分支節點共 $6$ 個。 壓縮之後拿掉那個只有一個子節點的節點，剩 $5$ 個：
+根 $1$；左子節點 $2$（左 $0001$，右是 $3$：$0100$、$0110$）；右子節點 $2$（左是 $4$：
+$1010$、$1011$，右 $1110$）。 BFS 依序是 $1, 2, 2, 3, 4$。
+\item (c) 寫成「節點（$\mathit{bit}$）：左 $\to$、右 $\to$」，打 $\uparrow$ 的是往回的指標。
+\begin{itemize}
+\item 插入 $0110$：成為標頭。
+\item 插入 $1011$：搜尋停在標頭，第 $1$ 位不同，$j = 1$；接在標頭的左指標上。 $1011$（$1$）：
+左 $\to 0110\uparrow$，右 $\to$ 自己。
+\item 插入 $0100$：搜尋經 $1011$ 回到標頭，$0100$ 和 $0110$ 第 $3$ 位不同，$j = 3$；重新
+走到 $1011$ 的左指標（往回）停下，接在那裡。 $0100$（$3$）：左 $\to$ 自己，右 $\to 0110\uparrow$。
+\item 插入 $1110$：搜尋停在 $1011$ 自己，第 $2$ 位不同，$j = 2$；接在 $1011$ 的右指標上。
+$1110$（$2$）：左 $\to 1011\uparrow$，右 $\to$ 自己。
+\item 插入 $0001$：搜尋經 $1011$、$0100$（第 $3$ 位 $0$）停在 $0100$ 自己，$0001$ 和
+$0100$ 第 $2$ 位不同，$j = 2$。 重新往下：$1011$ 的左指標指向 $0100$，它的 $\mathit{bit} = 3
+\ge 2$，停在這個往下的指標上，新節點插在中間。 $0001$（$2$）：左 $\to$ 自己，右 $\to 0100$
+（往下）。
+\item 插入 $1010$：搜尋經 $1011$、$1110$（第 $2$ 位 $0$，往左）回到 $1011$，第 $4$ 位不同，
+$j = 4$；接在 $1110$ 的左指標上。 $1010$（$4$）：左 $\to$ 自己，右 $\to 1011\uparrow$。
+\end{itemize}
+最後：標頭 $0110$（$0$）左 $\to 1011$；$1011$（$1$）左 $\to 0001$，右 $\to 1110$；$0001$（$2$）
+左 $\to$ 自己，右 $\to 0100$；$0100$（$3$）左 $\to$ 自己，右 $\to 0110\uparrow$；$1110$（$2$）
+左 $\to 1010$，右 $\to$ 自己；$1010$（$4$）左 $\to$ 自己，右 $\to 1011\uparrow$。 把往回的指標
+換成元素節點，正好是 (b) 的壓縮二元 trie。
+\item (d) 刪除 $0110$：它在標頭；搜尋經 $1011$、$0001$（第 $2$ 位 $1$）、$0100$（第 $3$ 位
+$1$），從 $0100$ 的右指標回到標頭，$q = 0100 \ne p$，是第二種情況。 $0100$ 搬進標頭；搜尋
+$0100$ 最後走的是 $0100$ 自己的左指標，改成指向標頭；$q$ 的另一個指標也就指向標頭，
+$q$ 的父節點 $0001$ 的右指標改成指回標頭，釋放 $q$。 結果：標頭 $0100$（$0$）左 $\to
+1011$；$0001$（$2$）左 $\to$ 自己，右 $\to 0100\uparrow$；其他不變。
+刪除 $1110$：搜尋經 $1011$ 到 $1110$，第 $2$ 位 $1$，走 $1110$ 自己的右指標，$q = p$，是
+第一種情況。 $1110$ 的另一個指標指向 $1010$，所以 $1011$ 的右指標改成指向 $1010$，釋放
+$1110$。 結果：標頭 $0100$ 左 $\to 1011$；$1011$（$1$）左 $\to 0001$，右 $\to 1010$；
+$0001$（$2$）左 $\to$ 自己，右 $\to 0100\uparrow$；$1010$（$4$）左 $\to$ 自己，右 $\to
+1011\uparrow$。
+\end{itemize}
+
+\item (a) $300$ 個。 索引記著每條串列的長度，挑短的 $B = b$ 那條，沿著串列讀 $300$ 筆，每筆
+檢查 $A$ 是不是 $a$，留下 $40$ 筆。
+(b) $40$ 個：先在記憶體裡求兩條串列的交集，只讀交集裡的記錄。 交集用合併的方法從頭掃，每
+比一次至少有一條串列前進一格，最後一次比較之後至少一條已經用完，所以最多比
+$1200 + 300 - 1 = 1499$ 次。
+(c) 符合的記錄有 $1200 + 300 - 40 = 1460$ 筆。 倒排檔先在記憶體裡求聯集，讀 $1460$ 個區
+塊。 多重串列一定要走完兩條串列才知道有哪些記錄，讀 $1200 + 300 = 1500$ 次，交集的 $40$
+筆讀了兩次。
+(d) 多重串列：新記錄的「下一個 $A$ 相同」欄位填原本 $A = a$ 串列的開頭，「下一個 $B$ 相同」
+欄位填 $B = b$ 串列的開頭；索引裡這兩條串列的開頭改成新記錄，長度各加 $1$。 記錄本身不
+用移動。 倒排檔：記錄本身不用帶指標；把新記錄的位址插進 $A = a$ 和 $B = b$ 兩條排好的串
+列裡的正確位置（新位址通常最大，接在最後面）。
 \end{enumerate}
+
+\addcontentsline{toc}{section}{歷屆試題詳解}
+\section*{歷屆試題詳解}
+
+\pastsol{px:mw-1}{中正資工所 114 學年度 第 2 題}
+答案：(c)、(d)。
+\begin{itemize}
+\item (a) 錯。 2-3-4 樹的節點最多 $4$ 個子節點，是 $4$ 階 B 樹（第~\ref{sec:mw-btree}~節
+的表）。 $5$ 階 B 樹的非根節點至少要 $2$ 個鍵，2-3-4 樹允許只有 $1$ 個鍵的非根節點；
+$5$ 階 B 樹允許 $4$ 個鍵的節點，2-3-4 樹最多 $3$ 個。 兩者不同。
+\item (b) 錯。 紅黑樹對應的是 2-3-4 樹（第~\ref{sec:mw-rb}~節）。 反例：根 $20$ 是黑色，
+左右子節點 $10$、$30$ 都是紅色，這是合法的紅黑樹，三個鍵合起來是一個 4-節點，2-3 樹沒有
+這種節點。 只有規定紅色子節點只能在左邊的左傾紅黑樹（第~10~章延伸閱讀的 Sedgewick
+版本）才和 2-3 樹一一對應，一般的紅黑樹不是。
+\item (c) 對。 外部節點是畫在葉節點底下、代表搜尋失敗的方塊（第~\ref{sec:mw-btree}~節）。
+定義~\ref{def:mw-btree} 第 6 條規定所有葉節點在同一層，外部節點都是葉節點的子節點，所以
+都在下一層。
+\item (d) 對。 這就是定義~\ref{def:mw-btree} 第 3 條：根以外的內部節點至少
+$\lceil m/2 \rceil$ 個子節點。
+\item (e) 錯，(c)、(d) 是對的。
+\end{itemize}
+
+\pastsol{px:mw-2}{中山資工所 107 學年度 第 6 題（節錄 (1) 小題）}
+題目沒有定義高度。 用最小分支度 $t$ 描述 B 樹的是 CLRS，它的高度數邊（只有根的樹高度是
+$0$），下面照這個定義作答，最後換成本書的定義。
+
+答案：$n \ge 1$、$t \ge 2$ 時，高度 $h \le \log_t \dfrac{n + 1}{2}$。（本書數節點的高度是
+$h + 1$，寫成 $h_{\text{本書}} \le 1 + \log_t \frac{n+1}{2}$，就是定理~\ref{thm:mw-height}
+在 $m = 2t$、$c = t$ 的情況。）
+
+\textbf{要證的是}：任何有 $n \ge 1$ 個鍵、高度 $h$ 的 B 樹都有 $n \ge 2t^h - 1$。 兩邊加
+$1$ 除以 $2$ 再取 $\log_t$，就得到 $h \le \log_t \frac{n+1}{2}$。 方法是數每一層最少有
+幾個節點。
+
+用到的定義（CLRS）：根至少 $1$ 個鍵；根以外的節點至少 $t - 1$ 個鍵；有 $k$ 個鍵的內部節
+點有 $k + 1$ 個子節點，所以根如果不是葉節點至少 $2$ 個子節點，根以外的內部節點至少 $t$
+個子節點；所有葉節點的深度都是 $h$。
+
+令 $N_d$ 是深度 $d$ 的節點數。 \textbf{斷言}：$h \ge 1$ 時，對 $1 \le d \le h$，
+$N_d \ge 2t^{d-1}$。 對 $d$ 歸納。 $d = 1$：根不是葉節點（$h \ge 1$），至少 $2$ 個子節點，
+$N_1 \ge 2 = 2t^0$。 設 $1 \le d < h$ 時 $N_d \ge 2t^{d-1}$。 深度 $d$ 的節點不是根，也不是葉
+節點（葉節點都在深度 $h > d$），所以各至少有 $t$ 個子節點，而且不同節點的子節點不同，
+$N_{d+1} \ge t N_d \ge 2t^d$。 斷言成立。
+
+數鍵。 根至少 $1$ 個鍵，深度 $1$ 到 $h$ 的每個節點至少 $t - 1$ 個鍵：
+\[
+n \;\ge\; 1 + (t - 1) \sum_{d=1}^{h} 2t^{d-1}
+\;=\; 1 + 2(t - 1) \cdot \frac{t^h - 1}{t - 1}
+\;=\; 2t^h - 1.
+\]
+$h = 0$ 時只有根，$n \ge 1 = 2t^0 - 1$，也成立。 所以 $t^h \le \frac{n+1}{2}$，
+$h \le \log_t \frac{n+1}{2}$。 證畢。
+
+這個上界可以達到：根剛好 $1$ 個鍵、其他每個節點剛好 $t - 1$ 個鍵的 B 樹，上面每個不等
+號都是等號。
+
+\pastsol{px:mw-3}{政大資科所 113 學年度 第 15 題}
+下面的高度用本書的定義（數節點）；改用 CLRS 數邊的高度，每個數字減 $1$，結論不變。
+最小分支度 $t$ 等於本書的 $m = 2t$ 階（第~\ref{sec:mw-btree}~節的作答提醒）。
+
+\textbf{A.} 磁碟上的資料結構，成本幾乎只看讀了幾個區塊（第~\ref{sec:mw-disk}~節）。 B
+樹把一個節點做成一個區塊，$t$ 取到一個節點剛好填滿一個區塊（通常是幾十到幾百），樹高只
+有 $O(\log_t n)$，查一筆資料讀的區塊數就是樹高。 紅黑樹每個節點只有一個鍵，高度最多
+$2\lg(n+1)$，每往下一層都可能讀一個不同的區塊。 例~3 的數字：$10^8$ 筆資料，B 樹高度
+$4$，紅黑樹的高度可能到 $53$。 節點裡比較幾百個鍵是在記憶體裡做，比一次讀磁碟便宜得多。
+
+\textbf{B.} 錯（嚴格來說）。 有 $n$ 個鍵的 B 樹，由定理~\ref{thm:mw-height}（$m = 2t$，
+$c = t$），
+\[
+\log_{2t}(n + 1) \;\le\; h \;\le\; 1 + \log_t \frac{n + 1}{2}.
+\]
+兩邊都隨 $t$ 變大而變小或不變，所以「$t$ 越大，樹的高度範圍越低」是對的，這也是 A 的理由。
+但「高度隨 $t$ 增加而減少」不對：
+\begin{itemize}
+\item 高度可以不變：$n = 3$ 時，$t = 3$ 和 $t = 4$ 的 B 樹都只能是一個放 $3$ 個鍵的根，高度
+都是 $1$。
+\item 對個別的樹，$t$ 大的甚至可能比較高。 $n = 53$：$t = 3$ 時，根放 $1$ 個鍵、其他節點都
+放 $2$ 個鍵、高度 $4$ 的 B 樹剛好有 $1 + 2 \cdot 2 + 6 \cdot 2 + 18 \cdot 2 = 53$ 個鍵
+（這是定理下界 $2 \cdot 3^3 - 1 = 53$ 的情況）。 $t = 2$ 時，高度 $3$ 的 B 樹可以放
+$53$ 個鍵：根和第 $2$ 層的 $4$ 個節點都放 $3$ 個鍵，第 $3$ 層的 $16$ 片葉子裡 $6$ 片放 $3$
+個、$10$ 片放 $2$ 個，共 $3 + 12 + 18 + 20 = 53$ 個。 $t$ 從 $2$ 變成 $3$，這兩棵樹的高度
+從 $3$ 變成 $4$。
+\end{itemize}
+
+\textbf{C.} 錯。 插入要分兩種成本看（第~\ref{sec:mw-insert}~節）：
+\begin{itemize}
+\item 讀寫磁碟的次數是 $O(h) = O(\log_t n)$，$t$ 越大越少。 這一項確實隨 $t$ 增加而減少。
+\item CPU 時間：路上每個節點要找位置、把鍵往後移、分裂時搬一半的鍵，每層 $O(t)$，共
+$O(t \log_t n) = O\!\left(\frac{t}{\lg t} \lg n\right)$。 節點裡改用二分搜尋找位置也一樣，因為
+移動鍵和分裂還是 $O(t)$。 $\frac{t}{\lg t}$ 在 $t \ge 3$ 之後遞增（$t = 4$ 是 $2$，$t = 64$ 是
+$10.7$，$t = 1024$ 是 $102.4$），所以 $t$ 越大，CPU 時間越多。
+\end{itemize}
+所以「插入的時間複雜度隨 $t$ 增加而減少」不成立；減少的只有讀寫磁碟的次數。 實際選 $t$
+時看的是磁碟次數，CPU 多花的時間比起讀一次磁碟很小。
+
+\pastsol{px:mw-4}{臺大資工所 115 學年度 第 21 題}
+答案：(E)。
+
+說明題意：題目用最小分支度 $t$，問的是 CLRS 那種「往下走一趟就刪完」的刪除
+（第~\ref{sec:mw-delete}~節最後一段）：每次往下走進一個子節點之前，先確定它至少有 $t$ 個
+鍵，這樣在下面拿掉一個鍵也不會少於 $t - 1$ 個，不必回頭修。 $k$ 在內部節點 $x$ 時，CLRS
+分三種情況：$k$ 前面的子節點 $y$ 至少 $t$ 個鍵，用 $k$ 的前驅 $k'$（$y$ 子樹裡最大的鍵）取
+代 $k$，再到 $y$ 裡遞迴刪除 $k'$；否則 $k$ 後面的子節點 $z$ 至少 $t$ 個鍵，用後繼對稱處理；
+兩個都只有 $t - 1$ 個鍵，就把 $k$ 和 $z$ 併進 $y$（剛好 $2t - 1$ 個鍵），再到 $y$ 裡刪 $k$。
+原題 (E) 的 preceeding 是 preceding 的拼字錯誤，「the key preceeding $k$ in the left child」
+指左子節點那棵子樹裡排在 $k$ 前面的鍵，也就是前驅。
+
+\begin{itemize}
+\item (A) 錯。 「不管子節點有幾個鍵」就用前驅。 反例 $t = 2$：$x$ 是根 $[20]$，兩個子節點
+是葉節點 $[10]$、$[30]$。 用前驅 $10$ 取代 $20$，再從葉節點 $[10]$ 刪掉 $10$，葉節點變成
+$0$ 個鍵，少於 $t - 1 = 1$；一趟的做法不會回頭修，B 樹的性質被破壞。
+\item (B) 錯。 同一個例子，用後繼 $30$ 取代，葉節點 $[30]$ 也變空。 前驅、後繼都要看那一邊的子
+節點夠不夠鍵，不能任選。
+\item (C) 錯。 兩個子節點都至少有 $t$ 個鍵時合併，新節點至少 $t + 1 + t = 2t + 1$ 個鍵，
+超過上限 $2t - 1$。 例如 $t = 2$，根 $[20]$、子節點 $[5\ 8]$ 和 $[25\ 28]$，合併成
+$[5\ 8\ 20\ 25\ 28]$ 有 $5$ 個鍵，上限是 $3$。
+\item (D) 錯。 從內部節點直接拿掉 $k$，$x$ 少一個鍵，子節點個數卻沒變，違反「$k$ 個鍵恰有
+$k + 1$ 個子節點」；$k$ 兩邊的子樹之間少了分隔鍵。 這不是「不足」的問題，事後借或合併也
+補不回來。
+\item (E) 對。 這就是上面的前兩種情況。 $y$ 至少 $t$ 個鍵，往 $y$ 走下去刪 $k'$ 時，前提
+「進去的子節點至少 $t$ 個鍵」成立。 $k'$ 是 $y$ 子樹裡最大的鍵，比 $y$ 子樹剩下的鍵都大，
+又比 $k$ 小、所以比 $z$ 子樹的鍵都小，放在 $k$ 的位置當分隔鍵，順序不變；後繼的情況對稱。
+(E) 沒有寫兩邊都只有 $t - 1$ 個鍵時要合併，但它寫出來的動作是正確的，其他四個選項都會
+破壞 B 樹的性質。
+\end{itemize}
+本書第~\ref{sec:mw-delete}~節用的是另一種做法：一律換成後繼，刪完之後在回程檢查不足，再借
+或合併。 那種做法下，(A)、(B) 的取代本身沒有問題，因為不足會在回程修好；但題目問的是
+「繼續往下遞迴之前」就要保持性質，是 CLRS 一趟的做法。
+
+\pastsol{px:mw-5}{成大資訊聯招 115 學年度 第一大題 第 1、2 題}
+\textbf{1.} 數位搜尋樹的定義照第~\ref{sec:mw-dst}~節：根用第 $1$ 個位元，第 $\ell$ 層的節
+點用第 $\ell$ 個位元，$0$ 往左、$1$ 往右。 依序插入：
+\begin{itemize}
+\item $000001$：成為根。
+\item $000010$：和根不同，第 $1$ 位 $0$，根的左邊是空的，放進去。
+\item $000011$：根，第 $1$ 位 $0$ 到 $000010$；不同，第 $2$ 位 $0$，放在 $000010$ 的左邊。
+\item $001111$：根，第 $1$ 位 $0$ 到 $000010$；第 $2$ 位 $0$ 到 $000011$；第 $3$ 位 $1$，放
+在 $000011$ 的右邊。
+\item $100000$：第 $1$ 位 $1$，放在根的右邊。
+\item $101011$：第 $1$ 位 $1$ 到 $100000$；第 $2$ 位 $0$，放在它的左邊。
+\item $111110$：第 $1$ 位 $1$ 到 $100000$；第 $2$ 位 $1$，放在它的右邊。
+\end{itemize}
+結果是圖~\ref{fig:mw-px5}(a)。 搜尋 $001111$ 走的就是插入它時的路，依序經過根、
+$000010$、$000011$，最後在 $001111$ 比到相同。
+
+答案：\texttt{000001->000010->000011->001111}
+
+\textbf{2.} 壓縮二元 trie 的分支節點看的是它子樹裡所有的鍵第一個不全相同的位元
+（第~\ref{sec:mw-patricia}~節）。 由上往下分：
+\begin{itemize}
+\item 七個鍵第 $1$ 位就有 $0$ 有 $1$：根看第 $1$ 位。 左邊 $\{000001, 000010, 000011,
+001111\}$，右邊 $\{100000, 101011, 111110\}$。
+\item 左邊四個鍵前 $2$ 位都是 $00$，第 $3$ 位分成 $\{000001, 000010, 000011\}$ 和
+$\{001111\}$：看第 $3$ 位。
+\item 第一組的三個鍵前 $4$ 位都是 $0000$，第 $5$ 位分成 $\{000001\}$ 和
+$\{000010, 000011\}$：看第 $5$ 位。 後者第 $6$ 位分開：看第 $6$ 位。
+\item 右邊三個鍵第 $2$ 位分成 $\{100000, 101011\}$ 和 $\{111110\}$：看第 $2$ 位。 前者第
+$3$ 位分開：看第 $3$ 位。
+\end{itemize}
+結果是圖~\ref{fig:mw-px5}(b)，共 $6$ 個分支節點（$7$ 個鍵，$7 - 1 = 6$，符合）。 BFS 從根
+開始，先左後右：第 $1$ 層是根 $1$；第 $2$ 層是左子節點 $3$、右子節點 $2$；第 $3$ 層依序是
+$3$ 的左子節點 $5$（右子節點 $001111$ 是元素節點）、$2$ 的左子節點 $3$（右子節點 $111110$
+是元素節點）；第 $4$ 層是 $5$ 的右子節點 $6$。
+
+答案：\texttt{1, 3, 2, 5, 3, 6}
+
+\begin{center}
+\begin{tikzpicture}[baseline=(current bounding box.north)]
+\node[mwdn,mwkN] (n0) at (1.150,-2.700) {001111};
+\node[mwdn,mwkN] (n1) at (0.750,-1.800) {000011};
+\node[mwdn,mwkN] (n2) at (1.150,-0.900) {000010};
+\node[mwdn] (n3) at (2.950,-1.800) {101011};
+\node[mwdn] (n4) at (4.250,-1.800) {111110};
+\node[mwdn] (n5) at (3.600,-0.900) {100000};
+\node[mwdn,mwkN] (n6) at (2.375,0.000) {000001};
+\node[mwlab] at (2.500,-3.300) {(a) 數位搜尋樹};
+\draw[mwe] (n1) -- (n0);
+\draw[mwe] (n2) -- (n1);
+\draw[mwe] (n5) -- (n3);
+\draw[mwe] (n5) -- (n4);
+\draw[mwe] (n6) -- (n2);
+\draw[mwe] (n6) -- (n5);
+\end{tikzpicture}\hspace{1cm}\begin{tikzpicture}[baseline=(current bounding box.north)]
+\node[mwel] (n0) at (0.650,-2.700) {000001};
+\node[mwel] (n1) at (1.950,-3.600) {000010};
+\node[mwel] (n2) at (3.250,-3.600) {000011};
+\node[mwbn] (n3) at (2.600,-2.700) {6};
+\node[mwbn] (n4) at (1.625,-1.800) {5};
+\node[mwel] (n5) at (4.550,-1.800) {001111};
+\node[mwbn] (n6) at (3.088,-0.900) {3};
+\node[mwel] (n7) at (5.850,-2.700) {100000};
+\node[mwel] (n8) at (7.150,-2.700) {101011};
+\node[mwbn] (n9) at (6.500,-1.800) {3};
+\node[mwel] (n10) at (8.450,-1.800) {111110};
+\node[mwbn] (n11) at (7.475,-0.900) {2};
+\node[mwbn] (n12) at (5.281,0.000) {1};
+\node[mwlab] at (4.550,-4.200) {(b) 壓縮二元 trie};
+\draw[mwe] (n3) -- (n1);
+\draw[mwe] (n3) -- (n2);
+\draw[mwe] (n4) -- (n0);
+\draw[mwe] (n4) -- (n3);
+\draw[mwe] (n6) -- (n4);
+\draw[mwe] (n6) -- (n5);
+\draw[mwe] (n9) -- (n7);
+\draw[mwe] (n9) -- (n8);
+\draw[mwe] (n11) -- (n9);
+\draw[mwe] (n11) -- (n10);
+\draw[mwe] (n12) -- (n6);
+\draw[mwe] (n12) -- (n11);
+\end{tikzpicture}
+\diagcaption{成大資訊聯招 115 學年度第 1、2 題。 (a) 數位搜尋樹，藍底是搜尋 $001111$ 經
+過的節點。 (b) 壓縮二元 trie，圓圈裡是 \textit{bitNumber}。}
+\label{fig:mw-px5}
+\end{center}

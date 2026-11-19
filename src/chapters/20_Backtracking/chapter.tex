@@ -136,8 +136,7 @@ $x_1, \ldots, x_k$，如果可以確定它不管怎麼往下補都不會成為�
 第 3 行的 \proc{Promising} 就是界限函數，回傳 \TRUE{} 表示這個節點還有希望。 呼叫
 \proc{Backtrack}$(1)$ 開始搜尋。 只要一組答案時，在第 6 行找到答案後設一個旗標，讓所有
 呼叫都提早結束。 回溯法的時間大約是「產生的節點數 $\times$ 每個節點的成本」；每個節點的
-成本主要是第 3 行，節點數則要看界限函數剪掉多少，很難事先算準，
-第~\ref{sec:bk-prune}~節會講怎麼估計。
+成本主要是第 3 行，節點數則要看界限函數剪掉多少，很難事先算準。
 
 \subsection{\texorpdfstring{$n$}{n} 皇后}
 \label{sec:bk-queens}
@@ -644,170 +643,9 @@ $3$ 之後才走得通。 這個錯誤要到兩層之後才看得出來，界限
 字：$\{1, 6\}$、$\{2, 5\}$、$\{3, 4\}$ 三組，三種顏色排列有 $3! = 6$ 種。 只想知道「能不能
 塗」或想數「本質上不同」的塗法時，可以固定頂點 1 塗顏色 $1$，節點數降到 $41$，找到的 $2$
 種塗法乘上 $3$ 就是全部（固定一個頂點只消掉 $3$ 倍；要消掉全部 $3!$ 倍，得再規定顏色第一
-次出現的順序）。 這種「去掉對稱」的剪枝，第~\ref{sec:bk-prune}~節會再整理。
-
-\section{剪枝與上下界}
-\label{sec:bk-prune}
-
-\subsection{可行性剪枝與界限剪枝}
-
-前一節的剪枝都在回答同一個問題：這個部分解還有沒有可能補成一個合法的解？ $n$ 皇后檢查對
-角線、子集合和檢查會不會超過或湊不到、著色檢查鄰居的顏色，都是這一類，叫做
-\textbf{可行性剪枝}（feasibility pruning），判斷用的函數叫可行性函數。
-
-\textbf{最佳化問題}（要找最大或最小的解）還有第二種剪枝。 搜尋時記住目前找到的最好的
-解，它的值記作 $\mathit{best}$。 以求最大值為例，如果能對一個節點算出一個\textbf{上界}
-$U$，保證這棵子樹裡每一個解的值都不超過 $U$，那麼 $U \le \mathit{best}$ 時，這棵子樹裡不
-可能有比目前更好的解，整棵剪掉。 這叫做\textbf{界限剪枝}（bounding），也叫最佳性剪枝。
-求最小值時反過來，算一個\textbf{下界} $L$，$L \ge \mathit{best}$ 就剪。
-
-界限要「樂觀」：求最大值的上界寧可估得太大，不能估得太小。 估得太小會把真正的最佳解剪
-掉，答案就錯了；估得太大只是剪得少、跑得慢。 在不估錯的前提下，越接近真實值的界限剪得越
-多，但通常也越貴，要在「每個節點多花的時間」和「少走的節點」之間取捨。
-
-\subsection{0/1 背包的回溯}
-
-$n$ 個物品，第 $i$ 個價值 $p_i$、重量 $w_i$，背包容量 $W$，要選一些物品使總重不超過 $W$、
-總價值最大。 第~18、19~章把價值寫成 $v_i$；這一章照分支限界課本的習慣寫成 $p_i$（profit），
-因為 $v$ 要留給樹上的節點。 先把物品依 $p_i / w_i$ 由大到小排好。 回溯的節點記錄已決定前 $k$ 個物品時的總
-價值 $P$ 和總重 $\mathit{Wt}$；每一個節點本身就是一個合法的解（後面的物品都不拿），所以
-只要沒超重，就拿 $P$ 去更新 $\mathit{best}$。
-
-上界有兩種簡單的取法：
-
-\begin{enumerate}
-\item $P$ 加上剩下所有物品的價值。 完全不管容量，很鬆，但算起來快（事先算好後綴和就是
-$O(1)$）。
-\item 把剩下的物品當成可以切開，依 $p_i / w_i$ 由大到小放，放得下就整個放，放不下就放進
-剛好填滿的那一部分。 這就是第~19~章分數背包的貪心解，加上 $P$ 當作上界。
-\end{enumerate}
-
-\begin{pseudo}[label=alg:bk-bound]{分數背包上界}
-\Function{Bound}{$k, P, \mathit{Wt}$} \Comment{已決定前 $k$ 個物品，$\mathit{Wt} \le W$}
-    \State $b \gets P$；$\mathit{room} \gets W - \mathit{Wt}$；$i \gets k + 1$
-    \While{$i \le n$ \AND $w_i \le \mathit{room}$}
-        \State $\mathit{room} \gets \mathit{room} - w_i$；$b \gets b + p_i$；$i \gets i + 1$
-    \EndWhile
-    \If{$i \le n$}
-        \State $b \gets b + p_i \cdot \mathit{room} / w_i$ \Comment{第 $i$ 個只放一部分}
-    \EndIf
-    \State \Return $b$
-\EndFunction
-\end{pseudo}
-
-回溯版的程序 \proc{Knap-BT}$(k, P, \mathit{Wt})$ 這樣寫：超重就返回（可行性剪枝）；$P >
-\mathit{best}$ 就更新 $\mathit{best}$；$k = n$ 或 \proc{Bound}$(k, P, \mathit{Wt}) \le
-\mathit{best}$ 就返回（界限剪枝）；否則先遞迴拿第 $k + 1$ 個物品，再遞迴不拿。 $\mathit{best}$
-一開始是 $0$，呼叫 \proc{Knap-BT}$(0, 0, 0)$。 先拿再不拿，配合依價值密度排序，搜尋一開始就會
-沿著貪心的方向走，很快找到一個不錯的 $\mathit{best}$，後面的界限剪枝才剪得動。
-
-兩種上界差多少？ 下表是三種寫法在兩組資料上呼叫 \proc{Knap-BT} 的次數（超重的呼叫也算）。
-第一組是第~\ref{sec:bk-knap}~節的 $4$ 個物品；第二組有 $20$ 個物品，第 $i$ 個的重量是 $10 +
-(37 i \bmod 41)$，價值是重量加上 $(53 i \bmod 29) + 5$，容量取總重的一半 $295$，最佳解是
-$586$。
-
-\begin{center}
-\begin{tabular}{lrr}
-\toprule
-上界 & 4 個物品 & 20 個物品 \\
-\midrule
-不用界限剪枝（只檢查超重） & 31 & 1501065 \\
-$P$ ＋ 剩下的價值總和 & 13 & 253009 \\
-分數背包上界 & 13 & 47 \\
-\bottomrule
-\end{tabular}
-\end{center}
-
-物品少的時候看不出差別；$20$ 個物品時，分數背包上界只呼叫了 $47$ 次，「剩下的全拿」的上界
-要二十五萬次。 分數背包上界每次要 $O(n)$ 的時間，換來的節點減少遠遠超過這個成本。
-
-\begin{whybox}[分數背包上界不會估得太小]
-考慮一個節點，前 $k$ 個物品已經決定，總價值 $P$、總重 $\mathit{Wt} \le W$。 這棵子樹裡的
-任何一個解，都是在剩下的物品 $k + 1, \ldots, n$ 裡選一個子集合 $T$，總重不超過
-$\mathit{room} = W - \mathit{Wt}$，總價值是 $P + \sum_{i \in T} p_i$。 把 $T$ 看成「每個物品
-只拿 $0$ 或 $1$ 份」，它也是同一組物品、同一個容量下的一個分數背包的解。 第~19~章證明
-過（定理~\ref{thm:gr-frac}），依 $p_i / w_i$ 由大到小放的貪心解是分數背包的最佳解，所以它的價值至少是
-$\sum_{i \in T} p_i$。 \proc{Bound} 回傳的正是 $P$ 加上這個貪心解的價值，因此對子樹裡每一
-個解都成立 $\proc{Bound} \ge P + \sum_{i \in T} p_i$。
-\end{whybox}
-
-\subsection{其他常見的剪枝}
-
-除了界限函數，還有三種常用的手法。 一是\textbf{決定的順序}：先決定限制最多的變數（著色時先塗
-鄰居最多的頂點），衝突在比較淺的地方就會被發現；最佳化問題先試看起來最好的值，$\mathit{best}$
-早一點變大，界限剪枝就剪得早。 二是\textbf{去掉對稱}：$n$ 皇后的解左右翻轉還是解，第 1 列只
-要試前 $\lceil n / 2 \rceil$ 欄（$n$ 是奇數時，第 1 列放正中間的解要另外處理，不能直接乘 $2$）；
-著色時固定頂點 1 的顏色也是這個想法。 三是\textbf{讓每個節點的檢查變便宜}：$n$ 皇后用布林陣
-列把 $O(n)$ 的檢查變成 $O(1)$，子集合和把 $s$、$r$ 當參數一路傳下去，節點數不變，每個節點的
-成本降低。
-
-\subsection{估計搜尋樹的大小}
-\label{sec:bk-estimate}
-
-回溯會產生多少節點，事先很難算。 Knuth 在 1975 年提出一個簡單的估計法：從根出發，每一
-層都在「通過界限函數的子節點」裡隨機挑一個往下走，走到沒有子節點為止，一路記下每一層有幾個
-子節點通過。 設這條路徑上依序是 $m_1, m_2, \ldots, m_t$（根有 $m_1$ 個子節點通過，挑中的那個
-子節點有 $m_2$ 個子節點通過……），估計值是
-\[
-1 + m_1 + m_1 m_2 + m_1 m_2 m_3 + \cdots + m_1 m_2 \cdots m_t .
-\]
-想法是假裝同一層的節點都長得和走過的那一個一樣：第 $1$ 層有 $m_1$ 個節點，每一個都有
-$m_2$ 個子節點，第 $2$ 層就有 $m_1 m_2$ 個，以此類推。 估計的對象是\textbf{通過界限函數的節
-點數}（包括根），被剪掉、一產生就死掉的節點不算。
-
-\begin{pseudo}[label=alg:bk-estimate]{Knuth 的隨機探測}
-\Function{Estimate}{}
-    \State $\mathit{est} \gets 1$；$\mathit{prod} \gets 1$；$v \gets$ 根
-    \While{\TRUE}
-        \State $S \gets v$ 的子節點裡通過界限函數的那些
-        \If{$S$ 是空集合}
-            \State \Return $\mathit{est}$
-        \EndIf
-        \State $\mathit{prod} \gets \mathit{prod} \cdot |S|$
-        \State $\mathit{est} \gets \mathit{est} + \mathit{prod}$
-        \State $v \gets S$ 裡等機率隨機挑的一個
-    \EndWhile
-\EndFunction
-\end{pseudo}
-
-用圖~\ref{fig:bk-4queens} 的 4 皇后排列樹來看。 根的 $4$ 個子節點都通過；之後每一步的選擇
-不同，共有 $6$ 條可能的探測路徑：
-
-\begin{center}
-\begin{tabular}{lccc}
-\toprule
-探測走到的節點 & $m_1, m_2, \ldots$ & 機率 & 估計值 \\
-\midrule
-$(1, 3)$ & $4, 2$ & $1/8$ & $1 + 4 + 8 = 13$ \\
-$(1, 4, 2)$ & $4, 2, 1$ & $1/8$ & $1 + 4 + 8 + 8 = 21$ \\
-$(2, 4, 1, 3)$ & $4, 1, 1, 1$ & $1/4$ & $1 + 4 + 4 + 4 + 4 = 17$ \\
-$(3, 1, 4, 2)$ & $4, 1, 1, 1$ & $1/4$ & $17$ \\
-$(4, 1, 3)$ & $4, 2, 1$ & $1/8$ & $21$ \\
-$(4, 2)$ & $4, 2$ & $1/8$ & $13$ \\
-\bottomrule
-\end{tabular}
-\end{center}
-
-單一次的估計可能是 $13$、$17$ 或 $21$，但期望值是
-\[
-\frac{13 + 21 + 21 + 13}{8} + \frac{17 + 17}{4} = 8.5 + 8.5 = 17 ,
-\]
-正好等於 4 皇后完整搜尋時通過對角線檢查的節點數（範例~\ref{ex:bk-nqueens} 產生的 $33$
-個節點裡，有 $16$ 個被剪掉，剩下 $17$ 個）。 這不是巧合，下面的框證明期望值永遠等於真正
-的節點數。 實際使用時做幾十到幾百次探測取平均；每次探測只走一條路徑，成本很低。 單次的估
-計值可能差很多（尤其樹很不平衡時），所以不能只做一次。
-
-\begin{whybox}[探測估計的期望值等於節點數]
-對樹上每個節點 $v$，令 $N(v)$ 是以 $v$ 為根、只含通過界限函數的節點的子樹大小，$X(v)$
-是從 $v$ 開始探測得到的估計值。 $v$ 沒有通過的子節點時 $X(v) = 1 = N(v)$。 否則 $v$ 有 $m$
-個通過的子節點 $c_1, \ldots, c_m$，探測等機率挑一個 $c_j$，而從 $v$ 開始的估計可以寫成
-$X(v) = 1 + m \cdot X(c_j)$（把公式裡的 $m_1$ 提出來）。 對子樹的高度做歸納，假設
-$\mathrm{E}[X(c_j)] = N(c_j)$，則
-\[
-\mathrm{E}[X(v)] = 1 + m \cdot \frac{1}{m}\sum_{j=1}^{m} \mathrm{E}[X(c_j)] = 1 + \sum_{j=1}^{m} N(c_j) = N(v).
-\]
-取 $v$ 為根就得到結論。 這個估計是\textbf{不偏}的，但變異數可能很大。
-\end{whybox}
+次出現的順序）。 $n$ 皇后也能這樣去掉對稱：解左右翻轉還是解，第 1 列只要試前
+$\lceil n / 2 \rceil$ 欄，找到的解再翻轉一次（$n$ 是奇數時，第 1 列放正中間的解翻轉後還
+是第 1 列放正中間，不能直接乘 $2$）。
 
 \section{分支限界}
 \label{sec:bk-bb}
@@ -827,6 +665,19 @@ E-節點先產生全部的子節點，和回溯的深度優先不完全相同，
 「經過 $x$ 的答案，成本大約是多少」，每次取 $\hat c$ 最小的；容器是第~8~章的優先佇列。 求
 最大值時改成取上界最大的，這種做法也叫\textbf{最佳優先搜尋}（best-first search）。
 \end{itemize}
+
+\textbf{可行性剪枝與界限剪枝。} 第~\ref{sec:bk-tree}~節的界限函數都在回答同一個問題：這個
+部分解還有沒有可能補成一個合法的解？ $n$ 皇后檢查對角線、子集合和檢查會不會超過或湊不
+到、著色檢查鄰居的顏色，都是這一類，叫做\textbf{可行性剪枝}（feasibility pruning）。 分支
+限界通常用來解\textbf{最佳化問題}（要找最大或最小的解），這時還有第二種剪枝：搜尋時記住
+目前找到的最好的解，如果能對一個節點算出一個\textbf{界限}，保證這棵子樹裡每一個解都不會比
+目前最好的解更好，整棵子樹就可以丟掉，叫做\textbf{界限剪枝}（bounding）。 求最大值時用
+\textbf{上界}，求最小值時用\textbf{下界}。 章首的兩種「不必再試」正好是這兩種：超重是可行
+性剪枝，「剩下的全部都拿也比不上已經找到的組合」是界限剪枝。
+
+界限要「樂觀」：求最大值的上界寧可估得太大，不能估得太小。 估得太小會把真正的最佳解剪
+掉，答案就錯了；估得太大只是剪得少、跑得慢。 在不估錯的前提下，越接近真實值的界限剪得越
+多，但通常也算得越久。
 
 界限在分支限界裡有兩個用途：決定先展開哪個節點（只有 LC 用到），以及剪掉不可能比目前最好
 的解更好的節點（三種都用）。 以求最小值為例，令 $\mathit{upper}$ 是目前找到的最好答案的
@@ -865,8 +716,38 @@ $\mathit{upper}$，它們的子樹裡不會有更便宜的答案，$\mathit{uppe
 \subsection{0/1 背包的最佳優先分支限界}
 \label{sec:bk-knap}
 
-背包是求最大值，界限用前一節的分數背包上界 \proc{Bound}，每次展開上界最大的活節點。 規則
-整理如下：
+$n$ 個物品，第 $i$ 個價值 $p_i$、重量 $w_i$，背包容量 $W$，要選一些物品使總重不超過 $W$、
+總價值最大。 第~18、19~章把價值寫成 $v_i$；這一章照分支限界課本的習慣寫成 $p_i$（profit），
+因為 $v$ 要留給樹上的節點。 狀態空間樹和子集合和一樣是滿二元樹，第 $k$ 層決定第 $k$ 個物品
+拿或不拿。 每一個節點本身就是一個合法的解（後面的物品都不拿），所以只要沒超重，就可以拿
+它的總價值去更新目前最好的值 $\mathit{best}$。
+
+背包求最大值，要的是上界。 最省事的上界是「目前的總價值加上剩下所有物品的價值」，完全不
+管容量，很鬆。 好得多的做法是把剩下的物品當成可以切開：先把物品依 $p_i / w_i$ 由大到小排
+好，放得下就整個放，放不下就放進剛好填滿的那一部分。 這就是第~19~章分數背包的貪心解
+（虛擬碼~\ref{alg:gr-frac}），加上目前的總價值 $P$ 當作上界：
+
+\begin{pseudo}[label=alg:bk-bound, unbreakable]{分數背包上界}
+\Function{Bound}{$k, P, \mathit{Wt}$} \Comment{已決定前 $k$ 個物品，$\mathit{Wt} \le W$}
+    \State $b \gets P$；$\mathit{room} \gets W - \mathit{Wt}$；$i \gets k + 1$
+    \While{$i \le n$ \AND $w_i \le \mathit{room}$}
+        \State $\mathit{room} \gets \mathit{room} - w_i$；$b \gets b + p_i$；$i \gets i + 1$
+    \EndWhile
+    \If{$i \le n$}
+        \State $b \gets b + p_i \cdot \mathit{room} / w_i$ \Comment{第 $i$ 個只放一部分}
+    \EndIf
+    \State \Return $b$
+\EndFunction
+\end{pseudo}
+
+這個上界不會估得太小。 這棵子樹裡的任何一個解，都是在剩下的物品 $k + 1, \ldots, n$ 裡選一
+個總重不超過 $\mathit{room} = W - \mathit{Wt}$ 的子集合 $T$，總價值是 $P + \sum_{i \in T} p_i$。
+把 $T$ 看成「每個物品只拿 $0$ 或 $1$ 份」，它也是同一組物品、同一個容量下分數背包的一個
+解；定理~\ref{thm:gr-frac} 說貪心解是分數背包的最佳解，所以 \proc{Bound} 回傳的值不小於
+$P + \sum_{i \in T} p_i$。 每次算 \proc{Bound} 要 $O(n)$ 的時間，但它比「剩下的全拿」緊得
+多，剪掉的節點也多得多。
+
+分支限界每次展開上界最大的活節點（最佳優先）。 規則整理如下：
 
 \begin{enumerate}
 \item 物品依 $p_i / w_i$ 由大到小排好；$\mathit{best} \gets 0$（什麼都不拿也是一個解）。
@@ -1006,7 +887,9 @@ $\mathit{upper}$；樹的形狀一樣，但節點被剪掉的時機可能不同�
 \subsubsection{三種順序的比較}
 
 把第 5 行改成 FIFO 或 LIFO，其他規則不變（子節點一樣先拿後不拿，LIFO 因此先展開「不拿」的子
-節點），產生的節點數如下。 $20$ 個物品的那一組是第~\ref{sec:bk-prune}~節的資料。
+節點），產生的節點數如下。 第二組資料有 $20$ 個物品，第 $i$ 個的重量是
+$10 + (37 i \bmod 41)$，價值是重量加上 $(53 i \bmod 29) + 5$，容量取總重的一半 $295$；物品先
+依 $p_i / w_i$ 由大到小重新排過，最佳解是 $586$。
 
 \begin{center}
 \begin{tabular}{lcccc}
@@ -1413,9 +1296,9 @@ $\hat c$ 不小於 $\mathit{upper}$ 時停止。 作答時寫出每一個被展�
 沒排序就用「最小的放不進去」剪枝 & 子集合和的 $w$ 沒有由小到大排好，$s + w_{k+1} > M$
 不代表後面的都放不進去，答案被剪掉 & 第~\ref{sec:bk-subset}~節 \\
 界限估得太小 & 求最大值時拿貪心的整數解當上界；它是一個可行解的值，可能比子樹裡的最佳解
-小，最佳解會被剪掉 & 第~\ref{sec:bk-prune}~節 \\
+小，最佳解會被剪掉 & 第~\ref{sec:bk-knap}~節 \\
 分數上界沒有先依 $p_i / w_i$ 排序 & 照輸入順序塞物品，算出來的值不是分數背包的最佳值，可
-能比真正的最佳解小 & 第~\ref{sec:bk-prune}~節 \\
+能比真正的最佳解小 & 第~\ref{sec:bk-knap}~節 \\
 要找全部最佳解卻在「等於」時剪掉 & 只要一個最佳解時 $b \le \mathit{best}$ 可以剪；要列出所
 有最佳解，只能在 $b < \mathit{best}$ 時剪 & 第~\ref{sec:bk-knap}~節 \\
 TSP 子節點的 $\hat c$ 少加一項 & 只寫新矩陣的縮減量 $r$，忘了加父節點的 $\hat c$ 和
@@ -1455,14 +1338,6 @@ $\{4,5\}$、$\{5,1\}$。 取 $m = 3$。
 \item \proc{Color}（虛擬碼~\ref{alg:bk-color}）找到的第一種塗法是什麼？
 \item 一共有幾種塗法？ 固定頂點 1 塗顏色 $1$ 時有幾種？
 \item 說明為什麼 $m = 2$ 時沒有塗法。
-\end{enumerate}
-
-\item （計算）對某個回溯程式做一次 Knuth 探測，從根開始每一層通過界限函數的子節點數依序是
-$4, 3, 2, 2, 1$，第六層的節點沒有任何子節點通過。
-\begin{enumerate}
-\item 這次的估計值是多少？
-\item 另一次探測的估計值是 $89$。 兩次平均，估計這棵樹有多少個通過界限函數的節點？
-\item 為什麼估計時只算通過界限函數的子節點，不算被剪掉的？
 \end{enumerate}
 
 \item （追蹤）用 \proc{Knapsack-BB}（虛擬碼~\ref{alg:bk-knap-bb}）解容量 $W = 16$ 的 0/1 背
@@ -1527,6 +1402,84 @@ $(20, 5)$。 寫出每一個產生的節點的 $P$、$\mathit{Wt}$、$b$，E-節
 函數。 每個環會被找到幾次？ 怎麼讓每個環只出現一次？
 \end{enumerate}
 
+\section{歷屆試題}
+\label{sec:bk-pastexam}
+
+以下是研究所入學考試的原題，題目照原卷（語言、記號、配分照錄）。 詳解在本章最後。
+
+\begin{pastexam}[label={px:bk-1}]{臺大資工所 112 學年度 第 9 題}
+［本卷說明：本題為複選題，5 分，每個選項單獨計分。］
+
+\textbf{DFS advantages:} To find a feasible solution to the eight-queen problem, what is/are the reason(s) that we prefer to use DFS (depth-first search) instead of BFS (breadth-first search)?
+\begin{enumerate}[label=(\Alph*)]
+\item DFS is more memory efficient.
+\item DFS can be implemented using a stack.
+\item DFS usually reaches the terminal states of "good" or "bad" faster.
+\item DFS is conceptually simpler than BFS.
+\item BFS cannot be implemented using a stack.
+\end{enumerate}
+\end{pastexam}
+
+\begin{pastexam}[label={px:bk-2}]{中山資工所 111 學年度 第 1 題（節錄 (b) 小題）}
+What are printed by each of the following C program?
+\begin{enumerate}[label=(\alph*),start=2]
+\item (10\%)
+\begin{minted}[fontsize=\small, style=perldoc]{cpp}
+void g(char a[ ], int k, int m)
+{
+    if (k == m) {
+        for (int i = 0; i <= m; i++) cout << a[i] << " ";
+            cout << endl;
+    }
+    else
+        for (int i = k; i <= m; i++) {
+           swap(a[k], a[i]); // exchange
+           g(a, k+1, m);
+           swap(a[k], a[i]);
+        }
+}
+int main( )
+{
+    char a[ ]="abcde";
+    g(a,0,2);
+}
+\end{minted}
+\end{enumerate}
+\end{pastexam}
+
+\begin{pastexam}[label={px:bk-3}]{臺大生機所 111 學年度 第 2 題}
+(15\%) Given a graph, write a pseudocode function that colors the graph's vertices such that no two adjacent vertices share the same color by minimizing the total number of colors used.
+\end{pastexam}
+
+\begin{pastexam}[label={px:bk-4}]{中興資工所 115 學年度 第 7 題}
+［本卷說明：單選題，每題 2 分。］
+
+Branch and Bound differs from backtracking by
+\begin{enumerate}[label=\Alph*.,nosep]
+\item Using bounds to prune search space
+\item Random selection
+\item Depth-only search
+\item Greedy choices
+\end{enumerate}
+\end{pastexam}
+
+\begin{pastexam}[label={px:bk-5}]{中央資工所 100 學年度 第 6 題}
+Below are the inputs of an instance of the 0/1 knapsack problem with n=5 items and the knapsack capacity M=38. Note that P$_\mathrm{i}$ is the profit of item i and W$_\mathrm{i}$ is the weight of item i, i=1,\ldots,5. The 0/1 knapsack problem is to maximize the total profit of items that are wholly put into the knapsack under the constraint that their total weight should not exceed the knapsack capacity.
+\begin{center}
+\begin{tabular}{cccccc}
+i & 1 & 2 & 3 & 4 & 5 \\
+P$_\mathrm{i}$ & 6 & 10 & 4 & 5 & 6 \\
+W$_\mathrm{i}$ & 10 & 19 & 8 & 10 & 12 \\
+\end{tabular}\\[2pt]
+(P$_\mathrm{i}$/W$_\mathrm{i}\ge$ P$_\mathrm{i+1}$/W$_\mathrm{i+1}$)
+\end{center}
+The problem can be solved by the branch-and-bound strategy on the basis of the best-first search scheme by deriving the lower bound and upper bound for each node in the search tree.
+\begin{enumerate}[itemsep=2pt,topsep=2pt]
+\item[6.1] (12\%) Derive the upper bound and the lower bound for the root node and explain how you obtain the bounds.
+\item[6.2] (6\%) Explain how the bounds can be used in the branch-and-bound strategy. (6\%)
+\end{enumerate}
+\end{pastexam}
+
 \section{實作練習}
 \label{sec:bk-practice}
 
@@ -1568,7 +1521,6 @@ $(20, 5)$。 寫出每一個產生的節點的 $P$、$\mathit{Wt}$、$b$，E-節
 死節點的意思。
 \item 能依產生的順序畫出 4 皇后、子集合和、圖著色的回溯過程，標出被剪掉的節點和答案節點。
 \item 能分辨可行性剪枝和界限剪枝，對 0/1 背包寫出分數背包上界，並說明它為什麼不會估得太小。
-\item 能用一次 Knuth 探測算出估計值，並說明它的期望值等於節點數。
 \item 能用 FIFO、LIFO、LC 三種順序做分支限界，手算 0/1 背包的最佳優先樹，列出 E-節點的順序。
 \item 能縮減 TSP 的成本矩陣，算出每個子節點的 $\hat c$，完成一次 LC 分支限界的手算追蹤。
 \end{itemize}
@@ -1583,8 +1535,6 @@ TSP 都在這兩章。
 小例子講回溯和分支限界，0/1 背包的最佳優先搜尋寫得很仔細。
 \item Steven S. Skiena，\textit{The Algorithm Design Manual}，第 3 版，第 9 章：從實作的角度
 講回溯和剪枝，例子偏向實務。
-\item Donald E. Knuth，``Estimating the Efficiency of Backtrack Programs''，\textit{Mathematics
-of Computation} 29(129)，1975：第~\ref{sec:bk-estimate}~節隨機探測估計的原始論文。
 \item John D. C. Little、Katta G. Murty、Dura W. Sweeney、Caroline Karel，``An Algorithm for the
 Traveling Salesman Problem''，\textit{Operations Research} 11(6)，1963：用縮減矩陣做 TSP 分支
 限界的原始論文。
@@ -1638,16 +1588,6 @@ $(3,1,2)$、$(3,1,3)$、$(3,2,1)$、$(3,2,3)$。 頂點 5 要和頂點 4、頂�
 相鄰卻同色。 長度是奇數的環都不能用兩種顏色塗。
 \end{enumerate}
 
-\item
-\begin{enumerate}
-\item $1 + 4 + 4 \cdot 3 + 4 \cdot 3 \cdot 2 + 4 \cdot 3 \cdot 2 \cdot 2 + 4 \cdot 3 \cdot 2
-\cdot 2 \cdot 1 = 1 + 4 + 12 + 24 + 48 + 48 = 137$。
-\item $(137 + 89) / 2 = 113$。 兩次探測太少，實際要做更多次。
-\item 回溯真正會繼續往下走的只有通過界限函數的節點，它們才有子樹；估計值的每一項都假設
-「這一層的每個節點都和走過的那個一樣有這麼多子節點」，被剪掉的節點沒有子節點，不能拿來乘。 要
-估計包括被剪掉的節點在內的總數，可以另外把每一層「產生的子節點數」也乘進去，但那是另一個量。
-\end{enumerate}
-
 \item 根的上界：$49 + 18 = 67$（重 $10$），剩 $6$ 放物品 3 的 $6/7$，$35 \cdot 6 / 7 = 30$，
 共 $97$。 各節點的 $(P, \mathit{Wt}, b)$：2 $(49, 7, 97)$、3 $(0, 0, 73)$；展開 2 得 4 $(67, 10, 97)$、
 5 $(49, 7, 92)$；展開 4 得 6（拿物品 3，重 $17$，超重）、7 $(67, 10, 87)$；展開 5 得 8 $(84, 14,
@@ -1694,7 +1634,7 @@ n\}$。 隱式限制：$x_2, \ldots, x_n$ 互不相同；$\{x_{k-1}, x_k\}$ 是�
 1 相鄰。
 寫成和 \proc{Queens} 一樣的形狀。 先設 $x_1 \gets 1$、把頂點 1 標成用過，再呼叫
 \proc{Hamiltonian}$(2)$：
-\begin{pseudo}[unbreakable]{觀念題 9 的解答}
+\begin{pseudo}[unbreakable]{觀念題 8 的解答}
 \Procedure{Hamiltonian}{$k$}
     \For{$v \gets 2$ \To $n$}
         \If{$\mathit{used}[v] = \FALSE$ \AND $\{x_{k-1}, v\} \in E$}
@@ -1715,3 +1655,210 @@ $x_2 < x_n$，每個環就只出現一次。 還可以加一個界限：每個�
 一站和一個下一站，前一站只能是還沒用過的頂點或目前的尾端 $x_k$，下一站只能是還沒用過的頂點
 或頂點 1；所以 $u$ 在「還沒用過的頂點、$x_k$、頂點 1」之中的鄰居如果少於兩個，就可以剪掉。
 \end{enumerate}
+
+\addcontentsline{toc}{section}{歷屆試題詳解}
+\section*{歷屆試題詳解}
+
+\pastsol{px:bk-1}{臺大資工所 112 學年度 第 9 題}
+本書的答案是 \textbf{(A)、(C)}。 題目問的是「偏好 DFS 的理由」，所以一個選項要算對，必須
+是正確的敘述，而且真的是 DFS 在八皇后上勝過 BFS 的原因。
+
+先用數字看兩種走法的差別。 狀態空間樹用第~\ref{sec:bk-queens}~節的排列樹，對角線衝突的節點
+一產生就剪掉，節點照產生的順序數（被剪掉的也算）。 八皇后的答案全部在第 $8$ 層（放完 $8$ 個皇
+后）。 用程式數出各層通過檢查的節點數：
+
+\begin{center}
+\begin{tabular}{l*{8}{r}}
+\toprule
+層 & 1 & 2 & 3 & 4 & 5 & 6 & 7 & 8 \\
+\midrule
+通過檢查的節點 & 8 & 42 & 140 & 344 & 568 & 550 & 312 & 92 \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\begin{itemize}
+\item DFS（回溯，範例~\ref{ex:bk-nqueens}）：第一組解是第 $337$ 個產生的節點。 任何時刻只需
+要記住從根到目前節點的一條路徑，最多 $8$ 層。
+\item BFS（FIFO，同樣的剪枝）：第 $8$ 層的節點要等第 $1$ 到 $6$ 層的節點全部展開、第 $7$ 層
+也開始展開之後才會出現。 第一組解是第 $5209$ 個產生的節點，佇列裡同時存放的活節點最多
+$573$ 個。
+\end{itemize}
+
+逐項看：
+\begin{itemize}
+\item (A) 對。 DFS 只存一條路徑（深度 $8$ 的遞迴，加上欄和對角線的記號陣列）；BFS 要把整層的
+活節點放在佇列裡，上面算出最多 $573$ 個。 一般來說，深度 $d$、每個節點最多 $b$ 個子節點的樹，
+DFS 要 $O(d)$ 個節點的空間，BFS 最壞要 $O(b^d)$ 個。
+\item (B) 敘述本身是對的（第~\ref{sec:sq-recursion}~節：遞迴就是用堆疊實作），但不是偏好 DFS 的理
+由：BFS 也一樣能用佇列實作，用哪一種容器本身沒有好壞。
+\item (C) 對。 八皇后的解都在第 $8$ 層，DFS 一路往下走，很快就碰到「放滿 $8$ 個」或「這條路走
+不下去」的節點，找到第一組解只產生 $337$ 個節點；BFS 要先把淺層全部走完，產生 $5209$ 個節點
+才碰到第一組解。
+\item (D) 錯。 「概念比較簡單」是主觀的說法，兩者一樣簡單，不是選 DFS 的理由。
+\item (E) 錯。 BFS 需要先進先出的佇列，而佇列可以用兩個堆疊做出來：放入時推進第一個堆疊；取
+出時，如果第二個堆疊是空的，先把第一個堆疊的元素全部彈出、依序推進第二個堆疊，再從第二個堆
+疊彈出。 所以 BFS 也能用堆疊實作；何況這也不是偏好 DFS 的理由。
+\end{itemize}
+
+\pastsol{px:bk-2}{中山資工所 111 學年度 第 1 題（節錄 (b) 小題）}
+這是《C 程式設計基礎》第~15~章 15.15 節「用交換產生所有排列」的寫法（C++ 的 \texttt{swap}
+交換兩個字元，\texttt{cout} 輸出）。 \texttt{g(a, k, m)} 負責決定 \texttt{a[k]}：依序把
+\texttt{a[k..m]} 的每一個字元換到第 \texttt{k} 格，遞迴決定後面的格子，回來後再換回去
+（撤銷）。 \texttt{m = 2}，所以只排列前三個字元 \texttt{a}、\texttt{b}、\texttt{c}，
+\texttt{d}、\texttt{e} 不會被動到，也不會印出。 另外注意縮排：\texttt{cout << endl;} 不在
+\texttt{for} 裡面（那個 \texttt{for} 只有一個敘述），所以每個排列印完才換一次行。
+
+遞迴的過程（第~\ref{sec:bk-tree}~節的狀態空間樹，深度 $k$ 決定 \texttt{a[k]}）：
+
+\begin{center}
+\begin{tabular}{lll}
+\toprule
+呼叫 & 這一層的交換 & 結果 \\
+\midrule
+\texttt{g(0)}，陣列 \texttt{abc} & $i = 0$：不變，\texttt{abc} & 進入 \texttt{g(1)} \\
+\quad \texttt{g(1)}，\texttt{abc} & $i = 1$：不變 & \texttt{g(2)} 印 \texttt{a b c} \\
+ & $i = 2$：交換 \texttt{a[1]}、\texttt{a[2]}，\texttt{acb} & \texttt{g(2)} 印 \texttt{a c b}，換回 \texttt{abc} \\
+\texttt{g(0)} & $i = 1$：交換 \texttt{a[0]}、\texttt{a[1]}，\texttt{bac} & 進入 \texttt{g(1)} \\
+\quad \texttt{g(1)}，\texttt{bac} & $i = 1$：不變 & 印 \texttt{b a c} \\
+ & $i = 2$：\texttt{bca} & 印 \texttt{b c a}，換回 \texttt{bac} \\
+\texttt{g(0)} & 換回 \texttt{abc}；$i = 2$：交換 \texttt{a[0]}、\texttt{a[2]}，\texttt{cba} & 進入 \texttt{g(1)} \\
+\quad \texttt{g(1)}，\texttt{cba} & $i = 1$：不變 & 印 \texttt{c b a} \\
+ & $i = 2$：\texttt{cab} & 印 \texttt{c a b}，換回 \texttt{cba} \\
+\texttt{g(0)} & 換回 \texttt{abc} & 結束 \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+輸出六行（每個字元後面都有一個空白）：
+
+\noindent\begin{minipage}{\linewidth}
+\begin{verbatim}
+a b c
+a c b
+b a c
+b c a
+c b a
+c a b
+\end{verbatim}
+\end{minipage}
+最後兩行是 \texttt{c b a} 在 \texttt{c a b} 前面，不是字典序：第三輪把 \texttt{a[0]} 和
+\texttt{a[2]} 交換，得到的是 \texttt{cba}，第 1、2 格的順序也跟著變了。 一共呼叫 \texttt{g}
+$1 + 3 + 6 = 10$ 次，正是 $3$ 個元素的排列樹的節點數。
+
+\pastsol{px:bk-3}{臺大生機所 111 學年度 第 2 題}
+用的顏色越少越好，就是求圖的色數（第~\ref{sec:bk-coloring}~節）。 做法：依序試
+$m = 1, 2, 3, \ldots$，每個 $m$ 用回溯檢查「能不能用 $m$ 種顏色塗」，第一個成功的 $m$ 就是最少
+的顏色數。 回溯就是虛擬碼~\ref{alg:bk-color}，改成找到第一種塗法就停。 頂點編號 $1$ 到 $n$
+（$n \ge 1$），$x_i$ 是頂點 $i$ 的顏色，$\mathit{found}$ 是全域的旗標。
+
+\begin{pseudo}[unbreakable]{用最少顏色著色}
+\Procedure{Try-Color}{$k, m$} \Comment{頂點 $1..k-1$ 已經塗好}
+    \For{$c \gets 1$ \To $m$}
+        \If{$k$ 的每個鄰居 $j < k$ 都有 $x_j \ne c$}
+            \State $x_k \gets c$
+            \If{$k = n$}
+                \State $\mathit{found} \gets \TRUE$
+            \Else
+                \State \Call{Try-Color}{$k + 1, m$}
+            \EndIf
+            \If{$\mathit{found}$}
+                \State \Return \Comment{找到一種塗法就不再試別的顏色}
+            \EndIf
+        \EndIf
+    \EndFor
+\EndProcedure
+\Statex
+\Function{Min-Coloring}{$G$}
+    \For{$m \gets 1$ \To $n$}
+        \State $\mathit{found} \gets \FALSE$
+        \State \Call{Try-Color}{$1, m$}
+        \If{$\mathit{found}$}
+            \State \Return $m$ 和塗法 $(x_1, \ldots, x_n)$
+        \EndIf
+    \EndFor
+\EndFunction
+\end{pseudo}
+
+\textbf{正確性。} \proc{Try-Color}$(1, m)$ 走的是 $m$ 著色的狀態空間樹，只剪掉「新塗的頂點和
+已經塗過的鄰居同色」的節點，這種節點不管後面怎麼塗都有一條邊兩端同色，子樹裡沒有合法的塗
+法。 其他節點都會被走到（除非已經找到），所以 $\mathit{found}$ 變成 \TRUE{} 若且唯若圖能用
+$m$ 種顏色塗，而且那時 $x_1, \ldots, x_n$ 就是一種合法的塗法。 $m$ 由小到大試，第一個成功的
+$m$ 之前每一個都不能塗，所以它就是最少的顏色數。 $m = n$ 時每個頂點一種顏色一定可以，所以
+迴圈一定會回傳。
+
+\textbf{時間。} 對固定的 $m$，狀態空間樹最多 $\sum_{i=0}^{n} m^i = O(m^n)$ 個節點，用鄰接串
+列檢查第 3 行，每個節點 $O(n)$，所以一次 \proc{Try-Color}$(1, m)$ 是 $O(n m^n)$。 設最少要
+$\chi$ 種顏色，總時間是 $\sum_{m=1}^{\chi} O(n m^n) = O(n \chi^{n+1})$，最壞是指數時間。 這
+個問題的決策版本在 $m \ge 3$ 時是 NP 完備的（第~28~章），目前沒有已知的多項式時間演算法；
+實務上可以用第~\ref{sec:bk-coloring}~節的「固定頂點 1 塗顏色 $1$」去掉對稱，先塗鄰居多的頂
+點，讓搜尋少走一些節點。
+
+\textbf{不要寫成單純的貪心。} 「每個頂點依序塗上鄰居沒用過的最小顏色」只要
+$O(n + m_E)$（$m_E$ 是邊數），塗出來一定合法，但顏色不一定最少。 例如四個頂點、邊
+$\{1, 3\}$、$\{3, 4\}$、$\{4, 2\}$（一條路徑 $1 - 3 - 4 - 2$）：依編號塗，頂點 1、2 都塗 $1$，
+頂點 3 塗 $2$，頂點 4 的鄰居用了 $1$、$2$，只好塗 $3$；其實兩種顏色就夠（$1$、$4$ 一色，
+$2$、$3$ 另一色）。 題目要求最少，所以要用上面的搜尋；用 \proc{Min-Coloring} 算這個圖，
+$m = 2$ 就成功。
+
+\pastsol{px:bk-4}{中興資工所 115 學年度 第 7 題}
+答案是 \textbf{A}。
+
+嚴格說，回溯也會用界限函數剪枝（第~\ref{sec:bk-tree}~節），所以 A 要理解成分支限界的特色：
+它通常用來解最佳化問題，對每個節點算出目標值的上界或下界，和目前找到的最好解比較，不可能更
+好的子樹整棵丟掉（第~\ref{sec:bk-bb}~節的界限剪枝）；而且 E-節點一次產生全部的子節點，再依
+FIFO、LIFO 或最小成本挑下一個 E-節點。 四個選項裡只有 A 說的是分支限界。
+
+\begin{itemize}
+\item B 錯：分支限界挑下一個 E-節點的規則是固定的（佇列、堆疊或 $\hat c$ 最小），不是隨機。
+\item C 錯：只往深處走是回溯的走法；分支限界可以一層一層走（FIFO），也可以照界限跳來跳去（最
+佳優先）。
+\item D 錯：貪心一旦做了選擇就不再回頭；分支限界把其他活節點都留著，之後還可能回去展開。 例
+如第~\ref{sec:bk-tsp}~節的 TSP，展開節點 6 之後又跳回第 1 層展開節點 2。
+\end{itemize}
+
+\pastsol{px:bk-5}{中央資工所 100 學年度 第 6 題}
+物品已經依 $P_i / W_i$ 由大到小排好：$0.6, 0.526\ldots, 0.5, 0.5, 0.5$。
+
+\textbf{6.1 上界。} 用第~\ref{sec:bk-knap}~節的分數背包上界（虛擬碼~\ref{alg:bk-bound}）：
+把物品照順序放，放得下就整個放，放不下的那一個只放剛好填滿的部分。
+
+\begin{center}
+\begin{tabular}{cccl}
+\toprule
+物品 & 放進去的部分 & 累計重量 & 累計價值 \\
+\midrule
+1 & 整個 & 10 & 6 \\
+2 & 整個 & 29 & 16 \\
+3 & 整個 & 37 & 20 \\
+4 & 剩下容量 $1$，放 $1/10$ & 38 & $20 + 5 \cdot \frac{1}{10} = 20.5$ \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+上界是 $20.5$。 理由：任何一個 0/1 的解也是同一組資料的分數背包的解，而上面的貪心解是分數背
+包的最佳解（定理~\ref{thm:gr-frac}），所以每個 0/1 的解價值都不超過 $20.5$。 價值都是整數，
+上界可以再收緊成 $\lfloor 20.5 \rfloor = 20$。
+
+\textbf{6.1 下界。} 找一個實際放得進去的 0/1 解，它的價值就是最佳值的下界。 用同樣的順序做
+整數的貪心：物品 1、2、3 放得下（重 $37$），物品 4 放進去會變成 $47 > 38$，跳過；物品 5 放進
+去是 $49 > 38$，也跳過。 得到 $\{1, 2, 3\}$，價值 $20$，所以下界是 $20$。
+
+\textbf{6.2 界限怎麼用。} 用最佳優先的分支限界（第~\ref{sec:bk-knap}~節）：
+\begin{enumerate}
+\item 每個節點代表「前 $k$ 個物品已經決定拿或不拿」，算出它的上界（這棵子樹裡的解最多值多少）
+和下界（這棵子樹裡一定做得到的值）。
+\item 記住目前所有節點裡最大的下界 $\mathit{best}$，它是某個實際的解。
+\item 每次從活節點裡取上界最大的展開，產生「拿」和「不拿」兩個子節點；超重的子節點丟掉。
+\item 上界 $\le \mathit{best}$ 的節點不必展開，因為它的子樹裡不會有比 $\mathit{best}$ 更好的
+解（界限剪枝）。 活節點裡最大的上界都 $\le \mathit{best}$ 時就停止，$\mathit{best}$ 就是最佳值。
+\end{enumerate}
+
+用在這一題：根的上界收緊後是 $20$，等於下界 $20$，所以根就停了，$\{1, 2, 3\}$、價值 $20$ 是
+最佳解，不必展開任何節點（把 $32$ 種組合全部列出來檢查，最大值也是 $20$）。 如果上界不取整，
+照虛擬碼~\ref{alg:bk-knap-bb} 做，$20.5 > 20$ 的節點會一直被展開：要產生 $15$ 個節點、展開 $7$
+個 E-節點（依序是 1、2、4、6、7、9、11）才停下，答案同樣是 $20$。 價值是整數時把上界取整，可
+以少走很多節點。
+
+有的課本（第~\ref{sec:bk-knap}~節的作答提醒）把背包改寫成求最小值：價值取負號，根的
+$\hat c = -20.5$、上界 $u = -20$，$\mathit{upper}$ 從 $-20$ 開始；數字的正負號相反，用法相同。

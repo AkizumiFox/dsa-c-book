@@ -327,105 +327,6 @@ CLRS 和許多考卷用「邊數」定義高度，單一節點的高度是 $0$�
 程式兩種都用到。 遞迴版寫起來短，但遞迴的深度等於路徑的長度；如果不搭配依大小或依
 秩合併，樹可以是一條長度 $n$ 的鏈，$n$ 很大時會用光呼叫堆疊。
 
-\subsection{路徑減半與路徑分割}
-\label{sec:ds-onepass}
-
-路徑壓縮要走兩趟。 另外有兩種只走一趟的變形，不必先找到根：
-\begin{itemize}
-\item \textbf{路徑減半}（path halving）：路上每隔一個節點，把它的父指標改成祖父，再
-跳到（新的）父節點。
-\item \textbf{路徑分割}（path splitting）：路上\textbf{每個}節點都把父指標改成祖父，再
-跳到原本的父節點。
-\end{itemize}
-
-\begin{pseudo}[label=alg:ds-find-onepass, unbreakable]{只走一趟的兩種變形}
-\Function{Find-Halving}{$x$}
-    \While{$p[x] \ne x$}
-        \State $p[x] \gets p[p[x]]$
-        \State $x \gets p[x]$
-    \EndWhile
-    \State \Return $x$
-\EndFunction
-\Function{Find-Splitting}{$x$}
-    \While{$p[x] \ne x$}
-        \State $\mathit{next} \gets p[x]$
-        \State $p[x] \gets p[\mathit{next}]$
-        \State $x \gets \mathit{next}$
-    \EndWhile
-    \State \Return $x$
-\EndFunction
-\end{pseudo}
-
-圖~\ref{fig:ds-onepass} 是同一條路徑 $1 \to 2 \to \cdots \to 6$ 做
-\proc{Find-Set}$(1)$ 的三種結果，橘色是父指標有改的節點。 路徑壓縮讓整條路徑都掛到根
-底下；減半只改了 $1$ 和 $3$，路徑長度大約減半；分割改了 $1$ 到 $4$，原來的路徑拆成
-$1 \to 3 \to 5 \to 6$ 和 $2 \to 4 \to 6$ 兩條。 一次 \proc{Find-Set} 之後，減半和分
-割的樹都比壓縮的高，但 Tarjan 和 van Leeuwen 證明，搭配依秩（或依大小）合併時，三種
-做法的總時間是同一級（第~\ref{sec:ds-cost}~節）。
-
-\begin{center}
-\begin{tikzpicture}[x=0.8cm,y=0.85cm,baseline=(current bounding box.north)]
-\node[dn] (pa1) at (0,-5) {1};
-\node[dn] (pa2) at (0,-4) {2};
-\node[dn] (pa3) at (0,-3) {3};
-\node[dn] (pa4) at (0,-2) {4};
-\node[dn] (pa5) at (0,-1) {5};
-\node[dn,dnroot] (pa6) at (0,0) {6};
-\draw[dptr] (pa1) -- (pa2);
-\draw[dptr] (pa2) -- (pa3);
-\draw[dptr] (pa3) -- (pa4);
-\draw[dptr] (pa4) -- (pa5);
-\draw[dptr] (pa5) -- (pa6);
-\node[plab, anchor=north] at (0,-5.45) {(a) 原來的路徑};
-\end{tikzpicture}\hspace{0.8cm}%
-\begin{tikzpicture}[x=0.8cm,y=0.85cm,baseline=(current bounding box.north)]
-\node[dn,dnhl] (pb1) at (0,-1) {1};
-\node[dn,dnhl] (pb2) at (1,-1) {2};
-\node[dn,dnhl] (pb3) at (2,-1) {3};
-\node[dn,dnhl] (pb4) at (3,-1) {4};
-\node[dn] (pb5) at (4,-1) {5};
-\node[dn,dnroot] (pb6) at (2,0) {6};
-\draw[dptr] (pb1) -- (pb6);
-\draw[dptr] (pb2) -- (pb6);
-\draw[dptr] (pb3) -- (pb6);
-\draw[dptr] (pb4) -- (pb6);
-\draw[dptr] (pb5) -- (pb6);
-\node[plab, anchor=north] at (2,-5.45) {(b) 路徑壓縮};
-\end{tikzpicture}\hspace{0.8cm}%
-\begin{tikzpicture}[x=0.8cm,y=0.85cm,baseline=(current bounding box.north)]
-\node[dn,dnhl] (pc1) at (0,-3) {1};
-\node[dn] (pc2) at (1,-3) {2};
-\node[dn,dnhl] (pc3) at (0.5,-2) {3};
-\node[dn] (pc4) at (2,-2) {4};
-\node[dn] (pc5) at (1.25,-1) {5};
-\node[dn,dnroot] (pc6) at (1.25,0) {6};
-\draw[dptr] (pc1) -- (pc3);
-\draw[dptr] (pc2) -- (pc3);
-\draw[dptr] (pc3) -- (pc5);
-\draw[dptr] (pc4) -- (pc5);
-\draw[dptr] (pc5) -- (pc6);
-\node[plab, anchor=north] at (1.25,-5.45) {(c) 路徑減半};
-\end{tikzpicture}\hspace{0.8cm}%
-\begin{tikzpicture}[x=0.8cm,y=0.85cm,baseline=(current bounding box.north)]
-\node[dn,dnhl] (pd1) at (1,-3) {1};
-\node[dn,dnhl] (pd2) at (0,-2) {2};
-\node[dn,dnhl] (pd3) at (1,-2) {3};
-\node[dn,dnhl] (pd4) at (0,-1) {4};
-\node[dn] (pd5) at (1,-1) {5};
-\node[dn,dnroot] (pd6) at (0.5,0) {6};
-\draw[dptr] (pd1) -- (pd3);
-\draw[dptr] (pd2) -- (pd4);
-\draw[dptr] (pd3) -- (pd5);
-\draw[dptr] (pd4) -- (pd6);
-\draw[dptr] (pd5) -- (pd6);
-\node[plab, anchor=north] at (0.5,-5.45) {(d) 路徑分割};
-\end{tikzpicture}
-\diagcaption{對同一條路徑做 \proc{Find-Set}$(1)$。 藍框是根，橘色是父指標有改的節點，
-箭頭由子節點指向父節點。 父節點陣列 $p[1..6]$ 依序是 (b) $6,6,6,6,6,6$；(c)
-$3,3,5,5,6,6$；(d) $3,4,5,6,6,6$。}
-\label{fig:ds-onepass}
-\end{center}
-
 \subsection{手算追蹤：實驗室網路分組}
 \label{sec:ds-trace}
 
@@ -680,8 +581,7 @@ $\alpha(n)$；對任何實際的 $m$、$n$，兩者都不超過 $4$。 更早，
 
 幾個相關的結果，一樣只列結論：
 \begin{itemize}
-\item 依大小合併換掉依秩合併，或路徑壓縮換成路徑減半、路徑分割，上界一樣是
-$O(m\,\alpha(n))$（Tarjan 與 van Leeuwen 1984）。
+\item 依大小合併換掉依秩合併，上界一樣是 $O(m\,\alpha(n))$（Tarjan 與 van Leeuwen 1984）。
 \item 只用路徑壓縮、不用任何合併規則時，$n$ 個 \proc{Make-Set}、最多 $n - 1$ 個
 \proc{Union} 和 $f$ 個 \proc{Find-Set} 的最壞總時間是
 $\Theta\bigl(n + f \cdot (1 + \log_{2 + f/n} n)\bigr)$（同一篇論文）。
@@ -705,7 +605,7 @@ $8$ 個節點的例子第一次找 $8$ 的時候。 各種做法整理如下。
 森林，不用技巧 & $O(n)$ & $O(mn)$ \\
 依大小或依秩合併 & $O(\lg n)$ & $O(m \lg n)$ \\
 只用路徑壓縮 & $O(n)$ & 見上面第二點 \\
-依大小或依秩＋路徑壓縮（或減半、分割） & $O(\lg n)$ & $O(m\,\alpha(n))$ \\
+依大小或依秩＋路徑壓縮 & $O(\lg n)$ & $O(m\,\alpha(n))$ \\
 \bottomrule
 \end{tabular}
 \end{center}
@@ -1066,10 +966,6 @@ $(2, 9)$、$(6, 5)$、$(7, 8)$、$(6, 8)$、$(5, 4)$，最後 \proc{Find-Set}$(8
 點最多 $n / 2^r$ 個。（提示：把每個秩 $r$ 的節點，對應到它變成秩 $r$ 那一刻樹裡的
 節點。）
 
-\item （追蹤）森林的父節點是 $p[2] = 1$、$p[3] = 1$、$p[4] = 3$、$p[5] = 3$、
-$p[6] = 5$、$p[7] = 5$、$p[8] = 7$、$p[9] = 7$，$1$ 是根。 分別用路徑壓縮、路徑減
-半、路徑分割做一次 \proc{Find-Set}$(9)$，寫出之後的 $p[1..9]$ 和樹的高度。
-
 \item （計算）
 \begin{enumerate}
 \item 求 $\alpha(5)$、$\alpha(100)$、$\alpha(5000)$、$\alpha(10^{30})$。
@@ -1082,6 +978,83 @@ $p[6] = 5$、$p[7] = 5$、$p[8] = 7$、$p[9] = 7$，$1$ 是根。 分別用路�
 \texttt{7 3 2 9}。 (a) 程式倒著接回去的順序是什麼？ (b) 寫出程式的輸出。 (c) 為什
 麼互斥集合不能直接照拔線的順序處理？
 \end{enumerate}
+
+\section{歷屆試題}
+\label{sec:ds-pastexam}
+
+以下是研究所入學考試的原題，題目照原卷（語言、記號、配分照錄）。 詳解在本章最後。
+
+\begin{pastexam}[label={px:ds-1}]{臺大資工所 115 學年度 第 23 題}
+(4 points) Consider the linked-list representation of disjoint sets, where: (1) Each set is represented by a linked list; (2) Each element stores a pointer to the set's representative; (3) UNION$(x,\ y)$ appends the shorter list to the longer list (union by size); (4) FIND-SET$(x)$ runs in $O(1)$ time. Suppose we start with $n$ singleton sets and perform any sequence of $m$ operations consisting of UNION and FIND-SET, using union by size. Which of the following statements is correct?
+\begin{enumerate}[label=(\Alph*),leftmargin=2.2em,itemsep=1pt]
+\item The total time for all UNION operations is $\Theta(n^2)$, regardless of how unions are ordered.
+\item The total running time of all operations is $O(m\log n)$, because FIND-SET dominates.
+\item Using union by size makes UNION amortized $O(1)$, yielding total time $O(m)$.
+\item The total time of all operations is $O(m+n)$, because each operation touches at most a constant number of elements.
+\item Each element's representative pointer can be updated at most $\log n$ times, so all UNION operations take $O(n\log n)$ time in total.
+\end{enumerate}
+\end{pastexam}
+
+\begin{pastexam}[label={px:ds-2}]{成大資訊聯招 114 學年度 第 3 題}
+{[3\%]} The following C code is provided. Analyze the functionality of the code and answer the question.
+\begin{minted}[style=perldoc, fontsize=\small, autogobble]{c}
+#include <stdio.h>
+int operation1(int parent[], int x) {
+    if (parent[x] != -1) {
+        int rootX = operation1(parent, parent[x]);
+        parent[x] = rootX;
+        return rootX;
+    }
+    return x;
+}
+void operation2(int parent[], int x, int y) {
+    int rootX = operation1(parent, x);
+    int rootY = operation1(parent, y);
+    if (rootX != rootY) {
+        parent[rootY] = rootX;
+    }
+}
+int main() {
+    int parent[6] = {-1, -1, -1, -1, -1, -1};
+    parent[2] = 1;
+    parent[3] = 2;
+    parent[4] = 3;
+
+    operation1(parent, 4);
+    operation2(parent, 1, 3);
+    operation2(parent, 5, 4);
+
+    for(int i=0; i<=5;i++){
+        printf("%d ", parent[i]);
+    }
+    return 0;
+}
+\end{minted}
+Which of the following statements is correct?
+\begin{enumerate}[label=(\Alph*)]
+\item In the function main(), operation1(parent, 4) updates all nodes in the chain starting from 4, and operation2(parent, 1, 3) merges two different groups.
+\item The output of the program is ``-1 -1 1 1 1 1''.
+\item The output of the program is ``-1 5 1 2 3 -1''.
+\item The function operation1() compresses paths, and the function operation2() merges groups if they have different representatives.
+\item The function operation1() creates a loop, and the function operation2() merges all elements into one group.
+\end{enumerate}
+\end{pastexam}
+
+\begin{pastexam}[label={px:ds-3}]{臺大資工所 109 學年度 第 13 題}
+(15 points) A disjoint-set data structure supports two operations. One is UNION($x,y$), which merges the two roots of the trees containing $x$ and $y$. The other is FIND($x$), which returns the root of the tree containing $x$. Union-by-height is a union heuristic, which keeps track of the heights of the trees to attach the shorter tree to the root of the taller tree.
+\begin{enumerate}[label=(\alph*)]
+\item (9 points) Given an undirected graph $G=(V,E)$, where $V=\{v_1,\ldots,v_m\}$ ($m>0$) and $E=\{e_1,\ldots,e_n\}$ ($n>0$), devise an algorithm to check if the graph $G$ is a tree or not by using UNION($v_i,v_j$) with union-by-height and FIND($v_k$) with no path compression, where $v_i,v_j$ and $v_k\in V$. Clearly describe your solution and analyze the time complexity of your algorithm in the worst case. \textbf{No code is required (code will not be graded).}
+\item (6 points) The union-by-height heuristic prevents the height of a tree from growing linearly. Consider another heuristic, called union-by-descendant, which always attaches the tree with fewer descendants to the root of the tree with more descendants. Suppose that path compression is not applied. Which of the two heuristics is asymptotically better? Why?
+\end{enumerate}
+\end{pastexam}
+
+\begin{pastexam}[label={px:ds-4}]{中央資工所 111 學年度 問答題第 3 題}
+(12\%) For a set of variables $x_1, x_2, \ldots, x_n$, you are given some equality constraints, of the form ``$x_i = x_j$'' and some disequality constraints, of the form ``$x_i \neq x_j$''. Is it possible to satisfy all of them? For instance, the constraints :
+
+\quad $x_1 = x_2$,; $x_2 = x_3$; $x_3 = x_4$; $x_1 \neq x_4$;
+
+cannot be satisfied. Give an efficient algorithm that takes as input $m$ constraints over $n$ variables and decides whether the constraints can be satisfied. Describe the data structure used by your algorithm, and analysis the time complexity of your algorithm.
+\end{pastexam}
 
 \section{實作練習}
 \label{sec:ds-practice}
@@ -1152,8 +1125,8 @@ n)$。
 \item Robert E. Tarjan，``Efficiency of a Good But Not Linear Set Union Algorithm''，
 \textit{Journal of the ACM} 22(2)，1975：第一次證明 $\alpha$ 的上界。
 \item Robert E. Tarjan、Jan van Leeuwen，``Worst-Case Analysis of Set Union
-Algorithms''，\textit{Journal of the ACM} 31(2)，1984：路徑減半、路徑分割等變形，以
-及只用路徑壓縮時的上界。
+Algorithms''，\textit{Journal of the ACM} 31(2)，1984：依大小合併、路徑壓縮的各種變形，
+以及只用路徑壓縮時的上界。
 \item Ellis Horowitz、Sartaj Sahni、Susan Anderson-Freed，\textit{Fundamentals of Data
 Structures in C}，第 5 章：根存負數的陣列寫法、加權規則和塌陷規則，附 C 程式。
 \end{itemize}
@@ -1272,24 +1245,6 @@ $r$ 的那一刻，$z$ 在 $y$ 的樹裡，所以 $x$ 也在 $y$ 的樹裡，而
 $\mathit{rank}[x] < \mathit{rank}[y] = r$；但秩不會變小，$\mathit{rank}[x] \ge r$，矛盾。
 所以秩 $r$ 的節點最多 $n / 2^r$ 個。 （這也再一次說明秩不超過 $\lg n$。）
 
-\item 路徑是 $9 \to 7 \to 5 \to 3 \to 1$。
-\begin{center}
-\begin{tabular}{lcc}
-\toprule
-做法 & 之後的 $p[1..9]$ & 高度 \\
-\midrule
-路徑壓縮 & $1,1,1,3,1,5,1,7,1$ & $3$ \\
-路徑減半 & $1,1,1,3,1,5,5,7,5$ & $4$ \\
-路徑分割 & $1,1,1,3,1,5,3,7,5$ & $4$ \\
-\bottomrule
-\end{tabular}
-\end{center}
-壓縮：$9, 7, 5$ 都改接到 $1$（$3$ 本來就是）；最長的路徑變成 $4 \to 3 \to 1$ 這類，高度
-$3$。 減半：$9$ 改指祖父 $5$，跳到 $5$；$5$ 改指祖父 $1$，跳到 $1$ 結束；$7$ 沒有改。
-分割：$9 \to 5$、$7 \to 3$、$5 \to 1$；$3$ 的父節點就是根，改指祖父還是根，不變。
-減半之後還有 $8 \to 7 \to 5 \to 1$，分割之後還有 $8 \to 7 \to 3 \to 1$，都是 $4$ 個節點的
-路徑，高度 $4$。
-
 \item (a) $A_2(1) = 7 \ge 5$ 且 $A_1(1) = 3 < 5$，所以 $\alpha(5) = 2$。 $A_2(1) = 7 < 100 \le
 A_3(1) = 2047$，$\alpha(100) = 3$。 $5000 > 2047$，$\alpha(5000) = 4$。 $10^{30} < A_4(1)$，
 $\alpha(10^{30}) = 4$。
@@ -1320,3 +1275,173 @@ cut ends groups largest \\
 (c) 拔線會讓一個集合分成兩個，互斥集合沒有拆開的操作；父節點陣列也沒有記錄是哪幾條線
 把樹連起來的，拔掉一條線時無從知道該拆哪裡。
 \end{enumerate}
+
+\addcontentsline{toc}{section}{歷屆試題詳解}
+\section*{歷屆試題詳解}
+
+\pastsol{px:ds-1}{臺大資工所 115 學年度 第 23 題}
+答案是 (E)。 這一題就是第~\ref{sec:ds-list}~節的串列表示加上加權合併。
+\begin{itemize}
+\item (A) 錯。 由定理~\ref{thm:ds-weighted-list} 的論證，所有 UNION 加起來最多改
+$n \lg n$ 個代表指標，不可能是 $\Theta(n^2)$。 合併的順序也有影響：如果每次都把一個單一元素
+併進同一個大集合，每次只改 $1$ 個指標，$n - 1$ 次合併一共 $\Theta(n)$。
+\item (B) 錯。 $O(m \log n)$ 這個上界本身成立：$m$ 個操作裡最多 $m$ 次 UNION，被改過代表
+指標的元素最多 $2m$ 個，每個最多改 $\lg n$ 次。 但理由錯了：FIND-SET 每次 $O(1)$，
+$m$ 次合計只有 $O(m)$，花時間的是 UNION 改指標。 這個選項的「because」不成立，所以不是正
+確的敘述。
+\item (C) 錯。 設 $n = 2^k$，照第~\ref{sec:ds-list}~節最後的例子兩兩合併 $k$ 輪，每一輪改
+$n/2$ 個指標，$n - 1$ 次 UNION 一共改 $(n/2)\lg n$ 個。 平均每次 UNION 是 $\Theta(\lg n)$，
+不是平攤 $O(1)$；這時 $m = n - 1$，總時間 $\Theta(n \lg n)$，不是 $O(m)$。
+\item (D) 錯。 一次 UNION 可能要改很多指標：兩條各 $n/2$ 長的串列合併，要改 $n/2$ 個。 同
+一個例子的總時間是 $\Theta(n \lg n)$，不是 $O(m + n)$。
+\item (E) 對。 固定一個元素 $x$，它的代表指標被改的時候，$x$ 在比較短（或一樣長）的串列
+裡，合併後 $x$ 所在的集合至少變成兩倍大。 集合不超過 $n$ 個元素，所以 $x$ 最多被改
+$\lg n$ 次；$n$ 個元素合計最多 $n \lg n$ 次。 每次 UNION 除了改指標只花 $O(1)$，最多
+$n - 1$ 次，所以所有 UNION 的總時間是 $O(n \log n)$。
+\end{itemize}
+
+\pastsol{px:ds-2}{成大資訊聯招 114 學年度 第 3 題}
+答案是 (D)。 程式用 $-1$ 表示根（本書用 $p[x] = x$，第~\ref{sec:ds-trace}~節的作答提醒也
+提過用負數標記根的寫法）；\texttt{operation1} 就是虛擬碼~\ref{alg:ds-find-rec} 的遞迴路徑
+壓縮，\texttt{operation2} 是虛擬碼~\ref{alg:ds-naive} 不加任何合併規則的 \proc{Union}：$y$
+的根接到 $x$ 的根底下。 下面把 \texttt{operation1(parent, x)} 簡寫成 op1$(x)$，
+\texttt{operation2(parent, x, y)} 簡寫成 op2$(x, y)$。 元素是 $0$ 到 $5$，每一步之後的
+\texttt{parent[0..5]}：
+\begin{center}
+\small
+\begin{tabular}{ll}
+\toprule
+步驟 & \texttt{parent[0..5]} \\
+\midrule
+設定 \texttt{parent[2..4]} 之後 & $-1,\ -1,\ 1,\ 2,\ 3,\ -1$（鏈 $4 \to 3 \to 2 \to 1$） \\
+op1$(4)$ & $-1,\ -1,\ 1,\ \mathbf{1},\ \mathbf{1},\ -1$ \\
+op2$(1, 3)$ & $-1,\ -1,\ 1,\ 1,\ 1,\ -1$（兩個根都是 $1$，不合併） \\
+op2$(5, 4)$ & $-1,\ \mathbf{5},\ 1,\ 1,\ 1,\ -1$ \\
+\bottomrule
+\end{tabular}
+\end{center}
+op1$(4)$ 一路遞迴到根 $1$，回來時把 $4$、$3$、$2$ 的父節點都設成 $1$（$2$ 本來就是）。
+op2$(1, 3)$ 找到的兩個根都是 $1$，什麼都不做。 op2$(5, 4)$ 的兩個根是 $5$ 和 $1$，執行 \texttt{parent[1] = 5}。 程
+式印出 \texttt{-1 5 1 1 1 -1}（每個數後面一個空格）。
+\begin{itemize}
+\item (A) 錯。 前半句對（$4$ 到根的路徑上每個節點都改接到 $1$），但 op2$(1, 3)$ 的 $1$、$3$ 已經在同一
+組，沒有合併。
+\item (B) 錯。 實際輸出是 \texttt{-1 5 1 1 1 -1}：$1$ 被接到 $5$ 底下，$5$ 仍然是根。
+\item (C) 錯。 這是\textbf{不做}路徑壓縮時的輸出：\texttt{parent[3]}、\texttt{parent[4]} 會
+停在 $2$、$3$。 \texttt{operation1} 有壓縮，所以它們都變成 $1$。
+\item (D) 對。 \texttt{operation1} 在遞迴回來時把路上每個節點直接接到根，就是路徑壓縮；
+\texttt{operation2} 先找兩個代表，不同才合併。
+\item (E) 錯。 \texttt{operation1} 只把節點接到根，不會形成迴圈；最後 $0$ 自己一組，
+$\{1, 2, 3, 4, 5\}$ 一組，並沒有全部合成一組。
+\end{itemize}
+
+\pastsol{px:ds-3}{臺大資工所 109 學年度 第 13 題}
+這一題的記號和本書相反：$m = |V|$ 是頂點數、$n = |E|$ 是邊數，下面照題目的記號。 不做路
+徑壓縮時，union-by-height 就是第~\ref{sec:ds-rank}~節的依秩合併：每個根記的秩恰好是樹的
+高度（用邊數算），一樣高時任選一邊當根、高度加一。
+
+(a) 由定理~\ref{thm:gtr-tree}，$G$ 是樹的充分必要條件是「$G$ 沒有迴路，而且 $n = m - 1$」。
+所以先檢查邊數，再用互斥集合檢查有沒有迴路：
+
+\begin{pseudo}[label=alg:ds-px-tree, unbreakable]{判斷無向圖是不是樹}
+\Function{Is-Tree}{$V, E$}
+    \If{$n \ne m - 1$}
+        \State \Return \FALSE
+    \EndIf
+    \For{每個頂點 $v \in V$}
+        \State \Call{Make-Set}{$v$}
+    \EndFor
+    \For{每條邊 $(v_i, v_j) \in E$}
+        \State $r_i \gets$ \Call{Find}{$v_i$}
+        \State $r_j \gets$ \Call{Find}{$v_j$}
+        \If{$r_i = r_j$}
+            \State \Return \FALSE \Comment{這條邊和之前的邊形成迴路}
+        \EndIf
+        \State \Call{Union}{$v_i, v_j$}
+    \EndFor
+    \State \Return \TRUE
+\EndFunction
+\end{pseudo}
+
+正確性。 用歸納法證明：處理完前 $t$ 條邊、還沒有回傳時，(i) 每個集合恰好是子圖
+$G_t = (V, \{e_1, \ldots, e_t\})$ 的一個連通元件；(ii) $G_t$ 沒有迴路。 $t = 0$ 時每個頂點自
+己一組、沒有邊，成立。 處理 $e_{t+1} = (v_i, v_j)$：
+\begin{itemize}
+\item 第 9 行成立：由 (i)，$v_i$、$v_j$ 在 $G_t$ 裡有一條路徑，加上 $e_{t+1}$ 就是 $G$ 裡的
+一個迴路（$v_i = v_j$ 時 $e_{t+1}$ 本身是自環），$G$ 不是樹，回傳 \FALSE{} 正確。
+\item 第 9 行不成立：$v_i$、$v_j$ 在 $G_t$ 的不同元件，加上 $e_{t+1}$ 正好把這兩個元件連成
+一個，第 11 行也正好合併這兩個集合，(i) 仍然成立。 $e_{t+1}$ 不在任何迴路上（否則去掉它，
+$G_t$ 裡還有一條 $v_i$ 到 $v_j$ 的路徑），(ii) 也成立。
+\end{itemize}
+迴圈跑完都沒回傳，表示 $G$ 沒有迴路；第 2 行又確認了 $n = m - 1$，由定理~\ref{thm:gtr-tree}
+的 (3)$\Rightarrow$(1)，$G$ 是樹。 反過來，如果 $G$ 是樹，$n = m - 1$ 通過第 2 行，沒有任何邊
+會讓第 9 行成立，最後回傳 \TRUE。
+
+時間。 依秩合併不壓縮時，由引理~\ref{lem:ds-rank} (3)，每棵樹的高度不超過
+$\lfloor \lg m \rfloor + 1$，所以每次 FIND 是 $O(\log m)$，UNION 裡面的兩次 FIND 也是。 第 2 行
+$O(1)$；$m$ 次 \proc{Make-Set} 是 $O(m)$；第 6--11 行最多跑 $n = m - 1$ 次，每次 $O(\log m)$。
+最壞情況的總時間是 $O(m \log m)$。 如果不先檢查邊數、改成最後數集合個數，迴圈要跑 $n$ 次，
+總時間是 $O(m + n \log m)$；先檢查邊數可以在 $n$ 很大時立刻回答。
+
+(b) 兩個規則在漸近意義下一樣好，都不比對方好。 根的子孫個數等於樹的節點數減一，所以「子孫
+比較少的接到子孫比較多的底下」就是第~\ref{sec:ds-size}~節的依大小合併。 設一共有 $N$ 個元
+素：
+\begin{itemize}
+\item 依大小合併：由定理~\ref{thm:ds-size-height}，有 $s$ 個節點的樹高度不超過
+$\lfloor \lg s \rfloor + 1$。 理由是一個節點的深度加一時，它所在的樹被接到一棵至少一樣大的
+樹底下，節點數至少加倍，所以深度最多 $\lg N$。
+\item 依高度合併：由引理~\ref{lem:ds-rank} (2)，高度（邊數）是 $h$ 的樹至少有 $2^h$ 個節點：
+兩棵一樣高的樹合併，高度變成 $h + 1$，節點數至少 $2^h + 2^h = 2^{h+1}$；不一樣高時高度不
+變、節點數變多。 所以高度最多 $\lg N$。
+\end{itemize}
+兩個規則都保證 FIND 最壞 $O(\log N)$。 而且兩個都會達到 $\Theta(\log N)$：$N = 2^k$，每一輪
+都把兩棵一模一樣的樹合併，$k$ 輪之後兩個規則做出同一棵樹，高度（邊數）$k = \lg N$，最深
+的節點做 FIND 要走 $\lg N$ 步（第~\ref{sec:ds-cost}~節 $N = 8$ 的例子）。 所以兩者最壞都是
+FIND $\Theta(\log N)$、$M$ 個操作 $\Theta(M \log N)$，漸近相同。 對個別的操作序列，兩者做出
+的樹高度可能不同（觀念題第~\ref{q:ds-compare}~題就有依大小合併比較高的例子），但只差常數
+倍，不影響漸近的結論。
+
+\pastsol{px:ds-4}{中央資工所 111 學年度 問答題第 3 題}
+這裡假設變數可以取任意整數，值的種類不受限制。（如果每個變數只能取少數幾個值，例如只能
+是 $0$ 或 $1$，問題就變成圖的著色，不是這一題的範圍。）
+
+想法：等式有遞移性，$x_i = x_j$、$x_j = x_k$ 就推出 $x_i = x_k$，所以用等式把變數分組，同一
+組的值一定相同；接著檢查每個不等式的兩端是不是被分到同一組。 分組用互斥集合。
+
+\begin{pseudo}[label=alg:ds-px-constraint, unbreakable]{等式與不等式限制是否可以同時滿足}
+\Function{Satisfiable}{$n$, 限制 $c_1, \ldots, c_m$}
+    \For{$i \gets 1$ \To $n$}
+        \State \Call{Make-Set}{$i$}
+    \EndFor
+    \For{每個等式 $x_i = x_j$}
+        \State \Call{Union}{$i, j$}
+    \EndFor
+    \For{每個不等式 $x_i \ne x_j$}
+        \If{\Call{Find-Set}{$i$} $=$ \Call{Find-Set}{$j$}}
+            \State \Return \FALSE
+        \EndIf
+    \EndFor
+    \State \Return \TRUE
+\EndFunction
+\end{pseudo}
+
+等式要全部合併完（第 4--5 行）才能開始檢查不等式；如果一邊讀一邊檢查，後面的等式可能還會
+把已經檢查過的兩個變數併成一組。
+
+正確性。 第 5 行做完以後，$i$、$j$ 在同一個集合，恰好表示有一串等式
+$x_i = x_{a_1},\ x_{a_1} = x_{a_2},\ \ldots,\ x_{a_r} = x_j$ 把它們連起來。 這和章首教室接線
+是同一件事：把變數當頂點、等式當邊，集合就是連通元件。
+\begin{itemize}
+\item 回傳 \FALSE：某個不等式 $x_i \ne x_j$ 的兩端在同一組。 任何滿足所有等式的設定，沿著
+那串等式一路相等，一定有 $x_i = x_j$，違反這個不等式，所以無解。
+\item 回傳 \TRUE：令每個 $x_i$ 等於 \proc{Find-Set}$(i)$（它所在集合的代表編號）。 每個等式
+的兩端在同一組，值相同；每個不等式的兩端在不同組，代表不同，值也不同。 所有限制都滿足。
+\end{itemize}
+題目的例子：三個等式把 $x_1, x_2, x_3, x_4$ 併成一組，檢查 $x_1 \ne x_4$ 時
+$\proc{Find-Set}(1) = \proc{Find-Set}(4)$，回傳 \FALSE，和題目說的一樣。
+
+資料結構與時間。 用第~\ref{sec:ds-forest}~節的森林，依秩（或依大小）合併加路徑壓縮。 一共
+$n$ 次 \proc{Make-Set}、最多 $m$ 次 \proc{Union} 和 $2m$ 次 \proc{Find-Set}，操作數是
+$O(n + m)$，由定理~\ref{thm:ds-alpha}，總時間 $O((n + m)\,\alpha(n))$，空間 $O(n + m)$。 也
+可以把等式建成圖，用第~21~章的 BFS 或 DFS 標出連通元件，時間 $O(n + m)$；互斥集合的寫法比
+較短，而且等式可以一條一條讀進來處理。

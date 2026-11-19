@@ -507,7 +507,7 @@ $\Pr[s] \ge 0$，全部加起來是 $1$。 \textbf{事件}是 $S$ 的子集合�
 
 \begin{theorem}[期望值的線性]
 \label{thm:mth-linearity}
-\mthuse{1、9、12、14、15、16、20、27}
+\mthuse{1、9、10、12、14、15、16、20、27}
 對任意隨機變數 $X$、$Y$ 和常數 $a$、$b$，$\mathrm{E}[aX + bY] = a\,\mathrm{E}[X] +
 b\,\mathrm{E}[Y]$。 不需要 $X$、$Y$ 獨立。 推廣到任意有限多個隨機變數的和。
 \end{theorem}
@@ -539,8 +539,8 @@ $\mathrm{E}[XY] = \mathrm{E}[X]\,\mathrm{E}[Y]$。 證明：$\mathrm{E}[XY] = \s
 \item \textbf{分情況取平均}：$B_1, \ldots, B_k$ 把 $S$ 分成互斥的幾塊，則
 $\mathrm{E}[X] = \sum_i \Pr[B_i]\, \mathrm{E}[X \mid B_i]$，其中 $\mathrm{E}[X \mid B_i]$ 是
 只在 $B_i$ 裡、用條件機率算的期望值。 第~16~章按基準的名次 $k$ 分成 $n$ 種情況、每種機率
-$\frac1n$，寫出 $T(n)$ 的不等式，用的就是它；第~20~章 Knuth 探測估計的期望值也是。
-\mthuse{16、20}
+$\frac1n$，寫出 $T(n)$ 的不等式，用的就是它。
+\mthuse{16}
 \end{itemize}
 
 \mthex{雜湊的碰撞。}\mthuse{12}
@@ -618,7 +618,7 @@ $\Pr[N = k] = (1 - p)^{k-1} p$，叫做\textbf{幾何分布}。
 
 \begin{theorem}
 \label{thm:mth-geom-dist}
-\mthuse{12、16}
+\mthuse{10、12、16}
 (1) 取值為非負整數的隨機變數 $X$，$\mathrm{E}[X] = \sum_{k=1}^{\infty} \Pr[X \ge k]$。
 (2) 幾何分布的 $\mathrm{E}[N] = 1/p$。
 \end{theorem}

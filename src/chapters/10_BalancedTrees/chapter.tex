@@ -1,4 +1,4 @@
-\chapter{平衡搜尋樹：AVL 與紅黑樹}
+\chapter{平衡搜尋樹：AVL 樹、紅黑樹、伸展樹與跳躍串列}
 \label{ch:balanced}
 
 % 本章的圖共用的樣式
@@ -16,6 +16,14 @@
     annl/.style={font=\small\bfseries, inner sep=0.8pt, text=memStroke},
     plab/.style={font=\small},
     tarr/.style={-{Stealth[length=2mm]}, thick, draw=black!70},
+    bal-skbox/.style={rectangle, draw=black!65, fill=white, minimum size=0.4cm, inner sep=0pt},
+    bal-skhead/.style={bal-skbox, fill=black!15},
+    bal-sknew/.style={draw=coreStroke, thick, fill=coreFill},
+    bal-skvisit/.style={draw=rbRed, thick, fill=rbRed!15},
+    bal-sklab/.style={font=\small},
+    bal-skarr/.style={-{Stealth[length=1.5mm]}, draw=black!55, shorten >=0.5pt},
+    bal-skpath/.style={draw=rbRed, very thick},
+    bal-sknewarr/.style={draw=coreStroke, thick},
 }
 % \subtri[高]{x}{y}{名稱}：頂點在 (x, y)、往下畫的子樹三角形
 \newcommand{\subtri}[4][0.9]{%
@@ -32,11 +40,15 @@
 時，樹會長成一條鏈，$h = n$，上面那個問題的答案是一萬次。 這一章講兩種在每次插入
 和刪除之後，只沿著一條路徑做局部調整，就能把高度維持在 $O(\lg n)$ 的樹：\textbf{AVL 樹}
 用「左右子樹高度差不超過 $1$」當條件；\textbf{紅黑樹}用節點的顏色當條件，條件比較
-寬，調整的次數比較少。 兩種樹的調整都靠同一個動作，叫\textbf{旋轉}。
+寬，調整的次數比較少。 兩種樹的調整都靠同一個動作，叫\textbf{旋轉}。 最後兩節是
+兩種不靠平衡條件的做法：\textbf{伸展樹}每次存取都把節點轉到根，保證的是平攤
+$O(\lg n)$；\textbf{跳躍串列}在排好序的串列上用擲硬幣加幾層捷徑，保證的是期望
+$O(\lg n)$。
 
 這一章用到《C 程式設計基礎》第~14~章的結構指標、第~15~章的遞迴和第~19~章的
 \texttt{malloc}、\texttt{free}；樹的名詞（根、子樹、葉節點、高度）見第~7~章，二元搜
-尋樹的插入和刪除見第~9~章。
+尋樹的插入和刪除見第~9~章。 伸展樹的分析用到第~3~章的位能法，跳躍串列用到第~5~章
+的串列和附錄 A 的期望值。
 
 本章的\textbf{高度}和全書一樣用第~7~章的定義：從根往下最長的一條路徑上的
 \textbf{節點數}，也就是層數，空樹的高度是 $0$，只有一個節點的樹高度是 $1$；深度仍然數
@@ -146,6 +158,11 @@ $t.\mathit{left} \gets \proc{Rotate-Right}(t.\mathit{left})$。 AVL 樹的程式
 
 記旋轉時有一個簡單的檢查：升上去的節點（右旋時的 $x$）原本靠內側的那棵子樹
 （$T_2$），會換到降下來的節點（$y$）底下。 其他子樹都跟著原本的父節點走。
+
+旋轉之後，只有 $x$、$y$ 兩個節點底下的子樹內容變了。 如果節點存了像
+第~\ref{sec:bst-rank}~節 $\mathit{size}$ 這種「由兩個子節點的同一個欄位算出來」的欄
+位，旋轉後先重算降下去的 $y$，再重算升上來的 $x$，$\Theta(1)$ 就修好了，所以這類欄
+位在本章的平衡樹裡也能維護（歷屆試題~\ref{px:bal-2}）。
 
 \section{AVL 樹}
 \label{sec:bal-avl}
@@ -2627,6 +2644,1044 @@ $\{35, 46\}$，其他黑色節點各自一個。 合併之後，每個大節點�
 另外要記住，「AVL 樹比紅黑樹矮」說的是最壞情況的上界。 同樣 $n$ 個節點，某一棵 AVL
 樹可能比某一棵紅黑樹高（觀念題第 1 題）。
 
+\section{伸展樹}
+\label{sec:bal-splay}
+
+健身房的櫃台還發現一件事：每天來刷卡的，大半是同一批常客。 AVL 樹和紅黑樹對每個
+鍵一視同仁，常客的節點可能一直待在很深的地方，每次刷卡都要從根走下去。
+\textbf{伸展樹}（splay tree）換一個想法：每存取一個節點，就用旋轉把它一路轉到根。
+剛用過的鍵在根附近，下一次再用就很快；常用的鍵自然聚在上面。
+
+伸展樹的節點不存高度、平衡因子或顏色，也沒有任何平衡條件。 樹可以長得很歪，單獨
+一次操作最壞要 $\Theta(n)$。 它保證的是\textbf{平攤}的成本：從空樹開始做任意一串
+操作，平均每個操作 $O(\lg n)$（定理~\ref{thm:bal-splay}）。 這是第~3~章平攤分析的
+典型用法，證明用的就是第~\ref{sec:amo-potential}~節的位能法。
+
+\subsection{伸展：zig、zig-zig、zig-zag}
+\label{sec:bal-splay-op}
+
+把節點 $x$ 轉到根的動作叫\textbf{伸展}（splay）。 每一步看 $x$、它的父節點 $p$ 和
+祖父節點 $g$ 的相對位置，分成三種情況（圖~\ref{fig:bal-splay-cases}）：
+
+\begin{itemize}
+\item \textbf{zig}：$p$ 是根，沒有 $g$。 對 $p$ 做一次旋轉，$x$ 升上來當根。 這種情
+況只會出現在最後一步。
+\item \textbf{zig-zig}：$x$ 和 $p$ 在同一邊（都是左子節點，或都是右子節點）。
+\textbf{先}轉 $g$ 和 $p$ 之間，讓 $p$ 升上來，\textbf{再}轉 $p$ 和 $x$ 之間，讓 $x$
+升上來。
+\item \textbf{zig-zag}：$x$ 和 $p$ 不在同一邊。 先轉 $p$ 和 $x$ 之間，再轉 $g$ 和
+$x$ 之間，$x$ 連升兩層。 這就是 AVL 樹的雙旋轉（LR、RL）。
+\end{itemize}
+
+zig-zig 和 zig-zag 各做兩次旋轉，讓 $x$ 往上兩層；zig 做一次，往上一層。 一直做到
+$x$ 變成根為止。 有些書把方向也寫進名稱（例如左右對稱的情況叫 zag、zag-zag、
+zag-zig），本書左右對稱的情況用同一個名稱。
+
+
+\proc{Splay} 用到一個小程序 \proc{Rotate-Up}$(T, y)$：$y$ 是左子節點就對 $y.p$ 右
+旋，否則對 $y.p$ 左旋，讓 $y$ 升一層。 左旋是虛擬碼~\ref{alg:bal-left-rotate}，右旋
+是它的左右對調；這兩個都帶父指標，伸展要一路往上找父節點和祖父節點，所以伸展樹的
+節點和紅黑樹一樣存父指標。
+
+\begin{pseudo}[unbreakable, label=alg:bal-splay]{由下而上把 $x$ 伸展到根}
+\Procedure{Splay}{$T, x$}
+    \While{$x.p \ne \NIL$}
+        \State $p \gets x.p$
+        \State $g \gets p.p$
+        \If{$g = \NIL$} \Comment{zig}
+            \State \Call{Rotate-Up}{$T, x$}
+        \ElsIf{$x$、$p$ 同是左子節點或同是右子節點} \Comment{zig-zig}
+            \State \Call{Rotate-Up}{$T, p$} \Comment{先轉上面那一對}
+            \State \Call{Rotate-Up}{$T, x$}
+        \Else \Comment{zig-zag}
+            \State \Call{Rotate-Up}{$T, x$}
+            \State \Call{Rotate-Up}{$T, x$}
+        \EndIf
+    \EndWhile
+\EndProcedure
+\end{pseudo}
+
+\begin{figure}[htbp]
+\centering
+\begin{tikzpicture}[x=0.75cm, y=0.8cm]
+% zig
+\node[font=\small\bfseries, anchor=west] at (-2.4,0.7) {zig};
+\node[tn] (p) at (0,0) {$p$};
+\node[tn, tnN] (x) at (-1,-1) {$x$};
+\draw[te] (p) -- (x); \draw[te] (p) -- (0.8,-1.0); \draw[te] (x) -- (-1.6,-2); \draw[te] (x) -- (-0.4,-2);
+\subtri[0.8]{-1.6}{-2}{$A$}
+\subtri[0.8]{-0.4}{-2}{$B$}
+\subtri[0.8]{0.8}{-1}{$C$}
+\draw[tarr] (1.5,-1) -- (2.7,-1);
+\begin{scope}[xshift=3.9cm]
+\node[tn, tnN] (x2) at (0,0) {$x$};
+\node[tn] (p2) at (1,-1) {$p$};
+\draw[te] (x2) -- (p2); \draw[te] (x2) -- (-0.8,-1.0); \draw[te] (p2) -- (0.4,-2); \draw[te] (p2) -- (1.6,-2);
+\subtri[0.8]{-0.8}{-1}{$A$}
+\subtri[0.8]{0.4}{-2}{$B$}
+\subtri[0.8]{1.6}{-2}{$C$}
+\end{scope}
+% zig-zig
+\begin{scope}[yshift=-3.6cm]
+\node[font=\small\bfseries, anchor=west] at (-3.4,0.7) {zig-zig};
+\node[tn] (g) at (0,0) {$g$};
+\node[tn] (p) at (-1,-1) {$p$};
+\node[tn, tnN] (x) at (-2,-2) {$x$};
+\draw[te] (g) -- (p); \draw[te] (g) -- (0.8,-1.0); \draw[te] (p) -- (x); \draw[te] (p) -- (-0.2,-2.0);
+\draw[te] (x) -- (-2.6,-3); \draw[te] (x) -- (-1.4,-3);
+\subtri[0.8]{-2.6}{-3}{$A$}
+\subtri[0.8]{-1.4}{-3}{$B$}
+\subtri[0.8]{-0.2}{-2}{$C$}
+\subtri[0.8]{0.8}{-1}{$D$}
+\draw[tarr] (1.5,-1.5) -- node[above, font=\scriptsize] {先轉 $g$} node[below, font=\scriptsize] {再轉 $p$} (3.1,-1.5);
+\begin{scope}[xshift=4.6cm]
+\node[tn, tnN] (x2) at (0,0) {$x$};
+\node[tn] (p2) at (1,-1) {$p$};
+\node[tn] (g2) at (2,-2) {$g$};
+\draw[te] (x2) -- (-0.8,-1.0); \draw[te] (x2) -- (p2); \draw[te] (p2) -- (0.2,-2.0); \draw[te] (p2) -- (g2);
+\draw[te] (g2) -- (1.4,-3); \draw[te] (g2) -- (2.6,-3);
+\subtri[0.8]{-0.8}{-1}{$A$}
+\subtri[0.8]{0.2}{-2}{$B$}
+\subtri[0.8]{1.4}{-3}{$C$}
+\subtri[0.8]{2.6}{-3}{$D$}
+\end{scope}
+\end{scope}
+% zig-zag
+\begin{scope}[xshift=9.6cm]
+\node[font=\small\bfseries, anchor=west] at (-2.4,0.7) {zig-zag};
+\node[tn] (g) at (0,0) {$g$};
+\node[tn] (p) at (-1.3,-1) {$p$};
+\node[tn, tnN] (x) at (-0.6,-2) {$x$};
+\draw[te] (g) -- (p); \draw[te] (g) -- (0.8,-1.0); \draw[te] (p) -- (-2.0,-2.0); \draw[te] (p) -- (x);
+\draw[te] (x) -- (-1.1,-3); \draw[te] (x) -- (-0.1,-3);
+\subtri[0.8]{-2.0}{-2}{$A$}
+\subtri[0.8]{-1.1}{-3}{$B$}
+\subtri[0.8]{-0.1}{-3}{$C$}
+\subtri[0.8]{0.8}{-1}{$D$}
+\draw[tarr] (1.1,-2.3) -- node[right, font=\scriptsize, align=left] {先轉 $p$\\再轉 $g$} (1.1,-4.4);
+\begin{scope}[yshift=-5.0cm]
+\node[tn, tnN] (x2) at (0,0) {$x$};
+\node[tn] (p2) at (-1.1,-1) {$p$};
+\node[tn] (g2) at (1.1,-1) {$g$};
+\draw[te] (x2) -- (p2); \draw[te] (x2) -- (g2);
+\draw[te] (p2) -- (-1.6,-2); \draw[te] (p2) -- (-0.6,-2); \draw[te] (g2) -- (0.6,-2); \draw[te] (g2) -- (1.6,-2);
+\subtri[0.8]{-1.6}{-2}{$A$}
+\subtri[0.8]{-0.6}{-2}{$B$}
+\subtri[0.8]{0.6}{-2}{$C$}
+\subtri[0.8]{1.6}{-2}{$D$}
+\end{scope}
+\end{scope}
+\end{tikzpicture}
+\diagcaption{伸展的三種情況（藍底是 $x$，只畫 $x$ 在左邊的情況，右邊的左右對調）。
+三角形是子樹，可以是空的。 三種情況前後的中序都不變，例如 zig-zig 兩邊都是
+$A, x, B, p, C, g, D$。}
+\label{fig:bal-splay-cases}
+\end{figure}
+
+zig-zig 第 8 行先轉上面那一對，是伸展樹和「單純把 $x$ 一路單旋轉到根」唯一的差
+別，但這個差別很重要。 圖~\ref{fig:bal-splay-chain}(a) 是把 $1$ 到 $8$ 依序插入伸展
+樹得到的鏈（下一小節會看到為什麼插入後會變這樣），接著搜尋 $1$。 伸展做三次
+zig-zig 和一次 zig，得到 (b)；如果每一步都只轉 $x$ 和它的父節點，得到 (c)。 (c) 除
+了 $1$ 到了根，其他節點還是一條鏈，接著搜尋 $2$ 又要往下走 $7$ 層。 (b) 把長鏈對
+折，高度從 $8$ 降成 $6$。 鏈越長效果越明顯：$m$ 個節點的鏈，伸展最底下的節點之後，
+高度大約剩一半，例如 $1000$ 個節點的鏈伸展最底下的節點之後，高度是 $502$。
+
+\begin{figure}[htbp]
+\centering
+\begin{tikzpicture}[x=0.42cm,y=0.55cm,baseline=(current bounding box.north)]
+\node[tn,tnN] (spch1) at (0,-7) {1};
+\node[tn] (spch2) at (1,-6) {2};
+\node[tn] (spch3) at (2,-5) {3};
+\node[tn] (spch4) at (3,-4) {4};
+\node[tn] (spch5) at (4,-3) {5};
+\node[tn] (spch6) at (5,-2) {6};
+\node[tn] (spch7) at (6,-1) {7};
+\node[tn] (spch8) at (7,0) {8};
+\draw[te] (spch8) -- (spch7);
+\draw[te] (spch7) -- (spch6);
+\draw[te] (spch6) -- (spch5);
+\draw[te] (spch5) -- (spch4);
+\draw[te] (spch4) -- (spch3);
+\draw[te] (spch3) -- (spch2);
+\draw[te] (spch2) -- (spch1);
+\node[plab] at (3.5,-8.75) {(a) 依序插入 $1$ 到 $8$};
+\end{tikzpicture}\hspace{0.8cm}\begin{tikzpicture}[x=0.42cm,y=0.55cm,baseline=(current bounding box.north)]
+\node[tn,tnN] (spcs1) at (0,0) {1};
+\node[tn] (spcs2) at (1,-4) {2};
+\node[tn] (spcs3) at (2,-5) {3};
+\node[tn] (spcs4) at (3,-3) {4};
+\node[tn] (spcs5) at (4,-4) {5};
+\node[tn] (spcs6) at (5,-2) {6};
+\node[tn] (spcs7) at (6,-3) {7};
+\node[tn] (spcs8) at (7,-1) {8};
+\draw[te] (spcs1) -- (spcs8);
+\draw[te] (spcs8) -- (spcs6);
+\draw[te] (spcs6) -- (spcs4);
+\draw[te] (spcs4) -- (spcs2);
+\draw[te] (spcs2) -- (spcs3);
+\draw[te] (spcs4) -- (spcs5);
+\draw[te] (spcs6) -- (spcs7);
+\node[plab] at (3.5,-8.75) {(b) 伸展 $1$};
+\end{tikzpicture}\hspace{0.8cm}\begin{tikzpicture}[x=0.42cm,y=0.55cm,baseline=(current bounding box.north)]
+\node[tn,tnN] (spcn1) at (0,0) {1};
+\node[tn] (spcn2) at (1,-7) {2};
+\node[tn] (spcn3) at (2,-6) {3};
+\node[tn] (spcn4) at (3,-5) {4};
+\node[tn] (spcn5) at (4,-4) {5};
+\node[tn] (spcn6) at (5,-3) {6};
+\node[tn] (spcn7) at (6,-2) {7};
+\node[tn] (spcn8) at (7,-1) {8};
+\draw[te] (spcn1) -- (spcn8);
+\draw[te] (spcn8) -- (spcn7);
+\draw[te] (spcn7) -- (spcn6);
+\draw[te] (spcn6) -- (spcn5);
+\draw[te] (spcn5) -- (spcn4);
+\draw[te] (spcn4) -- (spcn3);
+\draw[te] (spcn3) -- (spcn2);
+\node[plab] at (3.5,-8.75) {(c) 只用單旋轉};
+\end{tikzpicture}
+\diagcaption{(a) 依序插入 $1$ 到 $8$ 的伸展樹。 (b) 伸展 $1$：zig-zig 三次、zig 一
+次，高度 $6$。 (c) 只用單旋轉把 $1$ 送到根，高度還是 $8$。}
+\label{fig:bal-splay-chain}
+\end{figure}
+
+\subsection{搜尋、插入、刪除}
+\label{sec:bal-splay-ops}
+
+三個操作都先照第~9~章的方法做，再伸展一個節點：
+
+\begin{itemize}
+\item \textbf{搜尋} $k$：從根往下找。 找到節點 $x$ 就伸展 $x$；找不到，就伸展最後
+一個經過的節點（走到 \NIL 之前的那一個）。 找不到也要伸展，因為往下走的那一段路也
+要有人付錢，第~\ref{sec:bal-splay-amortized}~節的分析需要這一點。
+\item \textbf{插入} $k$：插成葉節點，再伸展這個新節點，新節點就成了根。 $k$ 已經
+在樹裡時，伸展那個節點。
+\item \textbf{刪除} $k$：先搜尋 $k$，$k$ 就被伸展到根；找不到就結束。 拿掉根之後
+剩下左右兩棵子樹 $L$、$R$。 $L$ 是空的，$R$ 就是新的樹。 否則在 $L$ 裡找最大的節
+點 $m$，在 $L$ 裡把 $m$ 伸展到根；$m$ 是 $L$ 最大的鍵，伸展之後沒有右子樹，把 $R$
+接成 $m$ 的右子樹。 $L$ 的鍵都比 $R$ 的小，所以接起來還是二元搜尋樹。 把兩棵這樣
+的樹接成一棵叫\textbf{合併}（join）。
+\end{itemize}
+
+\begin{pseudo}[unbreakable, label=alg:bal-splay-search]{伸展樹的搜尋，回傳是否找到}
+\Function{Splay-Search}{$T, k$}
+    \State $x \gets T.\mathit{root}$
+    \State $y \gets \NIL$ \Comment{最後經過的節點}
+    \While{$x \ne \NIL$ \AND $x.\mathit{key} \ne k$}
+        \State $y \gets x$
+        \If{$k < x.\mathit{key}$}
+            \State $x \gets x.\mathit{left}$
+        \Else
+            \State $x \gets x.\mathit{right}$
+        \EndIf
+    \EndWhile
+    \If{$x \ne \NIL$}
+        \State \Call{Splay}{$T, x$}
+        \State \Return \TRUE
+    \EndIf
+    \If{$y \ne \NIL$}
+        \State \Call{Splay}{$T, y$}
+    \EndIf
+    \State \Return \FALSE
+\EndFunction
+\end{pseudo}
+
+\begin{pseudo}[unbreakable, label=alg:bal-splay-delete]{伸展樹的刪除}
+\Procedure{Splay-Delete}{$T, k$}
+    \If{\Call{Splay-Search}{$T, k$} $= \FALSE$}
+        \State \Return \Comment{$k$ 不在樹裡}
+    \EndIf
+    \State $L \gets T.\mathit{root}.\mathit{left}$
+    \State $R \gets T.\mathit{root}.\mathit{right}$
+    \State 釋放 $T.\mathit{root}$，$L$、$R$ 的父指標設成 \NIL
+    \If{$L = \NIL$}
+        \State $T.\mathit{root} \gets R$
+    \Else
+        \State $T.\mathit{root} \gets L$ \Comment{先把 $L$ 單獨當成一棵樹}
+        \State $m \gets \Call{Tree-Maximum}{L}$ \Comment{虛擬碼~\ref{alg:bst-minmax}}
+        \State \Call{Splay}{$T, m$} \Comment{$m$ 成為根，沒有右子樹}
+        \State $m.\mathit{right} \gets R$，$R \ne \NIL$ 時 $R.p \gets m$
+    \EndIf
+\EndProcedure
+\end{pseudo}
+
+第 12 行的伸展只在 $L$ 這棵樹裡面進行，$R$ 完全沒有動。
+
+\begin{examnote}
+伸展樹在不同課本有幾種變形，畫出來的樹會不一樣：
+\begin{itemize}
+\item \textbf{由上而下}（top-down）伸展：一邊往下找一邊把樹拆成左、中、右三段，最
+後再組起來（例如 Weiss 的課本）。 結果和本節由下而上（bottom-up）的版本可能不同。
+\item 刪除的方法：有的在 $R$ 裡伸展最小的節點，再把 $L$ 接到它的左邊；有的先照第~9~
+章刪除，再伸展被拿掉的節點的父節點。
+\item 搜尋失敗時伸展最後經過的節點，這一點各家大多相同，但也有書不提。
+\end{itemize}
+考卷通常會寫「bottom-up splay」或說明合併的做法，照題目做。 題目沒有說明時用本節
+的做法，並在答案第一行寫出用的是哪一種。
+\end{examnote}
+
+\subsection{手算追蹤：常客刷卡}
+\label{sec:bal-splay-trace}
+
+依序插入 $99, 41, 20, 83, 48, 77$，再搜尋 $20$、刪除 $48$。 圖~\ref{fig:bal-splay-trace1}
+到圖~\ref{fig:bal-splay-trace3} 的藍底是正在伸展的節點，每一步旋轉之後都畫一次。
+
+前三次插入都只有 zig。 $99$ 是根；$41$ 接在 $99$ 左邊，對 $99$ 右旋，$41$ 成為根；
+$20$ 接在 $41$ 左邊，再右旋一次，得到 (a)。 依序插入越來越小的鍵，每次都只轉一次，
+樹長成一條往右的鏈。 圖~\ref{fig:bal-splay-chain}(a) 依序插入越來越大的鍵，就長成往
+左的鏈。
+
+\begin{figure}[htbp]
+\centering
+\begin{tikzpicture}[x=0.5cm,y=0.72cm,baseline=(current bounding box.north)]
+\node[tn] (spa20) at (0,0) {20};
+\node[tn] (spa41) at (1,-1) {41};
+\node[tn] (spa99) at (2,-2) {99};
+\draw[te] (spa20) -- (spa41);
+\draw[te] (spa41) -- (spa99);
+\node[plab] at (1.0,-3.75) {(a) 插入 99、41、20};
+\end{tikzpicture}\hspace{0.5cm}\begin{tikzpicture}[x=0.5cm,y=0.72cm,baseline=(current bounding box.north)]
+\node[tn] (spb20) at (0,0) {20};
+\node[tn] (spb41) at (1,-1) {41};
+\node[tn,tnN] (spb83) at (2,-3) {83};
+\node[tn] (spb99) at (3,-2) {99};
+\draw[te] (spb20) -- (spb41);
+\draw[te] (spb41) -- (spb99);
+\draw[te] (spb99) -- (spb83);
+\node[plab] at (1.5,-3.75) {(b) 83 接成葉節點};
+\end{tikzpicture}\hspace{0.5cm}\begin{tikzpicture}[x=0.5cm,y=0.72cm,baseline=(current bounding box.north)]
+\node[tn] (spc20) at (0,0) {20};
+\node[tn] (spc41) at (1,-2) {41};
+\node[tn,tnN] (spc83) at (2,-1) {83};
+\node[tn] (spc99) at (3,-2) {99};
+\draw[te] (spc20) -- (spc83);
+\draw[te] (spc83) -- (spc41);
+\draw[te] (spc83) -- (spc99);
+\node[plab] at (1.5,-3.75) {(c) zig-zag};
+\end{tikzpicture}\hspace{0.5cm}\begin{tikzpicture}[x=0.5cm,y=0.72cm,baseline=(current bounding box.north)]
+\node[tn] (spd20) at (0,-1) {20};
+\node[tn] (spd41) at (1,-2) {41};
+\node[tn,tnN] (spd83) at (2,0) {83};
+\node[tn] (spd99) at (3,-1) {99};
+\draw[te] (spd83) -- (spd20);
+\draw[te] (spd20) -- (spd41);
+\draw[te] (spd83) -- (spd99);
+\node[plab] at (1.5,-3.75) {(d) zig};
+\end{tikzpicture}\\*[0.8em]
+\begin{tikzpicture}[x=0.5cm,y=0.72cm,baseline=(current bounding box.north)]
+\node[tn] (spe20) at (0,-1) {20};
+\node[tn] (spe41) at (1,-2) {41};
+\node[tn,tnN] (spe48) at (2,-3) {48};
+\node[tn] (spe83) at (3,0) {83};
+\node[tn] (spe99) at (4,-1) {99};
+\draw[te] (spe83) -- (spe20);
+\draw[te] (spe20) -- (spe41);
+\draw[te] (spe41) -- (spe48);
+\draw[te] (spe83) -- (spe99);
+\node[plab] at (2.0,-3.75) {(e) 48 接成葉節點};
+\end{tikzpicture}\hspace{0.8cm}\begin{tikzpicture}[x=0.5cm,y=0.72cm,baseline=(current bounding box.north)]
+\node[tn] (spf20) at (0,-3) {20};
+\node[tn] (spf41) at (1,-2) {41};
+\node[tn,tnN] (spf48) at (2,-1) {48};
+\node[tn] (spf83) at (3,0) {83};
+\node[tn] (spf99) at (4,-1) {99};
+\draw[te] (spf83) -- (spf48);
+\draw[te] (spf48) -- (spf41);
+\draw[te] (spf41) -- (spf20);
+\draw[te] (spf83) -- (spf99);
+\node[plab] at (2.0,-3.75) {(f) zig-zig};
+\end{tikzpicture}\hspace{0.8cm}\begin{tikzpicture}[x=0.5cm,y=0.72cm,baseline=(current bounding box.north)]
+\node[tn] (spg20) at (0,-2) {20};
+\node[tn] (spg41) at (1,-1) {41};
+\node[tn,tnN] (spg48) at (2,0) {48};
+\node[tn] (spg83) at (3,-1) {83};
+\node[tn] (spg99) at (4,-2) {99};
+\draw[te] (spg48) -- (spg41);
+\draw[te] (spg41) -- (spg20);
+\draw[te] (spg48) -- (spg83);
+\draw[te] (spg83) -- (spg99);
+\node[plab] at (2.0,-3.75) {(g) zig};
+\end{tikzpicture}
+\diagcaption{插入 $83$ 和 $48$。 (b) $83$ 是 $99$ 的左子節點，$99$ 是 $41$ 的右子節點，
+不同邊，是 zig-zag。 (e) $48$ 和 $41$ 都是右子節點，是 zig-zig：先轉 $20$ 和 $41$，
+再轉 $41$ 和 $48$。}
+\label{fig:bal-splay-trace1}
+\end{figure}
+
+插入 $83$：從根往下 $20 \to 41 \to 99$，$83$ 接成 $99$ 的左子節點 (b)。 $p = 99$、
+$g = 41$，$83$ 在左、$99$ 在右，是 zig-zag：$83$ 連升兩層，左邊接 $41$、右邊接
+$99$ (c)。 這時 $p = 20$ 是根，做 zig (d)。
+
+插入 $48$：$83 \to 20 \to 41$，$48$ 接成 $41$ 的右子節點 (e)。 $p = 41$、$g = 20$，兩
+個都是右子節點，是 zig-zig。 先轉 $20$ 和 $41$：$41$ 升上來，$20$ 成了 $41$ 的左
+子節點；再轉 $41$ 和 $48$：$48$ 升上來，$41$ 成了 $48$ 的左子節點 (f)。 最後 $p = 83$
+是根，zig (g)。
+
+\begin{figure}[htbp]
+\centering
+\begin{tikzpicture}[x=0.5cm,y=0.72cm,baseline=(current bounding box.north)]
+\node[tn] (sph20) at (0,-2) {20};
+\node[tn] (sph41) at (1,-1) {41};
+\node[tn] (sph48) at (2,0) {48};
+\node[tn,tnN] (sph77) at (3,-2) {77};
+\node[tn] (sph83) at (4,-1) {83};
+\node[tn] (sph99) at (5,-2) {99};
+\draw[te] (sph48) -- (sph41);
+\draw[te] (sph41) -- (sph20);
+\draw[te] (sph48) -- (sph83);
+\draw[te] (sph83) -- (sph77);
+\draw[te] (sph83) -- (sph99);
+\node[plab] at (2.5,-3.75) {(h) 77 接成葉節點};
+\end{tikzpicture}\hspace{0.6cm}\begin{tikzpicture}[x=0.5cm,y=0.72cm,baseline=(current bounding box.north)]
+\node[tn] (spi20) at (0,-3) {20};
+\node[tn] (spi41) at (1,-2) {41};
+\node[tn] (spi48) at (2,-1) {48};
+\node[tn,tnN] (spi77) at (3,0) {77};
+\node[tn] (spi83) at (4,-1) {83};
+\node[tn] (spi99) at (5,-2) {99};
+\draw[te] (spi77) -- (spi48);
+\draw[te] (spi48) -- (spi41);
+\draw[te] (spi41) -- (spi20);
+\draw[te] (spi77) -- (spi83);
+\draw[te] (spi83) -- (spi99);
+\node[plab] at (2.5,-3.75) {(i) zig-zag};
+\end{tikzpicture}\hspace{0.6cm}\begin{tikzpicture}[x=0.5cm,y=0.72cm,baseline=(current bounding box.north)]
+\node[tn,tnN] (spj20) at (0,-1) {20};
+\node[tn] (spj41) at (1,-2) {41};
+\node[tn] (spj48) at (2,-3) {48};
+\node[tn] (spj77) at (3,0) {77};
+\node[tn] (spj83) at (4,-1) {83};
+\node[tn] (spj99) at (5,-2) {99};
+\draw[te] (spj77) -- (spj20);
+\draw[te] (spj20) -- (spj41);
+\draw[te] (spj41) -- (spj48);
+\draw[te] (spj77) -- (spj83);
+\draw[te] (spj83) -- (spj99);
+\node[plab] at (2.5,-3.75) {(j) 搜尋 20：zig-zig};
+\end{tikzpicture}\hspace{0.6cm}\begin{tikzpicture}[x=0.5cm,y=0.72cm,baseline=(current bounding box.north)]
+\node[tn,tnN] (spk20) at (0,0) {20};
+\node[tn] (spk41) at (1,-2) {41};
+\node[tn] (spk48) at (2,-3) {48};
+\node[tn] (spk77) at (3,-1) {77};
+\node[tn] (spk83) at (4,-2) {83};
+\node[tn] (spk99) at (5,-3) {99};
+\draw[te] (spk20) -- (spk77);
+\draw[te] (spk77) -- (spk41);
+\draw[te] (spk41) -- (spk48);
+\draw[te] (spk77) -- (spk83);
+\draw[te] (spk83) -- (spk99);
+\node[plab] at (2.5,-3.75) {(k) zig};
+\end{tikzpicture}
+\diagcaption{插入 $77$（zig-zag 一步就到根），再搜尋 $20$（zig-zig、zig）。}
+\label{fig:bal-splay-trace2}
+\end{figure}
+
+插入 $77$：$77$ 接成 $83$ 的左子節點 (h)，$83$ 是根 $48$ 的右子節點，zig-zag 一步
+就到根 (i)。 搜尋 $20$：路徑是 $77 \to 48 \to 41 \to 20$，$20$ 在深度 $3$。 $20$、
+$41$ 都是左子節點，zig-zig (j)；再 zig (k)。 注意 (k) 比 (i) 還歪：伸展不保證每一步之
+後樹都比較好，保證的只是長期的總成本。
+
+\begin{figure}[htbp]
+\centering
+\begin{tikzpicture}[x=0.5cm,y=0.72cm,baseline=(current bounding box.north)]
+\node[tn] (spl20) at (0,0) {20};
+\node[tn] (spl41) at (1,-2) {41};
+\node[tn,tnN] (spl48) at (2,-1) {48};
+\node[tn] (spl77) at (3,-2) {77};
+\node[tn] (spl83) at (4,-3) {83};
+\node[tn] (spl99) at (5,-4) {99};
+\draw[te] (spl20) -- (spl48);
+\draw[te] (spl48) -- (spl41);
+\draw[te] (spl48) -- (spl77);
+\draw[te] (spl77) -- (spl83);
+\draw[te] (spl83) -- (spl99);
+\node[plab] at (2.5,-4.75) {(l) 伸展 48：zig-zag};
+\end{tikzpicture}\hspace{0.5cm}\begin{tikzpicture}[x=0.5cm,y=0.72cm,baseline=(current bounding box.north)]
+\node[tn] (spm20) at (0,-1) {20};
+\node[tn] (spm41) at (1,-2) {41};
+\node[tn,tnN] (spm48) at (2,0) {48};
+\node[tn] (spm77) at (3,-1) {77};
+\node[tn] (spm83) at (4,-2) {83};
+\node[tn] (spm99) at (5,-3) {99};
+\draw[te] (spm48) -- (spm20);
+\draw[te] (spm20) -- (spm41);
+\draw[te] (spm48) -- (spm77);
+\draw[te] (spm77) -- (spm83);
+\draw[te] (spm83) -- (spm99);
+\node[plab] at (2.5,-4.75) {(m) zig};
+\end{tikzpicture}\hspace{0.5cm}\begin{tikzpicture}[x=0.5cm,y=0.72cm,baseline=(current bounding box.north)]
+\node[tn] (spnL20) at (0,0) {20};
+\node[tn,tnN] (spnL41) at (1,-1) {41};
+\draw[te] (spnL20) -- (spnL41);
+\node[plab] at (0.5,-4.75) {(n) $L$};
+\end{tikzpicture}\hspace{0.3cm}\begin{tikzpicture}[x=0.5cm,y=0.72cm,baseline=(current bounding box.north)]
+\node[tn] (spnR77) at (0,0) {77};
+\node[tn] (spnR83) at (1,-1) {83};
+\node[tn] (spnR99) at (2,-2) {99};
+\draw[te] (spnR77) -- (spnR83);
+\draw[te] (spnR83) -- (spnR99);
+\node[plab] at (1.0,-4.75) {$R$};
+\end{tikzpicture}\\*[0.8em]
+\begin{tikzpicture}[x=0.5cm,y=0.72cm,baseline=(current bounding box.north)]
+\node[tn] (spo20) at (0,-1) {20};
+\node[tn,tnN] (spo41) at (1,0) {41};
+\draw[te] (spo41) -- (spo20);
+\node[plab] at (0.5,-3.75) {(o) 在 $L$ 裡伸展 41};
+\end{tikzpicture}\hspace{1.2cm}\begin{tikzpicture}[x=0.5cm,y=0.72cm,baseline=(current bounding box.north)]
+\node[tn] (spp20) at (0,-1) {20};
+\node[tn] (spp41) at (1,0) {41};
+\node[tn] (spp77) at (2,-1) {77};
+\node[tn] (spp83) at (3,-2) {83};
+\node[tn] (spp99) at (4,-3) {99};
+\draw[te] (spp41) -- (spp20);
+\draw[te] (spp41) -- (spp77);
+\draw[te] (spp77) -- (spp83);
+\draw[te] (spp83) -- (spp99);
+\node[plab] at (2.0,-3.75) {(p) 接上 $R$};
+\end{tikzpicture}
+\diagcaption{刪除 $48$。 先把 $48$ 伸展到根 (l)(m)，拿掉它剩下 $L$、$R$ (n)；在 $L$
+裡把最大的 $41$ 伸展到根 (o)，再把 $R$ 接到 $41$ 的右邊 (p)。}
+\label{fig:bal-splay-trace3}
+\end{figure}
+
+刪除 $48$：先搜尋 $48$，路徑 $20 \to 77 \to 41 \to 48$。 $48$ 是 $41$ 的右子節點，
+$41$ 是 $77$ 的左子節點，zig-zag (l)；接著 $p = 20$ 是根，zig (m)。 拿掉根 $48$，
+$L$ 是 $20$ 和它的右子節點 $41$，$R$ 是 $77 \to 83 \to 99$ (n)。 $L$ 最大的是 $41$，
+在 $L$ 裡做一次 zig (o)，$41$ 沒有右子樹，接上 $R$ 得到 (p)。
+
+\begin{examnote}
+伸展樹的追蹤題，每次伸展寫出每一步的類型（zig、zig-zig、zig-zag）和那一步的 $x$、
+$p$、$g$，題目要求畫圖時，至少畫出每個操作完成後的樹，最好每一步都畫。 判斷類型只
+看 $x$ 和 $p$ 是不是同一邊，和鍵的大小無關。 最後檢查中序是否由小到大，以及操作的
+那個節點（刪除時是合併後的 $m$）是不是在根。
+\end{examnote}
+
+\subsection{平攤分析}
+\label{sec:bal-splay-amortized}
+
+成本以\textbf{旋轉次數}計：zig 是 $1$，zig-zig 和 zig-zag 是 $2$。 伸展深度 $d$
+的節點剛好做 $d$ 次旋轉，而從根往下找到它也走了 $d$ 步，所以一個操作的時間是
+$O(1 + \text{旋轉次數})$，只要分析旋轉次數就夠了。
+
+對每個節點 $x$，令 $s(x)$ 是以 $x$ 為根的子樹的節點數（含 $x$），$x$ 的\textbf{秩}
+是 $r(x) = \lg s(x)$。 位能函數取所有節點的秩加起來：
+\[
+\Phi(T) = \sum_{x \in T} r(x) = \sum_{x \in T} \lg s(x).
+\]
+空樹的 $\Phi = 0$；每個 $s(x) \ge 1$，所以 $\Phi \ge 0$，符合定理~\ref{thm:potential}
+的條件。 直覺上，歪的樹位能大：$n$ 個節點的鏈，$\Phi = \lg 1 + \lg 2 + \cdots + \lg n =
+\lg n!$，大約 $n \lg n$；最矮的樹只有大約 $n$。 歪的樹之後的操作比較貴，事先存的錢
+比較多。
+
+\begin{lemma}[存取引理]
+\label{lem:bal-splay-access}
+在有 $n$ 個節點、根是 $t$ 的伸展樹裡伸展 $x$，平攤成本（旋轉次數加上 $\Phi$ 的變化）
+不超過
+\[
+3\bigl(r(t) - r(x)\bigr) + 1 \le 3 \lg n + 1 .
+\]
+\end{lemma}
+
+\begin{whybox}[存取引理]
+把一次伸展拆成一步一步，每一步是 zig、zig-zig 或 zig-zag。 用 $r$、$r'$ 表示某一步之
+前、之後的秩。 一步裡面只有 $x$、$p$、$g$ 三個節點的子樹內容會變，其他節點的秩不變，
+所以只要看這三個節點。 先證明一個不等式：
+\[
+a, b > 0 \text{ 而且 } a + b \le c \quad\Longrightarrow\quad \lg a + \lg b \le 2 \lg c - 2 .
+\]
+因為 $(\sqrt a - \sqrt b)^2 \ge 0$，所以 $ab \le \bigl((a + b)/2\bigr)^2 \le (c/2)^2$，
+兩邊取 $\lg$ 就是上式。
+
+\textbf{zig-zig}，實際成本 $2$。 看圖~\ref{fig:bal-splay-cases}。 (i) $r'(x) = r(g)$：
+$x$ 接手 $g$ 原本的整棵子樹。 (ii) $r(p) \ge r(x)$、$r'(p) \le r'(x)$：子節點的子樹
+比父節點的小。 (iii) 旋轉前 $x$ 的子樹（$x$、$A$、$B$）和旋轉後 $g$ 的子樹（$g$、
+$C$、$D$）沒有共同的節點，兩者再加上 $p$ 就是旋轉後 $x$ 的子樹，所以
+$s(x) + s'(g) \le s'(x)$，由不等式得到 $r(x) + r'(g) \le 2r'(x) - 2$。 於是
+\[
+\begin{aligned}
+\hat{c} &= 2 + r'(x) + r'(p) + r'(g) - r(x) - r(p) - r(g) \\
+&= 2 + r'(p) + r'(g) - r(x) - r(p) && \text{由 (i)} \\
+&\le 2 + r'(x) + r'(g) - 2r(x) && \text{由 (ii)} \\
+&\le 2 + r'(x) + \bigl(2r'(x) - r(x) - 2\bigr) - 2r(x) = 3\bigl(r'(x) - r(x)\bigr) && \text{由 (iii)}.
+\end{aligned}
+\]
+
+\textbf{zig-zag}，實際成本 $2$。 同樣 $r'(x) = r(g)$、$r(p) \ge r(x)$。 旋轉後 $p$、$g$
+是 $x$ 的兩個子節點，$s'(p) + s'(g) < s'(x)$，所以 $r'(p) + r'(g) \le 2r'(x) - 2$。
+\[
+\begin{aligned}
+\hat{c} &= 2 + r'(p) + r'(g) - r(x) - r(p) \le 2 + r'(p) + r'(g) - 2r(x) \\
+&\le 2\bigl(r'(x) - r(x)\bigr) \le 3\bigl(r'(x) - r(x)\bigr),
+\end{aligned}
+\]
+最後一步用到 $r'(x) \ge r(x)$。
+
+\textbf{zig}，實際成本 $1$。 $r'(x) = r(p)$、$r'(p) \le r'(x)$：
+\[
+\hat{c} = 1 + r'(x) + r'(p) - r(x) - r(p) = 1 + r'(p) - r(x) \le 1 + r'(x) - r(x)
+\le 1 + 3\bigl(r'(x) - r(x)\bigr).
+\]
+
+把各步加起來。 每一步的 $r'(x)$ 就是下一步的 $r(x)$，中間的項全部消掉，剩下
+$3(\text{最後的 } r(x) - \text{最初的 } r(x))$。 最後 $x$ 是根，子樹是整棵樹，秩是
+$r(t)$。 zig 最多出現一次，所以只多一個 $+1$。 $s(x) \ge 1$，$r(t) = \lg n$，得到
+$3 \lg n + 1$。
+\end{whybox}
+
+\begin{theorem}
+\label{thm:bal-splay}
+從空的伸展樹開始，做任意 $m$ 次搜尋、插入、刪除，過程中節點數都不超過 $n$
+（$n \ge 2$），總時間是 $O(m \lg n)$。 也就是說，每個操作的平攤時間是 $O(\lg n)$。
+\end{theorem}
+
+\begin{proof}
+由定理~\ref{thm:potential}，只要證明每個操作的平攤成本是 $O(\lg n)$。
+
+\textbf{搜尋}：只做一次伸展，由引理~\ref{lem:bal-splay-access}，平攤成本
+$\le 3 \lg n + 1$。
+
+\textbf{插入}：先把新節點 $z$ 接成葉節點。 $z$ 的秩是 $\lg 1 = 0$；它的祖先由下往上
+是 $y_1$（父節點）、$y_2$、……、$y_d$（根），每個的子樹多了一個節點。 對 $i < d$，
+$y_{i+1}$ 的子樹包含 $y_i$ 的子樹再加上 $y_{i+1}$ 自己，所以 $s(y_i) + 1 \le
+s(y_{i+1})$。 位能增加
+\[
+\sum_{i=1}^{d} \lg \frac{s(y_i) + 1}{s(y_i)}
+\le \sum_{i=1}^{d-1} \lg \frac{s(y_{i+1})}{s(y_i)} + \lg \frac{s(y_d) + 1}{s(y_d)}
+= \lg \frac{s(y_d) + 1}{s(y_1)} \le \lg n ,
+\]
+中間的和前後相消；最後一步因為 $s(y_d) + 1$ 是插入後的節點數，$s(y_1) \ge 1$。 接著
+伸展 $z$，平攤 $\le 3 \lg n + 1$。 合計 $\le 4 \lg n + 1$。
+
+\textbf{刪除}：搜尋 $k$ 的伸展 $\le 3 \lg n + 1$。 拿掉根，其他節點的子樹都沒變，位
+能只減少。 在 $L$ 裡伸展 $m$：把引理用在 $L$ 這棵樹上（$R$ 的節點不受影響），
+$\le 3 \lg n + 1$。 把 $R$ 接到 $m$ 底下，只有 $m$ 的子樹變大，秩最多增加到
+$\lg n$。 合計 $\le 7 \lg n + 2$。
+
+三種操作的平攤成本都是 $O(\lg n)$，$m$ 次操作的總時間是 $O(m \lg n)$。
+\end{proof}
+
+這個結論是平攤的，單獨一次操作仍然可能很貴。 圖~\ref{fig:bal-splay-chain}(a) 的鏈，
+$n$ 次插入每次只轉一次，接著搜尋 $1$ 卻要轉 $n - 1$ 次。 從位能看：建鏈的時候實際成
+本很小，位能卻一路漲到 $\lg n!$，這些存款就是留給那次昂貴的搜尋用的（觀念題第~15~
+題）。 而且那次搜尋把鏈折短之後，後面的操作就便宜了：$1000$ 個節點的鏈，先搜尋 $1$
+（$999$ 次旋轉），再依序搜尋 $2, 3, \ldots, 1000$，平均每次搜尋只要 $4.37$ 次旋轉。 和 AVL 樹、紅黑樹的「每一次都 $O(\lg n)$」比，伸展樹不適合每一次回應都有時間
+上限的系統，但它不用存任何平衡資訊，程式也短。 伸展樹還有更強的性質，例如存取的頻
+率不平均時，總成本和「事先知道頻率而建好的最佳靜態搜尋樹」只差常數倍，超出本書範
+圍，見延伸閱讀的 Sleator 和 Tarjan。
+
+\section{跳躍串列}
+\label{sec:bal-skip}
+
+前面幾種結構都是樹。 這一節換一個方向：從第~5~章的串列出發。 把會員編號存在一個
+由小到大排好的單向串列裡，插入、刪除只要改指標，但搜尋只能從頭一個一個往後走，
+$\Theta(n)$：串列沒有辦法像陣列那樣直接跳到中間做二分搜尋。
+
+想想臺鐵：區間車每站都停，自強號只停大站。 要到一個小站，先搭自強號坐到它前面最
+近的大站，再換區間車往後幾站。 \textbf{跳躍串列}（skip list）就是在排好序的串列上
+面，再加幾層「只停大站」的串列。
+
+\subsection{結構}
+\label{sec:bal-skip-struct}
+
+先看兩層的情形。 下層串起全部 $n$ 個鍵，上層每隔 $k$ 個鍵挑一個串起來。 搜尋時先在
+上層往右走，走到下一個會超過目標為止，再到下層往右走。 上層最多走 $n/k$ 步，下層
+最多走 $k$ 步，總共大約 $n/k + k$，$k = \sqrt n$ 時最少，約 $2\sqrt n$（歷屆試題~\ref{px:bal-5}）。
+層數再加：每一層都從下一層每隔一個挑一個，就有大約 $\lg n$ 層，每層往右最多走一
+兩步，搜尋 $O(\lg n)$，很像在串列上做二分搜尋。 問題是插入、刪除之後要維持「剛好每
+隔一個」，可能要調整一大片。 跳躍串列的做法是不強求剛好，改用\textbf{擲硬幣}決定每
+個鍵出現在幾層。
+
+\begin{itemize}
+\item 每個節點存一個鍵 $\mathit{key}$、一個\textbf{層數} $\ell \ge 1$，以及 $\ell$ 個指標
+$\mathit{next}[1..\ell]$。 第 $i$ 層的串列由所有層數 $\ge i$ 的節點依鍵由小到大串成，
+$\mathit{next}[i]$ 指向第 $i$ 層的下一個節點。 第 $1$ 層就是原本那條含全部鍵的串列。
+\item 一個不存鍵的頭節點 $L.\mathit{head}$，有 $\mathit{MaxLevel}$ 個指標；
+$L.\mathit{level}$ 是目前最高的層數。 每一層的尾端是 \NIL，比較時把 \NIL 的鍵當成
+$+\infty$。
+\item 新節點的層數：從 $\ell = 1$ 開始擲公正的硬幣，正面就 $\ell$ 加 $1$ 再擲，反面就
+停（$\ell$ 到 $\mathit{MaxLevel}$ 也停）。 所以 $\Pr[\ell \ge i] = (1/2)^{i-1}$：
+大約一半的節點有第 $2$ 層，四分之一有第 $3$ 層。
+\end{itemize}
+
+圖~\ref{fig:bal-skip} 是九個鍵的跳躍串列，每個鍵上面疊的方格就是它的層數，箭頭是各
+層的 $\mathit{next}$。 第 $2$ 層有 $12, 31, 44, 63$，第 $3$ 層只有 $31$。 這些層數
+是擲硬幣擲出來的，不是剛好每隔一個，但大致是這個比例。
+
+\begin{figure}[htbp]
+\centering
+\begin{tikzpicture}[x=1.0cm,y=0.55cm]
+\node[bal-skhead] (skm0x1) at (0,0) {};
+\node[bal-skhead] (skm0x2) at (0,1) {};
+\node[bal-skhead, bal-skvisit] (skm0x3) at (0,2) {};
+\node[bal-sklab] at (0,-0.75) {head};
+\node[bal-skbox] (skm1x1) at (1,0) {};
+\node[bal-skbox] (skm1x2) at (1,1) {};
+\node[bal-sklab] at (1,-0.75) {12};
+\node[bal-skbox] (skm2x1) at (2,0) {};
+\node[bal-sklab] at (2,-0.75) {19};
+\node[bal-skbox] (skm3x1) at (3,0) {};
+\node[bal-sklab] at (3,-0.75) {25};
+\node[bal-skbox] (skm4x1) at (4,0) {};
+\node[bal-skbox, bal-skvisit] (skm4x2) at (4,1) {};
+\node[bal-skbox, bal-skvisit] (skm4x3) at (4,2) {};
+\node[bal-sklab] at (4,-0.75) {31};
+\node[bal-skbox] (skm5x1) at (5,0) {};
+\node[bal-sklab] at (5,-0.75) {38};
+\node[bal-skbox, bal-skvisit] (skm6x1) at (6,0) {};
+\node[bal-skbox, bal-skvisit] (skm6x2) at (6,1) {};
+\node[bal-sklab] at (6,-0.75) {44};
+\node[bal-skbox] (skm7x1) at (7,0) {};
+\node[bal-sklab] at (7,-0.75) {50};
+\node[bal-skbox] (skm8x1) at (8,0) {};
+\node[bal-sklab] at (8,-0.75) {57};
+\node[bal-skbox] (skm9x1) at (9,0) {};
+\node[bal-skbox] (skm9x2) at (9,1) {};
+\node[bal-sklab] at (9,-0.75) {63};
+\node[bal-skhead] (skm10x1) at (10,0) {};
+\node[bal-skhead] (skm10x2) at (10,1) {};
+\node[bal-skhead] (skm10x3) at (10,2) {};
+\node[bal-sklab] at (10,-0.75) {NIL};
+\draw[bal-skarr] (skm0x1) -- (skm1x1);
+\draw[bal-skarr] (skm1x1) -- (skm2x1);
+\draw[bal-skarr] (skm2x1) -- (skm3x1);
+\draw[bal-skarr] (skm3x1) -- (skm4x1);
+\draw[bal-skarr] (skm4x1) -- (skm5x1);
+\draw[bal-skarr] (skm5x1) -- (skm6x1);
+\draw[bal-skarr] (skm6x1) -- (skm7x1);
+\draw[bal-skarr] (skm7x1) -- (skm8x1);
+\draw[bal-skarr] (skm8x1) -- (skm9x1);
+\draw[bal-skarr] (skm9x1) -- (skm10x1);
+\draw[bal-skarr] (skm0x2) -- (skm1x2);
+\draw[bal-skarr] (skm1x2) -- (skm4x2);
+\draw[bal-skarr, bal-skpath] (skm4x2) -- (skm6x2);
+\draw[bal-skarr] (skm6x2) -- (skm9x2);
+\draw[bal-skarr] (skm9x2) -- (skm10x2);
+\draw[bal-skarr, bal-skpath] (skm0x3) -- (skm4x3);
+\draw[bal-skarr] (skm4x3) -- (skm10x3);
+\end{tikzpicture}
+\diagcaption{一個跳躍串列（$L.\mathit{level} = 3$）。 灰色的是頭節點和代表 \NIL 的
+尾端。 紅色是搜尋 $50$ 的路徑：在第 $3$ 層從 head 走到 $31$，往下；第 $2$ 層走到 $44$，
+往下；第 $1$ 層 $44$ 的下一個就是 $50$。}
+\label{fig:bal-skip}
+\end{figure}
+
+\subsection{搜尋}
+\label{sec:bal-skip-search}
+
+從頭節點的最高層開始。 在第 $i$ 層，只要下一個節點的鍵比 $k$ 小，就往右走；下一個
+的鍵 $\ge k$ 時，往下一層。 走完第 $1$ 層，停的位置 $x$ 是鍵比 $k$ 小的最後一個節點，
+$k$ 如果在串列裡，就是 $x.\mathit{next}[1]$。
+
+\begin{pseudo}[unbreakable, label=alg:bal-skip-search]{跳躍串列的搜尋}
+\Function{Skip-Search}{$L, k$}
+    \State $x \gets L.\mathit{head}$
+    \For{$i \gets L.\mathit{level}$ \DownTo $1$}
+        \While{$x.\mathit{next}[i].\mathit{key} < k$} \Comment{\NIL 的鍵當成 $+\infty$}
+            \State $x \gets x.\mathit{next}[i]$
+        \EndWhile
+    \EndFor
+    \State $x \gets x.\mathit{next}[1]$
+    \If{$x \ne \NIL$ \AND $x.\mathit{key} = k$}
+        \State \Return $x$
+    \EndIf
+    \State \Return \NIL
+\EndFunction
+\end{pseudo}
+
+在圖~\ref{fig:bal-skip} 搜尋 $50$：第 $3$ 層，head 的下一個是 $31 < 50$，走到 $31$；
+$31$ 的下一個是 \NIL，往下。 第 $2$ 層，$31$ 的下一個 $44 < 50$，走到 $44$；下一個
+$63 \ge 50$，往下。 第 $1$ 層，$44$ 的下一個 $50$ 不小於 $50$，迴圈結束。 第 6 行
+取 $44.\mathit{next}[1] = 50$，找到。 一共比較了 $31, \NIL, 44, 63, 50$ 五次，走過的
+節點只有 $31$ 和 $44$；在第 $1$ 層從頭走要經過 $12, 19, 25, 31, 38, 44$ 六個節點。
+
+\subsection{插入與刪除}
+\label{sec:bal-skip-ops}
+
+插入 $k$ 時，照搜尋的路線往下走，但每一層往下之前，記下停的位置
+$\mathit{update}[i]$：第 $i$ 層鍵比 $k$ 小的最後一個節點。 新節點在第 $i$ 層要接在
+$\mathit{update}[i]$ 的後面。 接著擲硬幣決定新節點的層數 $\ell$，在第 $1$ 到 $\ell$ 層
+各接一次，和單向串列在某個節點後面插入一樣（第~\ref{sec:ll-singly}~節）。 $\ell$ 比目
+前的 $L.\mathit{level}$ 高時，多出來的那幾層，新節點前面是頭節點。
+
+\begin{pseudo}[label=alg:bal-skip-level]{擲硬幣決定層數}
+\Function{Random-Level}{}
+    \State $\ell \gets 1$
+    \While{擲出正面 \AND $\ell < \mathit{MaxLevel}$}
+        \State $\ell \gets \ell + 1$
+    \EndWhile
+    \State \Return $\ell$
+\EndFunction
+\end{pseudo}
+
+\begin{pseudo}[unbreakable, label=alg:bal-skip-insert]{跳躍串列的插入}
+\Procedure{Skip-Insert}{$L, k$}
+    \State $x \gets L.\mathit{head}$
+    \For{$i \gets L.\mathit{level}$ \DownTo $1$}
+        \While{$x.\mathit{next}[i].\mathit{key} < k$}
+            \State $x \gets x.\mathit{next}[i]$
+        \EndWhile
+        \State $\mathit{update}[i] \gets x$ \Comment{第 $i$ 層要接在 $x$ 後面}
+    \EndFor
+    \If{$x.\mathit{next}[1] \ne \NIL$ \AND $x.\mathit{next}[1].\mathit{key} = k$}
+        \State \Return \Comment{已經在串列裡}
+    \EndIf
+    \State $\ell \gets \Call{Random-Level}{}$
+    \If{$\ell > L.\mathit{level}$}
+        \For{$i \gets L.\mathit{level} + 1$ \To $\ell$}
+            \State $\mathit{update}[i] \gets L.\mathit{head}$
+        \EndFor
+        \State $L.\mathit{level} \gets \ell$
+    \EndIf
+    \State $z \gets$ 新節點，$\mathit{key} = k$，層數 $\ell$
+    \For{$i \gets 1$ \To $\ell$}
+        \State $z.\mathit{next}[i] \gets \mathit{update}[i].\mathit{next}[i]$
+        \State $\mathit{update}[i].\mathit{next}[i] \gets z$
+    \EndFor
+\EndProcedure
+\end{pseudo}
+
+刪除 $k$ 時，同樣先求出 $\mathit{update}$。 設 $x = \mathit{update}[1].\mathit{next}[1]$
+是要刪的節點；它有幾層，就在那幾層把 $\mathit{update}[i].\mathit{next}[i]$ 改成
+$x.\mathit{next}[i]$，跳過 $x$。 最上面幾層如果變空了，把 $L.\mathit{level}$ 降下來。
+
+\begin{pseudo}[unbreakable, label=alg:bal-skip-delete]{跳躍串列的刪除}
+\Procedure{Skip-Delete}{$L, k$}
+    \State 和 \proc{Skip-Insert} 第 2--6 行相同，求出 $\mathit{update}[1..L.\mathit{level}]$
+    \State $x \gets \mathit{update}[1].\mathit{next}[1]$
+    \If{$x = \NIL$ \OR $x.\mathit{key} \ne k$}
+        \State \Return \Comment{$k$ 不在串列裡}
+    \EndIf
+    \For{$i \gets 1$ \To $x$ 的層數}
+        \State $\mathit{update}[i].\mathit{next}[i] \gets x.\mathit{next}[i]$
+    \EndFor
+    \State 釋放 $x$
+    \While{$L.\mathit{level} > 1$ \AND $L.\mathit{head}.\mathit{next}[L.\mathit{level}] = \NIL$}
+        \State $L.\mathit{level} \gets L.\mathit{level} - 1$
+    \EndWhile
+\EndProcedure
+\end{pseudo}
+
+第 7 行對 $x$ 的每一層都成立：$x$ 有第 $i$ 層，而 $\mathit{update}[i]$ 是第 $i$ 層鍵
+比 $k$ 小的最後一個節點，所以它在第 $i$ 層的下一個一定就是 $x$。
+
+\textbf{例子。} 在圖~\ref{fig:bal-skip} 插入 $53$，擲出正、正、反，層數 $3$。 照搜尋
+的路線，第 $3$ 層停在 $31$，第 $2$ 層停在 $44$，第 $1$ 層停在 $50$，所以
+$\mathit{update}[3] = 31$、$\mathit{update}[2] = 44$、$\mathit{update}[1] = 50$。
+三層各接一次，得到圖~\ref{fig:bal-skip-insdel}(a)，改了三個舊指標。 接著刪除 $31$：
+第 $3$ 層停在 head（head 的下一個就是 $31$），第 $2$ 層停在 $12$，第 $1$ 層停在
+$25$。 $31$ 有三層，三層都跳過它，得到 (b)。 第 $3$ 層還有 $53$，$L.\mathit{level}$
+維持 $3$。
+
+\begin{figure}[htbp]
+\centering
+\begin{tikzpicture}[x=1.0cm,y=0.55cm]
+\node[bal-skhead] (ski0x1) at (0,0) {};
+\node[bal-skhead] (ski0x2) at (0,1) {};
+\node[bal-skhead] (ski0x3) at (0,2) {};
+\node[bal-sklab] at (0,-0.75) {head};
+\node[bal-skbox] (ski1x1) at (1,0) {};
+\node[bal-skbox] (ski1x2) at (1,1) {};
+\node[bal-sklab] at (1,-0.75) {12};
+\node[bal-skbox] (ski2x1) at (2,0) {};
+\node[bal-sklab] at (2,-0.75) {19};
+\node[bal-skbox] (ski3x1) at (3,0) {};
+\node[bal-sklab] at (3,-0.75) {25};
+\node[bal-skbox] (ski4x1) at (4,0) {};
+\node[bal-skbox] (ski4x2) at (4,1) {};
+\node[bal-skbox] (ski4x3) at (4,2) {};
+\node[bal-sklab] at (4,-0.75) {31};
+\node[bal-skbox] (ski5x1) at (5,0) {};
+\node[bal-sklab] at (5,-0.75) {38};
+\node[bal-skbox] (ski6x1) at (6,0) {};
+\node[bal-skbox] (ski6x2) at (6,1) {};
+\node[bal-sklab] at (6,-0.75) {44};
+\node[bal-skbox] (ski7x1) at (7,0) {};
+\node[bal-sklab] at (7,-0.75) {50};
+\node[bal-skbox, bal-sknew] (ski8x1) at (8,0) {};
+\node[bal-skbox, bal-sknew] (ski8x2) at (8,1) {};
+\node[bal-skbox, bal-sknew] (ski8x3) at (8,2) {};
+\node[bal-sklab] at (8,-0.75) {53};
+\node[bal-skbox] (ski9x1) at (9,0) {};
+\node[bal-sklab] at (9,-0.75) {57};
+\node[bal-skbox] (ski10x1) at (10,0) {};
+\node[bal-skbox] (ski10x2) at (10,1) {};
+\node[bal-sklab] at (10,-0.75) {63};
+\node[bal-skhead] (ski11x1) at (11,0) {};
+\node[bal-skhead] (ski11x2) at (11,1) {};
+\node[bal-skhead] (ski11x3) at (11,2) {};
+\node[bal-sklab] at (11,-0.75) {NIL};
+\draw[bal-skarr] (ski0x1) -- (ski1x1);
+\draw[bal-skarr] (ski1x1) -- (ski2x1);
+\draw[bal-skarr] (ski2x1) -- (ski3x1);
+\draw[bal-skarr] (ski3x1) -- (ski4x1);
+\draw[bal-skarr] (ski4x1) -- (ski5x1);
+\draw[bal-skarr] (ski5x1) -- (ski6x1);
+\draw[bal-skarr] (ski6x1) -- (ski7x1);
+\draw[bal-skarr, bal-sknewarr] (ski7x1) -- (ski8x1);
+\draw[bal-skarr] (ski8x1) -- (ski9x1);
+\draw[bal-skarr] (ski9x1) -- (ski10x1);
+\draw[bal-skarr] (ski10x1) -- (ski11x1);
+\draw[bal-skarr] (ski0x2) -- (ski1x2);
+\draw[bal-skarr] (ski1x2) -- (ski4x2);
+\draw[bal-skarr] (ski4x2) -- (ski6x2);
+\draw[bal-skarr, bal-sknewarr] (ski6x2) -- (ski8x2);
+\draw[bal-skarr] (ski8x2) -- (ski10x2);
+\draw[bal-skarr] (ski10x2) -- (ski11x2);
+\draw[bal-skarr] (ski0x3) -- (ski4x3);
+\draw[bal-skarr, bal-sknewarr] (ski4x3) -- (ski8x3);
+\draw[bal-skarr] (ski8x3) -- (ski11x3);
+\end{tikzpicture}\\[-0.2em]
+{\small (a) 插入 $53$（層數 $3$）}\\[0.8em]
+\begin{tikzpicture}[x=1.0cm,y=0.55cm]
+\node[bal-skhead] (skd0x1) at (0,0) {};
+\node[bal-skhead] (skd0x2) at (0,1) {};
+\node[bal-skhead] (skd0x3) at (0,2) {};
+\node[bal-sklab] at (0,-0.75) {head};
+\node[bal-skbox] (skd1x1) at (1,0) {};
+\node[bal-skbox] (skd1x2) at (1,1) {};
+\node[bal-sklab] at (1,-0.75) {12};
+\node[bal-skbox] (skd2x1) at (2,0) {};
+\node[bal-sklab] at (2,-0.75) {19};
+\node[bal-skbox] (skd3x1) at (3,0) {};
+\node[bal-sklab] at (3,-0.75) {25};
+\node[bal-skbox] (skd4x1) at (4,0) {};
+\node[bal-sklab] at (4,-0.75) {38};
+\node[bal-skbox] (skd5x1) at (5,0) {};
+\node[bal-skbox] (skd5x2) at (5,1) {};
+\node[bal-sklab] at (5,-0.75) {44};
+\node[bal-skbox] (skd6x1) at (6,0) {};
+\node[bal-sklab] at (6,-0.75) {50};
+\node[bal-skbox] (skd7x1) at (7,0) {};
+\node[bal-skbox] (skd7x2) at (7,1) {};
+\node[bal-skbox] (skd7x3) at (7,2) {};
+\node[bal-sklab] at (7,-0.75) {53};
+\node[bal-skbox] (skd8x1) at (8,0) {};
+\node[bal-sklab] at (8,-0.75) {57};
+\node[bal-skbox] (skd9x1) at (9,0) {};
+\node[bal-skbox] (skd9x2) at (9,1) {};
+\node[bal-sklab] at (9,-0.75) {63};
+\node[bal-skhead] (skd10x1) at (10,0) {};
+\node[bal-skhead] (skd10x2) at (10,1) {};
+\node[bal-skhead] (skd10x3) at (10,2) {};
+\node[bal-sklab] at (10,-0.75) {NIL};
+\draw[bal-skarr] (skd0x1) -- (skd1x1);
+\draw[bal-skarr] (skd1x1) -- (skd2x1);
+\draw[bal-skarr] (skd2x1) -- (skd3x1);
+\draw[bal-skarr, bal-sknewarr] (skd3x1) -- (skd4x1);
+\draw[bal-skarr] (skd4x1) -- (skd5x1);
+\draw[bal-skarr] (skd5x1) -- (skd6x1);
+\draw[bal-skarr] (skd6x1) -- (skd7x1);
+\draw[bal-skarr] (skd7x1) -- (skd8x1);
+\draw[bal-skarr] (skd8x1) -- (skd9x1);
+\draw[bal-skarr] (skd9x1) -- (skd10x1);
+\draw[bal-skarr] (skd0x2) -- (skd1x2);
+\draw[bal-skarr, bal-sknewarr] (skd1x2) -- (skd5x2);
+\draw[bal-skarr] (skd5x2) -- (skd7x2);
+\draw[bal-skarr] (skd7x2) -- (skd9x2);
+\draw[bal-skarr] (skd9x2) -- (skd10x2);
+\draw[bal-skarr, bal-sknewarr] (skd0x3) -- (skd7x3);
+\draw[bal-skarr] (skd7x3) -- (skd10x3);
+\end{tikzpicture}\\[-0.2em]
+{\small (b) 再刪除 $31$}
+\diagcaption{(a) 藍色是新節點 $53$ 和改過的三個指標，分別從 $\mathit{update}[3] = 31$、
+$\mathit{update}[2] = 44$、$\mathit{update}[1] = 50$ 出發。 (b) 藍色是刪除 $31$ 時改
+過的三個指標，從 head、$12$、$25$ 出發。}
+\label{fig:bal-skip-insdel}
+\end{figure}
+
+\begin{examnote}
+跳躍串列的題目先看題目的約定：層的編號（有的書最底層叫 $S_0$ 或第 $0$ 層）、往上
+一層的機率（不一定是 $1/2$），以及擲硬幣的結果怎麼對應到層數（例如「擲到反面之前
+擲出幾次正面」）。 有些書把頭尾畫成 $-\infty$、$+\infty$ 兩個哨兵節點，並在最上面
+多留一層只有哨兵的空串列；畫法不同，搜尋走的路線一樣。 插入題要寫出每一層的
+$\mathit{update}$（新節點接在誰後面），刪除題要寫出哪幾層的指標被改掉。
+\end{examnote}
+
+\subsection{期望的空間與時間}
+\label{sec:bal-skip-analysis}
+
+跳躍串列的層數是隨機的，所以分析的是\textbf{期望值}。 機率來自演算法自己擲的硬幣，
+和輸入的順序無關：不管鍵用什麼順序插入，下面的結論都成立。 這和第~9~章「鍵以隨機順
+序插入時，二元搜尋樹的期望高度是 $O(\lg n)$」不同，那裡的機率來自輸入。 期望值的
+工具見附錄 A 第~\ref{sec:mth-prob}~節。
+
+\begin{theorem}
+\label{thm:bal-skip}
+跳躍串列有 $n \ge 2$ 個鍵，硬幣是公正的，$\mathit{MaxLevel}$ 夠大（不會被它截掉）。
+\begin{enumerate}
+\item 所有節點的層數總和（也就是 $\mathit{next}$ 指標的總數）的期望值是 $2n$。
+\item 最高層數 $H$ 的期望值不超過 $\lceil \lg n \rceil + 2$。
+\item 搜尋任何一個鍵，往右和往下走的步數合計，期望值不超過
+$2\lceil \lg n \rceil + 2$。
+\end{enumerate}
+\end{theorem}
+
+\begin{proof}
+(1) 一個節點的層數 $\ell$ 就是「擲到第一次反面為止共擲幾次」，是成功機率
+$\frac12$ 的幾何分布，由定理~\ref{thm:mth-geom-dist}，$\mathrm{E}[\ell] = 2$。 由期望
+值的線性（定理~\ref{thm:mth-linearity}），$n$ 個節點的總和期望值是 $2n$。
+
+(2) $H \ge i$ 表示至少有一個節點的層數 $\ge i$。 每個節點的層數 $\ge i$ 的機率是
+$2^{-(i-1)}$，由聯集上界，$\Pr[H \ge i] \le \min\bigl(1, n 2^{-(i-1)}\bigr)$。 令
+$c = \lceil \lg n \rceil$，$n \le 2^c$。 由定理~\ref{thm:mth-geom-dist} 的 (1)，
+\[
+\mathrm{E}[H] = \sum_{i \ge 1} \Pr[H \ge i]
+\le \sum_{i=1}^{c+1} 1 + \sum_{i \ge c+2} 2^{c} 2^{-(i-1)}
+= (c + 1) + \sum_{j \ge 1} 2^{-j} = c + 2 .
+\]
+
+(3) 把搜尋路徑\textbf{倒過來}看。 先觀察一件事：搜尋在第 $i$ 層往右走到節點 $y$
+時，$y$ 的最高層就是 $i$。 因為如果 $y$ 也有第 $i+1$ 層，那麼在第 $i + 1$ 層的時候，
+停的位置之後、$y$ 之前（含 $y$）就有一個鍵比 $k$ 小的節點，搜尋會繼續往右，不會在那
+裡往下。 所以倒著走時，從第 $1$ 層搜尋停的位置出發，在每個節點 $y$ 的第 $i$ 層：
+如果 $y$ 還有第 $i + 1$ 層，路徑是從上面下來的，倒著走就往上；否則路徑是從左邊來的，
+倒著走就往左。 「$y$ 有沒有第 $i+1$ 層」在已知它有第 $i$ 層時，機率是 $\frac12$，而
+且倒著走每一步問到的都是一枚還沒看過的硬幣。 （走到頭節點就只會往上。）
+
+所以倒著走時，每一步以機率至少 $\frac12$ 往上。 往上一層平均最多要
+$2$ 步（幾何分布），從第 $1$ 層爬到第 $c + 1$ 層的期望步數不超過 $2c$。 第 $c+1$ 層
+以上：往左走的每一步都經過一個層數 $\ge c + 1$ 的不同節點，這種節點個數的期望值是
+$n 2^{-c} \le 1$；往上走的步數最多 $H - (c + 1)$，期望值不超過
+$\sum_{i \ge c+2} \Pr[H \ge i] \le 1$（(2) 的計算）。 合計不超過 $2c + 2$。
+\end{proof}
+
+搜尋走的每一步只做一次比較，再加上每一層往下前那一次失敗的比較，比較次數的期望值
+也是 $O(\lg n)$。 插入和刪除在搜尋之外，只多改 $\ell$ 個指標，$\mathrm{E}[\ell] = 2$，
+所以三種操作的期望時間都是 $O(\lg n)$，期望的空間是 $O(n)$。
+
+最壞情況仍然是 $\Theta(n)$：例如每個節點都擲出同樣的層數，跳躍串列就退化成一條普通
+串列。 但這種事機率極小。 例如由 (2) 的計算，$\Pr[H \ge 3 \lg n + 1] \le n \cdot
+2^{-3\lg n} = 1/n^2$。 前面說這些保證和輸入的順序無關，前提是使用者看不到擲硬幣的結
+果；如果有人能看到每個節點的層數，再挑專門走長路的鍵來查，就沒有保證了。
+
+往上一層的機率不一定要是 $\frac12$。 機率是 $p$ 時，每個節點平均 $1/(1-p)$ 個指標，
+搜尋大約要 $(1/p)\log_{1/p} n$ 步；觀念題第~17~題比較 $p = \frac12$ 和 $p = \frac14$。
+
+\subsection{四種結構的比較}
+\label{sec:bal-skip-compare}
+
+\begin{center}
+\small
+\begin{tabular}{p{0.15\linewidth}p{0.17\linewidth}p{0.17\linewidth}p{0.19\linewidth}p{0.19\linewidth}}
+\toprule
+ & AVL 樹 & 紅黑樹 & 伸展樹 & 跳躍串列 \\
+\midrule
+保證 & 最壞 $O(\lg n)$ & 最壞 $O(\lg n)$ & 平攤 $O(\lg n)$，單次最壞 $\Theta(n)$ &
+期望 $O(\lg n)$，最壞 $\Theta(n)$ 但機率極小 \\
+每個節點多存 & 高度 & 顏色、父指標 & 父指標（或改成由上而下伸展） & 平均 $2$ 個指標 \\
+調整的方法 & 旋轉 & 改色、旋轉 & 每次存取都轉到根 & 擲硬幣，不旋轉 \\
+搜尋會不會改結構 & 不會 & 不會 & 會 & 不會 \\
+適合 & 搜尋多、更新少 & 一般用途，程式庫常用 & 存取集中在少數鍵 & 想要程式簡單、多執行緒同時存取 \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+四種結構都能依鍵的大小找前驅、後繼，做範圍查詢（跳躍串列的第 $1$ 層就是排好序的串
+列），這是雜湊表（第~12~章）做不到的。 伸展樹連搜尋都會改動樹，多個執行緒同時讀時要加鎖，這
+是它在實務上的主要缺點。 跳躍串列的每次插入只改新節點附近的幾個指標，沒有旋轉，比
+較容易做成多執行緒同時存取的版本；Java 的 \texttt{ConcurrentSkipListMap}、Redis 的
+有序集合（sorted set）、LevelDB 的記憶體表都用它。
+
 \section{本章常見錯誤}
 \label{sec:bal-pitfalls}
 
@@ -2658,6 +3713,14 @@ LR、RL 只轉一次 & 對 $A$ 直接右旋，$C$ 的子樹跟著掛到 $A$ 底�
 看錯被拿掉的節點 & 有兩個子節點時，看 $z$ 的顏色決定要不要修正；應該看後繼的顏色 &
 第~\ref{sec:bal-rb-delete}~節 \\
 黑高算錯 & 把 $x$ 自己算進去，或漏了 NIL & 第~\ref{sec:bal-rb}~節 \\
+zig-zig 轉錯順序 & 先轉 $x$ 和 $p$、再轉 $x$ 和 $g$，等於一路單旋轉，長鏈不會變短；
+應該先轉 $g$ 和 $p$ & 第~\ref{sec:bal-splay-op}~節 \\
+搜尋失敗沒有伸展 & 找不到就直接回傳；應該伸展最後經過的節點 &
+第~\ref{sec:bal-splay-ops}~節 \\
+刪除後直接接兩棵子樹 & 拿掉根之後把 $R$ 隨便接到 $L$ 的根底下；要先把 $L$ 最大的節點
+伸展到根 & 第~\ref{sec:bal-splay-ops}~節 \\
+跳躍串列只接最底層 & 新節點有 $\ell$ 層，第 $1$ 到 $\ell$ 層都要接，各層接在
+$\mathit{update}[i]$ 後面 & 第~\ref{sec:bal-skip-ops}~節 \\
 \bottomrule
 \end{tabular}
 \end{center}
@@ -2805,7 +3868,185 @@ $\mathrm{BF}(B) = 0$ 的單旋轉（R0 或 L0）。 畫出刪除前後的樹，�
 確切的值。 (b) 由定理~\ref{thm:bal-rb-height}，紅黑樹的高度不超過多少？ (c) 任何二元
 樹的高度至少是多少？
 
+\item （追蹤）把 $62, 18, 90, 47, 33, 75$ 依序插入空的伸展樹，接著搜尋 $40$，再刪除
+$62$。 用第~\ref{sec:bal-splay-ops}~節的做法：由下而上伸展，搜尋失敗時伸展最後經過的
+節點，刪除時在左子樹裡伸展最大的節點再合併。 寫出每次伸展的每一步是 zig、zig-zig 還
+是 zig-zag，並畫出每個操作完成後的樹。
+
+\item （計算）把 $1, 2, \ldots, 7$ 依序插入空的伸展樹，再搜尋 $1$。 成本和位能函數
+$\Phi$ 照第~\ref{sec:bal-splay-amortized}~節的定義。
+\begin{enumerate}
+\item 七次插入一共做幾次旋轉？ 插入完的樹長什麼樣子？ 這時 $\Phi$ 是多少？
+\item 搜尋 $1$ 做了哪幾步、一共幾次旋轉？ 畫出搜尋之後的樹，算出這時的 $\Phi$。
+\item 算出搜尋 $1$ 的平攤成本，和引理~\ref{lem:bal-splay-access} 的上界比較。 再說明：
+把 $1, \ldots, n$ 依序插入再搜尋 $1$，那一次搜尋要轉 $n - 1$ 次，為什麼和
+定理~\ref{thm:bal-splay} 不矛盾。
 \end{enumerate}
+
+\item （追蹤）下面的跳躍串列 $L.\mathit{level} = 3$，$\mathit{MaxLevel} = 8$，圖的畫法
+同圖~\ref{fig:bal-skip}。
+\begin{center}
+\begin{tikzpicture}[x=0.95cm,y=0.55cm]
+\node[bal-skhead] (qa0x1) at (0,0) {};
+\node[bal-skhead] (qa0x2) at (0,1) {};
+\node[bal-skhead] (qa0x3) at (0,2) {};
+\node[bal-sklab] at (0,-0.75) {head};
+\node[bal-skbox] (qa1x1) at (1,0) {};
+\node[bal-sklab] at (1,-0.75) {7};
+\node[bal-skbox] (qa2x1) at (2,0) {};
+\node[bal-skbox] (qa2x2) at (2,1) {};
+\node[bal-skbox] (qa2x3) at (2,2) {};
+\node[bal-sklab] at (2,-0.75) {15};
+\node[bal-skbox] (qa3x1) at (3,0) {};
+\node[bal-sklab] at (3,-0.75) {22};
+\node[bal-skbox] (qa4x1) at (4,0) {};
+\node[bal-skbox] (qa4x2) at (4,1) {};
+\node[bal-sklab] at (4,-0.75) {30};
+\node[bal-skbox] (qa5x1) at (5,0) {};
+\node[bal-sklab] at (5,-0.75) {41};
+\node[bal-skbox] (qa6x1) at (6,0) {};
+\node[bal-skbox] (qa6x2) at (6,1) {};
+\node[bal-sklab] at (6,-0.75) {48};
+\node[bal-skbox] (qa7x1) at (7,0) {};
+\node[bal-sklab] at (7,-0.75) {56};
+\node[bal-skbox] (qa8x1) at (8,0) {};
+\node[bal-skbox] (qa8x2) at (8,1) {};
+\node[bal-skbox] (qa8x3) at (8,2) {};
+\node[bal-sklab] at (8,-0.75) {69};
+\node[bal-skbox] (qa9x1) at (9,0) {};
+\node[bal-sklab] at (9,-0.75) {75};
+\node[bal-skhead] (qa10x1) at (10,0) {};
+\node[bal-skhead] (qa10x2) at (10,1) {};
+\node[bal-skhead] (qa10x3) at (10,2) {};
+\node[bal-sklab] at (10,-0.75) {NIL};
+\draw[bal-skarr] (qa0x1) -- (qa1x1);
+\draw[bal-skarr] (qa1x1) -- (qa2x1);
+\draw[bal-skarr] (qa2x1) -- (qa3x1);
+\draw[bal-skarr] (qa3x1) -- (qa4x1);
+\draw[bal-skarr] (qa4x1) -- (qa5x1);
+\draw[bal-skarr] (qa5x1) -- (qa6x1);
+\draw[bal-skarr] (qa6x1) -- (qa7x1);
+\draw[bal-skarr] (qa7x1) -- (qa8x1);
+\draw[bal-skarr] (qa8x1) -- (qa9x1);
+\draw[bal-skarr] (qa9x1) -- (qa10x1);
+\draw[bal-skarr] (qa0x2) -- (qa2x2);
+\draw[bal-skarr] (qa2x2) -- (qa4x2);
+\draw[bal-skarr] (qa4x2) -- (qa6x2);
+\draw[bal-skarr] (qa6x2) -- (qa8x2);
+\draw[bal-skarr] (qa8x2) -- (qa10x2);
+\draw[bal-skarr] (qa0x3) -- (qa2x3);
+\draw[bal-skarr] (qa2x3) -- (qa8x3);
+\draw[bal-skarr] (qa8x3) -- (qa10x3);
+\end{tikzpicture}
+\end{center}
+\begin{enumerate}
+\item 搜尋 $56$：依序寫出每次比較的鍵，以及每一層最後停在哪個節點。
+\item 接著插入 $60$，擲硬幣的結果依序是正、正、正、反。 寫出
+$\mathit{update}[1..4]$，畫出插入後的跳躍串列。
+\item 接著刪除 $15$。 寫出 $\mathit{update}$ 和被修改的指標，畫出刪除後的跳躍串列。
+\end{enumerate}
+
+\item （計算）把跳躍串列改成「每次擲出正面的機率是 $p$」（$0 < p < 1$），其他不變。
+\begin{enumerate}
+\item 一個節點的層數，期望值是多少？ $n$ 個節點的指標總數，期望值是多少？
+\item 層數 $\ge i$ 的節點個數，期望值是多少？ $i$ 至少要多大，這個期望值才不超過 $1$？
+\item 照定理~\ref{thm:bal-skip} (3) 倒著走的論證，說明搜尋的步數大約是
+$(1/p)\log_{1/p} n$。 比較 $p = \frac12$ 和 $p = \frac14$ 的期望空間和搜尋步數。
+\end{enumerate}
+
+\end{enumerate}
+
+\section{歷屆試題}
+\label{sec:bal-pastexam}
+
+以下是研究所入學考試的原題，題目照原卷（語言、記號、配分照錄）。詳解在本章最後。
+
+\begin{pastexam}[label={px:bal-1}]{成大資訊聯招 115 學年度 資料結構第一大題 第 4 題}
+[4\%] For the number of nodes $n = 15$, what is the maximum possible height of an AVL
+tree, and what is the maximum possible height of a red-black tree? Note that the root is
+at level 1.\\
+\fbox{Answer format: AVL max possible height=?, Red-black tree max possible height =?}
+\end{pastexam}
+
+\begin{pastexam}[label={px:bal-2}]{政大資科所 114 學年度 第 17 題}
+(20\%) Please design an O(log$n$) algorithm to search for the $k$-th element in an AVL tree
+of $n$ elements while the time complexity of insertion operation remains O(log$n$).\\
+(1) (5\%) How to modify the data structure of an AVL tree to support this search operation?\\
+(2) (10\%) Give the O(log$n$) algorithm to search for the k-element.\\
+(3) (5\%) How to modify the insertion operation to accommodate for the modification of the
+data structure. (Please illustrate your answer by using the AVL-tree provided in Figure 2.)
+\begin{center}
+\begin{tikzpicture}[x=1cm,y=1cm,
+  t/.style={circle,draw,thick,inner sep=0pt,minimum size=7.5mm,font=\sffamily},
+  every path/.style={thick},>={Stealth[length=2mm]}]
+  \node[t] (54) at (9.65,-0.75) {54};
+  \node[t] (23) at (8.4,-2.05) {23};
+  \node[t] (79) at (10.8,-2.0) {79};
+  \node[t] (11) at (7.3,-3.45) {11};
+  \node[t] (45) at (9.15,-3.45) {45};
+  \node[t] (66) at (10.1,-3.5) {66};
+  \node[t] (88) at (11.4,-3.5) {88};
+  \node[t] (36) at (8.3,-4.85) {36};
+  \draw[->] (54)--(23); \draw[->] (54)--(79);
+  \draw[->] (23)--(11); \draw[->] (23)--(45);
+  \draw[->] (79)--(66); \draw[->] (79)--(88);
+  \draw[->] (45)--(36);
+\end{tikzpicture}\\
+Figure 2
+\end{center}
+\end{pastexam}
+
+\begin{pastexam}[label={px:bal-3}]{中央資工所 115 學年度 第 15 題}
+多選題(每一個選項單獨計分)：每題 5 分，共 10 題，答錯每個選項倒扣 1 分，倒扣直到全部多選題零分為止
+
+Consider a red-black tree with level order 52, 33, 80, 100. Which of the following
+statements is (are) true?
+\begin{enumerate}[label=\Alph*.]
+\item node 33 is red.
+\item After inserting 65 and 55, node 100 in the resulting red-black tree is black.
+\item After inserting 65, 55, and 60, node 60 in the resulting red-black tree is black.
+\item After inserting 65, 55, and 60, the level order traversal of the resulting red-black
+tree is 52, 33, 80, 60, 100, 55, 65.
+\end{enumerate}
+\end{pastexam}
+
+\begin{pastexam}[label={px:bal-4}]{臺大工工所 110 學年度 第 19 題}
+複選題（每題 5 分，每答錯一個選項倒扣 1 分至該題 0 分止）
+
+Consider the splay tree in Figure 1. Which of the following statements are true?\\
+(Assume bottom-up splay, also assume the Join() operation splays on the maximum element in
+the left tree, which then attaches the right tree.)
+\begin{enumerate}[label=(\Alph*)]
+\item In Figure 1, after deleting key 26, then key 33 is a child of key 48.
+\item In Figure 1, after deleting key 26, then key 17 is the root.
+\item In Figure 1, after inserting key 75, then key 64 is an ancestor of key 99.
+\item In Figure 1, after inserting key 75, then key 33 is a descendant of key 55.
+\item In Figure 1, after inserting key 75, then key 75 is the root.
+\end{enumerate}
+\begin{center}
+\begin{tikzpicture}[v/.style={circle,draw,thick,inner sep=1pt,minimum size=6mm,font=\small\sffamily},>={Stealth[length=2mm]}]
+\node[v] (55) at (0,0) {55};
+\node[v] (48) at (-0.9,-0.95) {48}; \node[v] (64) at (0.8,-0.95) {64};
+\node[v] (33) at (-1.8,-1.9) {33}; \node[v] (82) at (1.7,-1.9) {82};
+\node[v] (26) at (-2.7,-2.85) {26}; \node[v] (71) at (1.1,-2.85) {71}; \node[v] (99) at (2.3,-2.85) {99};
+\node[v] (17) at (-3.45,-3.8) {17};
+\foreach \a/\b in {55/48,55/64,48/33,33/26,26/17,64/82,82/71,82/99} \draw[thick,->] (\a) -- (\b);
+\end{tikzpicture}
+\\*[4pt] Figure 1: Splay tree
+\end{center}
+\end{pastexam}
+
+\begin{pastexam}[label={px:bal-5}]{北科大資工所 112 學年度 第 2 題（節錄第 (2) 小題）}
+Please answer the following question shortly and concisely. You do not need to provide
+the details. (10 pts)
+\begin{enumerate}[label=(\arabic*)]
+\setcounter{enumi}{1}
+\item Consider the skip list data structure. Suppose that we use only two levels, i.e., two
+(sorted) linked lists, for $n$ elements. Each element is in linked list $S_0$ and some
+elements are also in the other linked list $S_1$. Please draw the skip list structure where
+the minimized search cost is $O(\sqrt{n})$. (2 pts)
+\end{enumerate}
+\end{pastexam}
 
 \section{實作練習}
 \label{sec:bal-practice}
@@ -2848,6 +4089,12 @@ R0、R1、R$-1$ 等），畫出每次旋轉之後的樹。
 \item 能說出紅黑樹的五條性質、算黑高，並證明 $h \le 2\lg(n+1)$。
 \item 能對一串鍵做紅黑樹的插入，每一步寫出情況和改色、旋轉；能說明刪除的四種情況，並
 追蹤一次完整的刪除。
+\item 能對一串操作做由下而上的伸展樹追蹤，分辨 zig、zig-zig、zig-zag，說出搜尋失敗和
+刪除時伸展的是哪個節點。
+\item 能用位能 $\Phi = \sum \lg s(x)$ 說明伸展樹每個操作平攤 $O(\lg n)$，並舉例說明單
+一操作可能是 $\Theta(n)$。
+\item 能畫出跳躍串列，給定擲硬幣的結果追蹤搜尋、插入和刪除，並說明期望空間 $O(n)$、
+期望搜尋時間 $O(\lg n)$ 的理由。
 \end{itemize}
 
 \textbf{延伸閱讀}（書末會整理完整的參考資料）
@@ -2862,6 +4109,12 @@ R0、R1、R$-1$ 等），畫出每次旋轉之後的樹。
 讀。
 \item Steven S. Skiena，\textit{The Algorithm Design Manual}，第 3 版，第 3.4 節：平
 衡搜尋樹在實務上的用法，什麼時候該用、什麼時候用雜湊（第~12~章）就夠了。
+\item Daniel D. Sleator、Robert E. Tarjan，Self-Adjusting Binary Search Trees，
+\textit{Journal of the ACM} 32(3)，1985：伸展樹的原始論文，包括存取引理和本章沒有證
+明的幾個更強的性質。
+\item William Pugh，Skip Lists: A Probabilistic Alternative to Balanced Trees，
+\textit{Communications of the ACM} 33(6)，1990：跳躍串列的原始論文，篇幅短，有完整的
+虛擬碼和不同 $p$ 的比較。
 \end{itemize}
 
 \addcontentsline{toc}{section}{觀念題解答}
@@ -3337,4 +4590,865 @@ $F_{31} = 1346269$，$N(28) = 832039 \le 10^6 < 1346268 = N(29)$，最大 $28$�
 不超過 $39$。 (c) $\lceil \lg(10^6 + 1) \rceil = 20$。 依序插入 $10^6$ 個鍵，實際高度是 $20$
 和 $37$（第~\ref{sec:bal-rb-c}~節）。
 
+\item 每一步寫成（類型：$x$, $p$, $g$）。
+\begin{itemize}
+\item 插入 $62$：空樹，$62$ 是根。 插入 $18$：接在 $62$ 左邊，zig。 插入 $90$：接在 $62$
+右邊，$90$、$62$ 都是右子節點，zig-zig（先轉 $18$ 和 $62$，再轉 $62$ 和 $90$），得到
+$90$ 為根、左子節點 $62$、$62$ 的左子節點 $18$。
+\item 插入 $47$：$90 \to 62 \to 18$，接成 $18$ 的右子節點。 （zig-zag：$47, 18, 62$），
+$47$ 升到 $62$ 的位置，左 $18$、右 $62$；再（zig：$47, 90$），得到 (a)。
+\item 插入 $33$：$47 \to 18$，接成 $18$ 的右子節點。 （zig-zag：$33, 18, 47$），一步到根 (b)。
+\item 插入 $75$：$33 \to 47 \to 90 \to 62$，接成 $62$ 的右子節點。 （zig-zag：$75, 62, 90$），
+$75$ 升到 $90$ 的位置，左 $62$、右 $90$；這時 $75$ 是 $47$ 的右子節點，$47$ 是 $33$ 的
+右子節點，（zig-zig：$75, 47, 33$），得到 (c)。
+\item 搜尋 $40$：$75 \to 47 \to 33$，$40 > 33$ 但 $33$ 沒有右子節點，找不到，伸展最後經
+過的 $33$。 $33$、$47$ 都是左子節點，（zig-zig：$33, 47, 75$），得到 (d)。
+\item 刪除 $62$：先搜尋 $62$，路徑 $33 \to 47 \to 75 \to 62$。 （zig-zag：$62, 75, 47$），
+$62$ 升到 $47$ 的位置，左 $47$、右 $75$；再（zig：$62, 33$），$62$ 到根 (e)。 拿掉 $62$，
+$L$ 是 $33$（左 $18$、右 $47$），$R$ 是 $75$（右 $90$）。 $L$ 最大的是 $47$，在 $L$ 裡
+（zig：$47, 33$）；接上 $R$，得到 (f)。
+\end{itemize}
+\begin{center}
+\begin{tikzpicture}[x=0.5cm,y=0.72cm,baseline=(current bounding box.north)]
+\node[tn] (qsa18) at (0,-1) {18};
+\node[tn,tnN] (qsa47) at (1,0) {47};
+\node[tn] (qsa62) at (2,-2) {62};
+\node[tn] (qsa90) at (3,-1) {90};
+\draw[te] (qsa47) -- (qsa18);
+\draw[te] (qsa47) -- (qsa90);
+\draw[te] (qsa90) -- (qsa62);
+\node[plab] at (1.5,-3.75) {(a) 插入 62、18、90、47};
+\end{tikzpicture}\hspace{0.5cm}\begin{tikzpicture}[x=0.5cm,y=0.72cm,baseline=(current bounding box.north)]
+\node[tn] (qsb18) at (0,-1) {18};
+\node[tn,tnN] (qsb33) at (1,0) {33};
+\node[tn] (qsb47) at (2,-1) {47};
+\node[tn] (qsb62) at (3,-3) {62};
+\node[tn] (qsb90) at (4,-2) {90};
+\draw[te] (qsb33) -- (qsb18);
+\draw[te] (qsb33) -- (qsb47);
+\draw[te] (qsb47) -- (qsb90);
+\draw[te] (qsb90) -- (qsb62);
+\node[plab] at (2.0,-3.75) {(b) 插入 33};
+\end{tikzpicture}\hspace{0.5cm}\begin{tikzpicture}[x=0.5cm,y=0.72cm,baseline=(current bounding box.north)]
+\node[tn] (qsc18) at (0,-3) {18};
+\node[tn] (qsc33) at (1,-2) {33};
+\node[tn] (qsc47) at (2,-1) {47};
+\node[tn] (qsc62) at (3,-2) {62};
+\node[tn,tnN] (qsc75) at (4,0) {75};
+\node[tn] (qsc90) at (5,-1) {90};
+\draw[te] (qsc75) -- (qsc47);
+\draw[te] (qsc47) -- (qsc33);
+\draw[te] (qsc33) -- (qsc18);
+\draw[te] (qsc47) -- (qsc62);
+\draw[te] (qsc75) -- (qsc90);
+\node[plab] at (2.5,-3.75) {(c) 插入 75};
+\end{tikzpicture}\\*[0.6em]
+\begin{tikzpicture}[x=0.5cm,y=0.72cm,baseline=(current bounding box.north)]
+\node[tn] (qsd18) at (0,-1) {18};
+\node[tn,tnN] (qsd33) at (1,0) {33};
+\node[tn] (qsd47) at (2,-1) {47};
+\node[tn] (qsd62) at (3,-3) {62};
+\node[tn] (qsd75) at (4,-2) {75};
+\node[tn] (qsd90) at (5,-3) {90};
+\draw[te] (qsd33) -- (qsd18);
+\draw[te] (qsd33) -- (qsd47);
+\draw[te] (qsd47) -- (qsd75);
+\draw[te] (qsd75) -- (qsd62);
+\draw[te] (qsd75) -- (qsd90);
+\node[plab] at (2.5,-3.75) {(d) 搜尋 40};
+\end{tikzpicture}\hspace{0.5cm}\begin{tikzpicture}[x=0.5cm,y=0.72cm,baseline=(current bounding box.north)]
+\node[tn] (qse18) at (0,-2) {18};
+\node[tn] (qse33) at (1,-1) {33};
+\node[tn] (qse47) at (2,-2) {47};
+\node[tn,tnN] (qse62) at (3,0) {62};
+\node[tn] (qse75) at (4,-1) {75};
+\node[tn] (qse90) at (5,-2) {90};
+\draw[te] (qse62) -- (qse33);
+\draw[te] (qse33) -- (qse18);
+\draw[te] (qse33) -- (qse47);
+\draw[te] (qse62) -- (qse75);
+\draw[te] (qse75) -- (qse90);
+\node[plab] at (2.5,-3.75) {(e) 伸展 62};
+\end{tikzpicture}\hspace{0.5cm}\begin{tikzpicture}[x=0.5cm,y=0.72cm,baseline=(current bounding box.north)]
+\node[tn] (qsf18) at (0,-2) {18};
+\node[tn] (qsf33) at (1,-1) {33};
+\node[tn,tnN] (qsf47) at (2,0) {47};
+\node[tn] (qsf75) at (3,-1) {75};
+\node[tn] (qsf90) at (4,-2) {90};
+\draw[te] (qsf47) -- (qsf33);
+\draw[te] (qsf33) -- (qsf18);
+\draw[te] (qsf47) -- (qsf75);
+\draw[te] (qsf75) -- (qsf90);
+\node[plab] at (2.0,-3.75) {(f) 刪除 62 之後};
+\end{tikzpicture}
+\end{center}
+
+\item (a) 插入 $1$ 不用旋轉；之後每次插入 $k$，$k$ 接成根 $k-1$ 的右子節點，做一次
+zig 就到根，原來整棵樹成了它的左子樹。 一共 $6$ 次旋轉，得到往左的一條鏈：根是 $7$，
+左子節點 $6$，……，最下面是 $1$。 鍵 $i$ 的子樹有 $i$ 個節點，所以
+$\Phi = \lg 1 + \lg 2 + \cdots + \lg 7 = \lg 7! = \lg 5040 \approx 12.30$。 每次插入 $k$
+（$k \ge 2$）的平攤成本是 $1 + \lg k$：實際轉一次，位能從 $\lg (k-1)!$ 變成 $\lg k!$。
+
+(b) $1$ 在深度 $6$。 （zig-zig：$1, 2, 3$）、（zig-zig：$1, 4, 5$）、（zig-zig：$1, 6, 7$），
+$6$ 次旋轉，沒有 zig。 結果是下面右圖：$1$ 是根，右子節點 $6$；$6$ 的左子節點 $4$、右子
+節點 $7$；$4$ 的左子節點 $2$、右子節點 $5$；$2$ 的右子節點 $3$。 子樹大小依序是
+$1{:}7$、$6{:}6$、$4{:}4$、$2{:}2$、$3, 5, 7{:}1$，
+$\Phi = \lg(7 \cdot 6 \cdot 4 \cdot 2) = \lg 336 \approx 8.39$。
+\begin{center}
+\begin{tikzpicture}[x=0.42cm,y=0.55cm,baseline=(current bounding box.north)]
+\node[tn,tnN] (qfa1) at (0,-6) {1};
+\node[tn] (qfa2) at (1,-5) {2};
+\node[tn] (qfa3) at (2,-4) {3};
+\node[tn] (qfa4) at (3,-3) {4};
+\node[tn] (qfa5) at (4,-2) {5};
+\node[tn] (qfa6) at (5,-1) {6};
+\node[tn] (qfa7) at (6,0) {7};
+\draw[te] (qfa7) -- (qfa6);
+\draw[te] (qfa6) -- (qfa5);
+\draw[te] (qfa5) -- (qfa4);
+\draw[te] (qfa4) -- (qfa3);
+\draw[te] (qfa3) -- (qfa2);
+\draw[te] (qfa2) -- (qfa1);
+\node[plab] at (3.0,-7.75) {插入完};
+\end{tikzpicture}\hspace{1.2cm}\begin{tikzpicture}[x=0.42cm,y=0.55cm,baseline=(current bounding box.north)]
+\node[tn,tnN] (qfb1) at (0,0) {1};
+\node[tn] (qfb2) at (1,-3) {2};
+\node[tn] (qfb3) at (2,-4) {3};
+\node[tn] (qfb4) at (3,-2) {4};
+\node[tn] (qfb5) at (4,-3) {5};
+\node[tn] (qfb6) at (5,-1) {6};
+\node[tn] (qfb7) at (6,-2) {7};
+\draw[te] (qfb1) -- (qfb6);
+\draw[te] (qfb6) -- (qfb4);
+\draw[te] (qfb4) -- (qfb2);
+\draw[te] (qfb2) -- (qfb3);
+\draw[te] (qfb4) -- (qfb5);
+\draw[te] (qfb6) -- (qfb7);
+\node[plab] at (3.0,-7.75) {搜尋 $1$ 之後};
+\end{tikzpicture}
+\end{center}
+
+(c) 平攤成本 $= 6 + 8.39 - 12.30 \approx 2.09$。 引理的上界是
+$3(r(\text{根}) - r(1)) + 1 = 3(\lg 7 - \lg 1) + 1 \approx 9.42$，$2.09$ 在範圍內。 實際做
+了 $6$ 次旋轉，比平攤成本多的部分由位能下降的 $3.91$ 支付。
+
+一般的 $n$：建鏈的 $n - 1$ 次插入，實際只轉 $n - 1$ 次，平攤成本合計卻是
+$(n - 1) + \lg n!$，多出來的 $\lg n! = \Theta(n \lg n)$ 存成位能。 搜尋 $1$ 實際轉
+$n - 1$ 次，用的是這筆存款。 定理~\ref{thm:bal-splay} 說的是任意一串操作的\textbf{總}
+成本：這 $n + 1$ 次操作實際一共 $2(n - 1)$ 次旋轉，遠小於 $O((n + 1) \lg n)$。 它從沒說
+過每一次操作都是 $O(\lg n)$，所以不矛盾。 
+
+\item (a) 第 $3$ 層：head 的下一個 $15 < 56$，走到 $15$；$15$ 的下一個 $69 \ge 56$，往
+下，停在 $15$。 第 $2$ 層：$30 < 56$、$48 < 56$，走到 $48$；下一個 $69 \ge 56$，停在
+$48$。 第 $1$ 層：$48$ 的下一個 $56$ 不小於 $56$，停在 $48$。 取 $48.\mathit{next}[1] =
+56$，找到。 比較的鍵依序是 $15, 69, 30, 48, 69, 56$，共 $6$ 次。
+
+(b) 照 (a) 的路線找 $60$：第 $3$ 層停在 $15$，第 $2$ 層停在 $48$，第 $1$ 層多走一步到
+$56$（$56 < 60$，下一個 $69$）。 擲出三次正面再反面，層數 $\ell = 4$，比
+$L.\mathit{level} = 3$ 高，$\mathit{update}[4] = \text{head}$，$L.\mathit{level}$ 改成 $4$。
+所以 $\mathit{update}[1..4] = 56, 48, 15, \text{head}$。 四層各接一次：
+$\text{head}.\mathit{next}[4]$、$15.\mathit{next}[3]$、$48.\mathit{next}[2]$、
+$56.\mathit{next}[1]$ 都改成指向 $60$，$60$ 的四個指標分別指向原本的下一個（第 $1$、$2$、
+$3$ 層是 $69$，第 $4$ 層是 \NIL）。
+\begin{center}
+\begin{tikzpicture}[x=0.95cm,y=0.55cm]
+\node[bal-skhead] (qb0x1) at (0,0) {};
+\node[bal-skhead] (qb0x2) at (0,1) {};
+\node[bal-skhead] (qb0x3) at (0,2) {};
+\node[bal-skhead] (qb0x4) at (0,3) {};
+\node[bal-sklab] at (0,-0.75) {head};
+\node[bal-skbox] (qb1x1) at (1,0) {};
+\node[bal-sklab] at (1,-0.75) {7};
+\node[bal-skbox] (qb2x1) at (2,0) {};
+\node[bal-skbox] (qb2x2) at (2,1) {};
+\node[bal-skbox] (qb2x3) at (2,2) {};
+\node[bal-sklab] at (2,-0.75) {15};
+\node[bal-skbox] (qb3x1) at (3,0) {};
+\node[bal-sklab] at (3,-0.75) {22};
+\node[bal-skbox] (qb4x1) at (4,0) {};
+\node[bal-skbox] (qb4x2) at (4,1) {};
+\node[bal-sklab] at (4,-0.75) {30};
+\node[bal-skbox] (qb5x1) at (5,0) {};
+\node[bal-sklab] at (5,-0.75) {41};
+\node[bal-skbox] (qb6x1) at (6,0) {};
+\node[bal-skbox] (qb6x2) at (6,1) {};
+\node[bal-sklab] at (6,-0.75) {48};
+\node[bal-skbox] (qb7x1) at (7,0) {};
+\node[bal-sklab] at (7,-0.75) {56};
+\node[bal-skbox, bal-sknew] (qb8x1) at (8,0) {};
+\node[bal-skbox, bal-sknew] (qb8x2) at (8,1) {};
+\node[bal-skbox, bal-sknew] (qb8x3) at (8,2) {};
+\node[bal-skbox, bal-sknew] (qb8x4) at (8,3) {};
+\node[bal-sklab] at (8,-0.75) {60};
+\node[bal-skbox] (qb9x1) at (9,0) {};
+\node[bal-skbox] (qb9x2) at (9,1) {};
+\node[bal-skbox] (qb9x3) at (9,2) {};
+\node[bal-sklab] at (9,-0.75) {69};
+\node[bal-skbox] (qb10x1) at (10,0) {};
+\node[bal-sklab] at (10,-0.75) {75};
+\node[bal-skhead] (qb11x1) at (11,0) {};
+\node[bal-skhead] (qb11x2) at (11,1) {};
+\node[bal-skhead] (qb11x3) at (11,2) {};
+\node[bal-skhead] (qb11x4) at (11,3) {};
+\node[bal-sklab] at (11,-0.75) {NIL};
+\draw[bal-skarr] (qb0x1) -- (qb1x1);
+\draw[bal-skarr] (qb1x1) -- (qb2x1);
+\draw[bal-skarr] (qb2x1) -- (qb3x1);
+\draw[bal-skarr] (qb3x1) -- (qb4x1);
+\draw[bal-skarr] (qb4x1) -- (qb5x1);
+\draw[bal-skarr] (qb5x1) -- (qb6x1);
+\draw[bal-skarr] (qb6x1) -- (qb7x1);
+\draw[bal-skarr] (qb7x1) -- (qb8x1);
+\draw[bal-skarr] (qb8x1) -- (qb9x1);
+\draw[bal-skarr] (qb9x1) -- (qb10x1);
+\draw[bal-skarr] (qb10x1) -- (qb11x1);
+\draw[bal-skarr] (qb0x2) -- (qb2x2);
+\draw[bal-skarr] (qb2x2) -- (qb4x2);
+\draw[bal-skarr] (qb4x2) -- (qb6x2);
+\draw[bal-skarr] (qb6x2) -- (qb8x2);
+\draw[bal-skarr] (qb8x2) -- (qb9x2);
+\draw[bal-skarr] (qb9x2) -- (qb11x2);
+\draw[bal-skarr] (qb0x3) -- (qb2x3);
+\draw[bal-skarr] (qb2x3) -- (qb8x3);
+\draw[bal-skarr] (qb8x3) -- (qb9x3);
+\draw[bal-skarr] (qb9x3) -- (qb11x3);
+\draw[bal-skarr] (qb0x4) -- (qb8x4);
+\draw[bal-skarr] (qb8x4) -- (qb11x4);
+\end{tikzpicture}
+\end{center}
+
+(c) 找 $15$：第 $4$ 層 head 的下一個是 $60 \ge 15$，停在 head；第 $3$、$2$ 層 head 的下
+一個就是 $15$，也停在 head；第 $1$ 層走到 $7$。 $\mathit{update}[1..4] = 7, \text{head},
+\text{head}, \text{head}$。 $15$ 有三層，改三個指標：$7.\mathit{next}[1] \gets 22$、
+$\text{head}.\mathit{next}[2] \gets 30$、$\text{head}.\mathit{next}[3] \gets 60$。 第 $4$
+層還有 $60$，$L.\mathit{level}$ 維持 $4$。
+\begin{center}
+\begin{tikzpicture}[x=0.95cm,y=0.55cm]
+\node[bal-skhead] (qc0x1) at (0,0) {};
+\node[bal-skhead] (qc0x2) at (0,1) {};
+\node[bal-skhead] (qc0x3) at (0,2) {};
+\node[bal-skhead] (qc0x4) at (0,3) {};
+\node[bal-sklab] at (0,-0.75) {head};
+\node[bal-skbox] (qc1x1) at (1,0) {};
+\node[bal-sklab] at (1,-0.75) {7};
+\node[bal-skbox] (qc2x1) at (2,0) {};
+\node[bal-sklab] at (2,-0.75) {22};
+\node[bal-skbox] (qc3x1) at (3,0) {};
+\node[bal-skbox] (qc3x2) at (3,1) {};
+\node[bal-sklab] at (3,-0.75) {30};
+\node[bal-skbox] (qc4x1) at (4,0) {};
+\node[bal-sklab] at (4,-0.75) {41};
+\node[bal-skbox] (qc5x1) at (5,0) {};
+\node[bal-skbox] (qc5x2) at (5,1) {};
+\node[bal-sklab] at (5,-0.75) {48};
+\node[bal-skbox] (qc6x1) at (6,0) {};
+\node[bal-sklab] at (6,-0.75) {56};
+\node[bal-skbox] (qc7x1) at (7,0) {};
+\node[bal-skbox] (qc7x2) at (7,1) {};
+\node[bal-skbox] (qc7x3) at (7,2) {};
+\node[bal-skbox] (qc7x4) at (7,3) {};
+\node[bal-sklab] at (7,-0.75) {60};
+\node[bal-skbox] (qc8x1) at (8,0) {};
+\node[bal-skbox] (qc8x2) at (8,1) {};
+\node[bal-skbox] (qc8x3) at (8,2) {};
+\node[bal-sklab] at (8,-0.75) {69};
+\node[bal-skbox] (qc9x1) at (9,0) {};
+\node[bal-sklab] at (9,-0.75) {75};
+\node[bal-skhead] (qc10x1) at (10,0) {};
+\node[bal-skhead] (qc10x2) at (10,1) {};
+\node[bal-skhead] (qc10x3) at (10,2) {};
+\node[bal-skhead] (qc10x4) at (10,3) {};
+\node[bal-sklab] at (10,-0.75) {NIL};
+\draw[bal-skarr] (qc0x1) -- (qc1x1);
+\draw[bal-skarr] (qc1x1) -- (qc2x1);
+\draw[bal-skarr] (qc2x1) -- (qc3x1);
+\draw[bal-skarr] (qc3x1) -- (qc4x1);
+\draw[bal-skarr] (qc4x1) -- (qc5x1);
+\draw[bal-skarr] (qc5x1) -- (qc6x1);
+\draw[bal-skarr] (qc6x1) -- (qc7x1);
+\draw[bal-skarr] (qc7x1) -- (qc8x1);
+\draw[bal-skarr] (qc8x1) -- (qc9x1);
+\draw[bal-skarr] (qc9x1) -- (qc10x1);
+\draw[bal-skarr] (qc0x2) -- (qc3x2);
+\draw[bal-skarr] (qc3x2) -- (qc5x2);
+\draw[bal-skarr] (qc5x2) -- (qc7x2);
+\draw[bal-skarr] (qc7x2) -- (qc8x2);
+\draw[bal-skarr] (qc8x2) -- (qc10x2);
+\draw[bal-skarr] (qc0x3) -- (qc7x3);
+\draw[bal-skarr] (qc7x3) -- (qc8x3);
+\draw[bal-skarr] (qc8x3) -- (qc10x3);
+\draw[bal-skarr] (qc0x4) -- (qc7x4);
+\draw[bal-skarr] (qc7x4) -- (qc10x4);
+\end{tikzpicture}
+\end{center}
+
+\item (a) 層數 $\ell \ge i$ 的機率是 $p^{i-1}$。 $\ell$ 是「擲到第一次反面為止共擲幾次」，
+每次擲出反面的機率是 $1 - p$，是幾何分布，由定理~\ref{thm:mth-geom-dist}，
+$\mathrm{E}[\ell] = 1/(1-p)$。 由線性，指標總數的期望值是 $n/(1-p)$。
+
+(b) 每個節點的層數 $\ge i$ 的機率是 $p^{i-1}$，由線性，個數的期望值是 $n p^{i-1}$。
+$n p^{i-1} \le 1$ 等價於 $(1/p)^{i-1} \ge n$，也就是 $i \ge 1 + \log_{1/p} n$。
+
+(c) 倒著走時，每一步往上的機率是 $p$，往上一層平均要 $1/p$ 步。 由 (b)，大約
+$\log_{1/p} n$ 層以上，每層的節點個數期望值不到 $1$，那一段的步數期望值是常數。 所以
+搜尋大約要 $(1/p) \log_{1/p} n = \dfrac{\lg n}{p \lg(1/p)}$ 步。
+\begin{itemize}
+\item $p = \frac12$：指標約 $2n$，步數約 $2 \lg n$。
+\item $p = \frac14$：指標約 $\frac43 n$，步數約 $4 \cdot \frac{\lg n}{2} = 2\lg n$。
+\end{itemize}
+主項一樣，$p = \frac14$ 卻省了三分之一的指標。 代價是每層往右走的步數變多、變化也
+比較大。 用程式模擬 $n = 16384$：平均步數分別是 $27.2$ 和 $25.5$，每個節點平均
+$2.00$ 和 $1.33$ 個指標，和上面的估計一致。
+
 \end{enumerate}
+
+\addcontentsline{toc}{section}{歷屆試題詳解}
+\section*{歷屆試題詳解}
+
+\pastsol{px:bal-1}{成大資訊聯招 115 學年度 資料結構第一大題 第 4 題}
+答：AVL max possible height=5, Red-black tree max possible height=6。
+
+題目說根在第 $1$ 層，高度數的是節點，和本章的定義相同。
+
+\textbf{AVL 樹。} 由第~\ref{sec:bal-avl-height}~節，高度 $h$ 的 AVL 樹最少有 $N(h)$
+個節點，$N(5) = 12 \le 15 < 20 = N(6)$。 高度 $6$ 至少要 $20$ 個節點，所以 $15$ 個節
+點的 AVL 樹高度最多 $5$。 高度 $5$ 做得到：根的左子樹用 $7$ 個節點的費氏樹
+（圖~\ref{fig:bal-fib} 的 $h = 4$），右子樹用高度 $3$ 的滿二元樹（$7$ 個節點），共
+$15$ 個節點，根的平衡因子 $4 - 3 = +1$，下圖 (a)。
+
+\textbf{紅黑樹。} 定理~\ref{thm:bal-rb-height} 只給出 $h \le 2\lg 16 = 8$，不夠精確，要
+直接算高度 $h$ 的紅黑樹最少有幾個節點。 取一條最長的路徑，從根往下經過 $v_1$（根）、
+$v_2$、……、$v_h$ 這 $h$ 個內部節點。 $v_h$ 的兩個子節點都是 NIL（否則路徑可以更長），
+所以 $\mathrm{bh}(v_h) = 1$。 記 $b_i = \mathrm{bh}(v_i)$，往上走時每經過一個黑色的
+$v_{i+1}$，黑高加 $1$：
+\[
+b_i = 1 + (v_{i+1}, \ldots, v_h \text{ 裡黑色節點的個數}).
+\]
+第 4 條說紅色節點不相連，所以 $v_{i+1}, \ldots, v_h$ 這 $h - i$ 個節點裡至少有
+$\lfloor (h - i)/2 \rfloor$ 個黑色，$b_i \ge 1 + \lfloor (h-i)/2 \rfloor$。
+
+$v_i$ 不在路徑上的那個子節點 $c_i$：是黑色時 $\mathrm{bh}(c_i) = b_i - 1$，是紅色時
+$\mathrm{bh}(c_i) = b_i$。 由引理~\ref{lem:bal-rb-count}，以 $c_i$ 為根的子樹至少有
+$2^{b_i - 1} - 1$ 個內部節點（$c_i$ 是 NIL 時 $b_i = 1$，這個數是 $0$，也對）。 這些子
+樹互不重疊，也不含路徑上的節點，所以
+\[
+n \ge h + \sum_{i=1}^{h} \bigl(2^{b_i - 1} - 1\bigr).
+\]
+\begin{itemize}
+\item $h = 7$：$b_1, \ldots, b_7$ 至少是 $4, 3, 3, 2, 2, 1, 1$，
+$n \ge 7 + (7 + 3 + 3 + 1 + 1 + 0 + 0) = 22 > 15$。 所以 $15$ 個節點的紅黑樹高度不
+到 $7$。 高度 $h \ge 8$ 時，只看 $v_1, \ldots, v_7$ 這七項，$b_i \ge 1 + \lfloor (h-i)/2 \rfloor$ 只會更大，所以同樣 $n \ge 22$。
+\item $h = 6$：$b_i$ 至少是 $3, 3, 2, 2, 1, 1$，$n \ge 6 + (3 + 3 + 1 + 1) = 14$。 路徑
+取黑、紅、黑、紅、黑、紅，每個 $c_i$ 都取黑色而且節點最少，剛好 $14$ 個節點；再
+在路徑上第五個節點（黑色）空著的那一邊加一個紅色葉節點，不改變任何黑高，得到
+$15$ 個節點、高度 $6$ 的紅黑樹，下圖 (b)。
+\end{itemize}
+\begin{center}
+\begin{tikzpicture}[x=0.42cm,y=0.62cm,baseline=(current bounding box.north)]
+\node[tn] (nka1) at (0,-4) {1};
+\node[tn] (nka2) at (1,-3) {2};
+\node[tn] (nka3) at (2,-2) {3};
+\node[tn] (nka4) at (3,-3) {4};
+\node[tn] (nka5) at (4,-1) {5};
+\node[tn] (nka6) at (5,-3) {6};
+\node[tn] (nka7) at (6,-2) {7};
+\node[tn] (nka8) at (7,0) {8};
+\node[tn] (nka9) at (8,-3) {9};
+\node[tn] (nka10) at (9,-2) {10};
+\node[tn] (nka11) at (10,-3) {11};
+\node[tn] (nka12) at (11,-1) {12};
+\node[tn] (nka13) at (12,-3) {13};
+\node[tn] (nka14) at (13,-2) {14};
+\node[tn] (nka15) at (14,-3) {15};
+\draw[te] (nka8) -- (nka5);
+\draw[te] (nka5) -- (nka3);
+\draw[te] (nka3) -- (nka2);
+\draw[te] (nka2) -- (nka1);
+\draw[te] (nka3) -- (nka4);
+\draw[te] (nka5) -- (nka7);
+\draw[te] (nka7) -- (nka6);
+\draw[te] (nka8) -- (nka12);
+\draw[te] (nka12) -- (nka10);
+\draw[te] (nka10) -- (nka9);
+\draw[te] (nka10) -- (nka11);
+\draw[te] (nka12) -- (nka14);
+\draw[te] (nka14) -- (nka13);
+\draw[te] (nka14) -- (nka15);
+\node[plab] at (7.0,-4.75) {(a) AVL 樹，高度 $5$};
+\end{tikzpicture}\hspace{1cm}\begin{tikzpicture}[x=0.42cm,y=0.62cm,baseline=(current bounding box.north)]
+\node[tnR] (nkr1) at (0,-5) {1};
+\node[tnB] (nkr2) at (1,-4) {2};
+\node[tnR] (nkr3) at (2,-5) {3};
+\node[tnR] (nkr4) at (3,-3) {4};
+\node[tnB] (nkr5) at (4,-4) {5};
+\node[tnB] (nkr6) at (5,-2) {6};
+\node[tnB] (nkr7) at (6,-3) {7};
+\node[tnR] (nkr8) at (7,-1) {8};
+\node[tnB] (nkr9) at (8,-3) {9};
+\node[tnB] (nkr10) at (9,-2) {10};
+\node[tnB] (nkr11) at (10,-3) {11};
+\node[tnB] (nkr12) at (11,0) {12};
+\node[tnB] (nkr13) at (12,-2) {13};
+\node[tnB] (nkr14) at (13,-1) {14};
+\node[tnB] (nkr15) at (14,-2) {15};
+\draw[te] (nkr12) -- (nkr8);
+\draw[te] (nkr8) -- (nkr6);
+\draw[te] (nkr6) -- (nkr4);
+\draw[te] (nkr4) -- (nkr2);
+\draw[te] (nkr2) -- (nkr1);
+\draw[te] (nkr2) -- (nkr3);
+\draw[te] (nkr4) -- (nkr5);
+\draw[te] (nkr6) -- (nkr7);
+\draw[te] (nkr8) -- (nkr10);
+\draw[te] (nkr10) -- (nkr9);
+\draw[te] (nkr10) -- (nkr11);
+\draw[te] (nkr12) -- (nkr14);
+\draw[te] (nkr14) -- (nkr13);
+\draw[te] (nkr14) -- (nkr15);
+\node[plab] at (7.0,-5.75) {(b) 紅黑樹，高度 $6$};
+\end{tikzpicture}
+\end{center}
+(b) 從根到任何 NIL 都經過 $3$ 個黑色（不算根、算 NIL），沒有紅色節點相連。 用程式
+窮舉驗算，高度 $1$ 到 $7$ 的紅黑樹最少依序有 $1, 2, 4, 6, 10, 14, 22$ 個節點，和上面的
+推導一致。
+
+\pastsol{px:bal-2}{政大資科所 114 學年度 第 17 題}
+題目的「the $k$-th element」解讀成第 $k$ 小的鍵。 (3) 沒有指定插入哪個鍵，下面用插
+入 $40$ 示範，這個鍵會引起雙旋轉，最能看出新欄位在旋轉時怎麼更新。
+
+(1) 每個節點多存一個欄位 $\mathit{size}$：以這個節點為根的子樹有幾個節點，約定
+$\mathit{size}(\NIL) = 0$，所以 $x.\mathit{size} = \mathit{size}(x.\mathit{left}) +
+\mathit{size}(x.\mathit{right}) + 1$。 和第~\ref{sec:bst-rank}~節的二元搜尋樹一樣，每
+個節點多 $O(1)$ 空間。
+
+(2) 用虛擬碼~\ref{alg:bst-select} 的 \proc{Tree-Select}，一行都不用改。 在節點 $x$，
+$r = \mathit{size}(x.\mathit{left}) + 1$ 是 $x$ 在它的子樹裡的名次：$k = r$ 就回傳
+$x$；$k < r$ 往左子樹找第 $k$ 小；$k > r$ 時左子樹和 $x$ 共 $r$ 個都比答案小，往右
+子樹找第 $k - r$ 小。 正確性是對子樹大小歸納，每一步都把問題換成「在一棵比較小的子
+樹裡找第幾小」，見第~\ref{sec:bst-rank}~節。 每一步往下一層，時間 $O(h)$；AVL 樹的
+$h < 1.4405 \lg(n+1)$（定理~\ref{thm:bal-avl-height}），所以是 $O(\lg n)$。
+
+(3) 改虛擬碼~\ref{alg:bal-avl-insert} 的三個地方：
+\begin{itemize}
+\item 第 3 行建立新節點時，$\mathit{size} = 1$。
+\item 第 10 行更新高度的地方，同時更新
+$t.\mathit{size} \gets \mathit{size}(t.\mathit{left}) + \mathit{size}(t.\mathit{right}) + 1$。
+\item 旋轉（虛擬碼~\ref{alg:bal-rotate-right} 和左旋）改完指標之後，和更新高度一樣，
+先重算降下去的節點的 $\mathit{size}$，再重算升上來的節點。 C 程式只要在範例~\ref{ex:bal-avl-insert}
+的 \texttt{update} 裡多寫一行。
+\end{itemize}
+為什麼對：插入只改變新節點到根這條路徑上的子樹，旋轉只改變被轉的兩個（雙旋轉是三個）
+節點的子樹，其他節點的 $\mathit{size}$ 都不變。 遞迴在回程時由下往上處理路徑上的節點，
+重算 $t$ 的時候它的兩個子節點已經是對的；旋轉時先算下面那個，理由相同。 用「從子節點
+重算」而不是「往下走時沿路加 $1$」還有一個好處：鍵已經在樹裡時（第 9 行直接回傳），
+不會把路徑上的 $\mathit{size}$ 多加。 每個節點多做 $O(1)$ 的事，插入仍然是 $O(\lg n)$。
+
+以圖 2 插入 $40$ 為例（右上方的數字是 $\mathit{size}$）。 $40$ 走 $54 \to 23 \to 45
+\to 36$，接成 $36$ 的右子節點 (b)。 回程：$36$ 的 $\mathit{size}$ 變 $2$、高度 $2$；$45$
+的 $\mathit{size}$ 變 $3$，左高 $2$、右高 $0$，平衡因子 $+2$，左子節點 $36$ 是 $-1$，是
+LR。 先對 $36$ 左旋：$40$ 升上來，$36$ 成為 $40$ 的左子節點，重算 $36$ 是 $1$、$40$ 是
+$2$；再對 $45$ 右旋：$40$ 升到 $45$ 的位置，重算 $45$ 是 $1$、$40$ 是 $3$ (c)。 繼續往
+上，$23$ 重算成 $1 + 3 + 1 = 5$，$54$ 重算成 $5 + 3 + 1 = 9$。
+\begin{center}
+\begin{tikzpicture}[x=0.55cm,y=0.75cm,baseline=(current bounding box.north)]
+\node[tn] (nca11) at (0,-2) {11};
+\node[tn] (nca23) at (1,-1) {23};
+\node[tn] (nca36) at (2,-3) {36};
+\node[tn] (nca45) at (3,-2) {45};
+\node[tn] (nca54) at (4,0) {54};
+\node[tn] (nca66) at (5,-2) {66};
+\node[tn] (nca79) at (6,-1) {79};
+\node[tn] (nca88) at (7,-2) {88};
+\draw[te] (nca54) -- (nca23);
+\draw[te] (nca23) -- (nca11);
+\draw[te] (nca23) -- (nca45);
+\draw[te] (nca45) -- (nca36);
+\draw[te] (nca54) -- (nca79);
+\draw[te] (nca79) -- (nca66);
+\draw[te] (nca79) -- (nca88);
+\node[plab] at (3.5,-4.75) {(a) 圖 2 的樹};
+\node[bfl] at (nca54.north east) {$8$};
+\node[bfl] at (nca23.north east) {$4$};
+\node[bfl] at (nca11.north east) {$1$};
+\node[bfl] at (nca45.north east) {$2$};
+\node[bfl] at (nca36.north east) {$1$};
+\node[bfl] at (nca79.north east) {$3$};
+\node[bfl] at (nca66.north east) {$1$};
+\node[bfl] at (nca88.north east) {$1$};
+\end{tikzpicture}\hspace{0.4cm}\begin{tikzpicture}[x=0.55cm,y=0.75cm,baseline=(current bounding box.north)]
+\node[tn] (ncb11) at (0,-2) {11};
+\node[tn] (ncb23) at (1,-1) {23};
+\node[tn] (ncb36) at (2,-3) {36};
+\node[tn,tnN] (ncb40) at (3,-4) {40};
+\node[tn,tnA] (ncb45) at (4,-2) {45};
+\node[tn] (ncb54) at (5,0) {54};
+\node[tn] (ncb66) at (6,-2) {66};
+\node[tn] (ncb79) at (7,-1) {79};
+\node[tn] (ncb88) at (8,-2) {88};
+\draw[te] (ncb54) -- (ncb23);
+\draw[te] (ncb23) -- (ncb11);
+\draw[te] (ncb23) -- (ncb45);
+\draw[te] (ncb45) -- (ncb36);
+\draw[te] (ncb36) -- (ncb40);
+\draw[te] (ncb54) -- (ncb79);
+\draw[te] (ncb79) -- (ncb66);
+\draw[te] (ncb79) -- (ncb88);
+\node[plab] at (4.0,-4.75) {(b) 40 接成葉節點};
+\node[bfl] at (ncb54.north east) {$9$};
+\node[bfl] at (ncb23.north east) {$5$};
+\node[bfl] at (ncb11.north east) {$1$};
+\node[bfl] at (ncb45.north east) {$3$};
+\node[bfl] at (ncb36.north east) {$2$};
+\node[bfl] at (ncb40.north east) {$1$};
+\node[bfl] at (ncb79.north east) {$3$};
+\node[bfl] at (ncb66.north east) {$1$};
+\node[bfl] at (ncb88.north east) {$1$};
+\end{tikzpicture}\hspace{0.4cm}\begin{tikzpicture}[x=0.55cm,y=0.75cm,baseline=(current bounding box.north)]
+\node[tn] (ncc11) at (0,-2) {11};
+\node[tn] (ncc23) at (1,-1) {23};
+\node[tn] (ncc36) at (2,-3) {36};
+\node[tn,tnN] (ncc40) at (3,-2) {40};
+\node[tn] (ncc45) at (4,-3) {45};
+\node[tn] (ncc54) at (5,0) {54};
+\node[tn] (ncc66) at (6,-2) {66};
+\node[tn] (ncc79) at (7,-1) {79};
+\node[tn] (ncc88) at (8,-2) {88};
+\draw[te] (ncc54) -- (ncc23);
+\draw[te] (ncc23) -- (ncc11);
+\draw[te] (ncc23) -- (ncc40);
+\draw[te] (ncc40) -- (ncc36);
+\draw[te] (ncc40) -- (ncc45);
+\draw[te] (ncc54) -- (ncc79);
+\draw[te] (ncc79) -- (ncc66);
+\draw[te] (ncc79) -- (ncc88);
+\node[plab] at (4.0,-4.75) {(c) LR 之後};
+\node[bfl] at (ncc54.north east) {$9$};
+\node[bfl] at (ncc23.north east) {$5$};
+\node[bfl] at (ncc11.north east) {$1$};
+\node[bfl] at (ncc40.north east) {$3$};
+\node[bfl] at (ncc36.north east) {$1$};
+\node[bfl] at (ncc45.north east) {$1$};
+\node[bfl] at (ncc79.north east) {$3$};
+\node[bfl] at (ncc66.north east) {$1$};
+\node[bfl] at (ncc88.north east) {$1$};
+\end{tikzpicture}
+\end{center}
+在 (c) 找第 $4$ 小：在 $54$，$r = 5 + 1 = 6$，$4 < 6$ 往左；在 $23$，$r = 1 + 1 = 2$，
+$4 > 2$，往右找第 $2$ 小；在 $40$，$r = 1 + 1 = 2$，回傳 $40$。 由小到大是
+$11, 23, 36, 40, \ldots$，第 $4$ 小確實是 $40$。
+
+\pastsol{px:bal-3}{中央資工所 115 學年度 第 15 題}
+答：B、C、D。
+
+題目只給層序，沒有給顏色，先推出顏色。 樹的形狀是根 $52$，左 $33$，右 $80$，$100$ 是
+$80$ 的右子節點。 從 $52$ 往下：$52 \to 33 \to \text{NIL}$ 和 $52 \to 80 \to \text{NIL}$
+（$80$ 的左邊）、$52 \to 80 \to 100 \to \text{NIL}$ 的黑色個數要相同（第 5 條）。 $80$
+的兩條路徑只差 $100$，所以 $100$ 是紅的。 $100$ 紅，$80$ 就不能紅（第 4 條），$80$ 是
+黑的；$33$ 和 $80$ 要一樣，$33$ 也是黑的。 顏色是唯一的，下圖 (a)。
+
+插入用第~\ref{sec:bal-rb-insert}~節的方法（和 CLRS 相同）：
+\begin{itemize}
+\item 插入 $65$：$52 \to 80$，接成 $80$ 的左子節點，紅色。 父節點 $80$ 是黑的，不用修 (b)。
+\item 插入 $55$：$52 \to 80 \to 65$，接成 $65$ 的左子節點。 父 $65$ 紅，叔叔 $100$ 紅，
+情況 1：$65$、$100$ 改黑，$80$ 改紅，$z$ 移到 $80$。 $80$ 的父節點 $52$ 是黑的，結束 (c)。
+\item 插入 $60$：$52 \to 80 \to 65 \to 55$，接成 $55$ 的右子節點 (d)。 父 $55$ 紅；$55$
+是 $65$ 的左子節點，叔叔是 $65$ 的右邊，NIL，黑的。 $60$ 是 $55$ 的右子節點（內側），
+情況 2：$z$ 移到 $55$，對 $55$ 左旋 (e)。 接著情況 3：$z = 55$ 的父節點 $60$ 改黑、
+祖父 $65$ 改紅，對 $65$ 右旋 (f)。
+\end{itemize}
+\begin{center}
+\begin{tikzpicture}[x=0.5cm,y=0.72cm,baseline=(current bounding box.north)]
+\node[tnB] (ncua33) at (0,-1) {33};
+\node[tnB] (ncua52) at (1,0) {52};
+\node[tnB] (ncua80) at (2,-1) {80};
+\node[tnR] (ncua100) at (3,-2) {100};
+\draw[te] (ncua52) -- (ncua33);
+\draw[te] (ncua52) -- (ncua80);
+\draw[te] (ncua80) -- (ncua100);
+\node[plab] at (1.5,-4.75) {(a) 原本的樹};
+\end{tikzpicture}\hspace{0.4cm}\begin{tikzpicture}[x=0.5cm,y=0.72cm,baseline=(current bounding box.north)]
+\node[tnB] (ncub33) at (0,-1) {33};
+\node[tnB] (ncub52) at (1,0) {52};
+\node[tnR] (ncub65) at (2,-2) {65};
+\node[tnB] (ncub80) at (3,-1) {80};
+\node[tnR] (ncub100) at (4,-2) {100};
+\draw[te] (ncub52) -- (ncub33);
+\draw[te] (ncub52) -- (ncub80);
+\draw[te] (ncub80) -- (ncub65);
+\draw[te] (ncub80) -- (ncub100);
+\node[plab] at (2.0,-4.75) {(b) 插入 65};
+\end{tikzpicture}\hspace{0.4cm}\begin{tikzpicture}[x=0.5cm,y=0.72cm,baseline=(current bounding box.north)]
+\node[tnB] (ncuc33) at (0,-1) {33};
+\node[tnB] (ncuc52) at (1,0) {52};
+\node[tnR] (ncuc55) at (2,-3) {55};
+\node[tnB] (ncuc65) at (3,-2) {65};
+\node[tnR] (ncuc80) at (4,-1) {80};
+\node[tnB] (ncuc100) at (5,-2) {100};
+\draw[te] (ncuc52) -- (ncuc33);
+\draw[te] (ncuc52) -- (ncuc80);
+\draw[te] (ncuc80) -- (ncuc65);
+\draw[te] (ncuc65) -- (ncuc55);
+\draw[te] (ncuc80) -- (ncuc100);
+\node[plab] at (2.5,-4.75) {(c) 插入 55};
+\end{tikzpicture}\\*[0.6em]
+\begin{tikzpicture}[x=0.5cm,y=0.72cm,baseline=(current bounding box.north)]
+\node[tnB] (ncud33) at (0,-1) {33};
+\node[tnB] (ncud52) at (1,0) {52};
+\node[tnR] (ncud55) at (2,-3) {55};
+\node[tnR] (ncud60) at (3,-4) {60};
+\node[tnB] (ncud65) at (4,-2) {65};
+\node[tnR] (ncud80) at (5,-1) {80};
+\node[tnB] (ncud100) at (6,-2) {100};
+\draw[te] (ncud52) -- (ncud33);
+\draw[te] (ncud52) -- (ncud80);
+\draw[te] (ncud80) -- (ncud65);
+\draw[te] (ncud65) -- (ncud55);
+\draw[te] (ncud55) -- (ncud60);
+\draw[te] (ncud80) -- (ncud100);
+\node[plab] at (3.0,-4.75) {(d) 60 接成葉節點};
+\end{tikzpicture}\hspace{0.4cm}\begin{tikzpicture}[x=0.5cm,y=0.72cm,baseline=(current bounding box.north)]
+\node[tnB] (ncue33) at (0,-1) {33};
+\node[tnB] (ncue52) at (1,0) {52};
+\node[tnR] (ncue55) at (2,-4) {55};
+\node[tnR] (ncue60) at (3,-3) {60};
+\node[tnB] (ncue65) at (4,-2) {65};
+\node[tnR] (ncue80) at (5,-1) {80};
+\node[tnB] (ncue100) at (6,-2) {100};
+\draw[te] (ncue52) -- (ncue33);
+\draw[te] (ncue52) -- (ncue80);
+\draw[te] (ncue80) -- (ncue65);
+\draw[te] (ncue65) -- (ncue60);
+\draw[te] (ncue60) -- (ncue55);
+\draw[te] (ncue80) -- (ncue100);
+\node[plab] at (3.0,-4.75) {(e) 情況 2：左旋 55};
+\end{tikzpicture}\hspace{0.4cm}\begin{tikzpicture}[x=0.5cm,y=0.72cm,baseline=(current bounding box.north)]
+\node[tnB] (ncuf33) at (0,-1) {33};
+\node[tnB] (ncuf52) at (1,0) {52};
+\node[tnR] (ncuf55) at (2,-3) {55};
+\node[tnB] (ncuf60) at (3,-2) {60};
+\node[tnR] (ncuf65) at (4,-3) {65};
+\node[tnR] (ncuf80) at (5,-1) {80};
+\node[tnB] (ncuf100) at (6,-2) {100};
+\draw[te] (ncuf52) -- (ncuf33);
+\draw[te] (ncuf52) -- (ncuf80);
+\draw[te] (ncuf80) -- (ncuf60);
+\draw[te] (ncuf60) -- (ncuf55);
+\draw[te] (ncuf60) -- (ncuf65);
+\draw[te] (ncuf80) -- (ncuf100);
+\node[plab] at (3.0,-4.75) {(f) 情況 3：右旋 65};
+\end{tikzpicture}
+\end{center}
+\begin{itemize}
+\item[A.] 錯。 $33$ 是黑的；如果是紅的，$52 \to 33 \to \text{NIL}$ 只有 $1$ 個黑色，
+$52 \to 80 \to \text{NIL}$ 有 $2$ 個，違反第 5 條。
+\item[B.] 對。 (c) 裡 $100$ 在情況 1 被改成黑色。
+\item[C.] 對。 (f) 裡 $60$ 在情況 3 被改成黑色。
+\item[D.] 對。 (f) 一層一層由左到右是 $52$；$33, 80$；$60, 100$；$55, 65$。
+\end{itemize}
+
+\pastsol{px:bal-4}{臺大工工所 110 學年度 第 19 題}
+答：(B)、(D)、(E)。
+
+題目指定由下而上伸展，合併時在左樹伸展最大的節點，和第~\ref{sec:bal-splay-ops}~節
+的做法相同。 兩組選項都從 Figure 1 的原樹開始。
+
+\textbf{刪除 $26$。} 先把 $26$ 伸展到根。 路徑 $55 \to 48 \to 33 \to 26$；$26$、$33$
+都是左子節點，zig-zig：先轉 $48$ 和 $33$，再轉 $33$ 和 $26$，$26$ 升到 $48$ 的位置，左
+子節點 $17$，右子節點 $33$，$33$ 的右子節點 $48$ (a)。 再對根 $55$ 做 zig (b)。 拿掉
+$26$，$L$ 只有 $17$，$R$ 是以 $55$ 為根的樹。 $L$ 最大的就是 $17$ 本身，已經在根，不用
+旋轉；把 $R$ 接成 $17$ 的右子樹 (c)。
+
+\textbf{插入 $75$。} $75$ 走 $55 \to 64 \to 82 \to 71$，接成 $71$ 的右子節點 (d)。 $75$
+是右子節點、$71$ 是左子節點，zig-zag：$75$ 升到 $82$ 的位置，左 $71$、右 $82$ (e)。 這
+時 $75$ 是 $64$ 的右子節點，$64$ 是 $55$ 的右子節點，zig-zig：先轉 $55$ 和 $64$，再轉
+$64$ 和 $75$ (f)。
+\begin{center}
+\begin{tikzpicture}[x=0.45cm,y=0.62cm,baseline=(current bounding box.north)]
+\node[tn] (ntua17) at (0,-2) {17};
+\node[tn,tnN] (ntua26) at (1,-1) {26};
+\node[tn] (ntua33) at (2,-2) {33};
+\node[tn] (ntua48) at (3,-3) {48};
+\node[tn] (ntua55) at (4,0) {55};
+\node[tn] (ntua64) at (5,-1) {64};
+\node[tn] (ntua71) at (6,-3) {71};
+\node[tn] (ntua82) at (7,-2) {82};
+\node[tn] (ntua99) at (8,-3) {99};
+\draw[te] (ntua55) -- (ntua26);
+\draw[te] (ntua26) -- (ntua17);
+\draw[te] (ntua26) -- (ntua33);
+\draw[te] (ntua33) -- (ntua48);
+\draw[te] (ntua55) -- (ntua64);
+\draw[te] (ntua64) -- (ntua82);
+\draw[te] (ntua82) -- (ntua71);
+\draw[te] (ntua82) -- (ntua99);
+\node[plab] at (4.0,-4.75) {(a) 伸展 26：zig-zig};
+\end{tikzpicture}\hspace{0.3cm}\begin{tikzpicture}[x=0.45cm,y=0.62cm,baseline=(current bounding box.north)]
+\node[tn] (ntub17) at (0,-1) {17};
+\node[tn,tnN] (ntub26) at (1,0) {26};
+\node[tn] (ntub33) at (2,-2) {33};
+\node[tn] (ntub48) at (3,-3) {48};
+\node[tn] (ntub55) at (4,-1) {55};
+\node[tn] (ntub64) at (5,-2) {64};
+\node[tn] (ntub71) at (6,-4) {71};
+\node[tn] (ntub82) at (7,-3) {82};
+\node[tn] (ntub99) at (8,-4) {99};
+\draw[te] (ntub26) -- (ntub17);
+\draw[te] (ntub26) -- (ntub55);
+\draw[te] (ntub55) -- (ntub33);
+\draw[te] (ntub33) -- (ntub48);
+\draw[te] (ntub55) -- (ntub64);
+\draw[te] (ntub64) -- (ntub82);
+\draw[te] (ntub82) -- (ntub71);
+\draw[te] (ntub82) -- (ntub99);
+\node[plab] at (4.0,-4.75) {(b) zig};
+\end{tikzpicture}\hspace{0.3cm}\begin{tikzpicture}[x=0.45cm,y=0.62cm,baseline=(current bounding box.north)]
+\node[tn] (ntuc17) at (0,0) {17};
+\node[tn] (ntuc33) at (1,-2) {33};
+\node[tn] (ntuc48) at (2,-3) {48};
+\node[tn] (ntuc55) at (3,-1) {55};
+\node[tn] (ntuc64) at (4,-2) {64};
+\node[tn] (ntuc71) at (5,-4) {71};
+\node[tn] (ntuc82) at (6,-3) {82};
+\node[tn] (ntuc99) at (7,-4) {99};
+\draw[te] (ntuc17) -- (ntuc55);
+\draw[te] (ntuc55) -- (ntuc33);
+\draw[te] (ntuc33) -- (ntuc48);
+\draw[te] (ntuc55) -- (ntuc64);
+\draw[te] (ntuc64) -- (ntuc82);
+\draw[te] (ntuc82) -- (ntuc71);
+\draw[te] (ntuc82) -- (ntuc99);
+\node[plab] at (3.5,-4.75) {(c) 刪掉 26，接上 $R$};
+\end{tikzpicture}\\*[0.6em]
+\begin{tikzpicture}[x=0.45cm,y=0.62cm,baseline=(current bounding box.north)]
+\node[tn] (ntud17) at (0,-4) {17};
+\node[tn] (ntud26) at (1,-3) {26};
+\node[tn] (ntud33) at (2,-2) {33};
+\node[tn] (ntud48) at (3,-1) {48};
+\node[tn] (ntud55) at (4,0) {55};
+\node[tn] (ntud64) at (5,-1) {64};
+\node[tn] (ntud71) at (6,-3) {71};
+\node[tn,tnN] (ntud75) at (7,-4) {75};
+\node[tn] (ntud82) at (8,-2) {82};
+\node[tn] (ntud99) at (9,-3) {99};
+\draw[te] (ntud55) -- (ntud48);
+\draw[te] (ntud48) -- (ntud33);
+\draw[te] (ntud33) -- (ntud26);
+\draw[te] (ntud26) -- (ntud17);
+\draw[te] (ntud55) -- (ntud64);
+\draw[te] (ntud64) -- (ntud82);
+\draw[te] (ntud82) -- (ntud71);
+\draw[te] (ntud71) -- (ntud75);
+\draw[te] (ntud82) -- (ntud99);
+\node[plab] at (4.5,-6.75) {(d) 75 接成葉節點};
+\end{tikzpicture}\hspace{0.3cm}\begin{tikzpicture}[x=0.45cm,y=0.62cm,baseline=(current bounding box.north)]
+\node[tn] (ntue17) at (0,-4) {17};
+\node[tn] (ntue26) at (1,-3) {26};
+\node[tn] (ntue33) at (2,-2) {33};
+\node[tn] (ntue48) at (3,-1) {48};
+\node[tn] (ntue55) at (4,0) {55};
+\node[tn] (ntue64) at (5,-1) {64};
+\node[tn] (ntue71) at (6,-3) {71};
+\node[tn,tnN] (ntue75) at (7,-2) {75};
+\node[tn] (ntue82) at (8,-3) {82};
+\node[tn] (ntue99) at (9,-4) {99};
+\draw[te] (ntue55) -- (ntue48);
+\draw[te] (ntue48) -- (ntue33);
+\draw[te] (ntue33) -- (ntue26);
+\draw[te] (ntue26) -- (ntue17);
+\draw[te] (ntue55) -- (ntue64);
+\draw[te] (ntue64) -- (ntue75);
+\draw[te] (ntue75) -- (ntue71);
+\draw[te] (ntue75) -- (ntue82);
+\draw[te] (ntue82) -- (ntue99);
+\node[plab] at (4.5,-6.75) {(e) zig-zag};
+\end{tikzpicture}\hspace{0.3cm}\begin{tikzpicture}[x=0.45cm,y=0.62cm,baseline=(current bounding box.north)]
+\node[tn] (ntuf17) at (0,-6) {17};
+\node[tn] (ntuf26) at (1,-5) {26};
+\node[tn] (ntuf33) at (2,-4) {33};
+\node[tn] (ntuf48) at (3,-3) {48};
+\node[tn] (ntuf55) at (4,-2) {55};
+\node[tn] (ntuf64) at (5,-1) {64};
+\node[tn] (ntuf71) at (6,-2) {71};
+\node[tn,tnN] (ntuf75) at (7,0) {75};
+\node[tn] (ntuf82) at (8,-1) {82};
+\node[tn] (ntuf99) at (9,-2) {99};
+\draw[te] (ntuf75) -- (ntuf64);
+\draw[te] (ntuf64) -- (ntuf55);
+\draw[te] (ntuf55) -- (ntuf48);
+\draw[te] (ntuf48) -- (ntuf33);
+\draw[te] (ntuf33) -- (ntuf26);
+\draw[te] (ntuf26) -- (ntuf17);
+\draw[te] (ntuf64) -- (ntuf71);
+\draw[te] (ntuf75) -- (ntuf82);
+\draw[te] (ntuf82) -- (ntuf99);
+\node[plab] at (4.5,-6.75) {(f) zig-zig};
+\end{tikzpicture}
+\end{center}
+\begin{itemize}
+\item[(A)] 錯。 (c) 裡 $33$ 的父節點是 $55$；$48$ 反而是 $33$ 的子節點。
+\item[(B)] 對。 (c) 的根是 $17$。
+\item[(C)] 錯。 (f) 裡 $99$ 在根 $75$ 的右子樹（$82$ 底下），$64$ 在左子樹，不是 $99$ 的祖先。
+\item[(D)] 對。 (f) 裡 $55 \to 48 \to 33$，$33$ 是 $55$ 的子孫。
+\item[(E)] 對。 插入後伸展新節點，$75$ 一定在根。
+\end{itemize}
+
+\pastsol{px:bal-5}{北科大資工所 112 學年度 第 2 題（節錄第 (2) 小題）}
+做法：$S_0$ 存全部 $n$ 個元素（由小到大），$S_1$ 每隔 $\sqrt n$ 個挑一個，也就是 $S_0$
+的第 $\sqrt n$、$2\sqrt n$、$3\sqrt n$、……個（$\sqrt n$ 不是整數時取
+$\lceil \sqrt n \rceil$），$S_1$ 共約 $\sqrt n$ 個元素。 下圖是 $n = 9$ 的例子，下層是
+$S_0$，上層 $S_1$ 是第 $3$、$6$、$9$ 個：$13, 31, 52$。
+\begin{center}
+\begin{tikzpicture}[x=1.0cm,y=0.55cm]
+\node[bal-skhead] (tw0x1) at (0,0) {};
+\node[bal-skhead] (tw0x2) at (0,1) {};
+\node[bal-sklab] at (0,-0.75) {head};
+\node[bal-skbox] (tw1x1) at (1,0) {};
+\node[bal-sklab] at (1,-0.75) {4};
+\node[bal-skbox] (tw2x1) at (2,0) {};
+\node[bal-sklab] at (2,-0.75) {9};
+\node[bal-skbox] (tw3x1) at (3,0) {};
+\node[bal-skbox] (tw3x2) at (3,1) {};
+\node[bal-sklab] at (3,-0.75) {13};
+\node[bal-skbox] (tw4x1) at (4,0) {};
+\node[bal-sklab] at (4,-0.75) {18};
+\node[bal-skbox] (tw5x1) at (5,0) {};
+\node[bal-sklab] at (5,-0.75) {26};
+\node[bal-skbox] (tw6x1) at (6,0) {};
+\node[bal-skbox] (tw6x2) at (6,1) {};
+\node[bal-sklab] at (6,-0.75) {31};
+\node[bal-skbox] (tw7x1) at (7,0) {};
+\node[bal-sklab] at (7,-0.75) {37};
+\node[bal-skbox] (tw8x1) at (8,0) {};
+\node[bal-sklab] at (8,-0.75) {45};
+\node[bal-skbox] (tw9x1) at (9,0) {};
+\node[bal-skbox] (tw9x2) at (9,1) {};
+\node[bal-sklab] at (9,-0.75) {52};
+\node[bal-skhead] (tw10x1) at (10,0) {};
+\node[bal-skhead] (tw10x2) at (10,1) {};
+\node[bal-sklab] at (10,-0.75) {NIL};
+\draw[bal-skarr] (tw0x1) -- (tw1x1);
+\draw[bal-skarr] (tw1x1) -- (tw2x1);
+\draw[bal-skarr] (tw2x1) -- (tw3x1);
+\draw[bal-skarr] (tw3x1) -- (tw4x1);
+\draw[bal-skarr] (tw4x1) -- (tw5x1);
+\draw[bal-skarr] (tw5x1) -- (tw6x1);
+\draw[bal-skarr] (tw6x1) -- (tw7x1);
+\draw[bal-skarr] (tw7x1) -- (tw8x1);
+\draw[bal-skarr] (tw8x1) -- (tw9x1);
+\draw[bal-skarr] (tw9x1) -- (tw10x1);
+\draw[bal-skarr] (tw0x2) -- (tw3x2);
+\draw[bal-skarr] (tw3x2) -- (tw6x2);
+\draw[bal-skarr] (tw6x2) -- (tw9x2);
+\draw[bal-skarr] (tw9x2) -- (tw10x2);
+\end{tikzpicture}
+\end{center}
+搜尋 $k$：先在 $S_1$ 往右走到最後一個小於 $k$ 的元素，再往下到 $S_0$，從那裡往右找
+（第~\ref{sec:bal-skip-search}~節的方法只用兩層）。 例如找 $37$：$S_1$ 上 $13 < 37$、
+$31 < 37$，下一個 $52 \ge 37$，在 $31$ 往下；$S_0$ 上 $31$ 的下一個就是 $37$。
+
+為什麼 $\sqrt n$ 最好：設 $S_1$ 有 $k$ 個元素，平均分開，把 $S_0$ 切成每段約 $n/k$ 個。
+在 $S_1$ 最多走 $k$ 步，在 $S_0$ 只在一段裡面走，最多約 $n/k$ 步，總成本約 $k + n/k$。
+由算幾不等式 $k + n/k \ge 2\sqrt{k \cdot n/k} = 2\sqrt n$，等號在 $k = n/k$，也就是
+$k = \sqrt n$ 時成立。 所以 $S_1$ 每隔 $\sqrt n$ 個放一個時，搜尋成本最小，約
+$2\sqrt n = O(\sqrt n)$。 （層數增加到大約 $\lg n$ 層，每層各減半，搜尋就降到
+$O(\lg n)$，就是第~\ref{sec:bal-skip}~節的跳躍串列。）

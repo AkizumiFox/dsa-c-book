@@ -1544,6 +1544,128 @@ $3$--$4$、$2$--$4$。 (a) 正確的割點和橋是哪些？ (b) 直接用虛擬
 並證明不能更少。 (b) 舉一個有橋、但沒有割點的連通圖。
 \end{enumerate}
 
+\section{歷屆試題}
+\label{sec:con-pastexam}
+
+以下是研究所入學考試的原題，題目照原卷（語言、記號、配分照錄）。 詳解在本章最後。
+
+\begin{pastexam}[label={px:con-1}]{臺大電機所 112 學年度 是非題第 7 題}
+（是非題：命題正確填 (A)，錯誤填 (B)。 每題答對得 4 分，答錯倒扣 4 分。）
+
+Given a \textit{strongly connected graph} (i.e. a tree with only one \textit{strongly connected component}), we can find a trace that traverses from a starting vertex, goes through each edge exactly once, and terminates at the starting vertex.
+\end{pastexam}
+
+\begin{pastexam}[label={px:con-2}]{中央資工所 112 學年度 問答題第 1 題（節錄 (c) 小題）}
+Given a directed graph $G=(V,E)$, and two vertices $u$ and $v$ in $V$, we call vertex $v$ is reachable from $u$, if there exists a directed path from $u$ to $v$. A vertex $s$ in $V$ is called a source vertex if every vertex in $V$ is reachable from $s$.
+
+(c) (9\%) Given a directed graph $G=(V,E)$, you are asked to determine if $G$ contains a source vertex. Note that the given graph may contain directed cycles. As in subproblem (b) an $O(|V|^2+|V||E|)$ time algorithm is not acceptable. Design a more efficient algorithm for this problem and analyze the time complexity of your algorithm.
+\end{pastexam}
+
+\begin{pastexam}[label={px:con-3}]{成大資訊聯招 106 學年度 第 9 題}
+(10\%) A directed graph $G$=($V$,$E$) is \textit{semiconnected} if, for all pairs of vertices $u,v\in V$, $u$ is reachable from $v$ through a directed path, or $v$ is reachable from $u$ through a directed path. Given a linear-time algorithm to determine whether or not G is semiconnected.
+\end{pastexam}
+
+\begin{pastexam}[label={px:con-4}]{中正資工所甲組 110 學年度 第 3 題}
+(9\%) To find the articulation points in the graph below, start with constructing a depth-first spanning tree by doing a depth-first search of the graph. Instead of choosing an arbitrary vertex to start, your first vertex must be set to vertex A, and select the smallest vertex in alphabetical order first when performing the depth-first search.
+
+\begin{center}
+\begin{tikzpicture}[v/.style={circle,draw,thick,minimum size=7mm,inner sep=0pt,font=\sffamily\large},e/.style={thick}]
+\node[v] (A) at (9.20,-17.95) {A};
+\node[v] (B) at (7.80,-19.45) {B};
+\node[v] (C) at (10.95,-18.82) {C};
+\node[v] (D) at (7.88,-21.55) {D};
+\node[v] (E) at (10.12,-21.32) {E};
+\node[v] (F) at (11.93,-21.00) {F};
+\node[v] (G) at (12.97,-19.80) {G};
+\draw[e] (A) -- (B);
+\draw[e] (A) -- (C);
+\draw[e] (A) -- (D);
+\draw[e] (B) -- (D);
+\draw[e] (B) -- (E);
+\draw[e] (D) -- (E);
+\draw[e] (C) -- (F);
+\draw[e] (C) -- (G);
+\draw[e] (F) -- (G);
+\end{tikzpicture}
+\end{center}
+
+3.1 (2\%) (\quad) What are the edges of the depth-first spanning tree?
+\begin{enumerate}[label=(\alph*)]
+\item (A, B), (B, D), (D, E), (A, C), (C, F), (C, G)
+\item (A, B), (A, D), (D, E), (A, C), (C, F), (F, G)
+\item (A, B), (B, D), (B, E), (A, C), (C, F), (C, G)
+\item (A, B), (A, C), (A, D), (D, E), (C, F), (C, G)
+\item (A, B), (B, D), (D, E), (A, C), (C, F), (F, G)
+\item None of the above
+\end{enumerate}
+
+3.2 (2\%) (\quad) What are the depth-first numbers (\textit{dfn}) of each vertex (in the order of A, B, C, D, E, F, G), when performing the depth-first search on the graph above?
+\begin{enumerate}[label=(\alph*)]
+\item (1, 2, 3, 4, 5, 6, 7)
+\item (1, 5, 2, 6, 7, 3, 4)
+\item (1, 2, 5, 3, 4, 6, 7)
+\item (1, 4, 5, 2, 3, 7, 6)
+\item (1, 3, 2, 7, 6, 5, 4)
+\item None of the above
+\end{enumerate}
+
+3.3 (3\%) (\quad) What are the output value of the low function (i.e., \textit{low(v)}) for each vertex (in the order of A, B, C, D, E, F, G) based on (3.1) and (3.2)?
+\begin{enumerate}[label=(\alph*)]
+\item (1, 2, 1, 2, 2, 5, 5)
+\item (1, 1, 5, 1, 2, 5, 5)
+\item (1, 1, 5, 1, 1, 5, 5)
+\item (1, 1, 5, 1, 4, 6, 7)
+\item (1, 2, 5, 2, 2, 5, 5)
+\item None of the above
+\end{enumerate}
+
+3.4 (2\%) (\quad) What are the articulation points in the graph?
+\begin{enumerate}[label=(\alph*)]
+\item (A, C)
+\item (B, C)
+\item (A)
+\item (A, B, C)
+\item (A, E, G)
+\item None of the above
+\end{enumerate}
+\end{pastexam}
+
+\begin{pastexam}[label={px:con-5}]{北科大資工所 114 學年度 第 4 題（節錄 (1)(2) 小題）}
+Please answer the following questions about the graph $G$ in Figure 1.
+
+\begin{center}
+\begin{tikzpicture}[x=0.0085cm,y=-0.0085cm,v/.style={circle,draw,line width=0.7pt,inner sep=0pt,minimum size=0.48cm,font=\small\bfseries\itshape}]
+\node[v] (g) at (232,55) {g};
+\node[v] (b) at (503,68) {b};
+\node[v] (j) at (126,160) {j};
+\node[v] (a) at (365,140) {a};
+\node[v] (h) at (232,235) {h};
+\node[v] (c) at (508,263) {c};
+\node[v] (d) at (705,245) {d};
+\node[v] (i) at (130,318) {i};
+\node[v] (f) at (398,312) {f};
+\node[v] (e) at (645,360) {e};
+\draw[line width=0.7pt] (g)--(j);
+\draw[line width=0.7pt] (g)--(a);
+\draw[line width=0.7pt] (j)--(a);
+\draw[line width=0.7pt] (a)--(b);
+\draw[line width=0.7pt] (b)--(c);
+\draw[line width=0.7pt] (a)--(h);
+\draw[line width=0.7pt] (a)--(f);
+\draw[line width=0.7pt] (a)--(c);
+\draw[line width=0.7pt] (h)--(i);
+\draw[line width=0.7pt] (h)--(f);
+\draw[line width=0.7pt] (c)--(d);
+\draw[line width=0.7pt] (c)--(e);
+\draw[line width=0.7pt] (d)--(e);
+\end{tikzpicture}\\[2pt] Figure 1. The graph $G$ for problem 4\end{center}
+
+\begin{enumerate}[label=(\arabic*)]
+\item How many \textit{biconnected components} are in $G$? (3 pts)
+\item Please give the \textit{articulation points}. If there is no articulation point, please use $\varnothing$ to denote it. (3 pts)
+\end{enumerate}
+\end{pastexam}
+
 \section{實作練習}
 \label{sec:con-practice}
 
@@ -1758,3 +1880,203 @@ d[1] = 1$，不再滿足 $> d[1]$。
 就是橋。 所以每個元件至少 $2$ 個頂點，總共至少 $1 + 2 + 2 = 5$ 個。 (b) 兩個頂點、一條邊：
 這條邊是橋；拿掉任一個頂點，剩下一個頂點，元件個數仍是 $1$，所以沒有割點。
 \end{enumerate}
+
+\addcontentsline{toc}{section}{歷屆試題詳解}
+\section*{歷屆試題詳解}
+
+\pastsol{px:con-1}{臺大電機所 112 學年度 是非題第 7 題}
+答案是 (B)，錯誤。 題目括號裡寫「a tree with only one strongly connected component」，tree 應該是 graph
+的筆誤（樹沒有有向環，除了單一頂點以外不可能強連通），以下照「只有一個強連通元件的有向圖」解讀。
+
+題目描述的走法就是第~\ref{sec:gtr-euler}~節的歐拉迴路。 由定理~\ref{thm:gtr-euler-dir}，有向圖有歐拉迴路的條
+件是（有邊的頂點）弱連通，而且\textbf{每個頂點的出度等於入度}。 強連通只保證了第一個條件。 反例：三個頂
+點，邊 $1 \to 2$、$2 \to 3$、$3 \to 1$、$1 \to 3$。 環 $1 \to 2 \to 3 \to 1$ 經過全部頂點，所以強連通；但
+$\deg^{+}(1) = 2$、$\deg^{-}(1) = 1$。 歐拉迴路每經過 $1$ 一次，進、出各用一條邊，用掉的出邊和入邊一樣多，
+不可能把 $1$ 的兩條出邊和一條入邊都恰好用一次。
+
+反方向是對的：有歐拉迴路的有向圖，有邊的頂點都在迴路上，沿著迴路彼此可達，一定強連通（孤立頂點除外）。
+所以強連通是必要條件，不是充分條件。
+
+\pastsol{px:con-2}{中央資工所 112 學年度 問答題第 1 題（節錄 (c) 小題）}
+題目的 source vertex 是「走得到所有頂點的頂點」。 有環的圖不能直接用 (b) 的「數入度 $0$ 的頂點」（第~22~章
+歷屆試題~\ref{px:tps-3}）：一個環上的頂點入度都不是 $0$，卻可能每個都是 source vertex。 做法是先縮點，把問題
+變回 DAG。
+
+\textbf{結論。} 由定理~\ref{thm:con-source}，$G$ 有 source vertex 若且唯若元件圖 $G^{\mathrm{SCC}}$ 恰好有一個
+入度 $0$ 的元件；這時那個元件裡的每個頂點都是 source vertex，其他頂點都不是。
+
+\begin{pseudo}[label=alg:con-px-source]{一般有向圖有沒有 source vertex}
+\Function{Has-Source-Vertex}{$G$}
+    \State 用 Tarjan 或 Kosaraju 演算法求出每個頂點的元件編號 $\mathit{comp}[u] \in \{1, \ldots, k\}$
+    \For{$c \gets 1$ \To $k$}
+        \State $\mathit{hasIn}[c] \gets \FALSE$
+    \EndFor
+    \For{每條邊 $(u, v) \in E$}
+        \If{$\mathit{comp}[u] \ne \mathit{comp}[v]$}
+            \State $\mathit{hasIn}[\mathit{comp}[v]] \gets \TRUE$
+        \EndIf
+    \EndFor
+    \State $\mathit{cnt} \gets$ 滿足 $\mathit{hasIn}[c] = \FALSE$ 的 $c$ 的個數
+    \State \Return $\mathit{cnt} = 1$
+\EndFunction
+\end{pseudo}
+
+\textbf{正確性。} 第 5--7 行標記的正是元件圖裡有邊指進來的元件，所以 $\mathit{cnt}$ 是元件圖的源點個數。 元件
+圖是 DAG（引理~\ref{lem:con-dag}），至少一個源點。 證明照定理~\ref{thm:con-source}：只有一個源點 $S$ 時，元件
+圖的每個元件都能從 $S$ 到達（從任何元件逆著邊往回走一定停在源點，而源點只有 $S$），再加上元件內部互相
+可達，$S$ 的頂點走得到每個頂點；有兩個源點 $S_1$、$S_2$ 時，沒有邊進入 $S_1$，只有 $S_1$ 自己的頂點到得了
+$S_1$，同樣只有 $S_2$ 的頂點到得了 $S_2$，沒有頂點兩個都到得了。
+
+\textbf{時間。} 第 2 行 $\Theta(n + m)$（第~\ref{sec:con-kosaraju}、\ref{sec:con-tarjan}~節），第 3--4 行
+$\Theta(k)$，第 5--7 行掃每條邊一次 $\Theta(m)$，第 8 行 $\Theta(k)$。 總共 $\Theta(n + m)$，$n = |V|$、
+$m = |E|$。 這裡不需要去掉元件圖的重複邊，因為只問「有沒有邊進來」。
+
+\textbf{另一種做法（只要兩次 DFS）。} 對 $G$ 做一次完整的 DFS，取完成時間最大的頂點 $r$，再從 $r$ 做一次 (a)。
+由引理~\ref{lem:con-finish}，$r$ 所在的元件是元件圖的源點；如果 $G$ 有 source vertex，源點元件只有一個，就是
+$r$ 的元件，$r$ 一定走得到全部頂點。 所以「$r$ 走得到全部」若且唯若「$G$ 有 source vertex」。 時間也是
+$\Theta(n + m)$。
+
+\pastsol{px:con-3}{成大資訊聯招 106 學年度 第 9 題}
+題目說的 Given 應是 Give（設計一個演算法）。
+
+\textbf{想法。} 先縮點。 $u \leadsto v$ 在 $G$ 裡成立，若且唯若在元件圖裡 $\mathit{comp}[u]$ 走得到
+$\mathit{comp}[v]$：$G$ 的路徑經過的元件依序排起來，就是元件圖的一條路徑；反過來元件圖的每條邊都來自 $G$ 的
+某條邊，元件內部又互相可達，可以接回 $G$ 的路徑。 所以 $G$ 是 semiconnected，若且唯若元件圖的任兩個元件
+之間至少有一個方向走得到。
+
+\textbf{引理。} 設元件圖依拓樸順序是 $C_1, C_2, \ldots, C_k$。 任兩個元件至少一個方向走得到，若且唯若對每個
+$1 \le i < k$，元件圖都有邊 $(C_i, C_{i+1})$。
+
+\begin{proof}
+（$\Leftarrow$）$i < j$ 時，$C_i \to C_{i+1} \to \cdots \to C_j$ 是一條路徑，所以 $C_i$ 走得到 $C_j$。
+
+（$\Rightarrow$）設某個 $i$ 沒有邊 $(C_i, C_{i+1})$。 拓樸順序裡每條邊都往後指，沿著路徑元件的位置只會變大，所
+以 $C_{i+1}$ 走不到 $C_i$。 $C_i$ 走到 $C_{i+1}$ 的路徑上，元件的位置要從 $i$ 嚴格增加到 $i + 1$，中間不能有別的
+元件，只能是一條直接的邊 $(C_i, C_{i+1})$，但它不存在。 所以 $C_i$、$C_{i+1}$ 兩個方向都走不到。
+\end{proof}
+
+這個條件也等於「元件圖的拓樸順序唯一」（定理~\ref{thm:tps-unique}）。
+
+\textbf{演算法。} Kosaraju 演算法正好依元件圖的拓樸順序替元件編號（第~\ref{sec:con-kosaraju}~節），用它就不必
+再排序。
+
+\begin{pseudo}[label=alg:con-px-semi]{判斷有向圖是不是 semiconnected}
+\Function{Semiconnected}{$G$}
+    \State 用 Kosaraju 演算法求出 $\mathit{comp}[u] \in \{1, \ldots, k\}$ \Comment{依拓樸順序編號}
+    \For{$i \gets 1$ \To $k - 1$}
+        \State $\mathit{link}[i] \gets \FALSE$
+    \EndFor
+    \For{每條邊 $(u, v) \in E$}
+        \If{$\mathit{comp}[v] = \mathit{comp}[u] + 1$}
+            \State $\mathit{link}[\mathit{comp}[u]] \gets \TRUE$ \Comment{有邊 $(C_i, C_{i+1})$}
+        \EndIf
+    \EndFor
+    \For{$i \gets 1$ \To $k - 1$}
+        \If{$\mathit{link}[i] = \FALSE$}
+            \State \Return \FALSE
+        \EndIf
+    \EndFor
+    \State \Return \TRUE
+\EndFunction
+\end{pseudo}
+
+\textbf{正確性。} 第 5--7 行對每條原圖的邊檢查它是否連接相鄰編號的兩個元件，所以結束時 $\mathit{link}[i]$ 為真若且唯
+若元件圖有邊 $(C_i, C_{i+1})$；由上面的想法和引理，回傳值正確。 用 Tarjan 演算法也可以，它的輸出順序是反向拓
+樸順序（定理~\ref{thm:con-tarjan-order}），把編號倒過來即可。
+
+\textbf{時間。} Kosaraju $\Theta(n + m)$，其餘迴圈 $\Theta(k)$ 和 $\Theta(m)$，總共 $\Theta(n + m)$，是線性時間。
+
+\textbf{例子。} 第~\ref{sec:con-scc}~節的路網，元件依拓樸順序是 $C_1 = \{7\}$、$C_2 = \{1, 2, 4\}$、$C_3 = \{3, 8\}$、
+$C_4 = \{5, 6, 9\}$，元件圖有 $C_1 \to C_2$、$C_2 \to C_3$、$C_3 \to C_4$（圖~\ref{fig:con-dag}），所以它是
+semiconnected。 觀念題的圖 $H$ 元件依序是 $\{c, f\}$、$\{a, b, d, e, h\}$、$\{g\}$，相鄰兩個之間都有邊，也是；刪掉
+$c \to e$ 之後第一、二個元件之間沒有邊，就不是了。
+
+\pastsol{px:con-4}{中正資工所甲組 110 學年度 第 3 題}
+答案：3.1 (e)，3.2 (c)，3.3 (b)，3.4 (a)。 題目的 dfn 就是本章割點演算法的 $d$（發現順序，從 $1$ 起），
+$\mathit{low}$ 用第~\ref{sec:con-cut}~節的定義，後向邊取 $d[w]$。
+
+鄰接串列依字母：$A\colon B, C, D$；$B\colon A, D, E$；$C\colon A, F, G$；$D\colon A, B, E$；$E\colon B, D$；
+$F\colon C, G$；$G\colon C, F$。 照虛擬碼~\ref{alg:con-cut} 從 $A$ 開始：
+\begin{itemize}
+\item $A$（$d = 1$）$\to B$（$2$）。 $B$ 的鄰居 $A$ 是父節點，跳過；$D$ 是白色，$B \to D$（$3$）。
+\item $D$ 的鄰居 $A$ 已發現、不是父節點，後向邊 $\{D, A\}$；$B$ 是父節點；$E$ 是白色，$D \to E$（$4$）。
+\item $E$ 的鄰居 $B$ 是祖先，後向邊 $\{E, B\}$；$D$ 是父節點。 $E$ 完成，接著 $D$、$B$ 完成。
+\item 回到 $A$，下一個鄰居 $C$ 是白色，$A \to C$（$5$）；$C \to F$（$6$）；$F$ 的鄰居 $C$ 是父節點，$G$ 是白色，
+$F \to G$（$7$）；$G$ 的鄰居 $C$ 是祖先，後向邊 $\{G, C\}$。
+\item 回到 $A$，最後一個鄰居 $D$ 已經完成，$d[D] > d[A]$，略過。
+\end{itemize}
+
+\textbf{3.1} 樹邊是 $(A, B)$、$(B, D)$、$(D, E)$、$(A, C)$、$(C, F)$、$(F, G)$，是 (e)。 其他選項：(a)、(c)、(d)
+有 $(C, G)$，但 $G$ 是從 $F$ 發現的（$C$ 的串列裡 $F$ 在 $G$ 前面，走到 $F$ 時 $G$ 還是白的）；(b)、(d) 有
+$(A, D)$，但 $D$ 在 $A$ 看到它之前就由 $B$ 發現了；(c) 有 $(B, E)$，但 $E$ 是從 $D$ 發現的。
+
+\textbf{3.2} $d$ 依發現順序是 $A = 1$、$B = 2$、$D = 3$、$E = 4$、$C = 5$、$F = 6$、$G = 7$。 依 $A, B, \ldots, G$
+排是 $(1, 2, 5, 3, 4, 6, 7)$，(c)。
+
+\textbf{3.3} 從葉節點往上算：
+
+\begin{center}
+\small
+\begin{tabular}{ccccc}
+\toprule
+$u$ & $d$ & 子節點 & 後向邊到 & $\mathit{low}$ \\
+\midrule
+$E$ & 4 & — & $B$ & $\min(4, d[B]) = 2$ \\
+$D$ & 3 & $E$ & $A$ & $\min(3, d[A], \mathit{low}[E]) = \min(3, 1, 2) = 1$ \\
+$B$ & 2 & $D$ & — & $\min(2, \mathit{low}[D]) = 1$ \\
+$G$ & 7 & — & $C$ & $\min(7, d[C]) = 5$ \\
+$F$ & 6 & $G$ & — & $\min(6, \mathit{low}[G]) = 5$ \\
+$C$ & 5 & $F$ & — & $\min(5, \mathit{low}[F]) = 5$ \\
+$A$ & 1 & $B, C$ & — & $1$ \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+依 $A, \ldots, G$ 排是 $(1, 1, 5, 1, 2, 5, 5)$，(b)。 其他選項都至少錯一格，例如 (c) 的 $\mathit{low}[E] = 1$：$E$ 沒有子節點，唯一的後向邊回到 $d[B] = 2$，
+$\mathit{low}[E]$ 只能是 $2$；(a)、(e) 的 $\mathit{low}[B] = 2$ 漏掉了子孫 $D$ 的後向邊 $\{D, A\}$。
+
+\textbf{3.4} 根 $A$ 在 DFS 樹裡有兩個子節點 $B$、$C$，是割點（定理~\ref{thm:con-root}）。 非根的頂點看定理~\ref{thm:con-nonroot}：
+$C$ 的子節點 $F$ 有 $\mathit{low}[F] = 5 \ge d[C] = 5$，$C$ 是割點；$B$ 的子節點 $D$ 有 $\mathit{low}[D] = 1 < 2$，
+$D$ 的子節點 $E$ 有 $\mathit{low}[E] = 2 < 3$，$F$ 的子節點 $G$ 有 $\mathit{low}[G] = 5 < 6$，都不是；$E$、$G$ 是葉節點，
+不是割點。 割點是 $A$、$C$，(a)。 直接驗證：拿掉 $A$，$\{B, D, E\}$ 和 $\{C, F, G\}$ 分開；拿掉 $C$，$\{F, G\}$
+和其他頂點分開。
+
+\pastsol{px:con-5}{北科大資工所 114 學年度 第 4 題（節錄 (1)(2) 小題）}
+答案：(1) $5$ 個雙連通元件；(2) 割點是 $a$、$c$、$h$。
+
+邊有 $13$ 條：$a$--$b$、$a$--$c$、$a$--$f$、$a$--$g$、$a$--$h$、$a$--$j$、$b$--$c$、$c$--$d$、$c$--$e$、$d$--$e$、
+$f$--$h$、$g$--$j$、$h$--$i$。 鄰接串列依字母，照虛擬碼~\ref{alg:con-bcc} 從 $a$ 開始。 DFS 依序發現
+$a, b, c, d, e, f, h, i, g, j$，後向邊是 $\{c, a\}$、$\{e, c\}$、$\{h, a\}$、$\{j, a\}$。
+
+\begin{center}
+\small
+\setlength{\tabcolsep}{4pt}
+\begin{tabular}{ccccc>{\raggedright\arraybackslash}p{0.38\linewidth}}
+\toprule
+$u$ & $d$ & 子節點 & 後向邊到 & $\mathit{low}$ & 判斷（$v$ 是子節點） \\
+\midrule
+$a$ & 1 & $b, f, g$ & — & $1$ & 根，三個子節點：割點 \\
+$b$ & 2 & $c$ & — & $\min(2, 1) = 1$ & $\mathit{low}[c] = 1 < 2$ \\
+$c$ & 3 & $d$ & $a$ & $\min(3, d[a], 3) = 1$ & $\mathit{low}[d] = 3 \ge 3$：割點 \\
+$d$ & 4 & $e$ & — & $\min(4, 3) = 3$ & $\mathit{low}[e] = 3 < 4$ \\
+$e$ & 5 & — & $c$ & $\min(5, d[c]) = 3$ & 葉節點 \\
+$f$ & 6 & $h$ & — & $\min(6, 1) = 1$ & $\mathit{low}[h] = 1 < 6$ \\
+$h$ & 7 & $i$ & $a$ & $\min(7, d[a], 8) = 1$ & $\mathit{low}[i] = 8 \ge 7$：割點；$8 > 7$，$\{h, i\}$ 是橋 \\
+$i$ & 8 & — & — & $8$ & 葉節點 \\
+$g$ & 9 & $j$ & — & $\min(9, 1) = 1$ & $\mathit{low}[j] = 1 < 9$ \\
+$j$ & 10 & — & $a$ & $\min(10, d[a]) = 1$ & 葉節點 \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+用邊的堆疊依序彈出五個區塊（第 8 行成立的五次）：
+\begin{enumerate}[label=(\roman*)]
+\item 從 $d$ 回到 $c$（$\mathit{low}[d] = 3 \ge d[c]$）：$\{c\text{--}d, d\text{--}e, e\text{--}c\}$；
+\item 從 $b$ 回到 $a$（$\mathit{low}[b] = 1 \ge d[a]$）：$\{a\text{--}b, b\text{--}c, c\text{--}a\}$；
+\item 從 $i$ 回到 $h$（$\mathit{low}[i] = 8 \ge d[h]$）：$\{h\text{--}i\}$；
+\item 從 $f$ 回到 $a$：$\{a\text{--}f, f\text{--}h, h\text{--}a\}$；
+\item 從 $g$ 回到 $a$：$\{a\text{--}g, g\text{--}j, j\text{--}a\}$。
+\end{enumerate}
+用頂點寫是 $\{c, d, e\}$、$\{a, b, c\}$、$\{h, i\}$、$\{a, f, h\}$、$\{a, g, j\}$。 割點 $a$ 屬於三個區塊，$c$、$h$
+各屬於兩個，和「割點若且唯若屬於兩個以上的區塊」一致（第~\ref{sec:con-bcc}~節）。 這張圖沒有孤立頂點，用頂點定
+義或邊定義數到的個數一樣，都是 $5$。

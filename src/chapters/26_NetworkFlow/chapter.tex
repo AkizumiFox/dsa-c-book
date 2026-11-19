@@ -703,7 +703,7 @@ $s \to c \to e$ 送來的補上。 這和第~\ref{sec:flw-residual}~節的小例
 \end{itemize}
 
 表裡每一欄由上往下看，距離都沒有變小過：$a$ 是 $1, 2, 2, 4, 4, \infty$，$t$ 是
-$3, 3, 3, 3, 6, \infty$。 下一小節會證明這件事一定成立，它就是 Edmonds--Karp 跑得快的原因。
+$3, 3, 3, 3, 6, \infty$。 這不是湊巧，本節最後會再談。
 
 圖~\ref{fig:flw-final} 是最後的流。 藍色的頂點和橘色的邊是下一節要講的最小割。
 
@@ -741,70 +741,23 @@ $3, 3, 3, 3, 6, \infty$。 下一小節會證明這件事一定成立，它就�
 最好的驗算。
 \end{examnote}
 
-\subsection{增廣次數是 $O(nm)$}
-\label{sec:flw-ek-proof}
+\subsection{執行時間}
 
-以下 $f$ 是某一輪增廣之前的流，$f'$ 是增廣之後的流，$\delta_f(s, v)$、$\delta_{f'}(s, v)$
-分別是 $G_f$、$G_{f'}$ 裡從 $s$ 到 $v$ 的邊數距離。
-
-\begin{lemma}
-\label{lem:flw-mono}
-執行 Edmonds--Karp 時，對每個頂點 $v \ne s$，$\delta_f(s, v)$ 在每一次增廣之後都不會變小。
-\end{lemma}
-
-\begin{proof}
-用反證法。 假設某次增廣（從 $f$ 變成 $f'$）讓某些頂點的距離變小了，在這些頂點裡取
-$\delta_{f'}(s, v)$ 最小的一個 $v$。 $v$ 在 $G_{f'}$ 裡走得到（距離變小，不會是 $\infty$），
-取 $G_{f'}$ 裡從 $s$ 到 $v$ 的一條最短路徑，$u$ 是 $v$ 前面那個頂點，所以
-\[
-\delta_{f'}(s, u) = \delta_{f'}(s, v) - 1 .
-\]
-$u$ 的距離在 $G_{f'}$ 裡比 $v$ 小，由 $v$ 的取法，$u$ 的距離沒有變小（$u = s$ 時距離本來
-就是 $0$）：$\delta_f(s, u) \le \delta_{f'}(s, u)$。
-
-先看 $(u, v)$ 是不是 $G_f$ 的邊。 如果是，由第~\ref{sec:gtr-bfs-proof}~節 BFS 證明裡的事實 (a)（走一條邊距離最
-多加一），
-\[
-\delta_f(s, v) \le \delta_f(s, u) + 1 \le \delta_{f'}(s, u) + 1 = \delta_{f'}(s, v),
-\]
-和「$v$ 的距離變小」矛盾。 所以 $(u, v)$ 不在 $G_f$ 裡，卻在 $G_{f'}$ 裡。 剩餘容量從 $0$
-變成正的，只可能是這次的增廣路徑經過了反方向的 $(v, u)$。 增廣路徑是 $G_f$ 裡的最短路
-徑，它經過 $(v, u)$，表示 $\delta_f(s, u) = \delta_f(s, v) + 1$。 於是
-\[
-\delta_f(s, v) = \delta_f(s, u) - 1 \le \delta_{f'}(s, u) - 1 = \delta_{f'}(s, v) - 2,
-\]
-距離反而至少增加了 $2$，又矛盾。
-\end{proof}
+手算追蹤的表裡，每個頂點的距離都沒有變小過，這件事一定成立。 可以證明：Edmonds--Karp
+每次增廣之後，每個頂點在剩餘網路裡和 $s$ 的距離 $\delta_f(s, v)$ 都不會變小；再由此推出，同一條邊每多
+當一次關鍵邊，它的起點和 $s$ 的距離至少多 $2$，所以每條邊當關鍵邊的次數有上限。 結論是
+下面的定理，證明見延伸閱讀（CLRS 第 24 章，或 Edmonds 和 Karp 的原始論文）。
 
 \begin{theorem}
 \label{thm:flw-ek}
 Edmonds--Karp 演算法最多增廣 $nm$ 次，時間是 $O(nm^2)$。
 \end{theorem}
 
-\begin{proof}
-看一條可能出現在剩餘網路裡的邊 $(u, v)$，也就是 $(u, v) \in E$ 或 $(v, u) \in E$，這種邊最
-多 $2m$ 條。 每次增廣，路徑上至少有一條關鍵邊，增廣之後它的剩餘容量變成 $0$，從剩餘網路
-消失。
-
-假設 $(u, v)$ 在某一輪（流是 $f$）當了關鍵邊。 它在 BFS 求出的最短路徑上，所以
-$\delta_f(s, v) = \delta_f(s, u) + 1$。 增廣之後它消失了；要再出現，之後某一輪（流是
-$f''$）的增廣路徑必須經過 $(v, u)$，那時 $\delta_{f''}(s, u) = \delta_{f''}(s, v) + 1$。 由
-引理~\ref{lem:flw-mono}，$\delta_{f''}(s, v) \ge \delta_f(s, v)$，所以
-\[
-\delta_{f''}(s, u) = \delta_{f''}(s, v) + 1 \ge \delta_f(s, v) + 1 = \delta_f(s, u) + 2 .
-\]
-也就是說，$(u, v)$ 每多當一次關鍵邊，$u$ 的距離至少多 $2$。 $u$ 在增廣路徑上又不是 $t$，
-距離最多是 $n - 2$；從 $0$ 開始每次至少加 $2$，$(u, v)$ 當關鍵邊最多
-$(n - 2)/2 + 1 = n/2$ 次。
-
-每次增廣至少有一條關鍵邊，所以增廣次數不超過 $2m \cdot n/2 = nm$。 每一輪的 BFS 和更新都
-是 $O(n + m) = O(m)$，總時間 $O(nm^2)$。
-\end{proof}
-
+每一輪的 BFS 和沿路更新都是 $O(n + m) = O(m)$，乘上最多 $nm$ 輪，就是 $O(nm^2)$。
 這個上界只和 $n$、$m$ 有關，跟容量多大、甚至是不是整數都無關：無理數的容量也一定在
 $nm$ 輪內停下來。 圖~\ref{fig:flw-bad} 的網路，Edmonds--Karp 第一輪就找到長度 $2$ 的
-$s \to u \to t$，兩輪就結束。 證明裡「每次至少加 $2$」的估計並不緊，實際上增廣次數通常
-遠少於 $nm$；物流網路 $n = 7$、$m = 11$，只增廣了 $5$ 次。
+$s \to u \to t$，兩輪就結束。 $nm$ 只是上界，實際上增廣次數通常遠少於它；物流網路
+$n = 7$、$m = 11$，只增廣了 $5$ 次。
 
 最大流還有更快的演算法。 Dinic（1970）在每個階段用 BFS 把頂點分層，一次找出很多條同樣
 長度的增廣路徑，時間 $O(n^2 m)$；推送--重標（push-relabel）一類的方法不找完整的路徑，
@@ -1584,7 +1537,7 @@ $f(e, b) = 2$ & 引理~\ref{lem:flw-augment} \\
 把 Ford--Fulkerson 寫成多項式時間 & $O(m\,|f^{*}|)$ 和容量的數值成正比，是擬多項式 &
 第~\ref{sec:flw-bad}~節 \\
 把增廣次數當成時間 & Edmonds--Karp 增廣 $O(nm)$ 次，每次 $O(m)$，共 $O(nm^2)$；用矩陣
-做 BFS 是 $O(n^3 m)$ & 第~\ref{sec:flw-ek-proof}~節 \\
+做 BFS 是 $O(n^3 m)$ & 定理~\ref{thm:flw-ek} \\
 二分圖的邊畫成雙向 & $x \to y$ 和 $y \to x$ 都放容量 $1$，流可以在 $L$、$R$ 之間來回，對
 不回匹配 & 第~\ref{sec:flw-reduce}~節 \\
 極大匹配當成最大匹配 & 依序貪心配到不能再加，就說是最大匹配 & 第~\ref{sec:flw-match}~節 \\
@@ -1606,7 +1559,6 @@ $f(e, b) = 2$ & 引理~\ref{lem:flw-augment} \\
 \item 若剩餘網路 $G_f$ 裡沒有從 $s$ 到 $t$ 的路徑，$f$ 是最大流。
 \item 一張流網路的最大流只有一個。
 \item 容量都是整數時，每一個最大流的每條邊流量都是整數。
-\item Edmonds--Karp 每一輪找到的增廣路徑，邊數不會比前一輪少。
 \item 增廣之後，這條路徑的關鍵邊不會出現在新的剩餘網路裡。
 \end{enumerate}
 
@@ -1690,6 +1642,114 @@ $x$ 出發、對 $M$ 的增廣路徑。 $P$ 是對 $M$ 的另一條增廣路徑�
 是最大匹配。 證明 $|M^{*}| \le 2|M|$，並給一個等號成立的例子。
 \end{enumerate}
 
+\section{歷屆試題}
+\label{sec:flw-pastexam}
+
+以下是研究所入學考試的原題，題目照原卷（語言、記號、配分照錄）。 詳解在本章最後。
+
+\begin{pastexam}[label={px:flw-1}]{臺大資工所 115 學年度 第 7 題}
+(4 points) A company needs to assign \textbf{3 workers} to \textbf{3 tasks}. Each worker can
+perform only the tasks listed below:
+\begin{itemize}
+\item Worker $W_1$: Tasks $T_1,T_2$
+\item Worker $W_2$: Task $T_1$
+\item Worker $W_3$: Tasks $T_2,T_3$
+\end{itemize}
+Each worker can be assigned to at most one task, and each task to at most one worker. Which of
+the following statements is true?
+\begin{enumerate}[label=(\Alph*), itemsep=1pt]
+\item The maximum matching has size 2.
+\item The maximum matching has size 1.
+\item No matching exists.
+\item There are exactly two distinct maximum matchings.
+\item There exists a perfect matching.
+\end{enumerate}
+\end{pastexam}
+
+\begin{pastexam}[label={px:flw-2}]{成大資訊聯招 112 學年度 第 15 題}
+(10\%) The following graph is about the maximum flow problem. Each edge is labeled with its
+capacity. What is the maximum flow from vertex $s$ to vertex $t$.
+
+\begin{center}
+\begin{tikzpicture}[x=1cm,y=1cm,>={Stealth[length=2.2mm]},
+  v/.style={circle,draw,thick,inner sep=0pt,minimum size=8mm,font=\sffamily\small},
+  w/.style={font=\sffamily\small,inner sep=2pt}]
+\node[v] (s) at (0,0) {\textit{s}};
+\node[v] (n1) at (2.5,1.5) {1};
+\node[v] (n3) at (5,1.5) {3};
+\node[v] (n2) at (2.5,-1.5) {2};
+\node[v] (n4) at (5,-1.5) {4};
+\node[v] (t) at (7.5,0) {\textit{t}};
+\draw[->] (s)--node[w,above left]{18}(n1);
+\draw[->] (s)--node[w,below left]{16}(n2);
+\draw[->] (n2)--node[w,left,pos=0.45]{6}(n1);
+\draw[->] (n1)--node[w,above]{16}(n3);
+\draw[->] (n3)--node[w,above left,pos=0.35]{19}(n2);
+\draw[->] (n2)--node[w,below]{14}(n4);
+\draw[->] (n4)--node[w,right,pos=0.45]{7}(n3);
+\draw[->] (n3)--node[w,above right]{22}(t);
+\draw[->] (n4)--node[w,below right]{8}(t);
+\end{tikzpicture}
+\end{center}
+\end{pastexam}
+
+\begin{pastexam}[label={px:flw-3}]{中正資工所甲組 113 學年度 第 22 題}
+(3\%) The following graph (graph on left-hand side with 6 vertices) describes a flow assignment
+in a flow network. The notation x/y describes x units of flow in an edge with capacity y.
+Determine if it reaches the maximum flow. If your answer is yes, demonstrate how to derive such
+flow assignment. If your answer is no, then calculate its maximum flow.
+
+\begin{center}
+\begin{tikzpicture}[font=\sffamily,>={Stealth[length=2mm]}]
+\node[draw,circle,minimum size=7.5mm,inner sep=0pt,font=\sffamily\large] (s) at (0.57,-2.03) {s};
+\node[draw,circle,minimum size=7.5mm,inner sep=0pt,font=\sffamily\large] (a) at (2.21,-0.76) {a};
+\node[draw,circle,minimum size=7.5mm,inner sep=0pt,font=\sffamily\large] (c) at (4.39,-0.76) {c};
+\node[draw,circle,minimum size=7.5mm,inner sep=0pt,font=\sffamily\large] (b) at (2.21,-3.32) {b};
+\node[draw,circle,minimum size=7.5mm,inner sep=0pt,font=\sffamily\large] (d) at (4.39,-3.32) {d};
+\node[draw,circle,minimum size=7.5mm,inner sep=0pt,font=\sffamily\large] (t) at (5.89,-2.03) {t};
+\draw[->] (s)--node[above left,inner sep=1pt]{1/4}(a);
+\draw[->] (s)--node[below left,inner sep=1pt]{6/6}(b);
+\draw[->] (b)--node[left,inner sep=2pt]{3/7}(a);
+\draw[->] (a)--node[above]{4/5}(c);
+\draw[->] (c)--node[left,inner sep=2pt]{0/2}(b);
+\draw[->] (c)--node[left,inner sep=2pt]{1/4}(d);
+\draw[->] (c)--node[above right,inner sep=1pt]{3/6}(t);
+\draw[->] (d)--node[below right,inner sep=1pt]{4/4}(t);
+\draw[->] (b)--node[below]{3/3}(d);
+\end{tikzpicture}
+\end{center}
+\end{pastexam}
+
+\begin{pastexam}[label={px:flw-4}]{臺大資工所 106 學年度 第 5 題}
+(25 points) We are given a set of $C$ classes and $R$ classrooms and we would like to assign as
+many classes to classrooms as possible. Due to equipment constraint not every class can be
+assigned to every classroom. Instead we will be given a set $M$ of pairs $(c,r)$, and each pair
+indicates that class $c$ can be assigned to classroom $r$. In addition, a class, if assigned,
+will be assigned to a \textit{unique} classroom. Therefore it is possible that we cannot assign
+every class to a unique classroom. Our goal is to assign as many classes to classrooms as
+possible.
+
+We consider the following example. Let a lower case letter indicate a class and a positive
+integer indicate the index of a classroom. Let $M=\{(a,1),(a,2),(b,2)\}$, which means class $a$
+can be assigned to classroom 1 and 2, but class $b$ can only be assigned to classroom 2. Now
+given the set $M$, please find the \textit{maximum} number of classes that can be assigned to
+classrooms. In the previous example the answer is 2 since we can assign class $a$ to classroom
+1 and $b$ to classroom 2.
+
+We can use Ford-Fulkerson method to solve this problem. Basically the Ford-Fulkerson method
+initializes the flow to 0, then repeatedly finds an augmenting path $p$, and adjusts the
+capacity along the path found on the residual network, until no augmenting path can be found.
+\begin{enumerate}[label=(\alph*)]
+\item (10 points) Now assume that Ford-Fulkerson method can find the maximum flow in a network,
+how do we convert our problem into a network flow problem so that we can use Ford-Fulkerson
+method to solve it?
+\item (15 points) Prove that Ford-Fulkerson method can correctly solve our problem by your
+conversion. To be more specific, is it true that \textit{any} maximum flow will give you a
+correct answer for the classroom problem? Also is it true that the answer from the
+Ford-Fulkerson method will give you a correct answer in our classroom problem?
+\end{enumerate}
+\end{pastexam}
+
 \section{實作練習}
 \label{sec:flw-practice}
 
@@ -1712,8 +1772,8 @@ Aki-Judge 目前還沒有和本章對應的題目，請用觀念題和第~\ref{s
 流。
 \item 證明最大流最小割定理，用最後的剩餘網路找出最小割，並用「$S$ 到 $T$ 全滿、$T$ 到 $S$
 全空」驗算。
-\item 說明 Ford--Fulkerson 為什麼是擬多項式、Edmonds--Karp 為什麼是 $O(nm^2)$（距離不減、
-每條邊當關鍵邊最多 $n/2$ 次）。
+\item 說明 Ford--Fulkerson 為什麼是擬多項式；知道 Edmonds--Karp 的時間是 $O(nm^2)$，和容
+量的大小無關。
 \item 把二分圖最大匹配轉成最大流，用交錯路徑解釋每一次增廣，寫出 C 程式（矩陣或邊串列）。
 \end{itemize}
 
@@ -1743,13 +1803,12 @@ Bipartite Graphs''，\textit{SIAM Journal on Computing} 2(4)，1973：一次找�
 \section*{觀念題解答}
 
 \begin{enumerate}
-\item (a)、(c)、(f)、(g) 正確。 (a)：系理~\ref{cor:flw-weak}。 (b)：錯，容量只算從 $S$ 到
+\item (a)、(c)、(f) 正確。 (a)：系理~\ref{cor:flw-weak}。 (b)：錯，容量只算從 $S$ 到
 $T$ 的邊，從 $T$ 到 $S$ 的邊不加也不減。 (c)：定理~\ref{thm:flw-mfmc} 的 (2) $\Rightarrow$
 (1)。 (d)：錯。 例如 $s \to a$、$a \to t$、$a \to b$、$b \to t$ 四條邊容量都是 $1$，最大流的
 值是 $1$，那一單位可以走 $a \to t$，也可以走 $a \to b \to t$，是兩個不同的最大流。 (e)：
 錯，同一個例子，兩條路各走 $1/2$ 也是最大流。 定理~\ref{thm:flw-integral} 只保證「存在」
-整數的最大流，而且 Ford--Fulkerson 會找到它。 (f)：由引理~\ref{lem:flw-mono}，
-$\delta_f(s, t)$ 不會變小，而增廣路徑的邊數就是 $\delta_f(s, t)$。 (g)：關鍵邊的剩餘容量等
+整數的最大流，而且 Ford--Fulkerson 會找到它。 (f)：關鍵邊的剩餘容量等
 於瓶頸，增廣後變成 $0$。
 
 \item (a) $f_A$ 不是流：$e \to t$ 的流量 $10$ 超過容量 $9$（各頂點都守恆）。 $f_C$ 不是流：
@@ -1915,3 +1974,151 @@ $P$ 和 $Z$ 沒有共同的頂點。 $P$ 的兩端是未匹配的 $x' \in L$（$
 子：一條路徑 $a - b - c - d$，$M = \{\{b, c\}\}$ 是極大匹配（另外兩條邊都碰到 $b$ 或 $c$），
 最大匹配 $\{\{a, b\}, \{c, d\}\}$ 有兩條邊。
 \end{enumerate}
+
+\addcontentsline{toc}{section}{歷屆試題詳解}
+\section*{歷屆試題詳解}
+
+\pastsol{px:flw-1}{臺大資工所 115 學年度 第 7 題}
+答案是 (E)。
+
+把工人放在 $L$、工作放在 $R$，可以做的組合是邊，得到二分圖，邊是 $W_1T_1$、$W_1T_2$、$W_2T_1$、
+$W_3T_2$、$W_3T_3$。 先找最大匹配。 $W_2$ 只會 $T_1$，要讓 $W_2$ 有工作，$T_1$ 只能給 $W_2$；
+這時 $W_1$ 只剩 $T_2$，$W_3$ 只剩 $T_3$。 得到 $\{W_1T_2, W_2T_1, W_3T_3\}$，三位工人、三項工作全
+部配到，是大小 $3$ 的完美匹配。 匹配的邊沒有共同端點，一邊只有 $3$ 個頂點，所以最大匹配就是 $3$。
+（也可以照第~\ref{sec:flw-reduce}~節建 $G'$ 跑最大流，得到的值是 $3$。）
+
+\begin{itemize}
+\item (A) 錯。 最大匹配的大小是 $3$，不是 $2$。 $\{W_1T_1, W_3T_2\}$ 這種大小 $2$ 的匹配是
+極大匹配（加不進任何一條邊），但不是最大匹配。
+\item (B) 錯。 同上。
+\item (C) 錯。 上面已經找到大小 $3$ 的匹配；何況只含一條邊的 $\{W_1T_1\}$、甚至空集合都是匹配，
+「沒有匹配」不可能成立。
+\item (D) 錯。 大小 $3$ 的匹配裡每位工人都要配到。 $W_2$ 一定配 $T_1$，於是 $W_1$ 一定配 $T_2$，
+$W_3$ 一定配 $T_3$，每一步都沒有別的選擇，所以最大匹配只有一個，不是兩個。
+\item (E) 對。 $\{W_1T_2, W_2T_1, W_3T_3\}$ 讓每個頂點都已匹配，是完美匹配（定義~\ref{def:flw-matching}）。
+\end{itemize}
+
+\pastsol{px:flw-2}{成大資訊聯招 112 學年度 第 15 題}
+答案：最大流是 $30$。 下面用 Edmonds--Karp 求出一個值 $30$ 的流，再用一個容量 $30$ 的割證明
+它是最大的（第~\ref{sec:flw-ek}、\ref{sec:flw-mfmc}~節）。 BFS 依 $s, 1, 2, 3, 4, t$ 的順序檢查鄰
+居。 這張網路沒有反平行邊（$1 \to 3$、$3 \to 2$、$2 \to 1$ 是一個方向一致的環，不是反平行邊），
+可以直接用。
+
+\begin{center}
+\small
+\begin{tabular}{c|cccccc|lcc}
+\toprule
+輪 & $s$ & $1$ & $2$ & $3$ & $4$ & $t$ & 增廣路徑 & 瓶頸 & $|f|$ \\
+\midrule
+1 & 0 & 1 & 1 & 2 & 2 & 3 & $s \to 1 \to 3 \to t$ & $16$ & $16$ \\
+2 & 0 & 1 & 1 & 3 & 2 & 3 & $s \to 2 \to 4 \to t$ & $8$ & $24$ \\
+3 & 0 & 1 & 1 & 3 & 2 & 4 & $s \to 2 \to 4 \to 3 \to t$ & $6$ & $30$ \\
+4 & 0 & 1 & 1 & $\infty$ & $\infty$ & $\infty$ & 走不到 $t$ & & \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+每一輪的細節：
+\begin{itemize}
+\item \textbf{第 1 輪。} 剩餘網路就是原圖。 $s$ 發現 $1$、$2$；$1$ 發現 $3$；$2$ 發現 $4$
+（$2 \to 1$ 指向已發現的 $1$）；$3$ 發現 $t$。 路徑 $s \to 1 \to 3 \to t$，剩餘容量 $18, 16, 22$，
+瓶頸 $16$。 增廣後 $1 \to 3$ 滿了，多出反向邊 $1 \to s$（$16$）、$3 \to 1$（$16$）、$t \to 3$
+（$16$）。
+\item \textbf{第 2 輪。} $1$ 的剩餘邊只剩反向邊 $1 \to s$，走不到 $3$。 $2$ 發現 $4$（距離
+$2$），$4$ 發現 $3$ 和 $t$（距離 $3$）。 路徑 $s \to 2 \to 4 \to t$，剩餘容量 $16, 14, 8$，瓶頸
+$8$。 增廣後 $4 \to t$ 滿了。
+\item \textbf{第 3 輪。} $4$ 到不了 $t$，只能經 $4 \to 3$（$7$）到 $3$，再走 $3 \to t$（剩
+$22 - 16 = 6$）。 路徑 $s \to 2 \to 4 \to 3 \to t$，剩餘容量 $16 - 8 = 8$、$14 - 8 = 6$、$7$、$6$，
+瓶頸 $6$。 增廣後 $2 \to 4$、$3 \to t$ 都滿了。
+\item \textbf{第 4 輪。} $s$ 出去還有 $s \to 1$（$2$）、$s \to 2$（$2$）。 $1$ 的出邊 $1 \to 3$
+滿了；$2$ 的出邊 $2 \to 1$ 指向已發現的 $1$，$2 \to 4$ 滿了；$3 \to 2$、$2 \to 1$ 上沒有流，
+沒有反向邊可走。 BFS 只走到 $s, 1, 2$，找不到增廣路徑。
+\end{itemize}
+
+最後的流（流量$/$容量）：$s \to 1$：$16/18$、$s \to 2$：$14/16$、$2 \to 1$：$0/6$、$1 \to 3$：
+$16/16$、$3 \to 2$：$0/19$、$2 \to 4$：$14/14$、$4 \to 3$：$6/7$、$3 \to t$：$22/22$、$4 \to t$：
+$8/8$。 逐點檢查守恆：$1$ 進 $16$ 出 $16$；$2$ 進 $14$ 出 $14$；$3$ 進 $16 + 6$ 出 $22$；$4$ 進
+$14$ 出 $6 + 8$。 值 $16 + 14 = 30$，等於流進 $t$ 的 $22 + 8$。
+
+\textbf{驗證是最大流。} 最後一輪 BFS 走得到的是 $S = \{s, 1, 2\}$，$T = \{3, 4, t\}$。 從 $S$
+指向 $T$ 的邊是 $1 \to 3$（$16$）和 $2 \to 4$（$14$），都滿了；從 $T$ 指回 $S$ 的邊只有
+$3 \to 2$，流量 $0$。 $c(S, T) = 16 + 14 = 30 = |f|$，由系理~\ref{cor:flw-weak}，沒有任何流能超過
+$30$。
+
+\pastsol{px:flw-3}{中正資工所甲組 113 學年度 第 22 題}
+答案：還不是最大流；最大流是 $8$。
+
+\textbf{先確認題目給的是一個流。} 容量都沒超過。 守恆：$a$ 進 $f(s, a) + f(b, a) = 1 + 3 = 4$，
+出 $f(a, c) = 4$；$b$ 進 $f(s, b) + f(c, b) = 6 + 0 = 6$，出 $f(b, a) + f(b, d) = 3 + 3 = 6$；
+$c$ 進 $4$，出 $0 + 1 + 3 = 4$；$d$ 進 $1 + 3 = 4$，出 $4$。 值 $|f| = 1 + 6 = 7$，等於流進 $t$ 的
+$3 + 4$。
+
+\textbf{剩餘網路}（定義~\ref{def:flw-residual}）。 順向邊（還沒滿的邊，容量 $c - f$）：
+$s \to a$：$3$、$b \to a$：$4$、$a \to c$：$1$、$c \to b$：$2$、$c \to d$：$3$、$c \to t$：$3$；
+$s \to b$、$b \to d$、$d \to t$ 已滿，沒有順向邊。 反向邊（容量 $f$）：$a \to s$：$1$、$b \to s$：
+$6$、$a \to b$：$3$、$c \to a$：$4$、$d \to c$：$1$、$t \to c$：$3$、$d \to b$：$3$、$t \to d$：$4$。
+
+\textbf{找增廣路徑。} 從 $s$ 做 BFS（鄰居依 $s, a, b, c, d, t$）：$s$ 發現 $a$；$a$ 發現 $b$（反向
+邊 $a \to b$）和 $c$；$c$ 發現 $d$ 和 $t$。 增廣路徑 $s \to a \to c \to t$，剩餘容量 $3, 1, 3$，
+瓶頸 $1$。 有增廣路徑，由最大流最小割定理（定理~\ref{thm:flw-mfmc}），題目的流不是最大流。
+
+\textbf{增廣之後。} $f(s, a) = 2$、$f(a, c) = 5$、$f(c, t) = 4$，其他不變，值 $8$。 再做一次
+BFS：$s$ 只能走 $s \to a$（剩 $2$）；$a$ 的 $a \to c$ 滿了，只能走反向邊 $a \to b$ 和
+$a \to s$；$b$ 的 $b \to d$ 滿了，$b \to a$ 指回 $a$，$c \to b$ 上沒有流，沒有 $b \to c$ 的剩
+餘邊。 走得到的只有 $S = \{s, a, b\}$，沒有增廣路徑。
+
+\textbf{驗證。} 割 $S = \{s, a, b\}$、$T = \{c, d, t\}$：從 $S$ 到 $T$ 的邊是 $a \to c$（$5$）和
+$b \to d$（$3$），容量和 $8$；從 $T$ 指回 $S$ 的 $c \to b$ 不算進容量，它的流量是 $0$。
+$c(S, T) = 8 = |f|$，所以最大流是 $8$。
+
+\pastsol{px:flw-4}{臺大資工所 106 學年度 第 5 題}
+這題就是二分圖最大匹配（第~\ref{sec:flw-match}~節）：課是 $L$、教室是 $R$，$M$ 裡的每一對是
+一條邊；「每堂課最多一間教室、每間教室最多一堂課」就是匹配的條件。 題目沒有寫明，但「unique
+classroom」要配合「每間教室只能排一堂課」才有意義（否則每堂課隨便挑一間可用的就好），這裡採
+用這個解讀。
+
+\textbf{(a) 轉換。} 建流網路 $N$：
+\begin{itemize}
+\item 頂點：源點 $s$、匯點 $t$、每堂課一個頂點、每間教室一個頂點，共 $C + R + 2$ 個。
+\item 對每堂課 $c$，加邊 $s \to c$，容量 $1$（一堂課最多排一次）。
+\item 對 $M$ 的每一對 $(c, r)$，加邊 $c \to r$，容量 $1$。
+\item 對每間教室 $r$，加邊 $r \to t$，容量 $1$（一間教室最多一堂課）。
+\end{itemize}
+用 Ford--Fulkerson 求 $N$ 的最大流，最大流的值就是最多能排的課數；流量是 $1$ 的 $c \to r$ 邊就
+是排法。 題目的例子：$s \to a \to 1 \to t$、$s \to b \to 2 \to t$ 各送 $1$，值 $2$；割
+$\{s\}$ 的割邊是 $s \to a$、$s \to b$，容量 $2$，所以 $2$ 是最大的，答案是 $2$。
+
+\textbf{(b) 正確性。} 先證明兩個方向，再回答題目的兩個問題。
+
+\emph{排法對應到流。} 設某個排法排了 $k$ 堂課（每堂課一間教室、教室兩兩不同）。 對每一組
+（課 $c$、教室 $r$），在 $s \to c$、$c \to r$、$r \to t$ 上各放流量 $1$，其他是 $0$。 一堂課最多
+被排一次，所以 $s \to c$ 最多被放一次；教室兩兩不同，所以 $r \to t$ 也最多一次；每個 $c$、$r$
+流進流出都是 $0$ 或 $1$，守恆成立。 這是值 $k$ 的流，所以最大流的值 $\ge$ 最多能排的課數。
+
+\emph{整數流對應到排法。} 設 $f$ 是 $N$ 的整數流。 容量都是 $1$，每條邊的流量是 $0$ 或 $1$。
+每堂課 $c$ 只有一條進來的邊 $s \to c$，流進最多 $1$，由守恆最多一條 $c \to r$ 有流；每間教室
+$r$ 只有一條出去的邊 $r \to t$，最多一條 $c \to r$ 有流。 所以「有流的 $c \to r$」是一個合法的
+排法。 取割 $S = \{s\} \cup \{\text{所有課}\}$，從 $S$ 到 $T$ 的邊正好是所有的 $c \to r$，沒有邊
+從 $T$ 指回 $S$，由引理~\ref{lem:flw-cutflow}，$|f|$ 等於有流的 $c \to r$ 的條數。 所以整數流
+$f$ 對應一個排了 $|f|$ 堂課的排法。 這兩段就是引理~\ref{lem:flw-match-flow} 換個名字。
+
+\emph{問題一：任何一個最大流都給出正確答案嗎？} 要分開說。
+\begin{itemize}
+\item \textbf{最大流的值：對。} 容量是整數，由定理~\ref{thm:flw-integral}，存在一個整數的最大流
+$f^{*}$；它對應一個排了 $|f^{*}|$ 堂課的排法，所以最多能排的課數 $\ge |f^{*}|$。 再由上面第一段，
+最多能排的課數 $\le$ 最大流的值 $= |f^{*}|$。 兩者相等。 每個最大流的值都一樣，所以不管拿到哪
+一個最大流，它的值都是正確的課數。
+\item \textbf{從最大流讀出排法：不一定。} 最大流可以不是整數流。 反例：課 $a$、$b$ 都能用教室
+$1$、$2$，$M = \{(a, 1), (a, 2), (b, 1), (b, 2)\}$。 在 $s \to a$、$s \to b$、$1 \to t$、$2 \to t$ 上
+放 $1$，四條中間的邊各放 $1/2$：容量都沒超過，每個頂點守恆，值是 $2$，而割 $\{s\}$ 的容量也是
+$2$，所以這是最大流。 但它的每條 $c \to r$ 都只有半個單位，讀不出「$a$ 排哪一間」。 只有整數的
+最大流才能直接讀成排法。
+\end{itemize}
+
+\emph{問題二：Ford--Fulkerson 給出的答案正確嗎？} 對。 容量都是整數，Ford--Fulkerson 從全
+$0$ 的流開始，每次增廣的瓶頸是正整數，流量一直是整數，而且每輪值至少加 $1$、值不超過
+$C$，所以一定會停（第~\ref{sec:flw-ff}~節）。 停下來時剩餘網路沒有增廣路徑，由最大流最小割
+定理，手上的流是最大流；它又是整數流，由上面第二段，有流的 $c \to r$ 是一個排了 $|f|$ 堂課的
+排法，而 $|f|$ 是最大值。 所以 Ford--Fulkerson 同時給出正確的課數和一個最好的排法。 時間：
+$N$ 有 $C + R + |M|$ 條邊，最多增廣 $\min(C, R)$ 次，每次 $O(C + R + |M|)$，共
+$O(\min(C, R) \cdot (C + R + |M|))$（定理~\ref{thm:flw-match}）。

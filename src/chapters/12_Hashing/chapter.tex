@@ -16,6 +16,9 @@
         inner sep=0pt, font=\ttfamily\footnotesize},
     hpage/.style={draw=coreStroke, fill=coreFill, minimum width=1.9cm,
         minimum height=0.5cm, inner sep=1pt, font=\footnotesize},
+    hbit/.style={draw=black!55, minimum width=0.8cm, minimum height=0.55cm,
+        inner sep=0pt, font=\ttfamily\footnotesize},
+    hbzero/.style={draw=optStroke, thick, fill=optStroke, text=white},
 }
 % 刪除標記在虛擬碼裡的寫法
 \newcommand{\hashDEL}{\textsc{deleted}}
@@ -31,7 +34,8 @@
 資料量差不多，再用一個\textbf{雜湊函數}（hash function）把很大的鍵空間壓到
 $0, 1, \ldots, m-1$。 代價是兩個不同的鍵可能算出同一格，叫做\textbf{碰撞}
 （collision）。 這一章依序講怎麼選雜湊函數、碰撞了以後怎麼存（鏈結法與開放定址）、平
-均要看幾格（期望值的推導），最後講表滿了怎麼辦，以及可延伸雜湊和通用雜湊兩個觀念。
+均要看幾格（期望值的推導），最後講表滿了怎麼辦，以及可延伸雜湊和通用雜湊兩個觀念。 最後一節的布隆過濾器不存鍵本身，只回答
+「在不在」，用一點誤判換來很大的空間節省。
 
 雜湊表只支援插入、刪除、搜尋這三個操作，平均每次 $O(1)$。 它不維持任何順序，找最
 小值、找後繼、依序列出都得把整張表掃一遍；需要這些操作時，還是要用第~9、10~章的搜
@@ -1430,6 +1434,474 @@ CLRS 第 4 版第 11.3.4 節有完整證明，這裡不證）。 例如 $p = 100
 $a = 37$、$b = 58$，則 $h(2026) = (75020 \bmod 10007) \bmod 10 = 4971 \bmod 10 = 1$。
 下次執行挑到別的 $(a, b)$，同一個鍵就落在別的格子。
 
+\section{布隆過濾器}
+\label{sec:hash-bloom}
+
+刷卡機還有一件事要做：擋下停權的卡（掛失、畢業、被盜刷）。 停權名單在學校的伺服器
+上，有二十萬張；每刷一次卡就連線去問，中午排隊的人會等不及。 把名單整份放進刷卡機
+也不行：用前面的雜湊表存二十萬個九位數卡號，光是鍵就要 $1.6$ MB，刷卡機只剩幾百 KB
+的記憶體。 不過絕大多數刷卡的人都不在名單上，刷卡機其實只需要一個很小的東西，能很
+快地說出「這張一定沒有停權」；少數說不準的，再去問伺服器。
+
+\textbf{布隆過濾器}（Bloom filter，Burton Bloom 在 1970 年提出）做的就是這件事。 它只
+回答「$x$ 在不在集合 $S$ 裡」，不存鍵本身，所以很省空間；代價是偶爾會把不在 $S$ 裡
+的 $x$ 說成「可能在」。 反過來的錯誤不會發生：它說「不在」，就一定不在。
+
+\subsection{結構與操作}
+
+布隆過濾器是一個有 $m$ 個位元的陣列 $B[0..m-1]$，一開始全部是 $0$，再加上 $k$ 個雜湊
+函數 $h_1, h_2, \ldots, h_k$，每個都把鍵對應到 $\{0, 1, \ldots, m - 1\}$。
+\begin{itemize}
+\item \textbf{插入} $x$：把 $B[h_1(x)], B[h_2(x)], \ldots, B[h_k(x)]$ 這 $k$ 個位元都設成
+$1$（原本已經是 $1$ 的就不變）。
+\item \textbf{查詢} $x$：看同樣的 $k$ 個位元。 只要有一個是 $0$，回答「不在」；全部是
+$1$，回答「可能在」。
+\end{itemize}
+
+\begin{pseudo}[label=alg:hash-bloom]{布隆過濾器的插入與查詢}
+\Procedure{Bloom-Insert}{$B, x$}
+    \For{$i \gets 1$ \To $k$}
+        \State $B[h_i(x)] \gets 1$
+    \EndFor
+\EndProcedure
+\Function{Bloom-Query}{$B, x$}
+    \For{$i \gets 1$ \To $k$}
+        \If{$B[h_i(x)] = 0$}
+            \State \Return \FALSE \Comment{一定不在}
+        \EndIf
+    \EndFor
+    \State \Return \TRUE \Comment{可能在}
+\EndFunction
+\end{pseudo}
+
+兩個操作都只算 $k$ 個雜湊值、看 $k$ 個位元，時間是 $O(k)$，和集合裡有幾個鍵無關。 空
+間是 $m$ 個位元，也和鍵有多長無關：九位數的卡號和一百個字元的網址，佔的空間一樣。
+
+\begin{theorem}
+\label{thm:hash-bloom-noneg}
+布隆過濾器不會有\textbf{偽陰性}（false negative）：如果 $x$ 已經插入過，
+$\proc{Bloom-Query}(x)$ 一定回傳 \TRUE。
+\end{theorem}
+
+\begin{proof}
+插入 $x$ 時，第 $3$ 行把 $B[h_1(x)], \ldots, B[h_k(x)]$ 都設成 $1$。 之後的操作只有插
+入和查詢，插入只會把位元設成 $1$，查詢不改任何位元，所以這 $k$ 個位元一直是 $1$。 查
+詢 $x$ 時第 $6$ 行的條件永遠不成立，迴圈跑完，回傳 \TRUE。
+\end{proof}
+
+會出錯的是另一個方向。 $x$ 沒有插入過，但它的 $k$ 個位元剛好都被別的鍵設成了 $1$，查
+詢就回答「可能在」，這叫\textbf{偽陽性}（false positive）。 所以「可能在」只是可能：刷
+卡機遇到「可能在」，再連線問伺服器確認；遇到「不在」就直接放行。 只要偽陽性很少，大部
+分的刷卡都不必連線。
+
+\subsection{手算例子}
+\label{sec:hash-bloom-trace}
+
+取 $m = 13$、$k = 3$。 三個雜湊函數借用第~\ref{sec:hash-open}~節雙重雜湊的式子：
+\[
+h_i(x) = \bigl( (x \bmod 13) + (i - 1)\,(1 + x \bmod 11) \bigr) \bmod 13, \qquad i = 1, 2, 3,
+\]
+也就是從 $x \bmod 13$ 出發，每次跳 $1 + (x \bmod 11)$ 格。 實務上常這樣用兩個雜湊值組出
+$k$ 個，不必真的寫 $k$ 個不同的函數。 依序插入四張停權卡 $2037$、$5512$、$6180$、
+$7423$，再查詢三張卡，見圖~\ref{fig:hash-bloom}。
+
+\begin{figure}[htbp]
+\centering
+\begin{tikzpicture}
+\foreach \j in {0,...,12} { \node[idxlbl] at ({0.6+\j*0.8}, 0.5) {\j}; }
+\node[anchor=east, font=\footnotesize] at (0.2,0.00) {開始};
+\node[hbit] at (0.60,0.00) {0};
+\node[hbit] at (1.40,0.00) {0};
+\node[hbit] at (2.20,0.00) {0};
+\node[hbit] at (3.00,0.00) {0};
+\node[hbit] at (3.80,0.00) {0};
+\node[hbit] at (4.60,0.00) {0};
+\node[hbit] at (5.40,0.00) {0};
+\node[hbit] at (6.20,0.00) {0};
+\node[hbit] at (7.00,0.00) {0};
+\node[hbit] at (7.80,0.00) {0};
+\node[hbit] at (8.60,0.00) {0};
+\node[hbit] at (9.40,0.00) {0};
+\node[hbit] at (10.20,0.00) {0};
+\node[anchor=east, font=\footnotesize] at (0.2,-0.70) {插入 2037：9, 12, 2};
+\node[hbit] at (0.60,-0.70) {0};
+\node[hbit] at (1.40,-0.70) {0};
+\node[hbit, hlnew] at (2.20,-0.70) {1};
+\node[hbit] at (3.00,-0.70) {0};
+\node[hbit] at (3.80,-0.70) {0};
+\node[hbit] at (4.60,-0.70) {0};
+\node[hbit] at (5.40,-0.70) {0};
+\node[hbit] at (6.20,-0.70) {0};
+\node[hbit] at (7.00,-0.70) {0};
+\node[hbit, hlnew] at (7.80,-0.70) {1};
+\node[hbit] at (8.60,-0.70) {0};
+\node[hbit] at (9.40,-0.70) {0};
+\node[hbit, hlnew] at (10.20,-0.70) {1};
+\node[anchor=east, font=\footnotesize] at (0.2,-1.40) {插入 5512：0, 2, 4};
+\node[hbit, hlnew] at (0.60,-1.40) {1};
+\node[hbit] at (1.40,-1.40) {0};
+\node[hbit, hlprobe] at (2.20,-1.40) {1};
+\node[hbit] at (3.00,-1.40) {0};
+\node[hbit, hlnew] at (3.80,-1.40) {1};
+\node[hbit] at (4.60,-1.40) {0};
+\node[hbit] at (5.40,-1.40) {0};
+\node[hbit] at (6.20,-1.40) {0};
+\node[hbit] at (7.00,-1.40) {0};
+\node[hbit] at (7.80,-1.40) {1};
+\node[hbit] at (8.60,-1.40) {0};
+\node[hbit] at (9.40,-1.40) {0};
+\node[hbit] at (10.20,-1.40) {1};
+\node[anchor=east, font=\footnotesize] at (0.2,-2.10) {插入 6180：5, 2, 12};
+\node[hbit] at (0.60,-2.10) {1};
+\node[hbit] at (1.40,-2.10) {0};
+\node[hbit, hlprobe] at (2.20,-2.10) {1};
+\node[hbit] at (3.00,-2.10) {0};
+\node[hbit] at (3.80,-2.10) {1};
+\node[hbit, hlnew] at (4.60,-2.10) {1};
+\node[hbit] at (5.40,-2.10) {0};
+\node[hbit] at (6.20,-2.10) {0};
+\node[hbit] at (7.00,-2.10) {0};
+\node[hbit] at (7.80,-2.10) {1};
+\node[hbit] at (8.60,-2.10) {0};
+\node[hbit] at (9.40,-2.10) {0};
+\node[hbit, hlprobe] at (10.20,-2.10) {1};
+\node[anchor=east, font=\footnotesize] at (0.2,-2.80) {插入 7423：0, 10, 7};
+\node[hbit, hlprobe] at (0.60,-2.80) {1};
+\node[hbit] at (1.40,-2.80) {0};
+\node[hbit] at (2.20,-2.80) {1};
+\node[hbit] at (3.00,-2.80) {0};
+\node[hbit] at (3.80,-2.80) {1};
+\node[hbit] at (4.60,-2.80) {1};
+\node[hbit] at (5.40,-2.80) {0};
+\node[hbit, hlnew] at (6.20,-2.80) {1};
+\node[hbit] at (7.00,-2.80) {0};
+\node[hbit] at (7.80,-2.80) {1};
+\node[hbit, hlnew] at (8.60,-2.80) {1};
+\node[hbit] at (9.40,-2.80) {0};
+\node[hbit] at (10.20,-2.80) {1};
+\node[anchor=east, font=\footnotesize] at (0.2,-3.75) {查詢 6180：5, 2, 12};
+\node[hbit] at (0.60,-3.75) {1};
+\node[hbit] at (1.40,-3.75) {0};
+\node[hbit, hlprobe] at (2.20,-3.75) {1};
+\node[hbit] at (3.00,-3.75) {0};
+\node[hbit] at (3.80,-3.75) {1};
+\node[hbit, hlprobe] at (4.60,-3.75) {1};
+\node[hbit] at (5.40,-3.75) {0};
+\node[hbit] at (6.20,-3.75) {1};
+\node[hbit] at (7.00,-3.75) {0};
+\node[hbit] at (7.80,-3.75) {1};
+\node[hbit] at (8.60,-3.75) {1};
+\node[hbit] at (9.40,-3.75) {0};
+\node[hbit, hlprobe] at (10.20,-3.75) {1};
+\node[anchor=east, font=\footnotesize] at (0.2,-4.45) {查詢 3141：8, 2, 9};
+\node[hbit] at (0.60,-4.45) {1};
+\node[hbit] at (1.40,-4.45) {0};
+\node[hbit] at (2.20,-4.45) {1};
+\node[hbit] at (3.00,-4.45) {0};
+\node[hbit] at (3.80,-4.45) {1};
+\node[hbit] at (4.60,-4.45) {1};
+\node[hbit] at (5.40,-4.45) {0};
+\node[hbit] at (6.20,-4.45) {1};
+\node[hbit, hbzero] at (7.00,-4.45) {0};
+\node[hbit] at (7.80,-4.45) {1};
+\node[hbit] at (8.60,-4.45) {1};
+\node[hbit] at (9.40,-4.45) {0};
+\node[hbit] at (10.20,-4.45) {1};
+\node[anchor=east, font=\footnotesize] at (0.2,-5.15) {查詢 4126：5, 7, 9};
+\node[hbit] at (0.60,-5.15) {1};
+\node[hbit] at (1.40,-5.15) {0};
+\node[hbit] at (2.20,-5.15) {1};
+\node[hbit] at (3.00,-5.15) {0};
+\node[hbit] at (3.80,-5.15) {1};
+\node[hbit, hlprobe] at (4.60,-5.15) {1};
+\node[hbit] at (5.40,-5.15) {0};
+\node[hbit, hlprobe] at (6.20,-5.15) {1};
+\node[hbit] at (7.00,-5.15) {0};
+\node[hbit, hlprobe] at (7.80,-5.15) {1};
+\node[hbit] at (8.60,-5.15) {1};
+\node[hbit] at (9.40,-5.15) {0};
+\node[hbit] at (10.20,-5.15) {1};
+
+\end{tikzpicture}
+\diagcaption{布隆過濾器（$m = 13$，$k = 3$）。 左邊是操作和算出的三個位置。 插入時橘框
+是這次由 $0$ 變 $1$ 的位元，粉紅底是本來就是 $1$ 的；查詢時粉紅底是看過、是 $1$ 的位元，
+深色底是看到的 $0$，看到它就停。}
+\label{fig:hash-bloom}
+\end{figure}
+
+以 $2037$ 為例：$2037 = 13 \times 156 + 9$，$2037 = 11 \times 185 + 2$，所以從第 $9$ 格出
+發、每次跳 $3$ 格，三個位置是 $9$、$12$、$15 \bmod 13 = 2$。 其他三張卡依同樣的算法得到
+$\{0, 2, 4\}$、$\{5, 2, 12\}$、$\{0, 10, 7\}$。 四張卡一共設了 $12$ 次位元，但第 $0$、
+$2$、$12$ 格被設了不只一次，最後只有 $8$ 個位元是 $1$。
+
+三個查詢：
+\begin{itemize}
+\item $6180$ 插入過，三個位元 $5, 2, 12$ 都是 $1$，回答「可能在」。 這是對的。
+\item $3141$：$3141 \bmod 13 = 8$，$1 + 3141 \bmod 11 = 8$，位置是 $8, 2, 9$。 第 $8$ 格
+是 $0$，回答「不在」。 看到第一個 $0$ 就可以停，不必看完三格。
+\item $4126$：$4126 \bmod 13 = 5$，$1 + 4126 \bmod 11 = 2$，位置是 $5, 7, 9$，分別被
+$6180$、$7423$、$2037$ 設成 $1$，回答「可能在」。 但 $4126$ 從來沒有插入過，這是一次偽
+陽性。
+\end{itemize}
+
+這個例子的過濾器已經有 $8/13$ 的位元是 $1$，太滿了。 把 $1000$ 到 $9999$ 之間沒插入過
+的卡號都查一次，大約有五分之一會被誤判成「可能在」。 下一小節會算出這個比例怎麼由 $m$、
+$n$、$k$ 決定。
+
+\subsection{偽陽性率}
+\label{sec:hash-bloom-fp}
+
+和第~\ref{sec:hash-chain-analysis}~節一樣，先假設雜湊值像亂數：每個 $h_i(x)$ 都等可能
+是 $0$ 到 $m - 1$ 的任何一格，而且不同的 $i$、不同的鍵之間互相獨立。 插入了 $n$ 個鍵之
+後，查詢一個不在集合裡的鍵 $y$，回答「可能在」的機率是多少？
+
+先看一個固定的位元 $B[j]$。 $n$ 個鍵一共算了 $kn$ 個雜湊值，每一個落在 $j$ 以外的機率
+是 $1 - 1/m$，而且互相獨立，所以
+\[
+\Pr[B[j] = 0] = \left(1 - \frac{1}{m}\right)^{kn} \approx e^{-kn/m}.
+\]
+近似的根據是引理~\ref{lem:mth-exp}：把 $(1 - 1/m)^{kn}$ 寫成
+$\bigl((1 - 1/m)^m\bigr)^{kn/m}$，括號裡的數夾在 $e^{-1}(1 - 1/m)$ 和 $e^{-1}$ 之間，$m$
+很大時就是 $e^{-1}$。 記 $p = e^{-kn/m}$，表示大約有 $p$ 比例的位元還是 $0$。
+
+$y$ 的 $k$ 個位置也是均勻亂選的，每一個看到 $1$ 的機率大約是 $1 - p$。 $k$ 個都看到 $1$
+才會誤判，把它們當成互相獨立，得到偽陽性率
+\begin{equation}
+\label{eq:hash-bloom-fp}
+\varepsilon \approx (1 - p)^k = \bigl(1 - e^{-kn/m}\bigr)^k.
+\end{equation}
+嚴格說，各個位元是不是 $0$ 並不完全獨立（一個位元是 $1$，別的位元是 $1$ 的機會就小一
+點），所以這是近似值；$m$ 很大時，$1$ 的比例會非常接近它的期望值，這個近似相當準。
+第~\ref{sec:hash-bloom-c}~節的程式會拿實測值來比。
+
+用手算的例子驗證：$m = 13$、$n = 4$、$k = 3$，式~\eqref{eq:hash-bloom-fp} 給
+$(1 - e^{-12/13})^3 \approx 0.22$，和上一小節「大約五分之一」相近。
+
+\paragraph{$k$ 要取多少？}
+$m$、$n$ 固定時，$k$ 太小，每次只檢查少數幾個位元，容易全部碰巧是 $1$；$k$ 太大，每個
+鍵設很多位元，陣列很快就被 $1$ 塞滿。 中間有一個最好的 $k$。
+
+\begin{theorem}
+\label{thm:hash-bloom-k}
+把 $k$ 當成正實數，$\bigl(1 - e^{-kn/m}\bigr)^k$ 在
+\[
+k^{*} = \frac{m}{n} \ln 2 \approx 0.693\,\frac{m}{n}
+\]
+時最小。 這時 $p = e^{-k^{*} n/m} = \frac12$，也就是大約一半的位元是 $0$，偽陽性率是
+\[
+\left(\frac12\right)^{k^{*}} = 2^{-(m/n)\ln 2} \approx 0.6185^{\,m/n}.
+\]
+\end{theorem}
+
+\begin{whybox}[定理~\ref{thm:hash-bloom-k} 的證明]
+取對數比較好處理：$\ln \varepsilon = k \ln(1 - e^{-kn/m})$。 改用 $p = e^{-kn/m}$ 當變
+數，$k$ 從 $0$ 變到 $\infty$ 時 $p$ 從 $1$ 遞減到 $0$，而且 $k = -\frac{m}{n} \ln p$，代進去
+\[
+\ln \varepsilon = -\frac{m}{n}\,\ln p \cdot \ln(1 - p).
+\]
+$m/n$ 是固定的正數，所以要讓 $\varepsilon$ 最小，就是要讓 $\varphi(p) = \ln p \cdot \ln(1 - p)$
+在 $0 < p < 1$ 上最大（兩個對數都是負的，$\varphi > 0$）。 微分：
+\[
+\varphi'(p) = \frac{\ln(1 - p)}{p} - \frac{\ln p}{1 - p}
+= \frac{\chi(p)}{p(1 - p)}, \qquad
+\chi(p) = (1 - p)\ln(1 - p) - p \ln p .
+\]
+分母是正的，只要看 $\chi$ 的正負。 $\chi(\frac12) = 0$，$\chi(1 - p) = -\chi(p)$，而且
+$p \to 0^{+}$ 時 $p \ln p \to 0$，所以 $\chi(p) \to 0$。 再微分兩次：
+\[
+\chi'(p) = -\ln(1 - p) - 1 - \ln p - 1, \qquad
+\chi''(p) = -\frac{1}{p} + \frac{1}{1 - p} = \frac{2p - 1}{p(1 - p)}.
+\]
+$0 < p < \frac12$ 時 $\chi'' < 0$，$\chi$ 是凹函數，圖形在兩端點 $(0, 0)$、
+$(\frac12, 0)$ 的連線之上，所以 $\chi(p) > 0$；由 $\chi(1 - p) = -\chi(p)$，
+$\frac12 < p < 1$ 時 $\chi(p) < 0$。 於是 $\varphi$ 在 $p < \frac12$ 遞增、$p > \frac12$
+遞減，最大值在 $p = \frac12$。 $e^{-kn/m} = \frac12$ 解出 $k = \frac{m}{n}\ln 2$；代回
+去，$\varepsilon = (1 - \frac12)^{k^{*}} = 2^{-k^{*}}$，而 $2^{-\ln 2} = e^{-(\ln 2)^2}
+\approx 0.6185$。
+\end{whybox}
+
+$k$ 必須是整數。 由證明，$\varepsilon$ 在 $k^{*}$ 左邊遞減、右邊遞增，所以只要比較
+$\lfloor k^{*} \rfloor$ 和 $\lceil k^{*} \rceil$ 兩個值，取比較小的那個。 下表是每個鍵分
+到 $m/n$ 個位元時的結果。
+
+\begin{center}
+\begin{tabular}{cccc}
+\toprule
+每個鍵的位元數 $m/n$ & $k^{*} = \frac{m}{n}\ln 2$ & 最好的整數 $k$ & 偽陽性率 \\
+\midrule
+$4$ & $2.77$ & $3$ & $14.7\%$ \\
+$8$ & $5.55$ & $6$ & $2.16\%$ \\
+$10$ & $6.93$ & $7$ & $0.82\%$ \\
+$16$ & $11.09$ & $11$ & $0.046\%$ \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+反過來，想要偽陽性率是 $\varepsilon$，令 $2^{-k^{*}} = \varepsilon$，得到
+$k^{*} = \lg(1/\varepsilon)$，每個鍵需要
+\[
+\frac{m}{n} = \frac{k^{*}}{\ln 2} = \frac{\lg(1/\varepsilon)}{\ln 2} \approx 1.44 \lg \frac{1}{\varepsilon}
+\]
+個位元。 $\varepsilon = 1\%$ 時大約是 $9.6$ 個位元、$k = 7$。 回到章首的刷卡機：二十萬張
+停權卡、每張 $10$ 個位元，一共兩百萬個位元，大約 $244$ KB，放得進刷卡機；沒有停權的
+卡，每刷一百次平均不到一次要連線確認。 注意這個數字和鍵有多長完全無關。
+
+\subsection{不能刪除}
+
+卡片解除停權時，能不能把它的 $k$ 個位元清成 $0$？ 不行。 那些位元可能也屬於別的鍵。
+在圖~\ref{fig:hash-bloom} 的過濾器裡「刪除」$6180$，把第 $5$、$2$、$12$ 格清成 $0$；
+再查 $2037$，它的位置是 $9, 12, 2$，第 $12$ 格已經是 $0$，回答「不在」。 $2037$ 明明
+還在名單上，這是一次偽陰性，定理~\ref{thm:hash-bloom-noneg} 的保證就沒了。 這和開放
+定址不能把刪掉的格子改回空的（第~\ref{sec:hash-tomb}~節）是同一類問題：一個位置被好幾
+個鍵共用，清掉它會影響別人。
+
+需要刪除時可以用\textbf{計數型布隆過濾器}（counting Bloom filter）：每個位置從一個位元
+改成一個小計數器，插入時 $k$ 個計數器各加一，刪除時各減一，查詢時看 $k$ 個計數器是不是
+都大於 $0$，代價是空間變成好幾倍。 名單變動不頻繁時，另一個做法是定期用最新的名單重建
+整個過濾器，這和第~\ref{sec:hash-tomb}~節清理刪除標記的想法一樣。
+
+\begin{examnote}
+布隆過濾器的題目常見三種：(1) 給位元陣列和雜湊函數，判斷插入會不會改到位元、查詢回答
+什麼，逐一算出 $k$ 個位置再看位元，有一個 $0$ 就是「不在」；(2) 問最佳的雜湊函數個數，
+答 $\frac{m}{n}\ln 2$，題目的選項常寫成「$3\ln 2$」這種形式，先認清 $m$（位元數）和 $n$
+（鍵數）；(3) 問偽陽性率，寫出 $\bigl(1 - (1 - \frac1m)^{kn}\bigr)^k \approx
+\bigl(1 - e^{-kn/m}\bigr)^k$ 兩種寫法都可以。 題目說「刪除某個鍵就把它的位元清成 $0$」，
+幾乎都是要你指出這樣會造成偽陰性。
+\end{examnote}
+
+\subsection{C 實作與實測}
+\label{sec:hash-bloom-c}
+
+下面的程式先重做圖~\ref{fig:hash-bloom} 的例子，再做一個實驗：$m = 10007$ 個位元、
+$n = 1000$ 個鍵（每個鍵大約 $10$ 個位元），$k$ 從 $1$ 試到 $10$，每個 $k$ 都查詢
+$100000$ 個不在集合裡的鍵，算出誤判的比例，旁邊印出式~\eqref{eq:hash-bloom-fp} 的值。
+雜湊函數用和手算例子相同的寫法，$m = 13$ 時 $m - 2 = 11$，正好是上面的式子。 鍵用
+第~\ref{sec:hash-measure}~節的線性同餘亂數產生，插入的都是偶數、查詢的都是奇數，所以查
+詢的鍵一定不在集合裡。
+
+為了好讀，程式用一個 \texttt{unsigned char} 存一個位元，浪費了八倍的空間。 真正的實作
+把八個位元塞進一個位元組，用《C 程式設計基礎》第~12~章的位元運算讀寫：第 $j$ 個位元
+在 \texttt{bit[j / 8]} 的第 \texttt{j \% 8} 位。
+
+\begin{example}[label=ex:hash-bloom]{c}{(bloom\_filter.c) 布隆過濾器：手算例子與偽陽性率實測}
+#include <stdio.h>
+#include <stdlib.h>
+#include <math.h>
+
+// Bloom filter：m 個位元，k 個雜湊函數。
+// 第 i 個函數（i 從 0 開始）用雙重雜湊的式子：
+//   g_i(x) = (x mod m + i * (1 + x mod (m - 2))) mod m
+typedef struct {
+    unsigned char *bit;     // 一個位元用一個 unsigned char 存
+    int m, k;
+} Bloom;
+
+int bloom_init(Bloom *b, int m, int k)
+{
+    b->bit = calloc(m, 1);              // 全部是 0
+    b->m = m;
+    b->k = k;
+    return b->bit != NULL;
+}
+
+int g(const Bloom *b, long long x, int i)
+{
+    long long step = 1 + x % (b->m - 2);
+    return (int)((x % b->m + i * step) % b->m);
+}
+
+void bloom_insert(Bloom *b, long long x)
+{
+    for (int i = 0; i < b->k; i++) {
+        b->bit[g(b, x, i)] = 1;
+    }
+}
+
+// 回傳 1 表示「可能在」，0 表示「一定不在」。
+int bloom_query(const Bloom *b, long long x)
+{
+    for (int i = 0; i < b->k; i++) {
+        if (b->bit[g(b, x, i)] == 0) {
+            return 0;
+        }
+    }
+    return 1;
+}
+
+// 和 probe_count.c 相同的線性同餘亂數，種子固定。
+static unsigned long long seed;
+
+long long next_key(void)
+{
+    seed = seed * 6364136223846793005ULL + 1442695040888963407ULL;
+    return (long long)(seed >> 33);
+}
+
+int main(void)
+{
+    // 手算的例子：m = 13，k = 3，四個停權卡號。
+    const long long banned[] = {2037, 5512, 6180, 7423};
+    const long long ask[] = {6180, 3141, 4126};
+    Bloom b;
+    if (!bloom_init(&b, 13, 3)) {
+        return 1;
+    }
+    for (int i = 0; i < 4; i++) {
+        bloom_insert(&b, banned[i]);
+    }
+    printf("bits:");
+    for (int j = 0; j < b.m; j++) {
+        printf(" %d", b.bit[j]);
+    }
+    printf("\n");
+    for (int i = 0; i < 3; i++) {
+        printf("%lld:", ask[i]);
+        for (int t = 0; t < b.k; t++) {
+            printf(" %d", g(&b, ask[i], t));
+        }
+        printf(" -> %s\n", bloom_query(&b, ask[i]) ? "maybe" : "no");
+    }
+    free(b.bit);
+
+    // 實測：m = 10007，放 n = 1000 個偶數鍵，再問 100000 個奇數鍵。
+    const int m = 10007, n = 1000, trials = 100000;
+    printf("m = %d, n = %d\n", m, n);
+    printf(" k  measured  formula\n");
+    for (int k = 1; k <= 10; k++) {
+        if (!bloom_init(&b, m, k)) {
+            return 1;
+        }
+        seed = 20261119ULL;             // 每個 k 用同一串鍵
+        for (int i = 0; i < n; i++) {
+            bloom_insert(&b, next_key() & ~1LL);
+        }
+        int fp = 0;                     // 奇數鍵一定不在集合裡
+        for (int t = 0; t < trials; t++) {
+            fp += bloom_query(&b, next_key() | 1);
+        }
+        double p = pow(1 - exp(-(double)k * n / m), k);
+        printf("%2d  %8.4f  %7.4f\n", k, (double)fp / trials, p);
+        free(b.bit);
+    }
+    return 0;
+}
+\end{example}
+\iosample{}{bits: 1 0 1 0 1 1 0 1 0 1 1 0 1 \\ 6180: 5 2 12 -> maybe \\ 3141: 8 2 9 -> no \\ 4126: 5 7 9 -> maybe \\ m = 10007, n = 1000 \\ \ k\ \ measured\ \ formula \\ \ 1\ \ \ \ 0.0959\ \ \ 0.0951 \\ \ 2\ \ \ \ 0.0331\ \ \ 0.0328 \\ \ 3\ \ \ \ 0.0185\ \ \ 0.0174 \\ \ 4\ \ \ \ 0.0120\ \ \ 0.0118 \\ \ 5\ \ \ \ 0.0101\ \ \ 0.0094 \\ \ 6\ \ \ \ 0.0089\ \ \ 0.0084 \\ \ 7\ \ \ \ 0.0086\ \ \ 0.0082 \\ \ 8\ \ \ \ 0.0086\ \ \ 0.0084 \\ \ 9\ \ \ \ 0.0096\ \ \ 0.0091 \\ 10\ \ \ \ 0.0109\ \ \ 0.0101}
+
+前四行就是圖~\ref{fig:hash-bloom}：位元陣列，和三個查詢各自算出的位置與回答。 實測的
+部分，$m/n \approx 10$，由定理~\ref{thm:hash-bloom-k}，最好的 $k$ 是 $10.007 \ln 2
+\approx 6.94$，取 $k = 7$，公式值 $0.82\%$，實測 $0.86\%$；$k = 1$ 時偽陽性率將近
+$10\%$，$k = 10$ 又回升到 $1\%$ 以上，和上面「$k$ 太小、太大都不好」的分析一致。 實測都
+比公式高一點，原因是公式把各個位元當成互相獨立，又假設 $k$ 個位置完全亂選；這裡的 $k$
+個位置由兩個雜湊值組出來，也不是完全獨立。 差距在 $10\%$ 以內，拿來決定 $m$ 和 $k$ 已
+經夠用。
+
+最後把布隆過濾器和雜湊表放在一起比。 雜湊表存了鍵本身，能回答「在不在」而且不會錯，
+能刪除，也能把鍵列出來；布隆過濾器每個鍵只用幾個位元，和鍵的長度無關，但只能回答
+「一定不在」或「可能在」，不能刪除，也列不出存了哪些鍵。 適合它的場合是：集合很大、
+大部分查詢的答案是「不在」、偶爾誤判只是多花一點時間（多問一次伺服器、多讀一次磁碟），
+不會造成錯誤的結果。
+
 \section{本章常見錯誤}
 \label{sec:hash-pitfalls}
 
@@ -1454,6 +1926,10 @@ $h_2(k)$ 選錯 & $h_2(k) = k \bmod 7$ 可能是 $0$，原地不動；$m = 12$�
 第~\ref{sec:hash-tomb}~節 \\
 公式張冠李戴 & 線性探測套用 $1/(1-\alpha)$；成功和失敗的公式對調 &
 第~\ref{sec:hash-analysis}~節 \\
+布隆過濾器清位元 & 刪除時把鍵的 $k$ 個位元清成 $0$；這些位元可能也屬於別的鍵，之後查那個鍵會
+答「不在」 & 第~\ref{sec:hash-bloom}~節 \\
+「可能在」當成「在」 & 布隆過濾器只保證「不在」一定對；回答「可能在」還要再確認 &
+第~\ref{sec:hash-bloom}~節 \\
 \bottomrule
 \end{tabular}
 \end{center}
@@ -1547,7 +2023,124 @@ $h_3$ & 1 & 0 & 0 & 1 \\
 \item 把 $h_3$ 換成 $h_3'(a, b, c, d) = (0, 0, 0, 1)$，還是通用的嗎？
 \end{enumerate}
 
+\item \label{q:hash-bloom-trace}（追蹤）布隆過濾器 $m = 11$、$k = 2$，$h_1(x) = x \bmod 11$，
+$h_2(x) = \lfloor x / 11 \rfloor \bmod 11$，依序插入 $25, 47, 63, 90$。
+\begin{enumerate}[nosep]
+\item 寫出每個鍵的兩個位置和最後的位元陣列 $B[0..10]$。
+\item 查詢 $36$、$58$、$80$，各回答什麼？ 哪些是偽陽性？
+\item 想刪除 $63$，把它的兩個位元清成 $0$。 之後查詢哪一個插入過的鍵會答錯？
+\item 改成計數型布隆過濾器，寫出插入四個鍵之後的計數器 $C[0..10]$，以及刪除 $63$
+（兩個計數器各減一）之後的計數器。 這時查詢 $90$、$58$ 各回答什麼？
 \end{enumerate}
+
+\item （計算）布隆過濾器要存 $n = 100$ 個鍵，用 $m = 1200$ 個位元。 用
+式~\eqref{eq:hash-bloom-fp} 估計。
+\begin{enumerate}[nosep]
+\item 最好的整數 $k$ 是多少？ 這時偽陽性率大約多少？ 大約多少比例的位元是 $0$？
+\item 想讓偽陽性率降到 $0.1\%$ 以下，$n = 100$ 時大約要多少個位元？ $k$ 取多少？
+\item 有人說「$k$ 越大，查詢時檢查的位元越多，誤判一定越少」。 用 (a) 的數字說明這句話
+哪裡不對。
+\end{enumerate}
+
+\end{enumerate}
+
+\section{歷屆試題}
+\label{sec:hash-pastexam}
+
+以下是研究所入學考試的原題，題目照原卷（語言、記號、配分照錄）。 詳解在本章最後。
+
+\begin{pastexam}[label={px:hash-1}]{成大資訊聯招 110 學年度 第 3 題}
+(10\%) Assume that you have to store the four strings: ``abcdef'', ``bcdefa'', ``cdefab'', and ``defabc'', in the hash table by using the hashing technique.
+\begin{enumerate}[label=(\arabic*),itemsep=0pt,topsep=2pt]
+\item (5\%) Consider the hash function: the index for a specific string will be equal to the sum of the ASCII values of the characters modulo 11. Please determine how many collisions if we use this hash function.
+\item (5\%) Consider the hash function: the index for a specific string will be equal to sum of ASCII values of characters multiplied by their respective order in the string after which it is modulo with 11. Please determine how many collisions if we use this hash function.
+\end{enumerate}
+Note: The ASCII values of a, b, c, d, e, and f are 97, 98, 99, 100, 101, and 102 respectively.
+\end{pastexam}
+
+\begin{pastexam}[label={px:hash-2}]{政大資科所 115 學年度 第 13 題}
+Consider a hash table of size $M=20$ (slots indexed from 0 to 19). The primary hash function is defined as: $h_1(k)=k \mathit{\ mod\ } 20$. The secondary hash function is defined as: $h_2(k)=(k \mathit{\ mod\ } 7)+1$. Assume the hash table is initially empty before each part of the question. We will insert the following sequence of keys S in the order given:
+\[ S=[8,38,3,5,28,18,65,83,25] \]
+(a) (5\%) Assuming we use double hashing for collision resolution, determine the final structure of the hash table after all keys in S have been inserted. Note: The probe sequence is given by:
+\[ h(k,i)=\big(h_1(k)+i\cdot h_2(k)\big) \mathit{\ mod\ } M \]
+where $i$ is the probe number.
+
+(b) (5\%) If we search for 48, what is the total number of probes made during the search?
+
+(c) (10\%) Suppose we are given $n$ keys, $m$ hash table slots, and two uniform hash functions $h_a$ and $h_b$. Further suppose hashing scheme uses $h_a$ for the odd keys and $h_b$ for the even keys. What is the expected number of keys in a slot?
+\end{pastexam}
+
+\begin{pastexam}[label={px:hash-3}]{中央資工所 115 學年度 第 12 題}
+（多選題，每一個選項單獨計分，每題 5 分）
+Given an empty 11-bucket hash table with hash function h(k)=k\%11. Below is the resulting hash table after inserting 8 items.
+\begin{center}
+\begin{tabular}{|l|l|}
+\hline
+0 & \\ \hline
+1 & \\ \hline
+2 & 24 \\ \hline
+3 & 57 \\ \hline
+4 & 37 \\ \hline
+5 & 27 \\ \hline
+6 & 16 \\ \hline
+7 & 17 \\ \hline
+8 & 15 \\ \hline
+9 & 38 \\ \hline
+10 & \\ \hline
+\end{tabular}
+\end{center}
+Which of the following statements is/are true?
+\begin{enumerate}[label=\Alph*.]
+\item 27 37 16 17 24 15 57 38 is a possible input sequence when quadratic probing is adopted.
+\item 37 27 16 24 15 57 38 17 is a possible input sequence when quadratic probing is adopted.
+\item 37 27 16 24 57 17 15 38 is a possible input sequence when liner probing is adopted.
+\item 27 16 37 38 57 15 17 24 is a possible input sequence when liner probing is adopted.
+\end{enumerate}
+\end{pastexam}
+
+\begin{pastexam}[label={px:hash-4}]{臺大資工所 115 學年度 第 15 題}
+(4 points) Most hash table implementations (such as Java's \texttt{HashMap}) resize the underlying array when the load factor $\alpha$ exceeds a certain threshold (typically 0.75). Why is this resizing operation necessary for a hash table that uses separate chaining?
+\begin{enumerate}[label=(\Alph*),leftmargin=2.2em,itemsep=1pt]
+\item \textbf{Saturation:} To prevent the table from reaching a load factor of 1.0, at which point inserting a new element would be impossible.
+\item \textbf{Ordering:} To re-sort the keys alphabetically during the transfer, enabling the use of binary search for future lookups.
+\item \textbf{Complexity:} To prevent the average length of the linked lists (collision chains) from growing linearly with the number of elements, thereby maintaining $O(1)$ average access time.
+\item \textbf{Uniqueness:} To redistribute the keys across a larger range so that all existing collisions are permanently eliminated.
+\item \textbf{Memory contiguity:} To ensure that all elements in the linked lists are stored in adjacent memory addresses, minimizing CPU cache misses and memory fragmentation.
+\end{enumerate}
+\end{pastexam}
+
+\begin{pastexam}[label={px:hash-5}]{成大資訊聯招 113 學年度 第 5 題}
+\textbf{[3\%, 2\%]} Given the following bloom filter.
+\begin{center}
+\small
+\begin{tabular}{|*{15}{c|}}
+\hline
+[0] & [1] & [2] & [3] & [4] & [5] & [6] & [7] & [8] & [9] & [10] & [11] & [12] & [13] & [14] \\ \hline
+1 & 1 & 0 & 1 & 1 & 1 & 1 & 1 & 0 & 1 & 0 & 0 & 0 & 1 & 0 \\ \hline
+\end{tabular}
+\end{center}
+\begin{enumerate}[label=\roman*)]
+\item Assume that the bloom filter has 3 hash functions $f_1(k)$, $f_2(k)$, and $f_3(k)$:
+\[ f_1(k)=(3k) \bmod m,\qquad f_2(k)=(2k+1) \bmod m,\qquad f_3(k)=k^2 \bmod m, \]
+where $k$ represents the key and $m$ is the size of bit array for the bloom filter. Which of the following statements is true?
+\begin{enumerate}[label=(\Alph*)]
+\item When inserting $k$=12, the bits in the bloom filter are not changed.
+\item To delete $k$=2, the bits at indices 4, 5, and 6 are changed to 0.
+\item When querying the bloom filter for $k$=15, the answer is ``yes.''
+\item When querying the bloom filter for $k$=8, the answer is ``yes.''
+\item None of the above.
+\end{enumerate}
+\item Considering that the elements in the bloom filter is 5. To minimize the false positive probability, what is the ideal optimum number of hash functions?
+\begin{enumerate}[label=(\Alph*)]
+\item 15
+\item 5
+\item 3*ln(2)
+\item 5*ln(2)
+\item None of the above
+\end{enumerate}
+\end{enumerate}
+\end{pastexam}
+
 
 \section{實作練習}
 \label{sec:hash-practice}
@@ -1588,6 +2181,8 @@ $h_3$ & 1 & 0 & 0 & 1 \\
 搜尋 $\le \frac{1}{\alpha}\ln\frac{1}{1-\alpha}$，記得線性探測的 Knuth 公式，並用它
 們算出該把 $\alpha$ 控制在多少。
 \item 能追蹤可延伸雜湊的插入，並說明通用雜湊的定義和它保證了什麼。
+\item 能做布隆過濾器的插入與查詢，說明它為什麼只有偽陽性、為什麼不能直接刪除，推導偽陽性
+率 $(1 - e^{-kn/m})^k$ 和最好的 $k = \frac{m}{n}\ln 2$。
 \end{itemize}
 
 \textbf{延伸閱讀}（書末會整理完整的參考資料）
@@ -1604,6 +2199,11 @@ Transactions on Database Systems} 4(3)，1979：可延伸雜湊的原始論文�
 \textit{Journal of Computer and System Sciences} 18(2)，1979：通用雜湊的原始論文。
 \item Steven S. Skiena，\textit{The Algorithm Design Manual}，第 3 版，第 3.7 節與
 第 6 章：雜湊在實務上的用法，以及用機率看雜湊的角度。
+\item Burton H. Bloom，``Space/Time Trade-offs in Hash Coding with Allowable Errors''，
+\textit{Communications of the ACM} 13(7)，1970：布隆過濾器的原始論文。
+\item Andrei Broder、Michael Mitzenmacher，``Network Applications of Bloom Filters: A
+Survey''，\textit{Internet Mathematics} 1(4)，2004：偽陽性率的推導、計數型布隆過濾器和
+各種應用。
 \end{itemize}
 
 \addcontentsline{toc}{section}{觀念題解答}
@@ -1672,4 +2272,210 @@ A = 00\texttt{1}10 和 I = 00\texttt{1}01 到 \texttt{001}，兩個桶的局部�
 $\{a, b\}$、$\{c, d\}$，$h_2$ 撞 $\{a, c\}$、$\{b, d\}$，$h_3$ 撞 $\{a, d\}$、
 $\{b, c\}$，六對各一次。 (b) 不是。 $h_3'$ 撞 $\{a, b\}$、$\{a, c\}$、$\{b, c\}$，
 $\{a, b\}$ 被 $h_1$、$h_3'$ 撞了 $2$ 次。
+
+\item (a) 位置：$25$：$3, 2$；$47$：$3, 4$；$63$：$8, 5$；$90$：$2, 8$。 最後第
+$2, 3, 4, 5, 8$ 格是 $1$：
+\[
+B[0..10] = 0, 0, 1, 1, 1, 1, 0, 0, 1, 0, 0.
+\]
+(b) $36$：$36 \bmod 11 = 3$，$\lfloor 36/11 \rfloor = 3$，兩個位置都是第 $3$ 格，是
+$1$，回答「可能在」，偽陽性。 $58$：位置 $3, 5$，都是 $1$，「可能在」，偽陽性。 $80$：
+位置 $3, 7$，第 $7$ 格是 $0$，「不在」，正確。（$36$ 的兩個位置重合，等於只檢查一個位
+元，這是 $h_1$、$h_2$ 不夠獨立的後果。）
+(c) 清掉第 $8$、$5$ 格之後，$90$ 的位置是 $2, 8$，第 $8$ 格變成 $0$，回答「不在」，但
+$90$ 還在集合裡：偽陰性。 $25$、$47$ 的位置沒有被清掉，仍然答對。
+(d) 插入四個鍵之後，第 $2$ 格由 $25$、$90$ 各加一，第 $3$ 格由 $25$、$47$，第 $8$ 格由
+$63$、$90$，第 $4$、$5$ 格各一次；刪除 $63$ 時第 $8$、$5$ 格各減一：
+\[
+\begin{aligned}
+\text{插入後：}\ C[0..10] &= 0, 0, 2, 2, 1, 1, 0, 0, 2, 0, 0, \\
+\text{刪除 $63$ 後：}\ C[0..10] &= 0, 0, 2, 2, 1, 0, 0, 0, 1, 0, 0.
+\end{aligned}
+\]
+查 $90$：$C[2] = 2$、$C[8] = 1$ 都大於 $0$，「可能
+在」，正確。 查 $58$：$C[5] = 0$，「不在」；刪除 $63$ 之後，原本的偽陽性也消失了。
+
+\item (a) $m/n = 12$，$k^{*} = 12 \ln 2 \approx 8.32$。 比較兩個整數：$k = 8$ 時
+$(1 - e^{-8/12})^8 = (1 - 0.5134)^8 \approx 0.00314$；$k = 9$ 時
+$(1 - e^{-9/12})^9 = (1 - 0.4724)^9 \approx 0.00317$。 取 $k = 8$，偽陽性率約
+$0.31\%$，這時 $0$ 位元的比例約 $e^{-8/12} \approx 51\%$，接近定理~\ref{thm:hash-bloom-k}
+說的一半。
+(b) 用最佳的 $k$，$\varepsilon = 2^{-k^{*}} \le 0.001$，$k^{*} \ge \lg 1000 \approx 9.97$，
+每個鍵要 $k^{*}/\ln 2 = \ln 1000 / (\ln 2)^2 \approx 14.4$ 個位元，$n = 100$ 時大約
+$1438$ 個位元，$k$ 取 $10$。 驗算：$m = 1438$、$k = 10$，$(1 - e^{-1000/1438})^{10}
+\approx 0.000999$，剛好在 $0.1\%$ 以下。
+(c) $m$、$n$ 固定時，$k$ 越大，被設成 $1$ 的位元越多。 $k = 8$ 時約 $49\%$ 的位元是 $1$，
+$k = 20$ 時 $1 - e^{-20/12} \approx 81\%$ 是 $1$，偽陽性率變成 $0.81^{20} \approx 1.5\%$，
+是 $k = 8$ 時 $0.31\%$ 的將近五倍。 檢查的位元多了，但每個位元是 $1$ 的機率也變大，兩
+者要取平衡，最好的 $k$ 讓一半的位元是 $0$。
 \end{enumerate}
+
+\addcontentsline{toc}{section}{歷屆試題詳解}
+\section*{歷屆試題詳解}
+
+\pastsol{px:hash-1}{成大資訊聯招 110 學年度 第 3 題}
+題目沒有說「幾次碰撞」怎麼數。 這裡照最常見的算法：依題目給的順序把字串放進表裡，放進去時
+起始位置已經有別的字串，就算一次碰撞。 另一種數法是數「落在同一格的字串有幾對」，答案寫在
+括號裡。
+
+(1) 四個字串都是 a 到 f 各用一次，只是順序不同，字元碼的和都是
+\[
+97 + 98 + 99 + 100 + 101 + 102 = 597, \qquad 597 = 11 \times 54 + 3,
+\]
+四個字串的位置都是 $3$。 第一個放進去沒有碰撞，後面三個都撞上，共 $3$ 次碰撞（落在同一格
+的有 $\binom{4}{2} = 6$ 對）。 這就是第~\ref{sec:hash-func}~節說的：只把字元碼加起來，用
+同一組字母的字串一定撞在一起。
+
+(2) 第 $i$ 個字元乘上 $i$（$i = 1, \ldots, 6$）再加起來：
+\begin{center}
+\small
+\begin{tabular}{lll}
+\toprule
+字串 & 加權和 & 除以 $11$ 的餘數 \\
+\midrule
+abcdef & $1 \cdot 97 + 2 \cdot 98 + 3 \cdot 99 + 4 \cdot 100 + 5 \cdot 101 + 6 \cdot 102 = 2107$ & $2107 - 11 \times 191 = 6$ \\
+bcdefa & $1 \cdot 98 + 2 \cdot 99 + 3 \cdot 100 + 4 \cdot 101 + 5 \cdot 102 + 6 \cdot 97 = 2092$ & $2092 - 11 \times 190 = 2$ \\
+cdefab & $1 \cdot 99 + 2 \cdot 100 + 3 \cdot 101 + 4 \cdot 102 + 5 \cdot 97 + 6 \cdot 98 = 2083$ & $2083 - 11 \times 189 = 4$ \\
+defabc & $1 \cdot 100 + 2 \cdot 101 + 3 \cdot 102 + 4 \cdot 97 + 5 \cdot 98 + 6 \cdot 99 = 2080$ & $2080 - 11 \times 189 = 1$ \\
+\bottomrule
+\end{tabular}
+\end{center}
+四個位置 $6, 2, 4, 1$ 都不同，$0$ 次碰撞（$0$ 對）。 乘上位置以後，字元的順序會影響結果，
+所以能分開這幾個字串；第~\ref{sec:hash-func}~節用 $B$ 進位（Horner 法）是同樣的想法，而且
+權重更分散。
+
+\pastsol{px:hash-2}{政大資科所 115 學年度 第 13 題}
+(a) 每個鍵算出 $h_1(k) = k \bmod 20$、$h_2(k) = (k \bmod 7) + 1$，再依序試
+$h_1, h_1 + h_2, h_1 + 2h_2, \ldots$（都取 $\bmod 20$）。 $i$ 從 $0$ 開始。
+\begin{center}
+\small
+\begin{tabular}{rcccl}
+\toprule
+鍵 $k$ & $h_1(k)$ & $k \bmod 7$ & $h_2(k)$ & 依序試過的格子（最後一個是放進去的位置） \\
+\midrule
+8 & 8 & 1 & 2 & 8 \\
+38 & 18 & 3 & 4 & 18 \\
+3 & 3 & 3 & 4 & 3 \\
+5 & 5 & 5 & 6 & 5 \\
+28 & 8 & 0 & 1 & 8（有 8），9 \\
+18 & 18 & 4 & 5 & 18（有 38），3（有 3），8（有 8），13 \\
+65 & 5 & 2 & 3 & 5（有 5），8（有 8），11 \\
+83 & 3 & 6 & 7 & 3（有 3），10 \\
+25 & 5 & 4 & 5 & 5（有 5），10（有 83），15 \\
+\bottomrule
+\end{tabular}
+\end{center}
+最後的表（沒列出的格子是空的）：
+\begin{center}
+\small
+\begin{tabular}{*{9}{c}}
+\toprule
+3 & 5 & 8 & 9 & 10 & 11 & 13 & 15 & 18 \\
+\midrule
+3 & 5 & 8 & 28 & 83 & 65 & 18 & 25 & 38 \\
+\bottomrule
+\end{tabular}
+\end{center}
+附帶一提，$M = 20$ 不是質數，而 $h_2(k)$ 可能是 $2, 4, 5, 6$，和 $20$ 不互質；例如 $18$ 的
+步長 $5$，探測序列只會經過 $18, 3, 8, 13$ 四格。 由定理~\ref{thm:hash-double}，這種鍵的探測
+序列走不遍整張表，表還有空格也可能插不進去。 這一題剛好沒有發生。
+
+(b) $48 \bmod 20 = 8$，$48 \bmod 7 = 6$，$h_2(48) = 7$。 依序看第 $8$ 格（是 $8$，不是 $48$）、
+第 $15$ 格（是 $25$）、第 $22 \bmod 20 = 2$ 格（空格），停下來，$48$ 不在表裡。 共
+$3$ 次探測（照本章的數法，包括最後看到空格的那一次；如果只數「和鍵比較」的次數，是 $2$ 次）。
+
+(c) 答案是 $n/m$。 這裡把「uniform hash function」解讀成：每個鍵的雜湊值等可能是 $m$ 格中
+的任何一格（第~\ref{sec:hash-chain-analysis}~節的簡單均勻雜湊）。 設 $n$ 個鍵裡有 $n_o$ 個
+奇數、$n_e$ 個偶數，$n_o + n_e = n$。 固定第 $j$ 格，落在這一格的鍵數是
+\[
+X_j = \sum_{\text{奇數鍵 } x} I\{h_a(x) = j\} + \sum_{\text{偶數鍵 } x} I\{h_b(x) = j\}.
+\]
+每個奇數鍵用 $h_a$，落在第 $j$ 格的機率是 $1/m$；每個偶數鍵用 $h_b$，機率也是 $1/m$。 由期
+望值的線性，
+\[
+\mathrm{E}[X_j] = \frac{n_o}{m} + \frac{n_e}{m} = \frac{n}{m} = \alpha .
+\]
+期望值的線性不需要獨立，所以 $h_a$、$h_b$ 之間有沒有關係都不影響答案；奇偶各用哪個函數也
+不影響，只要每個函數本身是均勻的。
+
+\pastsol{px:hash-3}{中央資工所 115 學年度 第 12 題}
+題目的 ``liner probing'' 是 linear probing 的筆誤。 題目沒有寫出二次探測的公式，這裡照
+第~\ref{sec:hash-open}~節的 $h(k, i) = (h(k) + i^2) \bmod 11$，$i$ 從 $0$ 開始，答案是
+A、B、C。 如果改用該節最後提到的正負交替跳法（$h, h + 1^2, h - 1^2, h + 2^2, \ldots$），
+A、B 都不成立：$15$ 從第 $4$ 格出發依序試 $4, 5, 3$，在 A、B 裡 $15$ 插入時 $57$ 還沒來，
+第 $3$ 格是空的，$15$ 會放在第 $3$ 格，和表不符，答案只剩 C。 作答時先寫明用的是哪一種。
+
+八個鍵的起始位置是：
+\[
+24 \to 2,\ 57 \to 2,\ 37 \to 4,\ 15 \to 4,\ 27 \to 5,\ 16 \to 5,\ 38 \to 5,\ 17 \to 6 .
+\]
+判斷方法就是照每個選項的順序真的插一次，看最後的表是不是和題目一樣。 二次探測從 $h$ 出
+發依序試 $h, h + 1, h + 4, h + 9, \ldots$。 下面每個鍵寫出試過的格子，最後一個是放進去的
+位置。
+\begin{itemize}
+\item A（二次探測）：$27$：5；$37$：4；$16$：5, 6；$17$：6, 7；$24$：2；$15$：4, 5, 8；
+$57$：2, 3；$38$：5, 6, 9。 和題目的表完全相同，正確。
+\item B（二次探測）：$37$：4；$27$：5；$16$：5, 6；$24$：2；$15$：4, 5, 8；$57$：2, 3；
+$38$：5, 6, 9；$17$：6, 7。 也完全相同，正確。（$17$ 最後才放，第 $7$ 格一直空著，所以
+它還是落在第 $7$ 格。）
+\item C（線性探測）：$37$：4；$27$：5；$16$：5, 6；$24$：2；$57$：2, 3；$17$：6, 7；
+$15$：4, 5, 6, 7, 8；$38$：5, 6, 7, 8, 9。 完全相同，正確。
+\item D（線性探測）：$27$：5；$16$：5, 6；$37$：4；$38$：5, 6, 7，放在第 $7$ 格。 但題目的
+表第 $7$ 格是 $17$，第 $9$ 格才是 $38$，已經不同，錯誤。 原因是 $38$ 比 $17$ 先插入，搶走了
+第 $7$ 格；繼續做下去，最後的表是 $2$：57、$3$：24、$7$：38、$9$：17，和題目不同。
+\end{itemize}
+也可以只用一個必要條件先刪選項：線性探測裡，鍵 $k$ 放在第 $j$ 格，那麼從 $h(k)$ 到
+$j - 1$ 的每一格在 $k$ 插入時都已經有鍵。 D 裡 $38$ 放在第 $9$ 格需要第 $7$ 格先有鍵，也就是
+$17$ 要比 $38$ 先插入，但 D 的順序是 $38$ 在前，所以不可能。
+
+\pastsol{px:hash-4}{臺大資工所 115 學年度 第 15 題}
+答案是 (C)。
+\begin{itemize}
+\item (A) 錯。 鏈結法的載入因子可以超過 $1$（第~\ref{sec:hash-chain-c}~節的例子就是
+$\alpha = 8/7$），串列只是變長，插入永遠做得到。 「$\alpha = 1$ 就插不進去」是開放定址的情形。
+\item (B) 錯。 雜湊表不維持任何順序，再雜湊時每個鍵用新的 $m$ 重算位置
+（第~\ref{sec:hash-dynamic}~節），不會排序，之後的搜尋也不用二分搜尋。
+\item (C) 對。 在簡單均勻雜湊下，串列的期望長度是 $\alpha = n/m$，搜尋的期望時間是
+$\Theta(1 + \alpha)$（定理~\ref{thm:hash-chain-len}）。 $m$ 固定不變時，$\alpha$ 隨 $n$ 線
+性成長，搜尋就變成 $\Theta(n)$；$\alpha$ 超過門檻就把表加倍，$\alpha$ 一直維持在常數以下，
+搜尋的期望時間是 $O(1)$。 搬動的成本平攤到插入上，每次仍是 $O(1)$。
+\item (D) 錯。 表變大只讓碰撞的期望次數變少，不能消除碰撞：任何固定的雜湊函數，鍵空間比
+表大時一定有鍵撞在一起（第~\ref{sec:hash-func}~節的鴿籠原理），擴表之後再插入的鍵也一樣會
+碰撞。
+\item (E) 錯。 擴表配置的是新的串列開頭陣列，串列的節點還是一個一個配置的，不保證放在
+相鄰的位置；減少快取失誤也不是擴表的目的。
+\end{itemize}
+
+\pastsol{px:hash-5}{成大資訊聯招 113 學年度 第 5 題}
+位元陣列有 $15$ 格，所以 $m = 15$。
+
+i) 答案是 (C)。 逐一算三個位置 $f_1(k) = 3k \bmod 15$、$f_2(k) = (2k + 1) \bmod 15$、
+$f_3(k) = k^2 \bmod 15$：
+\begin{center}
+\small
+\begin{tabular}{cccccl}
+\toprule
+$k$ & $f_1$ & $f_2$ & $f_3$ & 三格的位元 & 結論 \\
+\midrule
+12 & $36 \bmod 15 = 6$ & $25 \bmod 15 = 10$ & $144 \bmod 15 = 9$ & $1, 0, 1$ & 插入會把第 $10$ 格改成 $1$ \\
+2 & $6$ & $5$ & $4$ & $1, 1, 1$ & 位置確實是 $4, 5, 6$ \\
+15 & $45 \bmod 15 = 0$ & $31 \bmod 15 = 1$ & $225 \bmod 15 = 0$ & $1, 1, 1$ & 查詢回答 yes \\
+8 & $24 \bmod 15 = 9$ & $17 \bmod 15 = 2$ & $64 \bmod 15 = 4$ & $1, 0, 1$ & 查詢回答 no \\
+\bottomrule
+\end{tabular}
+\end{center}
+\begin{itemize}
+\item (A) 錯。 第 $10$ 格原本是 $0$，插入 $12$ 會把它改成 $1$。
+\item (B) 錯。 $2$ 的三個位置雖然是 $4, 5, 6$，但布隆過濾器不能用清成 $0$ 的方式刪除：這三
+個位元可能也屬於別的鍵，清掉之後查那些鍵會答「不在」，變成偽陰性
+（第~\ref{sec:hash-bloom}~節）。
+\item (C) 對。 $15$ 的位置是第 $0$、$1$、$0$ 格（$f_1$ 和 $f_3$ 剛好相同），都是 $1$，回答
+yes。 至於 $15$ 是不是真的插入過，從過濾器看不出來，可能是偽陽性。
+\item (D) 錯。 $8$ 的第二個位置第 $2$ 格是 $0$，回答 no。
+\item (E) 錯，因為 (C) 正確。
+\end{itemize}
+
+ii) 答案是 (C)。 由定理~\ref{thm:hash-bloom-k}，最佳的雜湊函數個數是
+$k^{*} = \frac{m}{n}\ln 2$，這裡 $m = 15$ 個位元、$n = 5$ 個元素，$k^{*} = 3 \ln 2 \approx
+2.08$。 (A) 是 $m$，(B) 是 $n$，(D) 把 $m/n$ 錯寫成 $n$。 實際要取整數時比較 $k = 2$ 和
+$k = 3$：$(1 - e^{-2/3})^2 \approx 0.237$，$(1 - e^{-1})^3 \approx 0.253$，取 $k = 2$。

@@ -1283,7 +1283,7 @@ $T = \mathtt{GTAGTAGTGTAGTGTAG}$。 寫出每次失配時 $q$ 退到哪裡、所
 \item （構造）給一個長度 $m$ 的模式和一段文字，使得 KMP 讀到某一個字元時，第 6 行連
 續執行 $m - 1$ 次。 再說明為什麼這不影響定理~\ref{thm:stm-kmp-time}。
 
-\item （證明與計算）令 $p = m - \pi[m]$。
+\item \label{q:stm-period}（證明與計算）令 $p = m - \pi[m]$。
 \begin{enumerate}
 \item 證明 $P[i] = P[i + p]$ 對 $1 \le i \le m - p$ 都成立（$p$ 是 $P$ 的一個週期）。
 \item 證明沒有比 $p$ 更小的正整數週期。
@@ -1312,6 +1312,75 @@ $2$ 的次方」比較。
 \item （是非）「Rabin--Karp 的 $q$ 選一個比 $nm$ 大的質數，底數 $x$ 從 $0$ 到 $q - 1$
 隨機挑，就保證不會有偽命中。」 這句話對嗎？ 如果不對，正確的敘述是什麼？
 \end{enumerate}
+
+\section{歷屆試題}
+\label{sec:stm-pastexam}
+
+以下是研究所入學考試的原題，題目照原卷（語言、記號、配分照錄）。 詳解在本章最後。
+
+\begin{pastexam}[label={px:stm-1}]{中正資工所 115 學年度 第 22 題}
+（複選題：Choose all (one or more) that apply. NO partial credit is given.）
+
+(3\%) (\qquad) Given the following failure function in the KMP string-matching algorithm and a string
+``AAABAAAABAAAB'' with 13 characters, what are the values of the failure function for the entire string?
+\[
+f(j)=\begin{cases}\text{largest } k<j,\text{ such that } p_0p_1\ldots p_k=p_{j-k}p_{j-k+1}\ldots p_j,
+\text{ if such a } k\ge 0 \text{ exists}\\
+\qquad -1,\quad \text{otherwise}\end{cases}
+\]
+(a) -1, 0, 1, -1, 0, 1, 2, 0, -1, 0, 1, 2, 3 \quad (b) -1, 0, 1, 0, 1, 2, 2, 2, 3, 4, 5, 6, -1\\
+(c) -1, 0, 1, -1, 0, 1, 2, 2, 3, 4, 5, 6, 3 \quad (d) -1, -1, 0, -1, -1, 0, 1, 2, 3, 4, 5, 6, 3\\
+(e) none of the above
+\end{pastexam}
+
+\begin{pastexam}[label={px:stm-2}]{臺大資工所 112 學年度 第 16 題}
+\textbf{(9 points)} The pseudo code function to compute the prefix function in the Knuth-Morris-Pratt (KMP)
+string matching algorithm is given below. Given a pattern string $P[1..m]$, the prefix function for this
+pattern $P$ is the function $\pi:\{1,2,\ldots,m\}\to\{0,1,\ldots,m-1\}$ such that $\pi[q]$ is the length of
+the longest prefix of P that is a proper suffix of $P_q$, where $P_q$ denotes the $q$-character prefix of
+the string $P$. For pattern string $P$=ABACABACABACABAD, how many times is \textbf{line 7} executed?
+(Note: only the final answer will be graded and only fully correct answer will be given points)
+
+\smallskip
+\textsc{Compute-Prefix-Function}(P)\par
+\begin{tabular}{@{}r@{\quad}l@{}}
+1 & $m = P.length$ \\
+2 & let $\pi[1..m]$ be a new array \\
+3 & $\pi[1] = 0$ \\
+4 & $k = 0$ \\
+5 & for $q = 2$ to $m$ \\
+6 & \quad while $k > 0$ and $P[k+1] \ne P[q]$ \\
+7 & \quad\quad $k = \pi[k]$ \\
+8 & \quad if $P[k+1] == P[q]$ \\
+9 & \quad\quad $k = k+1$ \\
+10 & \quad $\pi[q] = k$ \\
+11 & return $\pi$
+\end{tabular}
+\end{pastexam}
+
+\begin{pastexam}[label={px:stm-3}]{臺大資工所 110 學年度 第 XI 題}
+（單選題，每題答對 5 分，答錯倒扣 2.5 分）
+
+Many string-matching algorithms build a finite automata. Below is a partially-completed state transition
+function for a string $s$ of length 10 over the alphabet $\{A,B,C\}$. It is possible to reconstruct $s$ from
+the partial table. How many A's does the string $s$ have?
+
+(A) 4 \qquad (B) 5 \qquad (C) 6 \qquad (D) 7
+\begin{center}
+\begin{tabular}{c|cccccccccc}
+ & 0 & 1 & 2 & 3 & 4 & 5 & 6 & 7 & 8 & 9 \\ \hline
+A & & & & 4 & 5 & & 2 & & & \\
+B & & & & 0 & 0 & & 7 & & & 3 \\
+C & & & & 0 & 0 & & 0 & & & 10 \\
+\end{tabular}
+\end{center}
+\end{pastexam}
+
+\begin{pastexam}[label={px:stm-4}]{臺聯大電機類 109 學年度 第 3 題}
+(12\%) The period of a string $p_1 \ldots p_n$ is the smallest $m > 0$ such that $p_1 \ldots p_{n-m} =
+p_{m+1} \ldots p_n$. That is, removing the first $m$ characters yields the same string as removing the last
+$m$ characters. Propose an algorithm to compute the period of a length $n$ string that runs in time $O(n)$.
+\end{pastexam}
 
 \section{實作練習}
 \label{sec:stm-practice}
@@ -1525,3 +1594,135 @@ $4$ 個字元和 $P$ 相同的視窗都會命中，前 $6$ 個字元完全沒被
 運氣不好時還是可能發生，只是很少；正因為如此，第 10 行的逐字確認不能拿掉。 要拿掉確
 認，就得接受結果偶爾會錯（Monte Carlo 型）。
 \end{enumerate}
+
+\addcontentsline{toc}{section}{歷屆試題詳解}
+\section*{歷屆試題詳解}
+
+\pastsol{px:stm-1}{中正資工所 115 學年度 第 22 題}
+答案是 (c)。
+
+題目的 $f$ 從 $0$ 編號：$p_0 \cdots p_k$ 是長度 $k + 1$ 的前綴，$k < j$ 表示它是 $p_0 \cdots p_j$ 的真前綴，
+所以 $f(j) + 1$ 就是 $p_0 \cdots p_j$ 最長邊界的長度。 這是第~\ref{sec:stm-kmp}~節作答提醒框裡 Horowitz 的
+寫法：$f(j) = \pi[j + 1] - 1$。 先用 \proc{Compute-Failure} 算本書的 $\pi[1..13]$（$P[1..13] =
+\mathtt{AAABAAAABAAAB}$），再整排減 $1$。
+
+\begin{center}
+\small
+\begin{tabular}{ccc>{\raggedright\arraybackslash}p{0.56\linewidth}c}
+\toprule
+$q$ & $P[q]$ & 開始的 $k$ & 比較 & $\pi[q]$ \\
+\midrule
+1 & \texttt{A} & & 定義 & 0 \\
+2 & \texttt{A} & 0 & $P[1]=\mathtt{A}$ 相同，$k\gets1$ & 1 \\
+3 & \texttt{A} & 1 & $P[2]=\mathtt{A}$ 相同，$k\gets2$ & 2 \\
+4 & \texttt{B} & 2 & $P[3]=\mathtt{A}\ne\mathtt{B}$，$k\gets\pi[2]=1$；$P[2]=\mathtt{A}\ne\mathtt{B}$，$k\gets\pi[1]=0$；$P[1]=\mathtt{A}\ne\mathtt{B}$ & 0 \\
+5 & \texttt{A} & 0 & $P[1]=\mathtt{A}$ 相同，$k\gets1$ & 1 \\
+6 & \texttt{A} & 1 & $P[2]=\mathtt{A}$ 相同，$k\gets2$ & 2 \\
+7 & \texttt{A} & 2 & $P[3]=\mathtt{A}$ 相同，$k\gets3$ & 3 \\
+8 & \texttt{A} & 3 & $P[4]=\mathtt{B}\ne\mathtt{A}$，$k\gets\pi[3]=2$；$P[3]=\mathtt{A}$ 相同，$k\gets3$ & 3 \\
+9 & \texttt{B} & 3 & $P[4]=\mathtt{B}$ 相同，$k\gets4$ & 4 \\
+10 & \texttt{A} & 4 & $P[5]=\mathtt{A}$ 相同，$k\gets5$ & 5 \\
+11 & \texttt{A} & 5 & $P[6]=\mathtt{A}$ 相同，$k\gets6$ & 6 \\
+12 & \texttt{A} & 6 & $P[7]=\mathtt{A}$ 相同，$k\gets7$ & 7 \\
+13 & \texttt{B} & 7 & $P[8]=\mathtt{A}\ne\mathtt{B}$，$k\gets\pi[7]=3$；$P[4]=\mathtt{B}$ 相同，$k\gets4$ & 4 \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+$\pi = 0, 1, 2, 0, 1, 2, 3, 3, 4, 5, 6, 7, 4$，減 $1$ 得
+$f = -1, 0, 1, -1, 0, 1, 2, 2, 3, 4, 5, 6, 3$，正是 (c)。 其他選項（$j$ 從 $0$ 數）：
+\begin{itemize}
+\item (a) 從 $f(7)$ 起就錯。 $p_0 \cdots p_7 = \mathtt{AAABAAAA}$，結尾的 \texttt{AAA} 也是開頭，$f(7) = 2$，
+不是 $0$；$f(8)$ 到 $f(11)$ 也都不對。
+\item (b) $f(3) = 0$ 錯：$p_0 \cdots p_3 = \mathtt{AAAB}$ 以 \texttt{B} 結尾，而每個非空前綴都以 \texttt{A}
+開頭、長度不到 $4$ 的前綴都不含 \texttt{B}，沒有非空的邊界，$f(3) = -1$。 $f(12) = -1$ 也錯：
+\texttt{AAAB} 同時是整個字串的前綴和後綴，$f(12) = 3$。
+\item (d) $f(1) = -1$ 錯：$p_0 = p_1 = \mathtt{A}$，$f(1) = 0$。
+\item (e) 錯，因為 (c) 對。
+\end{itemize}
+
+\pastsol{px:stm-2}{臺大資工所 112 學年度 第 16 題}
+答案是 $5$ 次。 題目的第 7 行是失配時退到較短邊界的 $k = \pi[k]$，就是虛擬碼~\ref{alg:stm-failure} 的
+第 6 行。 $P = \mathtt{ABACABACABACABAD}$，$m = 16$。 逐一列出每個 $q$ 開始時的 $k$、第 7 行執行的情形和
+$\pi[q]$：
+
+\begin{center}
+\small
+\begin{tabular}{ccc>{\raggedright\arraybackslash}p{0.5\linewidth}cc}
+\toprule
+$q$ & $P[q]$ & 開始的 $k$ & 題目第 6 行的比較與第 7 行 & 次數 & $\pi[q]$ \\
+\midrule
+2 & \texttt{B} & 0 & $k = 0$，不進迴圈；$P[1] = \mathtt{A} \ne \mathtt{B}$ & 0 & 0 \\
+3 & \texttt{A} & 0 & 不進迴圈；$P[1] = \mathtt{A}$ 相同 & 0 & 1 \\
+4 & \texttt{C} & 1 & $P[2] = \mathtt{B} \ne \mathtt{C}$，$k \gets \pi[1] = 0$ & 1 & 0 \\
+5 & \texttt{A} & 0 & 不進迴圈；$P[1]$ 相同 & 0 & 1 \\
+6--15 & & $q - 5$ & 每次 $P[k+1] = P[q]$，迴圈條件一開始就不成立 & 0 & $q - 4$ \\
+16 & \texttt{D} & 11 & $P[12] = \mathtt{C}$，$k \gets \pi[11] = 7$；$P[8] = \mathtt{C}$，$k \gets \pi[7] = 3$；
+$P[4] = \mathtt{C}$，$k \gets \pi[3] = 1$；$P[2] = \mathtt{B}$，$k \gets \pi[1] = 0$ & 4 & 0 \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+$q = 6$ 到 $15$：$P[5..15]$ 和 $P[1..11]$ 相同（\texttt{ABAC} 一直重複），每一步 $P[k + 1] = P[q]$
+都直接接上，$k$ 從 $1$ 一路加到 $11$。 $q = 16$ 的 \texttt{D} 不在前面出現過，$k$ 沿著邊界的鏈
+$11 \to 7 \to 3 \to 1 \to 0$ 退到底，每一步比的 $P[k + 1]$ 是 \texttt{C}、\texttt{C}、\texttt{C}、\texttt{B}，
+都不是 \texttt{D}。 合計 $1 + 4 = 5$ 次。 完整的
+$\pi = 0, 0, 1, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 0$。
+
+檢查：定理~\ref{thm:stm-kmp-time} 的位能論證說總次數不超過 $m - 1 = 15$，而且 $k$ 一共只加了 $1 + 1 + 10 = 12$
+次（$q = 3$、$5$ 和 $6$ 到 $15$ 各一次），退的次數不會超過加的次數，$5 \le 12$。
+
+\pastsol{px:stm-3}{臺大資工所 110 學年度 第 XI 題}
+答案是 (D) 7。 字串是 $s = \mathtt{AABAAABAAC}$。
+
+用第~\ref{sec:stm-dfa}~節的定義：$\delta(q, a)$ 是「$s$ 的前綴之中，是 $s[1..q]\,a$ 的後綴的最長長度」。
+它最大是 $q + 1$，而且 $\delta(q, a) = q + 1$ 若且唯若 $a = s[q + 1]$。
+
+\begin{enumerate}
+\item 往前走的格子直接給出字元：$\delta(3, \mathtt{A}) = 4$ 得 $s[4] = \mathtt{A}$；$\delta(4, \mathtt{A}) = 5$
+得 $s[5] = \mathtt{A}$；$\delta(6, \mathtt{B}) = 7$ 得 $s[7] = \mathtt{B}$；$\delta(9, \mathtt{C}) = 10$ 得
+$s[10] = \mathtt{C}$。
+\item $\delta(6, \mathtt{A}) = 2$：$s[1..2]$ 是 $s[1..6]\,\mathtt{A}$ 的後綴，所以 $s[2] = \mathtt{A}$、
+$s[1] = s[6]$。
+\item $\delta(9, \mathtt{B}) = 3$：$s[1..3]$ 是 $s[1..9]\,\mathtt{B}$ 的後綴，所以 $s[3] = \mathtt{B}$、
+$s[1] = s[8]$、$s[2] = s[9]$，得 $s[9] = \mathtt{A}$。
+\item $\delta(3, \mathtt{B}) = 0$：如果 $s[1] = \mathtt{B}$，長度 $1$ 的前綴 \texttt{B} 就是
+$s[1..3]\,\mathtt{B}$ 的後綴，$\delta$ 至少是 $1$；所以 $s[1] \ne \mathtt{B}$。 同理
+$\delta(3, \mathtt{C}) = 0$ 得 $s[1] \ne \mathtt{C}$。 所以 $s[1] = \mathtt{A}$，再由第 2、3 步，
+$s[6] = s[8] = \mathtt{A}$。
+\end{enumerate}
+
+合起來 $s = \mathtt{A\,A\,B\,A\,A\,A\,B\,A\,A\,C}$，\texttt{A} 在第 $1, 2, 4, 5, 6, 8, 9$ 個位置，共 $7$ 個。
+
+驗算：$s$ 的失敗函數是 $0, 1, 0, 1, 2, 2, 3, 4, 5, 0$，用虛擬碼~\ref{alg:stm-dfa-build} 建出完整的轉移表，
+題目給的十一格都對得上，例如 $\delta(4, \mathtt{B})$：$s[5] = \mathtt{A}$ 接不上，查
+$\delta(\pi[4], \mathtt{B}) = \delta(1, \mathtt{B})$，再查 $\delta(\pi[1], \mathtt{B}) = \delta(0, \mathtt{B}) = 0$。
+另外用程式列舉全部 $3^{10}$ 個字串，和這十一格都相符的只有這一個，所以題目說「可以還原」是對的。
+
+\pastsol{px:stm-4}{臺聯大電機類 109 學年度 第 3 題}
+\textbf{想法}。 $1 \le m < n$ 時，「$p_1 \cdots p_{n-m} = p_{m+1} \cdots p_n$」就是說長度 $n - m$ 的前綴同時是後綴，
+也就是 $P$ 有長度 $n - m$ 的邊界（定義~\ref{def:stm-border}）。 $m = n$ 時兩邊都是空字串，一定成立，對應
+長度 $0$ 的邊界（空字串）。 所以 $m$ 越小，對應的邊界越長；最小的 $m$ 對應最長的邊界，長度是 $\pi[n]$，
+週期是 $n - \pi[n]$。 這正是觀念題第~\ref{q:stm-period}~題 (a)(b)。
+
+\begin{pseudo}[label=alg:stm-px-period]{字串的週期}
+\Function{Period}{$P, n$}
+    \State $\pi \gets$ \Call{Compute-Failure}{$P, n$}
+    \State \Return $n - \pi[n]$
+\EndFunction
+\end{pseudo}
+
+\textbf{正確性}。 令 $b = \pi[n]$，$P[1..b]$ 是 $P$ 最長的邊界。
+\begin{itemize}
+\item $n - b$ 滿足條件：$b \ge 1$ 時 $P[1..b]$ 是 $P$ 的後綴，$P[1..b] = P[n - b + 1 .. n]$，就是
+$p_1 \cdots p_{n-m} = p_{m+1} \cdots p_n$ 取 $m = n - b$；$b = 0$ 時 $m = n$，兩邊都是空字串。
+\item 沒有更小的：若 $m' < n - b$ 也滿足條件，則 $1 \le m' < n$，$P[1..n - m']$ 同時是前綴和後綴，長度
+$n - m' < n$，是 $P$ 的邊界；但 $n - m' > b$，和 $b$ 是最長邊界的長度矛盾。
+\end{itemize}
+
+\textbf{時間}。 \proc{Compute-Failure} 是 $\Theta(n)$（定理~\ref{thm:stm-kmp-time}），第 3 行 $O(1)$，總共
+$\Theta(n)$。
+
+\textbf{例子}。 $P = \mathtt{abcabcab}$，$\pi = 0, 0, 0, 1, 2, 3, 4, 5$，週期 $8 - 5 = 3$：去掉前 $3$ 個和去掉後
+$3$ 個都是 \texttt{abcab}。 $P = \mathtt{abcd}$，$\pi[4] = 0$，週期是 $4$。 （用程式對長度 $1$ 到 $14$ 的隨機
+字串和暴力法比對過。）

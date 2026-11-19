@@ -1200,6 +1200,110 @@ $n$ 是 $2$ 的次方時 $T(n) = 2n - 1$。 下列敘述對的打 O，錯的打 
 \item （計算）用 Akra--Bazzi 方法解 $T(n) = 2T(n/4) + T(n/2) + n \lg n$。
 \end{enumerate}
 
+\section{歷屆試題}
+\label{sec:rec-pastexam}
+
+以下是研究所入學考試的原題，題目照原卷（語言、記號、配分照錄）。 詳解在本章最後。
+
+\begin{pastexam}[label={px:rec-1}]{成大資訊聯招 115 學年度 第 II 部分問答題第 1 題}
+[10\%] Assuming that you are a medical information analyst, currently analyzing an
+algorithm designed to process a 3D MRI volume. The input is a cubic volume of data with
+side length n (total voxels = n $\times$ n $\times$ n). Assume n is a power of 2.
+
+Pseudo-code:
+\begin{center}
+\fbox{\begin{minipage}{0.8\linewidth}
+\textbf{Surface\_Scan(n)}\\
+\hspace*{1.5em}total\_intensity = 0\\
+\hspace*{1.5em}for i = 1 to n\\
+\hspace*{3em}for j = 1 to 100\\
+\hspace*{4.5em}total\_intensity = total\_intensity + Read\_Pixel(i, j)\\
+\hspace*{1.5em}return total\_intensity
+
+\medskip
+\textbf{MRI\_Voxel\_Process(n)}\\
+\hspace*{1.5em}if n <= 1\\
+\hspace*{3em}return
+
+\smallskip
+\hspace*{1.5em}for k = 1 to n\\
+\hspace*{3em}Surface\_Scan(n)
+
+\smallskip
+\hspace*{1.5em}for x = 0 to 1\\
+\hspace*{3em}for y = 0 to 1\\
+\hspace*{4.5em}for z = 0 to 1\\
+\hspace*{6em}MRI\_Voxel\_Process(n/2)
+\end{minipage}}
+\end{center}
+
+Note: Assume that the function Read\_Pixel(i, j) takes constant time
+
+\underline{\textbf{Questions}}:
+\begin{enumerate}[label=(\arabic*)]
+\item {[3\%]} Analyze the \textbf{Surface\_Scan(n)} function and determine its time
+complexity using $\Theta$-notation.
+\begin{itemize}\item Time complexity: \underline{\hspace{5cm}}\end{itemize}
+\item {[3\%]} Write down the recurrence relation for the running time T(n) of
+\textbf{MRI\_Voxel\_Process(n)}.
+\begin{itemize}\item T(n) = \underline{\hspace{5cm}}\end{itemize}
+\item {[4\%]} Analyze the asymptotic growth rate of the algorithm, and determine the
+overall asymptotic tight bound ($\Theta$) for the running time of
+\textbf{MRI\_Voxel\_Process(n)}. Please write down your calculation process.
+\begin{itemize}
+\item Calculation process: \underline{\hspace{5cm}}
+\item Overall asymptotic tight bound: \underline{\hspace{4cm}}
+\end{itemize}
+\end{enumerate}
+\end{pastexam}
+
+\begin{pastexam}[label={px:rec-2}]{中正資工所甲組 110 學年度 第 7、8 題}
+7.\ (4\%) Use substitution method to find a tight asymptotic upper bound for this
+recurrence:\\
+$T(n)=T(n/4)+T(n/5)+6n$
+
+8.\ (4\%) Use substitution method to find a tight asymptotic lower bound for this
+recurrence:\\
+$T(n)=4T(n/2)+n^2$
+\end{pastexam}
+
+\begin{pastexam}[label={px:rec-3}]{政大資科所 113 學年度 第 11 題}
+(15\%) Find an asymptotically tight solution to the following recurrence WITHOUT the
+master theorem. Explain the logic that you used to solve the problem.
+\[
+T(n)=\begin{cases}\Theta(1) & \textit{if } n=1\\ 6T\left(\frac{n}{2}\right)+\Theta(n^2)
+& \textit{if } n>1\end{cases}
+\]
+\end{pastexam}
+
+\begin{pastexam}[label={px:rec-4}]{臺大資網所 114 學年度 第 9 題}
+（第 8--17 題為複選題，每題 5 分，每個選項單獨計分，選項答對者得 1 分，選項答錯者
+得 0 分。）
+
+(5 points) Select all the correct statement(s) from the following statements regarding
+recurrence.
+\begin{enumerate}[label=(\Alph*)]
+\item The solution to the recurrence $T(n)=2T(n/2)+\Theta(n)$ is $\Theta(n^2)$.
+\item The solution to the recurrence $T(n)=7T(n/2)+\Theta(n^2)$ is $\Theta(n^{\lg 7})$.
+\item The solution to the recurrence $T(n)=\log n+T(\sqrt{n})$ is $\Theta(\log n)$.
+\item The solution to the recurrence $T(n)=2^nT(n-1)$ is $\Theta((\sqrt{2})^{n^2+n})$.
+(Assume $T(n)=1$ for $n$ smaller than some constant $c$).
+\item The solution to the recurrence $T(n)=T(n/6)+T(7n/9)+O(n)$ is $O(n)$. (Assume
+$T(n)=1$ for $n$ smaller than some constant $c$).
+\end{enumerate}
+\end{pastexam}
+
+\begin{pastexam}[label={px:rec-5}]{北科大資工所 115 學年度 第 1 題（節錄 (2) 小題）}
+Please answer the following questions concisely with asymptotic notations and you do
+not need to give the reasons or prove it. (10\%)
+\begin{enumerate}[label=(\arabic*)]
+\setcounter{enumi}{1}
+\item Give the growth rate of the recursive function $T(n) = \sqrt{n}\,T(\sqrt{n}) + cn$
+for $n > 2$ and $T(2) = 1$, where $c$ is some positive constant, using $\Theta$
+notation. (2\%)
+\end{enumerate}
+\end{pastexam}
+
 \section{實作練習}
 \label{sec:rec-practice}
 
@@ -1387,3 +1491,169 @@ $T(n) = \Theta(n (1 + \lg^2 n)) = \Theta(n \lg^2 n)$。 （每一層的規模加
 $\frac{2}{4} + \frac{1}{2} = 1$ 倍，和第~\ref{sec:rec-tree}~節的「每層一樣」同一型，
 只是每層的成本帶著 $\lg$。）
 \end{enumerate}
+
+\addcontentsline{toc}{section}{歷屆試題詳解}
+\section*{歷屆試題詳解}
+
+\pastsol{px:rec-1}{成大資訊聯招 115 學年度 第 II 部分問答題第 1 題}
+(1) $\Theta(n)$。 \textsf{Surface\_Scan} 的外層跑 $n$ 次，內層固定跑 $100$ 次，
+\textsf{Read\_Pixel} 一共呼叫 $100n$ 次，每次常數時間，再加上常數個其他步驟。 內層的
+上界是常數 $100$，不是 $n$，所以不是 $n^2$。
+
+(2) 照第~\ref{sec:rec-write}~節的四件事來寫。 規模是 $n$；基礎情況 $n \le 1$ 直接返
+回，$\Theta(1)$；遞迴呼叫：$x$、$y$、$z$ 各有 $0$、$1$ 兩個值，共 $2 \cdot 2 \cdot 2
+= 8$ 次，每次規模 $n/2$；呼叫以外的工作：呼叫 \textsf{Surface\_Scan}$(n)$ 共 $n$ 次，
+每次 $\Theta(n)$，合計 $\Theta(n^2)$。 所以
+\[
+T(n) = 8T(n/2) + \Theta(n^2) \quad (n \ge 2), \qquad T(1) = \Theta(1).
+\]
+
+(3) $\Theta(n^3)$。 用主定理（定理~\ref{thm:rec-master}）：$a = 8$、$b = 2$，
+$n^{\log_2 8} = n^3$；$f(n) = \Theta(n^2) = O(n^{3 - \varepsilon})$，取
+$\varepsilon = 1$，是情況 1，$T(n) = \Theta(n^3)$。
+
+也可以把常數算出來。 只數 \textsf{Read\_Pixel} 的呼叫次數 $R(n)$：$R(1) = 0$，
+$R(n) = 8R(n/2) + 100n^2$。 用引理~\ref{lem:rec-unroll} 展開，第 $j$ 層是
+$8^j \cdot 100 (n/2^j)^2 = 100 n^2 \cdot 2^j$，
+\[
+R(n) = 100 n^2 \sum_{j=0}^{\lg n - 1} 2^j = 100 n^2 (n - 1) = 100 n^3 - 100 n^2 .
+\]
+每層是上一層的 $2$ 倍，越來越大，最下面那層決定答案（第~\ref{sec:rec-tree}~節的
+「葉子贏」）。 直覺上也合理：整個體積有 $n^3$ 個 voxel，八個子問題的 voxel 加起來還
+是 $n^3$；每一層的表面掃描只占它那一層的一小部分。 （用小程式照遞迴實際數過，
+$n = 64$ 時是 $25{,}804{,}800 = 100 \cdot 64^3 - 100 \cdot 64^2$。）
+
+\pastsol{px:rec-2}{中正資工所甲組 110 學年度 第 7、8 題}
+題目沒有寫基礎情況，照本章的習慣：$n$ 小於某個常數時 $T(n) = \Theta(1)$，而且是正的。
+$n/4$、$n/5$ 當成 $\lfloor n/4 \rfloor$、$\lfloor n/5 \rfloor$。
+
+\textbf{第 7 題}：$T(n) = O(n)$，而且是緊的。
+
+先猜。 第 $1$ 層兩個子問題的規模加起來是 $\frac{n}{4} + \frac{n}{5} = \frac{9}{20}n$，
+每一層的總和是上一層的 $9/20$ 倍，根的工作最大（第~\ref{sec:rec-tree}~節的「越來越
+小」），猜 $T(n) \le cn$。
+
+再用代換法證明（第~\ref{sec:rec-subst}~節）。 設 $n < 5$ 時 $T(n) \le M$，$n \ge 5$
+時遞迴式成立；這時 $\lfloor n/4 \rfloor$、$\lfloor n/5 \rfloor$ 都在 $1$ 和 $n - 1$
+之間。 對 $n$ 做強歸納，證明 $T(n) \le cn$。
+\begin{itemize}
+\item 基礎情況 $1 \le n \le 4$：$T(n) \le M \le cn$，只要 $c \ge M$。
+\item $n \ge 5$：由歸納假設，
+\[
+T(n) \le c \left\lfloor \frac{n}{4} \right\rfloor + c \left\lfloor \frac{n}{5} \right\rfloor
++ 6n \le \frac{9c}{20}\, n + 6n \le cn ,
+\]
+最後一步等於 $6 \le \frac{11c}{20}$，也就是 $c \ge \frac{120}{11} \approx 10.91$。
+\end{itemize}
+取 $c = \max(120/11, M)$，對所有 $n \ge 1$ 都有 $T(n) \le cn$。 這個上界是緊的：
+$T(n) \ge 6n$，所以 $T(n) = \Omega(n)$，合起來 $T(n) = \Theta(n)$。 （取 $M = 1$ 實際算
+到 $n = 2 \times 10^5$，$T(n)/n$ 的最大值是 $10.88$，在 $120/11$ 以內。）
+
+\textbf{第 8 題}：$T(n) = \Omega(n^2 \lg n)$，而且是緊的。
+
+先猜。 這是主定理情況 2 的形狀（$a = 4$、$b = 2$，$n^{\log_2 4} = n^2 = f(n)$），答案
+應該是 $\Theta(n^2 \lg n)$；題目要求用代換法證下界。 設 $n$ 是 $2$ 的次方，$T(1) > 0$。
+對 $n$ 做歸納，證明 $T(n) \ge c\, n^2 \lg n$，$c = 1$。
+\begin{itemize}
+\item 基礎情況 $n = 1$：右邊是 $c \cdot 1 \cdot \lg 1 = 0$，而 $T(1) > 0$，成立。
+\item $n \ge 2$：由歸納假設，
+\[
+T(n) \ge 4c \left(\frac{n}{2}\right)^2 \lg \frac{n}{2} + n^2
+= c\, n^2 (\lg n - 1) + n^2 = c\, n^2 \lg n + (1 - c)\, n^2 \ge c\, n^2 \lg n ,
+\]
+最後一步只要 $c \le 1$。
+\end{itemize}
+所以 $T(n) \ge n^2 \lg n$，$T(n) = \Omega(n^2 \lg n)$。 這是緊的下界：主定理情況 2 給
+出 $T(n) = O(n^2 \lg n)$，不可能證出更大的下界。 $T(1) = 1$ 時精確解是
+$T(n) = n^2 \lg n + n^2$，例如 $T(8) = 4 \cdot 48 + 64 = 256 = 64 \cdot 3 + 64$。 不是
+$2$ 的次方的 $n$，$T$ 是非遞減的，用定理~\ref{thm:rec-smooth} 推到所有 $n$。
+
+\pastsol{px:rec-3}{政大資科所 113 學年度 第 11 題}
+答案：$T(n) = \Theta(n^{\lg 6})$，$\lg 6 \approx 2.585$。 題目不准用主定理，用遞迴樹
+（第~\ref{sec:rec-tree}~節）直接算。
+
+設 $n$ 是 $2$ 的次方。 把 $\Theta(n^2)$ 那一項記成 $f(n)$：存在正的常數 $c_1$、$c_2$，
+使 $n \ge 2$ 時 $c_1 n^2 \le f(n) \le c_2 n^2$；$T(1) = d > 0$。
+\begin{itemize}
+\item 第 $j$ 層（$j = 0, 1, \ldots, \lg n - 1$）有 $6^j$ 個節點，每個的規模是
+$n/2^j \ge 2$，自己的工作是 $f(n/2^j)$。 這一層的總和夾在
+$c_1 \cdot 6^j (n/2^j)^2 = c_1 (3/2)^j n^2$ 和 $c_2 (3/2)^j n^2$ 之間。
+\item 第 $\lg n$ 層是葉子，共 $6^{\lg n} = n^{\lg 6}$ 個，每個 $d$。
+\end{itemize}
+內部節點的總和用等比級數（公比 $3/2$）：
+\[
+\sum_{j=0}^{\lg n - 1} \left(\frac{3}{2}\right)^j
+= 2\left(\left(\frac{3}{2}\right)^{\lg n} - 1\right) = 2\,(n^{\lg 6 - 2} - 1),
+\]
+這裡用了 $(3/2)^{\lg n} = n^{\lg (3/2)} = n^{\lg 6 - 2}$。 乘上 $n^2$，內部節點的總和
+夾在 $2c_1 (n^{\lg 6} - n^2)$ 和 $2c_2 (n^{\lg 6} - n^2)$ 之間。 加上葉子：
+\[
+d\, n^{\lg 6} \le T(n) \le (d + 2c_2)\, n^{\lg 6} ,
+\]
+所以 $T(n) = \Theta(n^{\lg 6})$。 每一層是上一層的 $3/2$ 倍，越來越大，答案由葉子的
+個數決定。 其他的 $n$ 用定理~\ref{thm:rec-smooth}。
+
+想再用代換法確認上界，直接猜 $T(n) \le a\, n^{\lg 6}$ 會多出 $c_2 n^2$ 過不去，要減去
+低次項（第~\ref{sec:rec-subst}~節）：猜 $T(n) \le a\, n^{\lg 6} - b\, n^2$，
+\[
+T(n) \le 6\left(a \left(\frac{n}{2}\right)^{\lg 6} - b\, \frac{n^2}{4}\right) + c_2 n^2
+= a\, n^{\lg 6} - \frac{3b}{2} n^2 + c_2 n^2 \le a\, n^{\lg 6} - b\, n^2 ,
+\]
+只要 $b \ge 2c_2$；基礎情況要 $d \le a - b$。 取 $b = 2c_2$、$a = d + 2c_2$，和遞迴樹
+得到的常數一樣。 （$f(n) = n^2$、$T(1) = 1$ 時精確解是 $3n^{\lg 6} - 2n^2$，用程式算到
+$n = 128$ 都相符。）
+
+\pastsol{px:rec-4}{臺大資網所 114 學年度 第 9 題}
+答案：(B)、(C)、(D)、(E)。
+
+(A) 錯。 $a = 2$、$b = 2$，$n^{\log_2 2} = n$，$f(n) = \Theta(n)$，主定理情況 2，
+$T(n) = \Theta(n \lg n)$。 $n \lg n = o(n^2)$，不是同一級。
+
+(B) 對。 $a = 7$、$b = 2$，$\log_2 7 \approx 2.807$；$f(n) = \Theta(n^2) =
+O(n^{\log_2 7 - 0.8})$，情況 1，$T(n) = \Theta(n^{\lg 7})$。
+
+(C) 對。 $\log$ 以 $2$ 為底（換底只差常數倍）。 換變數（第~\ref{sec:rec-subst}~節）：
+令 $m = \lg n$、$S(m) = T(2^m)$，$\sqrt{n} = 2^{m/2}$，得到 $S(m) = S(m/2) + m$。
+$a = 1$、$b = 2$，$m^{\log_2 1} = 1$，$f(m) = m = \Omega(m^{0 + 1})$，正則條件
+$1 \cdot (m/2) \le \frac{1}{2} m$，情況 3，$S(m) = \Theta(m)$，所以
+$T(n) = \Theta(\log n)$。 直接展開也看得出來：
+$\lg n + \frac{1}{2}\lg n + \frac{1}{4}\lg n + \cdots < 2\lg n$，第一項就是
+$\lg n$。
+
+(D) 對。 一直展開到基礎情況（第~\ref{sec:rec-other}~節「每次減一」的做法）：
+\[
+T(n) = 2^n \cdot 2^{n-1} \cdots 2^{c} \cdot T(c - 1) = 2^{\,n + (n-1) + \cdots + c}
+= 2^{\frac{n(n+1)}{2} - \frac{c(c-1)}{2}} .
+\]
+而 $(\sqrt{2})^{n^2 + n} = 2^{\frac{n(n+1)}{2}}$。 兩者的比是 $2^{-c(c-1)/2}$，一個
+和 $n$ 無關的正常數，所以 $\Theta$ 成立。 指數上的常數「倍」不能丟，但這裡指數上差的
+是常數「加減」，等於整個函數乘上一個常數。 （取 $c = 3$ 實際算，$n = 3$ 到 $14$ 的
+比值都是 $1/8 = 2^{-3}$。）
+
+(E) 對。 $\frac{1}{6} + \frac{7}{9} = \frac{17}{18} < 1$，每一層的規模加起來是上一層
+的 $17/18$ 倍，和第~\ref{sec:rec-gf}~節 $T(n/2) + T(n/3) + n$ 的例子同一型，根的工
+作最大。 用代換法：設 $O(n)$ 那一項不超過 $an$，假設比 $n$ 小的都有 $T(k) \le dk$，
+\[
+T(n) \le d\,\frac{n}{6} + d\,\frac{7n}{9} + an = \left(\frac{17}{18}d + a\right) n
+\le dn ,
+\]
+只要 $d \ge 18a$；$d$ 再取得不小於 $1$，基礎情況 $T(n) = 1 \le dn$ 也成立。 所以
+$T(n) = O(n)$。
+
+\pastsol{px:rec-5}{北科大資工所 115 學年度 第 1 題（節錄 (2) 小題）}
+答案：$T(n) = \Theta(n \lg \lg n)$。
+
+這題不能套主定理：子問題的個數 $\sqrt{n}$ 不是常數（第~\ref{sec:rec-master}~節「不
+能用的時候」）。 兩邊除以 $n$：
+\[
+\frac{T(n)}{n} = \frac{T(\sqrt{n})}{\sqrt{n}} + c .
+\]
+令 $S(n) = T(n)/n$，得到 $S(n) = S(\sqrt{n}) + c$，$S(2) = 1/2$。 這是
+第~\ref{sec:rec-other}~節開根號的形式：考慮 $n = 2^{2^k}$（每次開根號都是整數），從
+$n$ 開到 $2$ 要 $k = \lg \lg n$ 次，每次加 $c$，所以
+\[
+S(n) = \frac{1}{2} + c \lg \lg n, \qquad T(n) = n \left(c \lg \lg n + \frac{1}{2}\right)
+= \Theta(n \lg \lg n).
+\]
+驗算 $c = 1$：$T(4) = 2T(2) + 4 = 6 = 4(1 + \frac{1}{2})$，
+$T(16) = 4T(4) + 16 = 40 = 16(2 + \frac{1}{2})$。
