@@ -1,0 +1,1832 @@
+\chapter{拓樸排序、AOV 與 AOE 網路}
+\label{ch:topological}
+
+% 本章的圖共用的樣式（前綴 tps-）
+\tikzset{
+    tps-v/.style={circle, draw=black!70, minimum size=0.62cm, inner sep=0pt, font=\small, fill=white},
+    tps-src/.style={tps-v, draw=coreStroke, thick, fill=coreFill},
+    tps-e/.style={-{Stealth[length=2.2mm]}, draw=black!65, thick},
+    tps-add/.style={tps-e, draw=examStroke, dashed},
+    tps-ev/.style={circle, draw=black!70, minimum size=0.66cm, inner sep=0pt, font=\small, fill=white},
+    tps-cev/.style={tps-ev, draw=examStroke, very thick},
+    tps-a/.style={-{Stealth[length=2.2mm]}, draw=black!60, thick},
+    tps-crit/.style={-{Stealth[length=2.6mm]}, draw=examStroke, line width=1.5pt},
+    tps-dummy/.style={-{Stealth[length=2.2mm]}, draw=black!60, thick, dashed},
+    tps-cdummy/.style={-{Stealth[length=2.6mm]}, draw=examStroke, line width=1.5pt, dashed},
+    tps-al/.style={font=\scriptsize, inner sep=1pt, fill=white, text=black!85},
+    tps-time/.style={font=\scriptsize, text=coreStroke, inner sep=1pt},
+    tps-root/.style={rectangle, rounded corners=2pt, draw=black!65, font=\scriptsize, inner sep=2pt, fill=black!6},
+    tps-tn/.style={circle, draw=black!65, minimum size=0.52cm, inner sep=0pt, font=\small, fill=white},
+    tps-tleaf/.style={tps-tn, draw=memStroke, thick, fill=memFill},
+    tps-te/.style={draw=black!55},
+    tps-tord/.style={font=\scriptsize\ttfamily, text=black!80},
+    tps-lvl/.style={font=\scriptsize, text=black!55, anchor=east},
+    tps-gone/.style={text=black!35},
+}
+% 手算表裡已經取出的頂點
+\newcommand{\tpsgone}{\textcolor{black!35}{--}}
+
+家裡的老公寓要重新裝修。 工班給了一張工作清單：拆除舊裝潢、水電配管、浴室防水和貼
+磚、天花板木作、油漆、訂做並安裝系統櫃、裝燈具、最後清潔。 有些工作要等別的做完才
+能開始，油漆一定在木作之後，裝櫃子要等油漆乾；有些工作互不相干，可以同時做。 屋主
+想知道三件事：這些工作可以排成什麼先後順序？ 人手足夠的話，最快幾天能完工？ 哪幾項
+工作只要晚一天，整個工程就跟著晚一天？ 往下讀之前，先想想看要回答這三個問題，各需
+要知道哪些資料。
+
+第一個問題是\textbf{拓樸排序}（topological sort）：把有先後限制的工作排成一列，每一
+項都排在它必須等待的工作後面。 第~\ref{sec:tps-kahn}~節的 Kahn 演算法一直挑「現在
+沒有人擋住的」工作；第~\ref{sec:tps-dfs}~節用第~21~章的深度優先搜尋，依完成時間倒過
+來排。 兩種方法都是線性時間，但排出來的順序常常不一樣，因為拓樸順序通常不只一種，考
+試很喜歡問「有幾種」「全部列出來」，第~\ref{sec:tps-count}~節處理這件事。 後兩個問題
+要加上每項工作的天數，這是第~\ref{sec:tps-aoe}~節 AOE 網路的\textbf{關鍵路徑}
+（critical path）。 中間的第~\ref{sec:tps-aov}~節先講 AOV 網路，它是課本上描述「工作
+之間的先後關係」的標準說法。
+
+這一章假設你讀過第~21~章：有向圖、鄰接串列、深度優先搜尋的白灰黑三色，以及發現時間
+$d[v]$ 和完成時間 $f[v]$（都從 $1$ 開始，每次發現或完成一個頂點，全域的時間加 $1$）。
+C 程式用到《C 程式設計基礎》第~19~章的 \texttt{malloc}、\texttt{free} 和串列，佇列與
+堆積見本書第~6~章和第~8~章。 AOE 網路的最早時間就是有向無環圖上的最長路徑，算法是
+第~18~章的動態規劃，這裡會直接引用。
+
+\section{拓樸排序與 Kahn 演算法}
+\label{sec:tps-kahn}
+
+\subsection{有向無環圖與拓樸順序}
+
+先重述幾個名詞。 有向圖 $G$ 有 $n$ 個頂點、$m$ 條邊。 頂點 $v$ 的\textbf{入度}
+（in-degree）是指向 $v$ 的邊數，\textbf{出度}（out-degree）是從 $v$ 出去的邊數。 入
+度 $0$ 的頂點叫\textbf{源點}（source），出度 $0$ 的叫\textbf{匯點}（sink）。 沒有任何
+有向環的有向圖叫做\textbf{有向無環圖}（directed acyclic graph，簡稱 DAG）。 邊
+$(u, v)$ 寫成 $u \to v$，讀成「$u$ 要在 $v$ 之前」。
+
+\begin{definition}[拓樸順序]
+\label{def:tps-order}
+有向圖 $G$ 的一個\textbf{拓樸順序}（topological order）是把全部 $n$ 個頂點排成一列
+$v_1, v_2, \ldots, v_n$，使得每一條邊 $(u, v)$ 的 $u$ 都排在 $v$ 前面。 找出一個拓
+樸順序叫做\textbf{拓樸排序}。
+\end{definition}
+
+把頂點依拓樸順序由左到右擺在一條線上，所有的邊都往右指。 這和第~14~章的排序不一樣：
+那裡任兩個鍵都能比大小，這裡沒有邊（也沒有路徑）相連的兩個頂點，誰先誰後都可以。
+
+圖~\ref{fig:tps-g1} 是本章前兩節共用的例子，$8$ 個頂點、$11$ 條邊。 頂點的編號是隨
+便給的，不是拓樸順序，例如有 $2 \to 1$ 這條邊。
+
+\begin{center}
+\begin{tikzpicture}[x=1.15cm, y=0.9cm]
+\node[tps-v] (2) at (0, 1) {2};
+\node[tps-v] (3) at (0, -1) {3};
+\node[tps-v] (5) at (2, 2) {5};
+\node[tps-v] (1) at (2, 0) {1};
+\node[tps-v] (6) at (2, -2) {6};
+\node[tps-v] (4) at (4, 1) {4};
+\node[tps-v] (8) at (4, -1) {8};
+\node[tps-v] (7) at (6, 0) {7};
+\foreach \u/\v in {2/1, 3/1, 2/5, 3/6, 1/4, 5/4, 6/4, 5/8, 6/8, 4/7, 8/7} {
+    \draw[tps-e] (\u) -- (\v);
+}
+\node[font=\small, anchor=west, align=left] at (6.9, 0) {
+$\mathit{Adj}[1]$: 4\\ $\mathit{Adj}[2]$: 1, 5\\ $\mathit{Adj}[3]$: 1, 6\\
+$\mathit{Adj}[4]$: 7\\ $\mathit{Adj}[5]$: 4, 8\\ $\mathit{Adj}[6]$: 4, 8\\
+$\mathit{Adj}[7]$: （空）\\ $\mathit{Adj}[8]$: 7};
+\end{tikzpicture}
+\diagcaption{本章的例子 $G_1$：$8$ 個頂點、$11$ 條邊的有向無環圖。 右邊是鄰接串列，每個頂點的鄰居依編號由小到大排。}
+\label{fig:tps-g1}
+\end{center}
+
+什麼樣的圖才有拓樸順序？ 有環一定不行：環 $v_1 \to v_2 \to \cdots \to v_k \to v_1$
+上的每條邊都要求前一個排在後一個前面，繞一圈回來變成 $v_1$ 排在 $v_1$ 前面。 反過來，
+沒有環就一定排得出來，關鍵是下面這個引理。
+
+\begin{lemma}
+\label{lem:tps-source}
+至少有一個頂點的有向無環圖，一定有入度 $0$ 的頂點，也一定有出度 $0$ 的頂點。
+\end{lemma}
+
+\begin{proof}
+假設每個頂點的入度都至少是 $1$。 從任何一個頂點 $x_0$ 出發，它有一條進來的邊
+$x_1 \to x_0$；$x_1$ 也有進來的邊 $x_2 \to x_1$……一直往回走 $n$ 步，得到
+$x_0, x_1, \ldots, x_n$ 共 $n + 1$ 個頂點，一定有兩個相同，設 $x_i = x_j$
+（$i < j$）。 那麼 $x_j \to x_{j-1} \to \cdots \to x_i$ 是一個有向環，矛盾。 出度的
+情形一樣，改成順著出邊往前走。
+\end{proof}
+
+\begin{theorem}
+\label{thm:tps-exists}
+有向圖 $G$ 有拓樸順序，若且唯若 $G$ 是有向無環圖。
+\end{theorem}
+
+\begin{proof}
+有環就沒有拓樸順序，上面已經說明。 反方向對 $n$ 做歸納：$n = 1$ 時顯然成立。 $n > 1$
+時，由引理~\ref{lem:tps-source}，$G$ 有一個入度 $0$ 的頂點 $s$。 把 $s$ 和它的出邊拿
+掉，剩下的圖仍然沒有環，由歸納假設有拓樸順序；把 $s$ 放在最前面，$s$ 的邊都往後指，
+其他邊照舊，所以整列是 $G$ 的拓樸順序。
+\end{proof}
+
+這個證明本身就是一個演算法：一直拿掉入度 $0$ 的頂點。 下一小節把它寫成有效率的程序。
+
+\subsection{Kahn 演算法}
+
+直接照證明做，每一輪都要找一個入度 $0$ 的頂點，掃一遍是 $O(n)$，總共 $O(n^2)$。
+Kahn 演算法的改進是記帳：
+\begin{itemize}
+\item 用陣列 $\mathit{in}[v]$ 記錄 $v$ 還有幾個前驅沒有排出去。
+\item 把入度已經是 $0$、還沒排出去的頂點放在一個容器 $Q$ 裡。
+\item 每次從 $Q$ 取出一個頂點 $u$ 排到答案的尾端，再把 $u$ 的每條出邊 $u \to v$
+「拿掉」，也就是 $\mathit{in}[v]$ 減一。 減到 $0$ 的 $v$ 放進 $Q$。
+\end{itemize}
+入度要減到 $0$ 只會發生在減一的那一刻，所以不必重新掃描所有頂點。
+
+$Q$ 裡同時有好幾個頂點時，取哪一個都對，但答案會不一樣。 本書的規則是：\textbf{$Q$
+用佇列（先進先出）}；一開始依編號由小到大把入度 $0$ 的頂點放進去，處理 $u$ 的出邊時
+照鄰接串列的順序（編號由小到大）。 想要「每次取編號最小的」，就把佇列換成最小優先佇
+列，第~\ref{sec:tps-kahn-trace}~節會比較兩種結果。
+
+\begin{pseudo}[label=alg:tps-kahn]{Kahn 演算法}
+\Function{Kahn-Topo-Sort}{$G$}
+    \For{$v \gets 1$ \To $n$}
+        \State $\mathit{in}[v] \gets 0$
+    \EndFor
+    \For{$u \gets 1$ \To $n$}
+        \For{$\mathit{Adj}[u]$ 裡的每一個 $v$}
+            \State $\mathit{in}[v] \gets \mathit{in}[v] + 1$
+        \EndFor
+    \EndFor
+    \State $Q \gets$ 空的佇列；$L \gets$ 空的串列
+    \For{$v \gets 1$ \To $n$} \Comment{編號由小到大}
+        \If{$\mathit{in}[v] = 0$}
+            \State \Call{Enqueue}{$Q, v$}
+        \EndIf
+    \EndFor
+    \While{$Q$ 不是空的}
+        \State $u \gets$ \Call{Dequeue}{$Q$}
+        \State 把 $u$ 接到 $L$ 的尾端
+        \For{$\mathit{Adj}[u]$ 裡的每一個 $v$} \Comment{編號由小到大}
+            \State $\mathit{in}[v] \gets \mathit{in}[v] - 1$
+            \If{$\mathit{in}[v] = 0$}
+                \State \Call{Enqueue}{$Q, v$}
+            \EndIf
+        \EndFor
+    \EndWhile
+    \If{$L$ 的頂點少於 $n$ 個}
+        \State \Return 「有環，沒有拓樸順序」
+    \EndIf
+    \State \Return $L$
+\EndFunction
+\end{pseudo}
+
+第 2--6 行算入度，第 7--10 行把一開始的源點放進佇列，第 11--17 行是主迴圈。 第 18
+行的檢查不能省：有環的時候主迴圈也會正常結束，只是排出來的頂點不夠 $n$ 個。
+
+\subsection{手算追蹤}
+\label{sec:tps-kahn-trace}
+
+用 $G_1$（圖~\ref{fig:tps-g1}）跑一次。 一開始的入度是 $\mathit{in}[1..8] = 2, 0, 0,
+3, 1, 1, 2, 2$，入度 $0$ 的是 $2$ 和 $3$。 下表每一列是取出一個頂點、處理完它的出邊
+之後的狀態，「--」表示這個頂點已經排出去了；佇列的前端寫在左邊。
+
+\begin{center}
+\small
+\begin{tabular}{cc*{8}{c}ll}
+\toprule
+步驟 & 取出 & \multicolumn{8}{c}{$\mathit{in}[1..8]$} & 佇列 $Q$ & $L$ \\
+\cmidrule(lr){3-10}
+ & & 1 & 2 & 3 & 4 & 5 & 6 & 7 & 8 & & \\
+\midrule
+開始 & & 2 & 0 & 0 & 3 & 1 & 1 & 2 & 2 & 2 3 & \\
+1 & 2 & 1 & \tpsgone & 0 & 3 & 0 & 1 & 2 & 2 & 3 5 & 2 \\
+2 & 3 & 0 & \tpsgone & \tpsgone & 3 & 0 & 0 & 2 & 2 & 5 1 6 & 2 3 \\
+3 & 5 & 0 & \tpsgone & \tpsgone & 2 & \tpsgone & 0 & 2 & 1 & 1 6 & 2 3 5 \\
+4 & 1 & \tpsgone & \tpsgone & \tpsgone & 1 & \tpsgone & 0 & 2 & 1 & 6 & 2 3 5 1 \\
+5 & 6 & \tpsgone & \tpsgone & \tpsgone & 0 & \tpsgone & \tpsgone & 2 & 0 & 4 8 & 2 3 5 1 6 \\
+6 & 4 & \tpsgone & \tpsgone & \tpsgone & \tpsgone & \tpsgone & \tpsgone & 1 & 0 & 8 & 2 3 5 1 6 4 \\
+7 & 8 & \tpsgone & \tpsgone & \tpsgone & \tpsgone & \tpsgone & \tpsgone & 0 & \tpsgone & 7 & 2 3 5 1 6 4 8 \\
+8 & 7 & \tpsgone & \tpsgone & \tpsgone & \tpsgone & \tpsgone & \tpsgone & \tpsgone & \tpsgone & （空）& 2 3 5 1 6 4 8 7 \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+幾個值得注意的地方。 第 1 步取出 $2$，$\mathit{Adj}[2] = 1, 5$：$\mathit{in}[1]$ 從
+$2$ 變 $1$，還不能進佇列；$\mathit{in}[5]$ 從 $1$ 變 $0$，放進佇列。 第 2 步取出 $3$
+之後，$1$ 和 $6$ 依鄰接串列的順序先後進佇列，排在第 1 步就進來的 $5$ 後面。 第 5 步取
+出 $6$，$4$ 的最後一個前驅排出去了，$4$ 和 $8$ 同時變成 $0$，依 $\mathit{Adj}[6] =
+4, 8$ 的順序進佇列。 結果是
+\[
+L = 2, 3, 5, 1, 6, 4, 8, 7.
+\]
+逐條檢查 $11$ 條邊，起點都排在終點前面。
+
+\textbf{改成每次取編號最小的。} 把佇列換成最小優先佇列（第~8~章 8.3 節），其他不變。
+前兩步一樣取出 $2$、$3$；第 2 步之後 $Q$ 裡有 $1, 5, 6$，佇列會取最先進來的 $5$，最
+小優先佇列取 $1$。 之後每一步的 $Q$ 是 $\{5, 6\}$、$\{6\}$、$\{4, 8\}$、$\{8\}$、
+$\{7\}$，結果是
+\[
+L' = 2, 3, 1, 5, 6, 4, 8, 7.
+\]
+這個版本排出的是所有拓樸順序裡\textbf{字典序最小}的一個：每一步都在「現在可以排的頂點」
+裡挑最小的，而任何拓樸順序在同一個位置都只能從這些頂點裡挑。 代價是每次進出優先佇列
+花 $O(\lg n)$，總時間變成 $O(m + n \lg n)$。
+
+\begin{examnote}
+Kahn 演算法的追蹤題，答案取決於三個約定：(1) 入度 $0$ 的頂點用佇列、堆疊還是「每次挑
+最小的」來存（有的課本用堆疊，排出來又不一樣）；(2) 一開始依什麼順序放進去；(3) 處理
+出邊時照什麼順序。 本書用佇列、編號由小到大，題目有規定就照題目；題目只給圖、沒有說
+時，在答案開頭寫一句你用的約定。 DFS 也一樣，外層的起點順序和鄰接串列的順序不同，
+$d$、$f$ 和排出來的順序都會變，照題目給的鄰接串列走。
+\end{examnote}
+
+\subsection{正確性與執行時間}
+
+\begin{theorem}
+\label{thm:tps-kahn}
+若 $G$ 是有向無環圖，\proc{Kahn-Topo-Sort} 回傳 $G$ 的一個拓樸順序；若 $G$ 有環，它
+回傳「有環」。
+\end{theorem}
+
+\begin{proof}
+主迴圈有一個不變量：每次檢查第 11 行的條件時，對每個還沒排出去的頂點 $v$，
+$\mathit{in}[v]$ 等於「還沒排出去的前驅」的個數；$Q$ 裡恰好是那些 $\mathit{in}[v] = 0$
+而且還沒排出去的頂點。 一開始沒有頂點排出去，$\mathit{in}$ 就是入度，第 7--10 行把入
+度 $0$ 的都放進 $Q$。 取出 $u$ 時，$u$ 從「還沒排出去」變成「排出去了」，第 14--17 行
+正好把 $u$ 的每個後繼減一，減到 $0$ 的放進 $Q$，不變量維持。
+
+\textbf{排出來的順序合乎要求。} 頂點 $v$ 進 $Q$ 時 $\mathit{in}[v] = 0$，表示它的前驅
+全都已經排出去了，所以每條邊 $u \to v$ 的 $u$ 都排在 $v$ 前面。
+
+\textbf{沒有環時會排完。} 假設主迴圈結束時還有頂點沒排出去。 這些頂點連同它們之間的邊
+形成 $G$ 的一個子圖，沒有環，由引理~\ref{lem:tps-source} 其中有一個頂點 $v$ 在子圖裡
+入度 $0$，也就是它的前驅都已經排出去了，$\mathit{in}[v] = 0$。 由不變量，$v$ 在 $Q$
+裡，$Q$ 不是空的，和迴圈已經結束矛盾。
+
+\textbf{有環時排不完。} 設 $C$ 是一個環。 如果 $C$ 上有頂點被排出去，看其中最早排出
+去的一個 $v$，它在 $C$ 上的前一個頂點 $u$ 是 $v$ 的前驅，必須更早排出去，矛盾。 所以
+$C$ 上的頂點一個都排不出去，$L$ 不到 $n$ 個。
+\end{proof}
+
+注意「有環時排不完」只說環上的頂點排不出去。 卡住時剩下的頂點不一定都在環上：從環走
+得到的頂點也會被擋住，第~\ref{sec:tps-aov}~節有一個例子。
+
+\textbf{執行時間。} 用鄰接串列時，第 2--6 行是 $O(n + m)$；每個頂點進出 $Q$ 各一次，
+每條邊在第 15 行被處理一次，主迴圈也是 $O(n + m)$。 總共 $\Theta(n + m)$。 用鄰接矩陣
+時，算入度和找每個頂點的出邊都要掃一整列，總共 $\Theta(n^2)$。
+
+\section{用 DFS 的完成時間排序}
+\label{sec:tps-dfs}
+
+第二種方法不數入度，直接對整張圖做一次深度優先搜尋，記下每個頂點的完成時間 $f[v]$，
+再\textbf{依 $f$ 由大到小}排列。 實作時不必真的排序：每完成一個頂點就把它插到串列的最
+前面，最後完成的自然在最前面。
+
+\subsection{演算法}
+
+\begin{pseudo}[label=alg:tps-dfs]{用 DFS 做拓樸排序}
+\Function{DFS-Topo-Sort}{$G$}
+    \For{$u \gets 1$ \To $n$}
+        \State $\mathit{color}[u] \gets$ 白
+    \EndFor
+    \State $\mathit{time} \gets 0$；$L \gets$ 空的串列
+    \For{$u \gets 1$ \To $n$}
+        \If{$\mathit{color}[u] =$ 白}
+            \State \Call{Topo-Visit}{$G, u$}
+        \EndIf
+    \EndFor
+    \State \Return $L$
+\EndFunction
+\Procedure{Topo-Visit}{$G, u$}
+    \State $\mathit{time} \gets \mathit{time} + 1$；$d[u] \gets \mathit{time}$
+    \State $\mathit{color}[u] \gets$ 灰
+    \For{$\mathit{Adj}[u]$ 裡的每一個 $v$} \Comment{編號由小到大}
+        \If{$\mathit{color}[v] =$ 白}
+            \State \Call{Topo-Visit}{$G, v$}
+        \ElsIf{$\mathit{color}[v] =$ 灰}
+            \State 回報「找到後向邊 $(u, v)$，有環」並停止
+        \EndIf
+    \EndFor
+    \State $\mathit{color}[u] \gets$ 黑
+    \State $\mathit{time} \gets \mathit{time} + 1$；$f[u] \gets \mathit{time}$
+    \State 把 $u$ 插到 $L$ 的最前面
+\EndProcedure
+\end{pseudo}
+
+$\mathit{time}$ 和 $L$ 是兩個程序共用的變數。 這就是第~21~章的 DFS 多了兩件事：第 16
+行遇到灰色的頂點就停下來報告有環，第 19 行把剛完成的頂點插到 $L$ 最前面。 DFS 是
+$\Theta(n + m)$，每次插到串列最前面是 $O(1)$，所以整個程序也是 $\Theta(n + m)$。
+
+\subsection{為什麼一定對}
+
+要證明的是：在有向無環圖上，每一條邊 $(u, v)$ 都滿足 $f[v] < f[u]$，這樣 $u$ 比 $v$ 晚
+完成、在 $L$ 裡排在 $v$ 前面。 證明只用到第~21~章的\textbf{括號定理}：任兩個頂點的時
+間區間 $[d[u], f[u]]$ 和 $[d[v], f[v]]$ 不是互不相交，就是一個完全包含另一個；而
+$v$ 的區間包含在 $u$ 的區間裡，正好表示 $v$ 是 $u$ 在 DFS 森林裡的子孫。
+
+\begin{theorem}
+\label{thm:tps-dfs}
+對有向無環圖 $G$ 做 DFS，每一條邊 $(u, v)$ 都有 $f[v] < f[u]$。 因此依 $f$ 由大到小
+排列（也就是 \proc{DFS-Topo-Sort} 回傳的 $L$）是一個拓樸順序。
+\end{theorem}
+
+\begin{proof}
+看 $u$、$v$ 誰先被發現。
+
+\textbf{情形一：$d[u] < d[v]$。} 在時間 $d[u]$，$v$ 還是白的。 $u$ 完成之前一定會檢查
+到邊 $(u, v)$，那時 $v$ 不是還白著（於是現在被發現），就是在 $d[u]$ 之後、檢查這條邊之
+前已經被發現了。 兩種情況都有 $d[u] < d[v] < f[u]$。 兩個區間有交集，由括號定理一個包
+含另一個；$d[u] < d[v]$ 表示是 $u$ 的區間包含 $v$ 的，所以 $f[v] < f[u]$。
+
+\textbf{情形二：$d[v] < d[u]$。} 如果 $u$ 在 $v$ 還沒完成時被發現，也就是 $d[v] <
+d[u] < f[v]$，由括號定理 $u$ 的區間在 $v$ 的區間裡，$u$ 是 $v$ 的子孫，DFS 樹上有一條
+從 $v$ 到 $u$ 的路徑；再加上邊 $u \to v$ 就是一個環，和 $G$ 沒有環矛盾。 所以 $u$ 是在
+$v$ 完成之後才被發現的：$f[v] < d[u] < f[u]$。
+\end{proof}
+
+情形二也說明了第 15--16 行為什麼能偵測環：檢查邊 $(u, v)$ 時 $v$ 是灰的，表示 $u$ 是
+$v$ 的子孫，這條邊是第~21~章說的\textbf{後向邊}，圖上一定有環。 第~21~章也證明了反方
+向：有環的圖做 DFS 一定會出現後向邊。 所以 \proc{DFS-Topo-Sort} 不會漏掉環。
+
+只看情形一、二的結論，可以把邊依種類整理：樹邊和前向邊是情形一（$v$ 是 $u$ 的子孫）；
+交叉邊是情形二（$v$ 早就完成了）；後向邊在有向無環圖裡不會出現。 每一種都有
+$f[v] < f[u]$。
+
+\subsection{手算追蹤}
+
+在 $G_1$ 上照虛擬碼~\ref{alg:tps-dfs} 走一次。 外層依 $1, 2, \ldots, 8$ 找白色的頂點，
+鄰接串列照圖~\ref{fig:tps-g1}。
+
+\begin{enumerate}
+\item 從 $1$ 開始：$d[1] = 1$。 $\mathit{Adj}[1] = 4$，發現 $4$（$d = 2$）；
+$\mathit{Adj}[4] = 7$，發現 $7$（$d = 3$）。 $7$ 沒有出邊，完成 $f[7] = 4$；接著 $4$
+完成（$5$）、$1$ 完成（$6$）。 $L = 1, 4, 7$。
+\item 外層到 $2$：$d[2] = 7$。 $\mathit{Adj}[2] = 1, 5$；$1$ 已經是黑的（交叉邊），跳過；
+發現 $5$（$d = 8$）。 $\mathit{Adj}[5] = 4, 8$；$4$ 是黑的，發現 $8$（$d = 9$）。
+$\mathit{Adj}[8] = 7$，黑的，$8$ 完成（$10$），$5$ 完成（$11$），$2$ 完成（$12$）。
+$L = 2, 5, 8, 1, 4, 7$。
+\item 外層的 $3$ 還是白的：$d[3] = 13$。 $1$ 是黑的；發現 $6$（$d = 14$），$\mathit{Adj}[6]
+= 4, 8$ 都是黑的，$6$ 完成（$15$），$3$ 完成（$16$）。 $L = 3, 6, 2, 5, 8, 1, 4, 7$。
+\item 外層的 $4..8$ 都已經是黑的，結束。
+\end{enumerate}
+
+\begin{center}
+\begin{tabular}{c*{8}{c}}
+\toprule
+頂點 $v$ & 1 & 2 & 3 & 4 & 5 & 6 & 7 & 8 \\
+\midrule
+$d[v]$ & 1 & 7 & 13 & 2 & 8 & 14 & 3 & 9 \\
+$f[v]$ & 6 & 12 & 16 & 5 & 11 & 15 & 4 & 10 \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+依 $f$ 由大到小：$f[3] = 16$、$f[6] = 15$、$f[2] = 12$、$f[5] = 11$、$f[8] = 10$、
+$f[1] = 6$、$f[4] = 5$、$f[7] = 4$，得到
+\[
+L = 3, 6, 2, 5, 8, 1, 4, 7.
+\]
+和 Kahn 演算法的 $2, 3, 5, 1, 6, 4, 8, 7$ 不同，但一樣合乎要求。 圖~\ref{fig:tps-line}
+把頂點照這個順序排在一條線上，$11$ 條邊全部往右指。 可以順便驗證定理：例如交叉邊
+$2 \to 1$ 有 $f[1] = 6 < 12 = f[2]$，$1$ 在 $2$ 被發現之前就完成了。
+
+\begin{center}
+\begin{tikzpicture}[x=1.3cm]
+\node[tps-v] (L3) at (0,0) {3};
+\node[tps-v] (L6) at (1,0) {6};
+\node[tps-v] (L2) at (2,0) {2};
+\node[tps-v] (L5) at (3,0) {5};
+\node[tps-v] (L8) at (4,0) {8};
+\node[tps-v] (L1) at (5,0) {1};
+\node[tps-v] (L4) at (6,0) {4};
+\node[tps-v] (L7) at (7,0) {7};
+\foreach \v/\t in {3/16, 6/15, 2/12, 5/11, 8/10, 1/6, 4/5, 7/4} {
+    \node[tps-time] at ($(L\v)+(0,-0.48)$) {$f = \t$};
+}
+\draw[tps-e] (L3) -- (L6);
+\draw[tps-e] (L2) -- (L5);
+\draw[tps-e] (L5) -- (L8);
+\draw[tps-e] (L1) -- (L4);
+\draw[tps-e] (L4) -- (L7);
+\draw[tps-e] (L3) to[bend left=40] (L1);
+\draw[tps-e] (L6) to[bend left=34] (L4);
+\draw[tps-e] (L5) to[bend left=38] (L4);
+\draw[tps-e] (L6) to[bend right=40] (L8);
+\draw[tps-e] (L2) to[bend right=40] (L1);
+\draw[tps-e] (L8) to[bend right=40] (L7);
+\end{tikzpicture}
+\diagcaption{$G_1$ 的頂點依 DFS 完成時間由大到小排成一列，每條邊都往右指。}
+\label{fig:tps-line}
+\end{center}
+
+\subsection{C 程式}
+
+下面的程式把兩種方法寫在一起：讀進好幾張圖，每張圖先跑 Kahn 演算法（佇列），再跑 DFS。
+輸入的頂點是 $1..n$，程式裡一律減一變成 $0..n-1$，印出來時再加一。 鄰接串列插入新邊時找
+到正確的位置，讓每個頂點的鄰居保持由小到大，這樣不管邊的輸入順序如何，結果都和手算一致。
+
+\begin{cbookrecap}[第~14~章 14.5 節、第~19~章 19.3、19.10 節]
+\texttt{Node **p = \&g->head[u];} 讓 \texttt{p} 指向「要改的那個指標」：一開始是串列
+頭，往後走時變成前一個節點的 \texttt{next} 欄位。 找到位置之後，\texttt{x->next = *p;
+*p = x;} 兩行就把新節點接進去，插在最前面和插在中間不必分開寫。 \texttt{calloc} 配
+置的指標陣列每一格都是 \texttt{NULL}，代表空串列。
+\end{cbookrecap}
+
+Kahn 演算法的佇列直接用答案陣列 \texttt{q}：每個頂點最多進佇列一次，排出去的順序就是進佇
+列的順序，所以 \texttt{q[0..head-1]} 是已經取出的，\texttt{q[head..cnt-1]} 是還在佇列裡
+的。 \texttt{kahn} 把入度複製到 \texttt{deg} 再減，不改圖本身。 DFS 把「插到串列最前面」
+換成陣列：\texttt{order} 有 $n$ 格，\texttt{pos} 從 $n$ 開始，每完成一個頂點就放進
+\texttt{order[--pos]}。 找到後向邊時記下來，讓所有呼叫盡快結束，只印出那條邊。
+
+\begin{example}[label=ex:tps-topo]{c}{(topo.c) Kahn 演算法與 DFS 完成時間法}
+#include <stdio.h>
+#include <stdlib.h>
+
+enum { WHITE, GRAY, BLACK };
+
+typedef struct node {           // 鄰接串列的一個節點：一條邊 u -> to
+    int to;
+    struct node *next;
+} Node;
+
+typedef struct {
+    int n;
+    Node **head;                // head[u]：u 的出邊，終點由小到大
+    int *indeg;                 // 入度
+    int *color, *d, *f, time;   // DFS 用
+    int *order, pos;            // DFS 完成的頂點從 order 的最後一格往前放
+    int back_u, back_v;         // 找到的後向邊；沒有時 back_u = -1
+} Graph;
+
+int graph_init(Graph *g, int n)
+{
+    g->n = n;
+    g->head = calloc(n, sizeof *g->head);   // 每一格都是 NULL：空串列
+    g->indeg = calloc(n, sizeof(int));
+    g->color = calloc(n, sizeof(int));      // 0 就是 WHITE
+    g->d = calloc(n, sizeof(int));
+    g->f = calloc(n, sizeof(int));
+    g->order = calloc(n, sizeof(int));
+    g->time = 0;
+    g->pos = n;
+    g->back_u = g->back_v = -1;
+    return g->head && g->indeg && g->color && g->d && g->f && g->order;
+}
+
+void graph_free(Graph *g)
+{
+    for (int u = 0; u < g->n && g->head != NULL; u++) {
+        Node *x = g->head[u];
+        while (x != NULL) {
+            Node *nx = x->next;
+            free(x);
+            x = nx;
+        }
+    }
+    free(g->head);
+    free(g->indeg);
+    free(g->color);
+    free(g->d);
+    free(g->f);
+    free(g->order);
+}
+
+// 加入邊 u -> v，插在串列裡讓終點保持由小到大
+int add_edge(Graph *g, int u, int v)
+{
+    Node *x = malloc(sizeof *x);
+    if (x == NULL) {
+        return 0;
+    }
+    Node **p = &g->head[u];
+    while (*p != NULL && (*p)->to < v) {
+        p = &(*p)->next;
+    }
+    x->to = v;
+    x->next = *p;
+    *p = x;
+    g->indeg[v]++;
+    return 1;
+}
+
+// Kahn 演算法（佇列）。拓樸順序寫進 q，回傳排出幾個頂點。
+// q 本身就是佇列：q[head..cnt-1] 是還在佇列裡的頂點。
+int kahn(const Graph *g, int *q)
+{
+    int *deg = malloc(g->n * sizeof *deg), cnt = 0;
+    if (deg == NULL) {
+        return -1;
+    }
+    for (int v = 0; v < g->n; v++) {
+        deg[v] = g->indeg[v];
+        if (deg[v] == 0) {
+            q[cnt++] = v;
+        }
+    }
+    for (int head = 0; head < cnt; head++) {
+        for (Node *x = g->head[q[head]]; x != NULL; x = x->next) {
+            if (--deg[x->to] == 0) {
+                q[cnt++] = x->to;
+            }
+        }
+    }
+    free(deg);
+    return cnt;
+}
+
+void visit(Graph *g, int u)
+{
+    g->d[u] = ++g->time;
+    g->color[u] = GRAY;
+    for (Node *x = g->head[u]; x != NULL && g->back_u < 0; x = x->next) {
+        if (g->color[x->to] == WHITE) {
+            visit(g, x->to);
+        } else if (g->color[x->to] == GRAY) {   // 後向邊：有環
+            g->back_u = u;
+            g->back_v = x->to;
+        }
+    }
+    g->color[u] = BLACK;
+    g->f[u] = ++g->time;
+    g->order[--g->pos] = u;                     // 插到串列最前面
+}
+
+void print_list(const char *name, const int *a, int k)
+{
+    printf("%s:", name);
+    for (int i = 0; i < k; i++) {
+        printf(" %d", a[i] + 1);                // 印回 1 起算的編號
+    }
+}
+
+int main(void)
+{
+    int n, m;
+    while (scanf("%d %d", &n, &m) == 2 && n > 0) {
+        Graph g;
+        int ok = graph_init(&g, n);
+        for (int i = 0; i < m && ok; i++) {
+            int u, v;
+            ok = scanf("%d %d", &u, &v) == 2 && u >= 1 && u <= n && v >= 1
+                 && v <= n && add_edge(&g, u - 1, v - 1);
+        }
+        int *q = ok ? malloc(n * sizeof *q) : NULL;
+        int cnt = q != NULL ? kahn(&g, q) : -1;
+        if (cnt < 0) {
+            free(q);
+            graph_free(&g);
+            return 1;
+        }
+        print_list("kahn", q, cnt);
+        if (cnt < n) {
+            printf(" (stuck, %d left: cycle)", n - cnt);
+        }
+        printf("\n");
+        for (int u = 0; u < n && g.back_u < 0; u++) {
+            if (g.color[u] == WHITE) {
+                visit(&g, u);
+            }
+        }
+        if (g.back_u >= 0) {
+            printf("dfs: back edge %d -> %d (cycle)\n", g.back_u + 1, g.back_v + 1);
+        } else {
+            print_list("dfs", g.order, n);
+            printf("\nd f:");
+            for (int v = 0; v < n; v++) {
+                printf(" %d/%d", g.d[v], g.f[v]);
+            }
+            printf("\n");
+        }
+        free(q);
+        graph_free(&g);
+    }
+    return 0;
+}
+\end{example}
+\iosample{8 11 \\ 2 1 3 1 1 4 2 5 3 6 5 4 \\ 6 4 5 8 6 8 4 7 8 7 \\ 5 6 \\ 1 2 2 3 3 4 4 2 1 5 5 3}{kahn: 2 3 5 1 6 4 8 7 \\ dfs: 3 6 2 5 8 1 4 7 \\ d f: 1/6 7/12 13/16 2/5 8/11 14/15 3/4 9/10 \\ kahn: 1 5 (stuck, 3 left: cycle) \\ dfs: back edge 4 -> 2 (cycle)}
+
+第一張圖是 $G_1$，兩種方法的順序和 $d$、$f$（\texttt{d f:} 那一行依頂點 $1..8$ 列出
+$d/f$）都和手算相同。 第二張圖有環 $2 \to 3 \to 4 \to 2$：Kahn 演算法取出 $1$、$5$ 之
+後，$2$、$3$、$4$ 的入度都還是 $1$，佇列空了；DFS 從 $1$ 出發依序發現 $2$、$3$、$4$，在
+$4$ 檢查邊 $4 \to 2$ 時 $2$ 還是灰的。 想要字典序最小的版本，把佇列換成第~8~章的最小堆
+積就好，其他不變。 遞迴深度最多是 $n$；$n$ 很大（例如 $10^6$ 個頂點排成一條鏈）時，C 的
+呼叫堆疊可能不夠，要改用自己的堆疊模擬遞迴，或乾脆用 Kahn 演算法。
+
+\subsection{兩種方法的比較}
+
+\begin{center}
+\begin{tabular}{p{0.2\linewidth}p{0.34\linewidth}p{0.34\linewidth}}
+\toprule
+ & Kahn 演算法 & DFS 完成時間法 \\
+\midrule
+想法 & 一直取出入度 $0$ 的頂點 & 依完成時間由大到小 \\
+產生順序 & 由前往後，第一個先確定 & 由後往前，最後一個先確定 \\
+需要的資料 & 入度陣列、一個佇列 & 顏色、時間戳記、遞迴（或堆疊） \\
+偵測環 & 排出的頂點少於 $n$ 個 & 遇到灰色的頂點（後向邊） \\
+指定平手規則 & 換容器就好，例如最小優先佇列得到字典序最小 & 不容易控制 \\
+時間 & $\Theta(n + m)$ & $\Theta(n + m)$ \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+「指定平手規則」那一列的意思是：想要字典序最小的拓樸順序，Kahn 演算法只要換容器；DFS
+的順序由搜尋路徑決定，沒有簡單的改法。 反過來，DFS 不必先算入度，而且同一次搜尋還能
+拿來做別的事，例如第~23~章的強連通元件。
+
+\section{拓樸順序不唯一}
+\label{sec:tps-count}
+
+$G_1$ 已經出現了三個不同的拓樸順序。 它其實有 $38$ 個（下面的程式可以算出來）。 這一
+節回答三個考試常問的問題：什麼時候只有一個？ 怎麼不重複、不遺漏地全部列出來？ 有沒有
+快一點的數法？
+
+\subsection{什麼時候唯一}
+
+\begin{theorem}
+\label{thm:tps-unique}
+設 $v_1, v_2, \ldots, v_n$ 是有向無環圖 $G$ 的一個拓樸順序。 $G$ 只有這一個拓樸順序，
+若且唯若每一對相鄰的 $v_i, v_{i+1}$ 之間都有邊 $v_i \to v_{i+1}$；也就是 $G$ 有一條經
+過所有頂點的路徑。
+\end{theorem}
+
+\begin{proof}
+若每對相鄰的頂點都有邊，路徑 $v_1 \to v_2 \to \cdots \to v_n$ 規定了每一對相鄰頂點的
+先後，順序只能是這一個。 反過來，若某一對 $v_i, v_{i+1}$ 之間沒有邊，把這兩個對調。 被
+影響的只有一端是 $v_i$ 或 $v_{i+1}$ 的邊；這兩個頂點之間沒有邊，而它們和其他頂點的前
+後關係都沒變，所以每條邊的起點仍然在終點前面，得到第二個拓樸順序。
+\end{proof}
+
+用 Kahn 演算法來看，拓樸順序唯一，等於每一步佇列裡都恰好只有一個頂點；佇列裡出現兩個
+以上，取哪一個都會得到不同的順序。 所以判斷「拓樸順序是否唯一」只要跑一次 Kahn 演算
+法，$\Theta(n + m)$。
+
+\subsection{全部列出來}
+
+列舉所有拓樸順序，就是第~20~章的回溯：一個位置一個位置決定，每個位置可以放的是「還
+沒放、而且前驅都放好了」的頂點，也就是目前入度 $0$ 的頂點。 試的時候依字母（或編號）
+由小到大，列出來的順序自然是字典序，不會重複也不會漏掉。
+
+用一個小例子 $H$：$5$ 個頂點 A--E，邊是 $A \to C$、$B \to C$、$B \to D$、$C \to E$。
+圖~\ref{fig:tps-enum} 是它的列舉樹：第 $k$ 層的節點是第 $k$ 個位置放的頂點，同一個節點
+的孩子就是那時候入度 $0$ 的頂點。 例如放了 A 之後，C 還在等 B、D 也在等 B，所以只有
+B 一個孩子；放了 B、A 之後，C 和 D 都可以放。
+
+\begin{center}
+\begin{tikzpicture}[x=1cm, y=0.95cm]
+\begin{scope}[shift={(-3.6,-1.6)}, x=0.95cm, y=0.95cm]
+\node[tps-v] (hA) at (0, 1) {A};
+\node[tps-v] (hB) at (0, -1) {B};
+\node[tps-v] (hC) at (1.4, 0.3) {C};
+\node[tps-v] (hD) at (1.4, -1.4) {D};
+\node[tps-v] (hE) at (2.6, 0.3) {E};
+\draw[tps-e] (hA) -- (hC);
+\draw[tps-e] (hB) -- (hC);
+\draw[tps-e] (hB) -- (hD);
+\draw[tps-e] (hC) -- (hE);
+\node[font=\small] at (1.3, -2.3) {圖 $H$};
+\end{scope}
+\node[tps-root] (t0) at (4.94,0.00) {開始};
+\node[tps-tn] (t1) at (1.94,-1.00) {A};
+\draw[tps-te] (t0) -- (t1);
+\node[tps-tn] (t2) at (1.94,-2.00) {B};
+\draw[tps-te] (t1) -- (t2);
+\node[tps-tn] (t3) at (0.78,-3.00) {C};
+\draw[tps-te] (t2) -- (t3);
+\node[tps-tn] (t4) at (0.00,-4.00) {D};
+\draw[tps-te] (t3) -- (t4);
+\node[tps-tleaf] (t5) at (0.00,-5.00) {E};
+\draw[tps-te] (t4) -- (t5);
+\node[tps-tord] at (0.00,-5.62) {ABCDE};
+\node[tps-tn] (t6) at (1.55,-4.00) {E};
+\draw[tps-te] (t3) -- (t6);
+\node[tps-tleaf] (t7) at (1.55,-5.00) {D};
+\draw[tps-te] (t6) -- (t7);
+\node[tps-tord] at (1.55,-5.62) {ABCED};
+\node[tps-tn] (t8) at (3.10,-3.00) {D};
+\draw[tps-te] (t2) -- (t8);
+\node[tps-tn] (t9) at (3.10,-4.00) {C};
+\draw[tps-te] (t8) -- (t9);
+\node[tps-tleaf] (t10) at (3.10,-5.00) {E};
+\draw[tps-te] (t9) -- (t10);
+\node[tps-tord] at (3.10,-5.62) {ABDCE};
+\node[tps-tn] (t11) at (7.94,-1.00) {B};
+\draw[tps-te] (t0) -- (t11);
+\node[tps-tn] (t12) at (6.59,-2.00) {A};
+\draw[tps-te] (t11) -- (t12);
+\node[tps-tn] (t13) at (5.42,-3.00) {C};
+\draw[tps-te] (t12) -- (t13);
+\node[tps-tn] (t14) at (4.65,-4.00) {D};
+\draw[tps-te] (t13) -- (t14);
+\node[tps-tleaf] (t15) at (4.65,-5.00) {E};
+\draw[tps-te] (t14) -- (t15);
+\node[tps-tord] at (4.65,-5.62) {BACDE};
+\node[tps-tn] (t16) at (6.20,-4.00) {E};
+\draw[tps-te] (t13) -- (t16);
+\node[tps-tleaf] (t17) at (6.20,-5.00) {D};
+\draw[tps-te] (t16) -- (t17);
+\node[tps-tord] at (6.20,-5.62) {BACED};
+\node[tps-tn] (t18) at (7.75,-3.00) {D};
+\draw[tps-te] (t12) -- (t18);
+\node[tps-tn] (t19) at (7.75,-4.00) {C};
+\draw[tps-te] (t18) -- (t19);
+\node[tps-tleaf] (t20) at (7.75,-5.00) {E};
+\draw[tps-te] (t19) -- (t20);
+\node[tps-tord] at (7.75,-5.62) {BADCE};
+\node[tps-tn] (t21) at (9.30,-2.00) {D};
+\draw[tps-te] (t11) -- (t21);
+\node[tps-tn] (t22) at (9.30,-3.00) {A};
+\draw[tps-te] (t21) -- (t22);
+\node[tps-tn] (t23) at (9.30,-4.00) {C};
+\draw[tps-te] (t22) -- (t23);
+\node[tps-tleaf] (t24) at (9.30,-5.00) {E};
+\draw[tps-te] (t23) -- (t24);
+\node[tps-tord] at (9.30,-5.62) {BDACE};
+\end{tikzpicture}
+\diagcaption{左：圖 $H$。 右：列舉 $H$ 所有拓樸順序的樹，每個節點的孩子是那時入度 $0$ 的頂點，依字母排。 $7$ 片葉子由左到右就是字典序的 $7$ 個拓樸順序。}
+\label{fig:tps-enum}
+\end{center}
+
+所以 $H$ 共有 $7$ 個拓樸順序：
+\[
+\texttt{ABCDE},\ \texttt{ABCED},\ \texttt{ABDCE},\ \texttt{BACDE},\ \texttt{BACED},\
+\texttt{BADCE},\ \texttt{BDACE}.
+\]
+
+\begin{examnote}
+「列出所有拓樸順序」的題目，照列舉樹的方式寫：第一個位置先試最小的源點，把它底下的全
+部列完，再換下一個。 答案依字典序排好，最後寫出總數；閱卷的人一眼就能看出有沒有漏。
+寫完可以抽一兩個檢查每條邊的起點都在終點前面。 題目只問「有幾種」時，能用下一小節的
+公式就用公式，再用列舉樹驗算小的部分。
+\end{examnote}
+
+下面的程式照列舉樹的方式回溯。 $n$ 很小，所以用鄰接矩陣：放下 $v$ 時從 \texttt{indeg} 減
+掉 $v$ 那一列（拿掉它的出邊），回來時再加回去，這是第~20~章的「做、探索、撤
+銷」。
+
+\begin{example}[label=ex:tps-all]{c}{(all\_topo.c) 列出所有拓樸順序}
+#include <stdio.h>
+#include <stdlib.h>
+
+#define MAXN 26                 // 頂點用大寫字母 A..Z
+
+int n;
+int adj[MAXN][MAXN];            // adj[u][v] = 1 表示有邊 u -> v
+int indeg[MAXN];                // 還沒放進順序的前驅有幾個
+int used[MAXN];
+char seq[MAXN + 1];
+long long total;
+
+// 已經排好 k 個頂點，試第 k + 1 個位置放誰
+void extend(int k)
+{
+    if (k == n) {
+        total++;
+        printf("%lld: %s\n", total, seq);
+        return;
+    }
+    for (int v = 0; v < n; v++) {           // 字母由小到大試
+        if (used[v] || indeg[v] != 0) {
+            continue;
+        }
+        used[v] = 1;                        // 做：放 v，拿掉它的出邊
+        seq[k] = (char)('A' + v);
+        for (int w = 0; w < n; w++) {
+            indeg[w] -= adj[v][w];
+        }
+        extend(k + 1);                      // 探索
+        for (int w = 0; w < n; w++) {       // 撤銷
+            indeg[w] += adj[v][w];
+        }
+        used[v] = 0;
+    }
+}
+
+int main(void)
+{
+    int m;
+    if (scanf("%d %d", &n, &m) != 2 || n < 1 || n > MAXN) {
+        return 1;
+    }
+    for (int i = 0; i < m; i++) {
+        char a, b;
+        if (scanf(" %c %c", &a, &b) != 2 || a < 'A' || a >= 'A' + n
+            || b < 'A' || b >= 'A' + n) {
+            return 1;
+        }
+        int u = a - 'A', v = b - 'A';
+        if (!adj[u][v]) {                   // 重複的邊只算一次
+            adj[u][v] = 1;
+            indeg[v]++;
+        }
+    }
+    seq[n] = '\0';
+    extend(0);
+    printf("total = %lld\n", total);
+    return 0;
+}
+\end{example}
+\iosample{5 4 \\ A C \\ B C \\ B D \\ C E}{1: ABCDE \\ 2: ABCED \\ 3: ABDCE \\ 4: BACDE \\ 5: BACED \\ 6: BADCE \\ 7: BDACE \\ total = 7}
+
+把 $G_1$ 的頂點 $1..8$ 換成 A--H 輸入，程式會列出 $38$ 行，第一行就是字典序最小的
+\texttt{BCAEFDHG}，也就是 $2, 3, 1, 5, 6, 4, 8, 7$，和最小優先佇列版的 Kahn 演算法一致。
+有環的圖會一個都列不出來，印出 \texttt{total = 0}。
+
+\subsection{數拓樸順序}
+
+列舉的時間和拓樸順序的個數成正比，而個數可以多到 $n!$（沒有邊的圖）。 一般的圖沒有
+簡單的公式，但考試常見的幾種結構可以直接算。
+
+\textbf{互不相連的幾塊。} 圖分成沒有邊相連的兩塊，各有 $n_1$、$n_2$ 個頂點、$c_1$、
+$c_2$ 個拓樸順序。 整張圖的拓樸順序，等於先決定哪 $n_1$ 個位置給第一塊（其餘給第二
+塊），再在這些位置裡各自照一個拓樸順序填。 所以共有
+\[
+\binom{n_1 + n_2}{n_1} \, c_1 \, c_2
+\]
+個。 特例：兩條鏈 $a_1 \to \cdots \to a_p$ 和 $b_1 \to \cdots \to b_q$，每條鏈自己只有
+$1$ 種順序，合起來有 $\binom{p + q}{p}$ 種，就是「把兩疊牌洗在一起、各自保持順序」的
+方法數。 推廣到 $k$ 塊，是多項式係數 $\frac{(n_1 + \cdots + n_k)!}{n_1! \cdots n_k!}
+\, c_1 \cdots c_k$。
+
+\textbf{必經的頂點。} 若頂點 $x$ 和其他每一個頂點之間都有路徑（不是 $x$ 走得到它，就
+是它走得到 $x$），$x$ 在每個拓樸順序裡的位置都一樣，前面是所有走得到 $x$ 的頂點，後面
+是 $x$ 走得到的頂點。 個數等於「前面那部分的個數」乘上「後面那部分的個數」。
+
+用 $H$ 驗算：C 不是必經的（D 和 C 之間沒有路徑），沒辦法直接切。 換個角度：E 一定在 C
+後面，而 C 在 A、B 後面。 先不管 D，A、B、C、E 的順序只有 $\texttt{ABCE}$、
+$\texttt{BACE}$ 兩種；D 只要求在 B 後面，插進去的位置：$\texttt{ABCE}$ 裡 B 後面有
+$3$ 個空位，$\texttt{BACE}$ 裡有 $4$ 個，合計 $3 + 4 = 7$，和列舉樹一樣。 一般的圖要
+這樣分情況，頂點多了就容易漏，用列舉或子集合上的動態規劃（狀態是「已經放好的頂點集
+合」，$2^n$ 個狀態）比較可靠。
+
+\section{AOV 網路}
+\label{sec:tps-aov}
+
+資料結構的課本描述「工作之間的先後關係」時，用的是 AOV 網路。
+
+\begin{definition}[AOV 網路]
+\label{def:tps-aov}
+\textbf{AOV 網路}（activity on vertex network）是一個有向圖：每個頂點代表一項\textbf{活
+動}（activity），邊 $\langle i, j \rangle$ 表示活動 $i$ 必須在活動 $j$ 開始之前完成。
+這時稱 $i$ 是 $j$ 的\textbf{直接前置活動}（immediate predecessor），$j$ 是 $i$ 的
+\textbf{直接後繼活動}（immediate successor）。 若從 $i$ 有一條路徑到 $j$，稱 $i$ 是 $j$
+的\textbf{前置活動}（predecessor）。
+\end{definition}
+
+\subsection{前置關係與偏序}
+
+把「$i$ 是 $j$ 的前置活動」記成 $i \prec j$。 這個關係有兩個性質：
+\begin{itemize}
+\item \textbf{遞移}（transitive）：$i \prec j$ 且 $j \prec k$，則 $i \prec k$。 路徑接起
+來還是路徑。
+\item \textbf{非自反}（irreflexive）：沒有活動滿足 $i \prec i$，自己不能是自己的前置活
+動。
+\end{itemize}
+同時滿足這兩個性質的關係叫做（嚴格的）\textbf{偏序}（partial order），兩者合起來還推得
+出\textbf{反對稱}：$i \prec j$ 和 $j \prec i$ 不會同時成立，否則由遞移得到 $i \prec i$。
+「偏」的意思是不必任兩個活動都分得出先後。 拓樸順序就是把偏序擴充成一個全部排好的順序
+（線性順序），而且不違反原本的任何一對先後關係。
+
+$i \prec i$ 成立，正好表示從 $i$ 有一條路徑回到 $i$，也就是有環。 所以\textbf{前置關係
+是偏序，若且唯若 AOV 網路沒有環}；一個有環的 AOV 網路代表某些活動要等自己完成才能開
+始，這個計畫根本做不完。 檢查一份計畫可不可行，就是做一次拓樸排序（定理~\ref{thm:tps-kahn}）。
+
+畫 AOV 網路時，通常只畫直接前置的邊。 若已經有 $i \to j \to k$，再畫 $i \to k$ 並不會
+多出任何限制（拓樸順序的集合不變），這種邊叫\textbf{遞移邊}（transitive edge），可以
+省略。 題目給的表格如果包含遞移邊，畫圖時照畫也沒關係，拓樸排序的結果不受影響，只是
+Kahn 演算法多處理幾條邊。
+
+\subsection{例子：系學會迎新}
+
+系學會準備迎新活動，工作和直接前置活動如下表。 圖~\ref{fig:tps-aov} 是它的 AOV 網路。
+
+\begin{center}
+\begin{tabular}{clc}
+\toprule
+活動 & 內容 & 直接前置活動 \\
+\midrule
+A & 確定日期與預算 & -- \\
+B & 借教室 & A \\
+C & 設計海報與報名表 & A \\
+D & 開放報名 & B, C \\
+E & 準備闖關道具 & B \\
+F & 訂餐 & D \\
+G & 工作人員彩排 & E \\
+H & 迎新當天 & F, G \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\begin{center}
+\begin{tikzpicture}[x=1.45cm, y=1cm]
+\node[tps-v] (A) at (0, 0) {A};
+\node[tps-v] (B) at (1.5, 1) {B};
+\node[tps-v] (C) at (1.5, -1) {C};
+\node[tps-v] (D) at (3, -1) {D};
+\node[tps-v] (E) at (3, 1) {E};
+\node[tps-v] (F) at (4.5, -1) {F};
+\node[tps-v] (G) at (4.5, 1) {G};
+\node[tps-v] (H) at (6, 0) {H};
+\foreach \u/\v in {A/B, A/C, B/D, C/D, B/E, D/F, E/G, F/H, G/H} {
+    \draw[tps-e] (\u) -- (\v);
+}
+\draw[tps-add] (D) to[bend right=35] node[right, font=\scriptsize, text=examStroke] {加上 $D \to B$ 就有環} (B);
+\end{tikzpicture}
+\diagcaption{迎新活動的 AOV 網路（實線）。 紅色虛線是後面討論的不合理要求。}
+\label{fig:tps-aov}
+\end{center}
+
+用 Kahn 演算法（佇列，字母由小到大）排一次：A 先出來，B、C 進佇列；取出 B，E 變成入度 $0$，
+D 還在等 C；取出 C，D 進佇列……得到
+\[
+\text{A, B, C, E, D, G, F, H}.
+\]
+如果只有一個人做事、一次做一項，這就是一個可行的工作順序。 這張圖共有 $16$ 個拓樸順
+序，任何一個都可以。
+
+假設有人提議「報名人數確定後才去借教室，才知道要借多大的」，也就是加上 $D \to B$。 可
+是報名表上要寫活動地點，原本就有 $B \to D$。 這時 Kahn 演算法取出 A，C 進佇列（B 的入度
+還有 $1$，來自 D）；取出 C 之後 D 的入度還有 $1$（來自 B），佇列空了，只排出 A、C 兩個。 剩
+下的六項裡，只有 B、D 在環 $B \to D \to B$ 上；E、F、G、H 是被環擋住的下游活動。 這就是
+前面說的「卡住時剩下的頂點不一定都在環上」。
+
+\subsection{活動有工期的時候}
+
+如果每項活動 $v$ 還有所需時間 $t(v)$，而且人手足夠、任何可以開始的活動都立刻開始，就
+能問「每項活動最早什麼時候完成」。 把最早完成時間記成 $\mathit{EF}(v)$：
+\[
+\mathit{EF}(v) = t(v) + \max_{u \text{ 是 } v \text{ 的直接前置活動}} \mathit{EF}(u),
+\]
+沒有前置活動時 $\max$ 那一項當成 $0$。 依拓樸順序算，每個 $\mathit{EF}(u)$ 用到時都已
+經算好了；也可以寫成記憶化的遞迴，從要問的活動往前置活動找。 整個計畫的最短工期是最大
+的 $\mathit{EF}$，它等於一條路徑上所有頂點的工期總和的最大值，也就是「權重在頂點上」
+的最長路徑。
+
+這件事在 AOV 網路上也算得出來，但課本和考卷處理工期，習慣用下一節的 AOE 網路：活動改
+放在邊上，頂點變成「某些活動都完成了」的時間點。 兩種網路的差別整理如下。
+
+\begin{center}
+\begin{tabular}{p{0.2\linewidth}p{0.34\linewidth}p{0.34\linewidth}}
+\toprule
+ & AOV 網路 & AOE 網路 \\
+\midrule
+頂點 & 活動 & 事件（時間點） \\
+邊 & 先後關係 & 活動，權重是工期 \\
+主要問題 & 可不可行、排出一個順序 & 最短工期、關鍵活動、寬裕時間 \\
+用到的演算法 & 拓樸排序 & 拓樸排序 $+$ 最長路徑（往前、往回各一次） \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\section{AOE 網路與關鍵路徑}
+\label{sec:tps-aoe}
+
+\subsection{事件與活動}
+
+\begin{definition}[AOE 網路]
+\label{def:tps-aoe}
+\textbf{AOE 網路}（activity on edge network）是一個邊上有非負權重的有向無環圖。 每條邊
+代表一項活動，權重 $\mathit{dur}(a)$ 是活動 $a$ 需要的時間；每個頂點代表一個\textbf{事
+件}（event），意思是「所有指向它的活動都已經完成」，從它出發的活動在這個時刻之後才能開
+始。 入度 $0$ 的事件叫\textbf{開始事件}（源點），出度 $0$ 的叫\textbf{結束事件}（匯點）。
+\end{definition}
+
+本節假設 AOE 網路只有一個開始事件、一個結束事件，而且每個事件都在某條從開始到結束的路
+徑上。 有好幾個開始事件時，加一個新的開始事件，用工期 $0$ 的邊連到原本的每一個；結束事
+件也一樣處理。 也假設人手足夠：一項活動只要它的起點事件發生了就能開工，不必和別的活動
+搶人。
+
+有時候兩項活動之間只有先後關係，沒有實際的工作，就用一條工期 $0$ 的\textbf{虛活動}
+（dummy activity）表示，圖上畫成虛線。 下面的例子會看到為什麼需要它。
+
+\textbf{例子：裝修工程。} 章首的裝修工程整理成下面兩張表：第一張是事件的意思，第二張是活動。
+\begin{center}
+\small
+\begin{tabular}{cl@{\hspace{2em}}cl}
+1 & 開工 & 6 & 可以油漆（泥作、木作都完成） \\
+2 & 拆除完成 & 7 & 油漆完成，系統櫃也運到了 \\
+3 & 系統櫃設計定案 & 8 & 系統櫃、衛浴設備都裝好 \\
+4 & 水電配管完成 & 9 & 完工 \\
+5 & 窗框與浴室泥作完成 & & \\
+\end{tabular}
+\end{center}
+
+\begin{center}
+\begin{tabular}{clcc}
+\toprule
+活動 & 內容 & 邊 & 工期（天） \\
+\midrule
+$a_1$ & 拆除舊裝潢 & $\langle 1, 2 \rangle$ & 4 \\
+$a_2$ & 丈量並設計系統櫃 & $\langle 1, 3 \rangle$ & 3 \\
+$a_3$ & 水電配管 & $\langle 2, 4 \rangle$ & 5 \\
+$a_4$ & 更換窗框 & $\langle 2, 5 \rangle$ & 3 \\
+$a_5$ & 工廠製作系統櫃 & $\langle 3, 7 \rangle$ & 14 \\
+$a_6$ & 浴室防水與貼磚 & $\langle 4, 5 \rangle$ & 6 \\
+$a_7$ & 天花板木作 & $\langle 4, 6 \rangle$ & 6 \\
+$a_8$ & （虛活動） & $\langle 5, 6 \rangle$ & 0 \\
+$a_9$ & 安裝衛浴設備 & $\langle 5, 8 \rangle$ & 2 \\
+$a_{10}$ & 油漆 & $\langle 6, 7 \rangle$ & 5 \\
+$a_{11}$ & 安裝系統櫃 & $\langle 7, 8 \rangle$ & 3 \\
+$a_{12}$ & 裝燈具與清潔 & $\langle 8, 9 \rangle$ & 2 \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\begin{center}
+\begin{tikzpicture}[x=1.22cm, y=1.1cm]
+\node[tps-ev] (e1) at (0, 1.2) {1};
+\node[tps-ev] (e2) at (1.9, 1.2) {2};
+\node[tps-ev] (e3) at (1.9, 2.8) {3};
+\node[tps-ev] (e4) at (3.9, 1.2) {4};
+\node[tps-ev] (e5) at (5.5, -0.2) {5};
+\node[tps-ev] (e6) at (7.1, 1.2) {6};
+\node[tps-ev] (e7) at (9.1, 1.2) {7};
+\node[tps-ev] (e8) at (10.5, -0.2) {8};
+\node[tps-ev] (e9) at (12.1, -0.2) {9};
+\draw[tps-a] (e1) -- node[tps-al, below] {$a_1 = 4$} (e2);
+\draw[tps-a] (e1) -- node[tps-al, above left] {$a_2 = 3$} (e3);
+\draw[tps-a] (e2) -- node[tps-al, above] {$a_3 = 5$} (e4);
+\draw[tps-a] (e2) -- node[tps-al, below left] {$a_4 = 3$} (e5);
+\draw[tps-a] (e3) to[out=0, in=110] node[tps-al, above, pos=0.45] {$a_5 = 14$} (e7);
+\draw[tps-a] (e4) -- node[tps-al, right=1pt] {$a_6 = 6$} (e5);
+\draw[tps-a] (e4) -- node[tps-al, above] {$a_7 = 6$} (e6);
+\draw[tps-dummy] (e5) -- node[tps-al, right=1pt] {$a_8 = 0$} (e6);
+\draw[tps-a] (e5) -- node[tps-al, below] {$a_9 = 2$} (e8);
+\draw[tps-a] (e6) -- node[tps-al, above] {$a_{10} = 5$} (e7);
+\draw[tps-a] (e7) -- node[tps-al, right=1pt] {$a_{11} = 3$} (e8);
+\draw[tps-a] (e8) -- node[tps-al, above] {$a_{12} = 2$} (e9);
+\end{tikzpicture}
+\diagcaption{裝修工程的 AOE 網路。 圓圈是事件，邊是活動，數字是工期（天）；虛線是虛活動。}
+\label{fig:tps-aoe}
+\end{center}
+
+虛活動 $a_8$ 的用處：油漆要等泥作（事件 5）和木作（$a_7$）都完成，衛浴設備卻只要等泥
+作，不必等木作。 如果讓 $a_7$ 也指向事件 5，衛浴設備就被迫等木作；如果讓 $a_4$、$a_6$
+直接指向事件 6，衛浴設備（從事件 6 出發）一樣要等木作。 用兩個事件加一條虛活動，兩種
+先後關係才都對。
+
+\subsection{事件的最早時間：往前算}
+
+\textbf{事件 $j$ 的最早發生時間} $\mathit{ee}[j]$，是從開工算起，事件 $j$ 最早在第幾天
+發生。 開始事件是 $0$。 事件 $j$ 要等每一項指向它的活動 $\langle i, j \rangle$ 都完成，
+而這項活動最早在 $\mathit{ee}[i]$ 開工、$\mathit{ee}[i] + \mathit{dur}$ 完工，所以
+\[
+\mathit{ee}[\text{開始}] = 0, \qquad
+\mathit{ee}[j] = \max_{\langle i, j \rangle} \bigl( \mathit{ee}[i] + \mathit{dur}(\langle i, j \rangle) \bigr).
+\]
+這正是第~18~章的動態規劃。 展開來看，$\mathit{ee}[j]$ 是從開始事件到 $j$ 的\textbf{最
+長路徑}長度：子問題是「到每個事件的最長路徑」，最後一條邊有幾種選擇就比幾次；有向無環
+圖上的最長路徑有最佳子結構，在第~18~章觀念題第~13~題 (a) 用剪下貼上證明過。 填表順序
+要讓「填一格之前，它用到的格子都已經填好」（第~18~章 18.1 節），在圖上就是\textbf{依拓
+樸順序}算。 圖上如果有環，最長路徑可以一直繞圈變長，這個遞迴式就失效了，一般圖上的最
+長簡單路徑也沒有已知的多項式時間解法（第~18~章），沒有環才是關鍵。 把 $\max$ 換成
+$\min$ 就是有向無環圖上的最短路徑，第~25~章會再用到。
+
+裝修工程的事件編號 $1..9$ 剛好就是一個拓樸順序，依序算：
+
+\begin{center}
+\begin{tabular}{cclc}
+\toprule
+事件 $j$ & 指向 $j$ 的活動 & 計算 & $\mathit{ee}[j]$ \\
+\midrule
+1 & -- & 開始事件 & 0 \\
+2 & $a_1$ & $0 + 4$ & 4 \\
+3 & $a_2$ & $0 + 3$ & 3 \\
+4 & $a_3$ & $4 + 5$ & 9 \\
+5 & $a_4$、$a_6$ & $\max(4 + 3,\ 9 + 6)$ & 15 \\
+6 & $a_7$、$a_8$ & $\max(9 + 6,\ 15 + 0)$ & 15 \\
+7 & $a_5$、$a_{10}$ & $\max(3 + 14,\ 15 + 5)$ & 20 \\
+8 & $a_9$、$a_{11}$ & $\max(15 + 2,\ 20 + 3)$ & 23 \\
+9 & $a_{12}$ & $23 + 2$ & 25 \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+結束事件的 $\mathit{ee}[9] = 25$，就是\textbf{最短工期}：人手再多，也要 $25$ 天才能完
+工。 記成 $T = 25$。
+
+\subsection{事件的最晚時間：往回算}
+
+\textbf{事件 $i$ 的最晚發生時間} $\mathit{le}[i]$，是在不拖延工期 $T$ 的前提下，事件
+$i$ 最晚可以在第幾天發生。 結束事件最晚就是 $T$。 從事件 $i$ 出發的每一項活動
+$\langle i, j \rangle$，都要在 $\mathit{le}[j]$ 之前完成，所以最晚要在
+$\mathit{le}[j] - \mathit{dur}$ 開工；$i$ 必須趕上其中最早的那一個：
+\[
+\mathit{le}[\text{結束}] = \mathit{ee}[\text{結束}] = T, \qquad
+\mathit{le}[i] = \min_{\langle i, j \rangle} \bigl( \mathit{le}[j] - \mathit{dur}(\langle i, j \rangle) \bigr).
+\]
+$\mathit{le}[i]$ 用到的是 $i$ 的後繼，所以\textbf{依拓樸順序倒過來}算。
+
+\begin{center}
+\begin{tabular}{cclc}
+\toprule
+事件 $i$ & 從 $i$ 出發的活動 & 計算 & $\mathit{le}[i]$ \\
+\midrule
+9 & -- & 結束事件，$= \mathit{ee}[9]$ & 25 \\
+8 & $a_{12}$ & $25 - 2$ & 23 \\
+7 & $a_{11}$ & $23 - 3$ & 20 \\
+6 & $a_{10}$ & $20 - 5$ & 15 \\
+5 & $a_8$、$a_9$ & $\min(15 - 0,\ 23 - 2)$ & 15 \\
+4 & $a_6$、$a_7$ & $\min(15 - 6,\ 15 - 6)$ & 9 \\
+3 & $a_5$ & $20 - 14$ & 6 \\
+2 & $a_3$、$a_4$ & $\min(9 - 5,\ 15 - 3)$ & 4 \\
+1 & $a_1$、$a_2$ & $\min(4 - 4,\ 6 - 3)$ & 0 \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+開始事件的 $\mathit{le}$ 一定算回 $0$，可以拿來驗算：如果不是 $0$，前面某一格算錯了。
+$\mathit{ee}[j] = \mathit{le}[j]$ 的事件叫\textbf{關鍵事件}，這裡除了事件 3（$\mathit{ee}
+= 3$、$\mathit{le} = 6$）以外都是。
+
+\subsection{活動的最早、最晚開始時間與寬裕時間}
+
+對活動 $a = \langle i, j \rangle$：
+\begin{itemize}
+\item \textbf{最早開始時間} $e(a) = \mathit{ee}[i]$：起點事件一發生就能開工。
+\item \textbf{最晚開始時間} $l(a) = \mathit{le}[j] - \mathit{dur}(a)$：再晚開工，終點事件
+就趕不上它的最晚時間。
+\item \textbf{寬裕時間}（slack）$l(a) - e(a)$：這項活動可以延後開工（或拖長工期）多少天而
+不影響總工期。
+\item 寬裕時間為 $0$ 的活動叫\textbf{關鍵活動}（critical activity）。
+\end{itemize}
+注意 $l(a)$ 用的是\textbf{終點}的 $\mathit{le}$，不是起點的 $\mathit{le}[i]$。 起點的
+$\mathit{le}[i]$ 是「從 $i$ 出發的所有活動裡，最急的那一項」的最晚開工時間，其他活動可
+以更晚。 把 $l(a)$ 寫成 $\mathit{le}[i]$ 是最常見的錯誤。
+
+\begin{center}
+\begin{tabular}{clccccc}
+\toprule
+活動 & 內容 & 工期 & $e$ & $l$ & $l - e$ & 關鍵 \\
+\midrule
+$a_1$ & 拆除舊裝潢 & 4 & 0 & $4 - 4 = 0$ & 0 & $\checkmark$ \\
+$a_2$ & 丈量並設計系統櫃 & 3 & 0 & $6 - 3 = 3$ & 3 & \\
+$a_3$ & 水電配管 & 5 & 4 & $9 - 5 = 4$ & 0 & $\checkmark$ \\
+$a_4$ & 更換窗框 & 3 & 4 & $15 - 3 = 12$ & 8 & \\
+$a_5$ & 工廠製作系統櫃 & 14 & 3 & $20 - 14 = 6$ & 3 & \\
+$a_6$ & 浴室防水與貼磚 & 6 & 9 & $15 - 6 = 9$ & 0 & $\checkmark$ \\
+$a_7$ & 天花板木作 & 6 & 9 & $15 - 6 = 9$ & 0 & $\checkmark$ \\
+$a_8$ & （虛活動） & 0 & 15 & $15 - 0 = 15$ & 0 & $\checkmark$ \\
+$a_9$ & 安裝衛浴設備 & 2 & 15 & $23 - 2 = 21$ & 6 & \\
+$a_{10}$ & 油漆 & 5 & 15 & $20 - 5 = 15$ & 0 & $\checkmark$ \\
+$a_{11}$ & 安裝系統櫃 & 3 & 20 & $23 - 3 = 20$ & 0 & $\checkmark$ \\
+$a_{12}$ & 裝燈具與清潔 & 2 & 23 & $25 - 2 = 23$ & 0 & $\checkmark$ \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\begin{examnote}
+AOE 的記號各本書不同，作答前先對照題目用的是哪一套。 本書用 $\mathit{ee}$／$\mathit{le}$
+表示事件的最早、最晚時間，$e$／$l$ 表示活動的最早、最晚開始時間。 常見的其他寫法有：
+事件用 $\mathit{ve}(j)$／$\mathit{vl}(j)$、$\mathit{TE}$／$\mathit{TL}$ 或
+$\mathit{early}$／$\mathit{late}$；活動用 $\mathit{ES}$、$\mathit{EF}$、$\mathit{LS}$、
+$\mathit{LF}$（最早開始、最早完成、最晚開始、最晚完成，專案管理的要徑法常用），這時寬裕
+時間是 $\mathit{LS} - \mathit{ES}$，也等於 $\mathit{LF} - \mathit{EF}$。 寬裕時間也叫
+浮時（float）。 表格一律畫完整：事件表有 $\mathit{ee}$、$\mathit{le}$ 兩欄，活動表有
+$e$、$l$、$l - e$，最後寫出關鍵活動和關鍵路徑。
+\end{examnote}
+
+\subsection{關鍵路徑}
+
+\begin{definition}[關鍵路徑]
+從開始事件到結束事件、全部由關鍵活動組成的路徑，叫做\textbf{關鍵路徑}（critical path）。
+\end{definition}
+
+\begin{theorem}
+\label{thm:tps-critical}
+在 AOE 網路裡，活動 $a$ 是關鍵活動，若且唯若 $a$ 在某一條從開始事件到結束事件的最長路
+徑上。 因此關鍵路徑就是最長路徑，長度都等於最短工期 $T$，而且至少有一條。
+\end{theorem}
+
+證明的關鍵是看懂 $\mathit{le}$ 的意思。 $\mathit{ee}[i]$ 是「開始到 $i$」的最長路徑；
+往回算的 $\mathit{le}$ 對稱地和「$j$ 到結束」的最長路徑有關。
+
+\begin{whybox}[定理~\ref{thm:tps-critical}]
+記 $\mathit{tail}[j]$ 為從事件 $j$ 到結束事件的最長路徑長度。 先證明
+$\mathit{le}[j] = T - \mathit{tail}[j]$。 依拓樸順序倒過來歸納：結束事件
+$\mathit{tail} = 0$，$\mathit{le} = T$，成立。 其他事件 $i$ 的最長路徑一定先走某條邊
+$\langle i, j \rangle$，所以 $\mathit{tail}[i] = \max_{\langle i, j \rangle}
+(\mathit{dur} + \mathit{tail}[j])$；由歸納假設，
+\[
+\mathit{le}[i] = \min_{\langle i, j \rangle} \bigl( T - \mathit{tail}[j] - \mathit{dur} \bigr)
+= T - \max_{\langle i, j \rangle} \bigl( \mathit{dur} + \mathit{tail}[j] \bigr) = T - \mathit{tail}[i].
+\]
+
+對活動 $a = \langle i, j \rangle$，經過 $a$ 的最長路徑長度是
+$\mathit{ee}[i] + \mathit{dur}(a) + \mathit{tail}[j]$（前段、後段各取最長，有向無環圖
+上接起來不會重複經過頂點）。 寬裕時間
+\[
+l(a) - e(a) = \mathit{le}[j] - \mathit{dur}(a) - \mathit{ee}[i]
+= T - \bigl( \mathit{ee}[i] + \mathit{dur}(a) + \mathit{tail}[j] \bigr).
+\]
+所以寬裕時間就是「整張圖的最長路徑」減去「經過 $a$ 的最長路徑」，一定 $\ge 0$；等於
+$0$ 若且唯若 $a$ 在某條長度 $T$ 的路徑上。 從開始到結束的最長路徑一定存在（路徑只有有
+限多條），它上面的每一項活動都是關鍵活動，所以至少有一條關鍵路徑。
+\end{whybox}
+
+證明中間那個式子很好用：\textbf{寬裕時間 $=$ 工期 $-$ 經過這項活動的最長路徑}。 想知
+道一項活動能拖幾天，看經過它的最長路徑比 $T$ 短多少就好。
+
+裝修工程的關鍵活動是 $a_1, a_3, a_6, a_7, a_8, a_{10}, a_{11}, a_{12}$，它們組成\textbf{兩
+條}關鍵路徑（圖~\ref{fig:tps-aoe-crit}）：
+\begin{center}
+\small
+\begin{tabular}{lll}
+\toprule
+路徑 & 活動 & 長度 \\
+\midrule
+$1 \to 2 \to 4 \to 5 \to 6 \to 7 \to 8 \to 9$ & $a_1, a_3, a_6, a_8, a_{10}, a_{11}, a_{12}$ & $4 + 5 + 6 + 0 + 5 + 3 + 2 = 25$ \\
+$1 \to 2 \to 4 \to 6 \to 7 \to 8 \to 9$ & $a_1, a_3, a_7, a_{10}, a_{11}, a_{12}$ & $4 + 5 + 6 + 5 + 3 + 2 = 25$ \\
+\bottomrule
+\end{tabular}
+\end{center}
+浴室貼磚和天花板木作同時開工、一樣要 $6$ 天，兩條路一樣長。
+
+\begin{center}
+\begin{tikzpicture}[x=1.22cm, y=1.1cm]
+\node[tps-cev] (e1) at (0, 1.2) {1};
+\node[tps-cev] (e2) at (1.9, 1.2) {2};
+\node[tps-ev] (e3) at (1.9, 2.8) {3};
+\node[tps-cev] (e4) at (3.9, 1.2) {4};
+\node[tps-cev] (e5) at (5.5, -0.2) {5};
+\node[tps-cev] (e6) at (7.1, 1.2) {6};
+\node[tps-cev] (e7) at (9.1, 1.2) {7};
+\node[tps-cev] (e8) at (10.5, -0.2) {8};
+\node[tps-cev] (e9) at (12.1, -0.2) {9};
+\foreach \v/\ee/\le/\pos in {1/0/0/left, 2/4/4/above, 3/3/6/above, 4/9/9/above, 5/15/15/below, 6/15/15/above, 7/20/20/right, 8/23/23/below, 9/25/25/below} {
+    \node[tps-time, \pos=0.33cm] at (e\v) {$[\ee, \le]$};
+}
+\draw[tps-crit] (e1) -- node[tps-al, above] {$a_1$} (e2);
+\draw[tps-a] (e1) -- node[tps-al, above left] {$a_2$} (e3);
+\draw[tps-crit] (e2) -- node[tps-al, above] {$a_3$} (e4);
+\draw[tps-a] (e2) -- node[tps-al, below left] {$a_4$} (e5);
+\draw[tps-a] (e3) to[out=0, in=110] node[tps-al, above, pos=0.45] {$a_5$} (e7);
+\draw[tps-crit] (e4) -- node[tps-al, right=1pt] {$a_6$} (e5);
+\draw[tps-crit] (e4) -- node[tps-al, above] {$a_7$} (e6);
+\draw[tps-cdummy] (e5) -- node[tps-al, right=1pt] {$a_8$} (e6);
+\draw[tps-a] (e5) -- node[tps-al, below] {$a_9$} (e8);
+\draw[tps-crit] (e6) -- node[tps-al, above] {$a_{10}$} (e7);
+\draw[tps-crit] (e7) -- node[tps-al, right=1pt] {$a_{11}$} (e8);
+\draw[tps-crit] (e8) -- node[tps-al, above] {$a_{12}$} (e9);
+\end{tikzpicture}
+\diagcaption{裝修工程算完之後：方括號是 $[\mathit{ee}, \mathit{le}]$，紅色粗框是關鍵事件，紅色粗線是關鍵活動。 兩條關鍵路徑在事件 4 分開、在事件 6 會合。}
+\label{fig:tps-aoe-crit}
+\end{center}
+
+\subsection{考試常問的觀念}
+
+下面幾點都用裝修工程說明，數字可以對照上面的表。
+
+\textbf{(1) 兩端都是關鍵事件的活動，不一定是關鍵活動。} 事件 2、5 都是關鍵事件，
+$a_4$（更換窗框）卻有 $8$ 天的寬裕；事件 5、8 也都是關鍵事件，$a_9$ 有 $6$ 天。 關鍵
+事件只說明「這個時間點沒有彈性」，連接它們的活動要另外檢查 $\mathit{ee}[i] +
+\mathit{dur} = \mathit{le}[j]$ 才算關鍵。 所以\textbf{找關鍵路徑要看活動表，不能只把關
+鍵事件連起來}。
+
+\textbf{(2) 縮短非關鍵活動，工期不會變。} 經過 $a_5$ 的最長路徑是 $3 + 14 + 3 + 2 = 22$
+天，就算系統櫃一天做好，另外兩條 $25$ 天的路徑還在。
+
+\textbf{(3) 縮短一項關鍵活動，工期不一定變短。} 有多條關鍵路徑時，只縮短其中一條上的活
+動沒有用：$a_6$（貼磚）縮成 $4$ 天，經過 $a_7$ 的路徑仍然是 $25$ 天，工期不變。 要縮短
+工期，得縮短\textbf{每一條}關鍵路徑，例如縮短各條共用的 $a_1$、$a_3$、$a_{10}$、
+$a_{11}$、$a_{12}$，或同時縮短 $a_6$ 和 $a_7$。
+
+\textbf{(4) 縮短 $k$ 天，工期不一定少 $k$ 天。} 原本不是關鍵的路徑可能變成新的關鍵路徑。
+$a_3$（水電配管）縮短 $4$ 天變成 $1$ 天，兩條關鍵路徑都變成 $21$ 天，但經過 $a_2$、$a_5$
+的路徑是 $22$ 天，新的工期是 $22$ 天，只少了 $3$ 天。 縮短後一定要重算，或至少把每條路徑
+的長度重新比一次。
+
+\textbf{(5) 延後不超過寬裕時間，工期不變；超過多少，工期就延後多少。} $a_9$（衛浴設備）
+晚 $6$ 天開工都沒關係，晚 $8$ 天就讓工期變成 $27$ 天。 這是因為寬裕時間等於 $T$ 減去經過
+它的最長路徑（定理~\ref{thm:tps-critical} 的證明）。
+
+\textbf{(6) 同一條路徑上的寬裕時間不能相加。} $a_2$、$a_5$ 的寬裕都是 $3$ 天，但它們在同
+一條路徑 $1 \to 3 \to 7$ 上，兩個合起來只能延後 $3$ 天：$a_2$ 晚 $2$ 天、$a_5$ 再多拖 $2$
+天，經過它們的路徑變成 $26$ 天。 寬裕時間是「其他活動都照最早時間做」時，這一項單獨能用
+的餘裕。
+
+\subsection{C 程式}
+
+程式讀入事件數 $n$、活動數 $m$ 和每項活動的起點、終點、工期（活動依輸入順序編號
+$a_1, a_2, \ldots$）。 先用 Kahn 演算法排出拓樸順序，順便檢查有沒有環；接著依拓樸順序
+往前算 $\mathit{ee}$，倒過來算 $\mathit{le}$，再印出事件表、活動表和所有的關鍵路徑。
+
+這支程式的出邊串列不用 \texttt{malloc}，改用陣列下標當指標：\texttt{first[u]} 是 $u$ 的
+第一項活動，\texttt{nxt[k]} 是同一個起點的下一項，$-1$ 代表 \texttt{NULL}。 新的活動接
+在尾端（\texttt{last[u]} 記住尾巴），串列保持輸入的順序。 往回算時，每個事件的
+$\mathit{le}$ 先設成 $T$ 再取最小值，結束事件沒有出邊，就留在 $T$，有好幾個結束事件也不
+用另外處理。 列出關鍵路徑是一個小回溯：從開始事件出發，只沿著寬裕時間 $0$ 的活動往下
+走，走到結束事件就印出一條。
+
+\begin{example}[label=ex:tps-aoe]{c}{(aoe.c) AOE 網路：事件時間、寬裕時間與關鍵路徑}
+#include <stdio.h>
+
+#define MAXN 100                // 事件數上限
+#define MAXM 1000               // 活動數上限
+
+int n, m;                       // 事件數、活動數
+int from[MAXM], to[MAXM], dur[MAXM];    // 活動 k：事件 from[k] -> to[k]
+int first[MAXN], last[MAXN], nxt[MAXM]; // 出邊串列，用陣列下標當指標，-1 是結尾
+int indeg[MAXN], order[MAXN], ee[MAXN], le[MAXN], path[MAXN];
+
+// Kahn 演算法：order 本身當佇列用，回傳排出幾個事件
+int topo_order(void)
+{
+    int deg[MAXN], cnt = 0;
+    for (int v = 0; v < n; v++) {
+        deg[v] = indeg[v];
+        if (deg[v] == 0) {
+            order[cnt++] = v;
+        }
+    }
+    for (int h = 0; h < cnt; h++) {
+        for (int k = first[order[h]]; k != -1; k = nxt[k]) {
+            if (--deg[to[k]] == 0) {
+                order[cnt++] = to[k];
+            }
+        }
+    }
+    return cnt;
+}
+
+// 從事件 u 只沿著寬裕時間 0 的活動往下走，走到結束事件就印出一條關鍵路徑
+void print_critical(int u, int len)
+{
+    path[len++] = u;
+    if (first[u] == -1) {
+        printf("critical path:");
+        for (int i = 0; i < len; i++) {
+            printf(" %d", path[i] + 1);
+        }
+        printf("\n");
+        return;
+    }
+    for (int k = first[u]; k != -1; k = nxt[k]) {
+        if (le[to[k]] - dur[k] == ee[u]) {
+            print_critical(to[k], len);
+        }
+    }
+}
+
+int main(void)
+{
+    if (scanf("%d %d", &n, &m) != 2 || n < 1 || n > MAXN || m < 0 || m > MAXM) {
+        return 1;
+    }
+    for (int v = 0; v < n; v++) {
+        first[v] = last[v] = -1;
+    }
+    for (int k = 0; k < m; k++) {
+        if (scanf("%d %d %d", &from[k], &to[k], &dur[k]) != 3 || from[k] < 1
+            || from[k] > n || to[k] < 1 || to[k] > n || dur[k] < 0) {
+            return 1;
+        }
+        int u = --from[k];              // 輸入的事件從 1 編號
+        to[k]--;
+        nxt[k] = -1;                    // 接在 u 的串列尾端，保持輸入的順序
+        if (first[u] == -1) {
+            first[u] = k;
+        } else {
+            nxt[last[u]] = k;
+        }
+        last[u] = k;
+        indeg[to[k]]++;
+    }
+    if (topo_order() < n) {
+        printf("not a DAG\n");
+        return 0;
+    }
+    for (int i = 0; i < n; i++) {           // 往前算：依拓樸順序
+        int u = order[i];
+        for (int k = first[u]; k != -1; k = nxt[k]) {
+            if (ee[u] + dur[k] > ee[to[k]]) {
+                ee[to[k]] = ee[u] + dur[k];
+            }
+        }
+    }
+    int T = 0;
+    for (int v = 0; v < n; v++) {
+        if (ee[v] > T) {
+            T = ee[v];
+        }
+    }
+    for (int i = n - 1; i >= 0; i--) {      // 往回算：拓樸順序倒過來
+        int u = order[i];
+        le[u] = T;                          // 結束事件沒有出邊，留在 T
+        for (int k = first[u]; k != -1; k = nxt[k]) {
+            if (le[to[k]] - dur[k] < le[u]) {
+                le[u] = le[to[k]] - dur[k];
+            }
+        }
+    }
+    printf("event ee le\n");
+    for (int v = 0; v < n; v++) {
+        printf("%d %d %d\n", v + 1, ee[v], le[v]);
+    }
+    printf("act edge dur e l slack\n");
+    for (int k = 0; k < m; k++) {
+        int e = ee[from[k]], l = le[to[k]] - dur[k];
+        printf("a%d %d->%d %d %d %d %d%s\n", k + 1, from[k] + 1, to[k] + 1,
+               dur[k], e, l, l - e, l == e ? " *" : "");
+    }
+    printf("project length = %d\n", T);
+    for (int v = 0; v < n; v++) {
+        if (indeg[v] == 0 && le[v] == 0) {  // 從開始事件出發
+            print_critical(v, 0);
+        }
+    }
+    return 0;
+}
+\end{example}
+\iosample{9 12 \\ 1 2 4 \\ 1 3 3 \\ 2 4 5 \\ 2 5 3 \\ 3 7 14 \\ 4 5 6 \\ 4 6 6 \\ 5 6 0 \\ 5 8 2 \\ 6 7 5 \\ 7 8 3 \\ 8 9 2}{event ee le \\ 1 0 0 \\ 2 4 4 \\ 3 3 6 \\ 4 9 9 \\ 5 15 15 \\ 6 15 15 \\ 7 20 20 \\ 8 23 23 \\ 9 25 25 \\ act edge dur e l slack \\ a1 1->2 4 0 0 0 * \\ a2 1->3 3 0 3 3 \\ a3 2->4 5 4 4 0 * \\ a4 2->5 3 4 12 8 \\ a5 3->7 14 3 6 3 \\ a6 4->5 6 9 9 0 * \\ a7 4->6 6 9 9 0 * \\ a8 5->6 0 15 15 0 * \\ a9 5->8 2 15 21 6 \\ a10 6->7 5 15 15 0 * \\ a11 7->8 3 20 20 0 * \\ a12 8->9 2 23 23 0 * \\ project length = 25 \\ critical path: 1 2 4 5 6 7 8 9 \\ critical path: 1 2 4 6 7 8 9}
+
+輸出和手算的兩張表一致，星號是關鍵活動。 要試第 (4) 點，把輸入裡的 \texttt{2 4 5} 改成
+\texttt{2 4 1}，程式會印出 \texttt{project length = 22}，關鍵路徑只剩
+\texttt{1 3 7 8 9}。
+
+\section{本章常見錯誤}
+\label{sec:tps-pitfalls}
+
+\begin{center}
+\begin{tabular}{p{0.26\linewidth}p{0.48\linewidth}p{0.16\linewidth}}
+\toprule
+錯誤 & 例子 & 見 \\
+\midrule
+一開始只放一個源點 & Kahn 演算法只把第一個入度 $0$ 的頂點放進佇列；圖分成好幾塊，或
+有好幾個源點時，後面的永遠排不出來 & 第~\ref{sec:tps-kahn}~節 \\
+沒有檢查排出幾個 & 有環時主迴圈照樣結束，把不完整的 $L$ 當成答案 &
+第~\ref{sec:tps-kahn}~節 \\
+以為剩下的都在環上 & Kahn 卡住時剩下的頂點，包含被環擋住的下游頂點 &
+第~\ref{sec:tps-aov}~節 \\
+DFS 依發現時間排 & 進入頂點時就加進串列，或依 $d$ 排序；要在完成時插到最前面，等於
+依 $f$ 由大到小 & 第~\ref{sec:tps-dfs}~節 \\
+追蹤時換了平手規則 & 題目規定佇列卻用了「挑最小的」，或鄰接串列沒照題目的順序走 &
+第~\ref{sec:tps-kahn-trace}~節 \\
+列舉時漏掉 & 想到哪寫到哪，沒有照列舉樹一個位置一個位置展開 &
+第~\ref{sec:tps-count}~節 \\
+$l(a)$ 用了起點的 $\mathit{le}$ & 活動 $\langle i, j \rangle$ 的最晚開始時間寫成
+$\mathit{le}[i]$；應該是 $\mathit{le}[j] - \mathit{dur}$ & 第~\ref{sec:tps-aoe}~節 \\
+$\mathit{le}$ 的初值設錯 & 結束事件的 $\mathit{le}$ 設成 $0$ 或 $\infty$；應該等於
+$\mathit{ee}[\text{結束}]$ & 第~\ref{sec:tps-aoe}~節 \\
+把關鍵事件連起來當關鍵路徑 & 裝修工程的 $a_4$、$a_9$ 兩端都是關鍵事件，卻有寬裕時間 &
+第~\ref{sec:tps-aoe}~節 \\
+縮短 $k$ 天就少 $k$ 天 & 忽略其他關鍵路徑，或忽略次長的路徑變成新的關鍵路徑 &
+第~\ref{sec:tps-aoe}~節 \\
+寬裕時間相加 & 同一條路徑上兩項活動各有 $3$ 天寬裕，以為合起來可以拖 $6$ 天 &
+第~\ref{sec:tps-aoe}~節 \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\section{觀念題}
+\label{sec:tps-exercises}
+
+題型和研究所考試、期中期末考的筆試相近，有選擇、計算、追蹤、證明和設計。 第 2--4 題用
+下面的圖 $G_2$：$7$ 個頂點，邊是
+\[
+1 \to 3,\ 4 \to 1,\ 4 \to 2,\ 2 \to 5,\ 3 \to 6,\ 5 \to 3,\ 5 \to 6,\ 7 \to 2,\ 7 \to 6,
+\]
+鄰接串列依編號由小到大。 解答在本章最後。
+
+\begin{enumerate}
+\item \label{tps-q-tf}（選擇，可能不只一個答案）下列哪些敘述正確？
+\begin{enumerate}
+\item 每個至少有一個頂點的有向無環圖，都同時有入度 $0$ 和出度 $0$ 的頂點。
+\item 對有環的有向圖做 Kahn 演算法，一個頂點都排不出來。
+\item 把 Kahn 演算法的佇列換成堆疊，在有向無環圖上排出來的仍然是拓樸順序。
+\item 對有向無環圖做 DFS，依發現時間 $d$ 由小到大排列，是一個拓樸順序。
+\item $n$ 個頂點的有向無環圖最多有 $n(n-1)/2$ 條邊。
+\end{enumerate}
+
+\item \label{tps-q-kahn}（追蹤）對 $G_2$ 做 Kahn 演算法。
+\begin{enumerate}
+\item 用佇列（本書的約定），寫出每一步取出的頂點、$\mathit{in}[1..7]$ 和佇列的內容。
+\item 改用最小優先佇列，寫出結果。
+\item 改用堆疊：一開始依編號由小到大推入，處理出邊時也依編號由小到大推入，每次取堆疊
+頂端。 寫出結果。
+\end{enumerate}
+
+\item \label{tps-q-dfs}（追蹤）對 $G_2$ 做 \proc{DFS-Topo-Sort}（虛擬碼~\ref{alg:tps-dfs}），
+寫出每個頂點的 $d$、$f$ 和回傳的 $L$。
+
+\item \label{tps-q-list}（列舉）列出 $G_2$ 的所有拓樸順序，依字典序排列，並寫出總數。
+
+\item \label{tps-q-count}（計算）
+\begin{enumerate}
+\item 圖有 $6$ 個頂點 A--F，邊只有 $A \to B$、$B \to C$、$D \to E$，F 沒有任何邊。 共有幾個
+拓樸順序？
+\item 在 (a) 的圖再加一條邊 $C \to E$，共有幾個？
+\end{enumerate}
+
+\item \label{tps-q-upper}（證明）證明：有向圖 $G$ 沒有環，若且唯若可以把頂點重新編號成
+$1..n$，使每一條邊都從小編號指向大編號。 並說明這時 $G$ 的鄰接矩陣（依新編號排列）長什
+麼樣子。
+
+\item \label{tps-q-dfs-tf}（證明或反例）$G$ 是有向無環圖，對它做一次 DFS。 下列敘述對的請
+證明，錯的請給反例。
+\begin{enumerate}
+\item 依 $f$ 由小到大排列，是把 $G$ 每條邊反向之後那張圖的拓樸順序。
+\item 依 $d$ 由大到小排列，是 $G$ 的拓樸順序。
+\item 若有一條從 $u$ 到 $v$ 的路徑（$u \ne v$），則 $f[v] < f[u]$。
+\item 若 $f[v] < f[u]$，則有一條從 $u$ 到 $v$ 的路徑。
+\end{enumerate}
+
+\item \label{tps-q-cycle}（設計）Kahn 演算法排不完時只知道「有環」。 設計一個
+$O(n + m)$ 的方法，接在 Kahn 演算法後面，找出一個環並依邊的方向印出它的頂點。 說明為什麼
+一定找得到。
+
+\item \label{tps-q-matrix}（選擇）圖用鄰接矩陣存，Kahn 演算法的時間是多少？ \quad
+(A) $\Theta(n + m)$ \quad (B) $\Theta(n^2)$ \quad (C) $\Theta(nm)$ \quad
+(D) $\Theta(m \lg n)$
+
+\item \label{tps-q-aov}（計算）第~\ref{sec:tps-aov}~節的迎新活動，工期（天）是 A $1$、B $2$、
+C $3$、D $5$、E $4$、F $1$、G $1$、H $1$，人手足夠。
+\begin{enumerate}
+\item 依拓樸順序算出每項活動的最早完成時間 $\mathit{EF}$，整個計畫最快幾天完成？ 是哪一串
+活動決定的？
+\item 不拖延整個計畫的前提下，G 最晚要在第幾天結束？ B 呢？
+\end{enumerate}
+
+\item \label{tps-q-aoe}（計算）AOE 網路有事件 $1..7$，活動如下（工期單位是天）：
+\begin{center}
+\begin{tabular}{*{10}{c}}
+\toprule
+$a_1$ & $a_2$ & $a_3$ & $a_4$ & $a_5$ & $a_6$ & $a_7$ & $a_8$ & $a_9$ & $a_{10}$ \\
+\midrule
+$\langle 1, 2 \rangle$ & $\langle 1, 3 \rangle$ & $\langle 1, 4 \rangle$ & $\langle 2, 5 \rangle$ &
+$\langle 2, 6 \rangle$ & $\langle 3, 5 \rangle$ & $\langle 3, 6 \rangle$ & $\langle 4, 6 \rangle$ &
+$\langle 5, 7 \rangle$ & $\langle 6, 7 \rangle$ \\
+5 & 4 & 2 & 3 & 3 & 6 & 5 & 4 & 4 & 6 \\
+\bottomrule
+\end{tabular}
+\end{center}
+算出每個事件的 $\mathit{ee}$、$\mathit{le}$，每項活動的 $e$、$l$、寬裕時間，並寫出最短工期
+和所有關鍵路徑。
+
+\item \label{tps-q-aoe2}（計算）承第~\ref{tps-q-aoe}~題，各小題互相獨立。
+\begin{enumerate}
+\item $a_6$ 延後 $2$ 天開工，工期變成幾天？
+\item $a_7$ 縮短 $2$ 天，工期變成幾天？
+\item 每項活動縮短 $1$ 天的成本都一樣。 要把工期縮成 $13$ 天，合計最少要縮短幾天？ 給一種
+做法並說明為什麼不能更少。
+\end{enumerate}
+
+\item \label{tps-q-aoe-tf}（是非）下列關於 AOE 網路的敘述，對的寫「對」，錯的給反例或說明。
+\begin{enumerate}
+\item 事件 $i$、$j$ 都是關鍵事件，則活動 $\langle i, j \rangle$ 一定是關鍵活動。
+\item 所有關鍵活動的工期加起來等於最短工期。
+\item 關鍵路徑可能不只一條。
+\item 活動 $a$ 有 $s > 0$ 天寬裕時間。 把 $a$ 延後 $s$ 天開工後，其他活動的寬裕時間都不變。
+\item 只有一個開始事件時，它的 $\mathit{le}$ 一定是 $0$。
+\end{enumerate}
+
+\item \label{tps-q-ee}（證明）AOE 網路只有一個開始事件 $s$。 證明：依拓樸順序用
+$\mathit{ee}[j] = \max_{\langle i, j \rangle} (\mathit{ee}[i] + \mathit{dur})$ 算出來的
+$\mathit{ee}[j]$，等於從 $s$ 到 $j$ 的最長路徑長度。 （提示：先說明每個事件都走得到。）
+\end{enumerate}
+
+\section{實作練習}
+\label{sec:tps-practice}
+
+下面是 Aki-Judge 上和本章相關的題目。
+
+\begin{center}
+\begin{tabular}{llc}
+\toprule
+小節 & 題目 & 難度 \\
+\midrule
+Kahn 演算法 & \akiref{smallest-first-topological-order}{字典序最小的拓撲排序} & 基本 \\
+DFS 完成時間法 & \akiref{topological-order-by-dfs-finish-time}{以 DFS 完成順序求拓撲排序} & 基本 \\
+依拓樸順序做 DP & \akiref{longest-path-in-a-dag}{有向無環圖的最長路徑} & 基本 \\
+ & \akiref{shortest-path-in-a-directed-acyclic-graph}{有向無環圖上的最短路徑} & 基本 \\
+AOV 網路的工期 & \akiref{earliest-finish-of-dependent-steps}{工序的最早完成時間} & 基本 \\
+AOE 網路 & \akiref{longest-path-in-a-dag-weighted}{有向無環圖的最長路徑} & 進階 \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+幾題的提示：「字典序最小的拓撲排序」就是最小優先佇列版的 Kahn 演算法；有環時的輸出格
+式看清楚題目的說明。 「以 DFS 完成順序求拓撲排序」的走訪順序和本書不同：外層一樣依編號，
+但每個頂點的出邊照\textbf{輸入的順序由後往前}試，這正好練習作答提醒框說的「照題目給的順
+序走」。 表裡有兩題同名的「有向無環圖的最長路徑」：第一題數邊數，答案是所有頂點的 DP 值
+取最大，包含不連通的各塊；第二題邊上有權重，只算從頂點 $1$ 出發到頂點 $n$ 的路線，相當
+於 AOE 網路的 $\mathit{ee}[n]$。 但它的圖可能有別的源點，從頂點 $1$ 走不到的頂點要設成
+$-\infty$，不能和 $1$ 一樣從 $0$ 開始。 「有向無環圖上的最短路徑」把 $\max$ 換成 $\min$，
+走不到的設成 $\infty$，第~25~章會再講一次。 「工序的最早完成時間」是第~\ref{sec:tps-aov}~
+節的 $\mathit{EF}$，前置步驟的編號可能比自己大，所以要依拓樸順序算，或寫成記憶化遞迴；
+每個步驟記下「完成時間最大的前置步驟」（平手取編號小的），一路往回走就是一條讓它沒辦法更
+早完成的關鍵鏈。
+
+\section{讀完你應該會}
+\label{sec:tps-checklist}
+
+\begin{itemize}
+\item 能用 Kahn 演算法和 DFS 完成時間法對一張圖做拓樸排序，照指定的平手規則寫出入度表、
+佇列內容或 $d$、$f$ 表，並判斷圖有沒有環。
+\item 能證明有向圖有拓樸順序若且唯若沒有環，並用括號定理證明 DFS 完成時間法的正確性。
+\item 能判斷拓樸順序是否唯一，用列舉樹列出所有拓樸順序，並用 $\binom{p + q}{p}$ 一類的公式
+算出常見結構的個數。
+\item 能把一張工作清單畫成 AOV 網路，說明前置關係為什麼必須是偏序（沒有環）。
+\item 能對 AOE 網路往前算 $\mathit{ee}$、往回算 $\mathit{le}$，填好活動的 $e$、$l$、寬裕時
+間，找出所有關鍵路徑。
+\item 能回答縮短或延後某項活動之後工期怎麼變，並指出「關鍵事件之間的活動不一定關鍵」這類
+陷阱。
+\end{itemize}
+
+\textbf{延伸閱讀}（書末會整理完整的參考資料）
+
+\begin{itemize}
+\item Thomas H. Cormen 等，\textit{Introduction to Algorithms}，第 4 版，20.4 節與 22.2 節：
+DFS 完成時間法的拓樸排序，以及有向無環圖上的最短路徑；22.2 節後半講怎麼用它找關鍵路徑。
+\item Ellis Horowitz、Sartaj Sahni、Susan Anderson-Freed，\textit{Fundamentals of Data
+Structures in C}，第 2 版，第 6 章：AOV、AOE 網路的名詞和考卷上常見的表格寫法都來自這一系
+列的資料結構課本。
+\item Donald E. Knuth，\textit{The Art of Computer Programming, Vol.~1}，第 3 版，2.2.3 節：
+用串列實作的線性時間拓樸排序，以及偏序的討論。
+\item A. B. Kahn，``Topological Sorting of Large Networks''，\textit{Communications of the
+ACM} 5(11)，1962：反覆取出沒有前驅的頂點的做法，本章的 Kahn 演算法以他命名。
+\item James E. Kelley Jr.、Morgan R. Walker，``Critical-Path Planning and Scheduling''，
+\textit{Proceedings of the Eastern Joint Computer Conference}，1959：要徑法（CPM）的早期論
+文，$\mathit{ES}$、$\mathit{LS}$ 一類記號的來源。
+\end{itemize}
+
+\addcontentsline{toc}{section}{觀念題解答}
+\section*{觀念題解答}
+
+\begin{enumerate}
+\item (a)、(c)、(e) 正確。 (a)：引理~\ref{lem:tps-source}。 (b)：錯，範例~\ref{ex:tps-topo}
+的第二張圖排出了 $1$、$5$ 才卡住；只有環上和被環擋住的頂點排不出來。 (c)：對，
+定理~\ref{thm:tps-kahn} 的證明只用到「$Q$ 裡恰好是還沒排出去、入度已經是 $0$ 的頂點」，
+和取出的順序無關。 (d)：錯，兩個頂點、一條邊 $2 \to 1$，DFS 先從 $1$ 開始，$d[1] = 1 <
+d[2] = 3$，依 $d$ 排是 $1, 2$，違反這條邊。 (e)：對，依拓樸順序，每條邊都從前面的頂點指
+向後面的，不同的邊對應不同的「一前一後」的頂點對，最多 $\binom{n}{2}$ 對；讓每一對 $i < j$
+都有邊 $i \to j$ 就達到。
+
+\item 一開始 $\mathit{in}[1..7] = 1, 2, 2, 0, 1, 3, 0$，$\mathit{Adj}[4] = 1, 2$，
+$\mathit{Adj}[7] = 2, 6$。
+\begin{enumerate}
+\item
+\begin{center}
+\small
+\begin{tabular}{cc*{7}{c}l}
+\toprule
+步驟 & 取出 & 1 & 2 & 3 & 4 & 5 & 6 & 7 & 佇列 \\
+\midrule
+開始 & & 1 & 2 & 2 & 0 & 1 & 3 & 0 & 4 7 \\
+1 & 4 & 0 & 1 & 2 & \tpsgone & 1 & 3 & 0 & 7 1 \\
+2 & 7 & 0 & 0 & 2 & \tpsgone & 1 & 2 & \tpsgone & 1 2 \\
+3 & 1 & \tpsgone & 0 & 1 & \tpsgone & 1 & 2 & \tpsgone & 2 \\
+4 & 2 & \tpsgone & \tpsgone & 1 & \tpsgone & 0 & 2 & \tpsgone & 5 \\
+5 & 5 & \tpsgone & \tpsgone & 0 & \tpsgone & \tpsgone & 1 & \tpsgone & 3 \\
+6 & 3 & \tpsgone & \tpsgone & \tpsgone & \tpsgone & \tpsgone & 0 & \tpsgone & 6 \\
+7 & 6 & \tpsgone & \tpsgone & \tpsgone & \tpsgone & \tpsgone & \tpsgone & \tpsgone & （空） \\
+\bottomrule
+\end{tabular}
+\end{center}
+結果 $4, 7, 1, 2, 5, 3, 6$。
+\item 第 1 步之後 $Q = \{1, 7\}$，取 $1$；之後 $7$、$2$、$5$、$3$、$6$ 都是唯一的選擇。
+結果 $4, 1, 7, 2, 5, 3, 6$。
+\item 堆疊一開始是 $4, 7$（$7$ 在頂端）。 取出 $7$：$\mathit{in}[2] = 1$、$\mathit{in}[6] = 2$。
+取出 $4$：$1$、$2$ 依序推入，頂端是 $2$。 取出 $2$，推入 $5$；取出 $5$，$\mathit{in}[3] = 1$、
+$\mathit{in}[6] = 1$；取出 $1$，推入 $3$；取出 $3$，推入 $6$；取出 $6$。 結果
+$7, 4, 2, 5, 1, 3, 6$。 三種容器得到三個不同的答案，這就是作答提醒框要你先寫約定的原因。
+\end{enumerate}
+
+\item 從 $1$：$1 \to 3 \to 6$，$d = 1, 2, 3$，$f[6] = 4$、$f[3] = 5$、$f[1] = 6$。 外層到
+$2$：$d[2] = 7$，發現 $5$（$d = 8$），$\mathit{Adj}[5] = 3, 6$ 都是黑的，$f[5] = 9$、
+$f[2] = 10$。 外層到 $4$：$d[4] = 11$，$1$、$2$ 都是黑的，$f[4] = 12$。 外層到 $7$：
+$d[7] = 13$，$f[7] = 14$。
+\begin{center}
+\begin{tabular}{c*{7}{c}}
+\toprule
+$v$ & 1 & 2 & 3 & 4 & 5 & 6 & 7 \\
+\midrule
+$d$ & 1 & 7 & 2 & 11 & 8 & 3 & 13 \\
+$f$ & 6 & 10 & 5 & 12 & 9 & 4 & 14 \\
+\bottomrule
+\end{tabular}
+\end{center}
+依 $f$ 由大到小：$L = 7, 4, 2, 5, 1, 3, 6$。 （和第~\ref{tps-q-kahn}~題 (c) 剛好相同，這是巧
+合，一般不會一樣。）
+
+\item 源點是 $4$、$7$。 $1$ 只等 $4$；$2$ 等 $4$、$7$；$5$ 等 $2$；$3$ 等 $1$、$5$；$6$ 最後。
+照列舉樹展開：
+\begin{center}
+\begin{tabular}{ll}
+$4, 1, 7, 2, 5, 3, 6$ & $7, 4, 1, 2, 5, 3, 6$ \\
+$4, 7, 1, 2, 5, 3, 6$ & $7, 4, 2, 1, 5, 3, 6$ \\
+$4, 7, 2, 1, 5, 3, 6$ & $7, 4, 2, 5, 1, 3, 6$ \\
+$4, 7, 2, 5, 1, 3, 6$ & \\
+\end{tabular}
+\end{center}
+共 $7$ 個（左欄由上往下，再接右欄，是字典序）。 檢查：$3$、$6$ 一定是最後兩個；前五個
+裡 $1$ 在 $4$ 後面、$2$ 在 $4$ 和 $7$ 後面、$5$ 在 $2$ 後面。 以 $4$ 開頭時，$7, 2, 5$ 必須
+依序，$1$ 插進它們前後的 $4$ 個位置之一，有 $4$ 個；以 $7$ 開頭時，$4$ 一定第二，剩下的
+$1$ 插進 $2, 5$ 前後的 $3$ 個位置之一，有 $3$ 個。 合計 $7$。
+
+\item (a) 三塊：鏈 ABC（$1$ 種）、鏈 DE（$1$ 種）、F（$1$ 種），共
+$\frac{6!}{3!\,2!\,1!} = 60$ 個。 (b) 加上 $C \to E$ 後，A--E 連成一塊：E 一定是這五個裡
+最後的，A、B、C 依序，D 可以放在 A、B、C 之間或前後 $4$ 個位置之一，所以這塊有 $4$ 種；
+再和 F 合起來，$\binom{6}{1} \cdot 4 = 24$ 個。
+
+\item 若沒有環，由定理~\ref{thm:tps-exists} 有拓樸順序 $v_1, \ldots, v_n$，把 $v_k$ 編成
+$k$，每條邊都從前面指到後面，也就是從小編號指向大編號。 反過來，如果每條邊都從小編號指向
+大編號，沿著任何路徑編號嚴格變大，不可能回到起點，所以沒有環。 依新編號排列的鄰接矩陣，
+$A[i][j] = 1$ 只會出現在 $i < j$，對角線和對角線以下全是 $0$：是嚴格上三角矩陣。
+
+\item
+\begin{enumerate}
+\item 對。 定理~\ref{thm:tps-dfs}：每條邊 $u \to v$ 有 $f[v] < f[u]$；反向後這條邊是 $v \to u$，
+依 $f$ 由小到大時 $v$ 排在 $u$ 前面，合乎要求。
+\item 錯。 三個頂點，邊 $1 \to 2$、$1 \to 3$、$3 \to 2$。 從 $1$ 開始：$d[1] = 1$，發現 $2$
+（$d = 2$、$f = 3$），再發現 $3$（$d = 4$，$2$ 已經是黑的，$f = 5$），$f[1] = 6$。 依 $d$
+由大到小是 $3, 2, 1$，違反 $1 \to 2$。
+\item 對。 路徑 $u = x_0 \to x_1 \to \cdots \to x_k = v$ 的每條邊都有 $f[x_{i+1}] < f[x_i]$，
+串起來得到 $f[v] < f[u]$。
+\item 錯。 兩個頂點、沒有邊：$f[1] = 2 < 4 = f[2]$，但 $2$ 走不到 $1$。
+\end{enumerate}
+
+\item 設 $R$ 是 Kahn 演算法結束時還沒排出去的頂點，非空。 由不變量，$R$ 裡每個頂點 $v$ 的
+$\mathit{in}[v] \ge 1$，也就是至少有一個前驅也在 $R$ 裡。 掃一遍所有的邊，對每條兩端都在
+$R$ 的邊 $u \to v$ 設 $\mathit{pre}[v] \gets u$（$O(n + m)$）。 從 $R$ 裡任取一個頂點 $x$，
+一直走 $x \gets \mathit{pre}[x]$ 並標記走過的頂點；$R$ 是有限集合，最多 $|R| + 1$ 步一定走到
+一個已經標記過的頂點 $y$。 $y$ 沿著 $\mathit{pre}$ 走一圈會回到 $y$，把這一圈記下來再倒過來
+印，就是依邊的方向的一個環。 例如範例~\ref{ex:tps-topo} 的第二張圖，$R = \{2, 3, 4\}$，
+$\mathit{pre}[2] = 4$、$\mathit{pre}[3] = 2$、$\mathit{pre}[4] = 3$（邊 $5 \to 3$ 的 $5$ 已
+經排出去，不算），從 $2$ 走 $2, 4, 3, 2$，倒過來印 $2 \to 3 \to 4 \to 2$。
+
+\item (B)。 算入度要看矩陣的每一格；每取出一個頂點，要掃它那一整列找出邊。 兩件事都是
+$n^2$ 格，不管 $m$ 多小。
+
+\item (a) 依拓樸順序 A, B, C, E, D, G, F, H：
+$\mathit{EF}(A) = 1$、$\mathit{EF}(B) = 1 + 2 = 3$、$\mathit{EF}(C) = 1 + 3 = 4$、
+$\mathit{EF}(E) = 3 + 4 = 7$、$\mathit{EF}(D) = \max(3, 4) + 5 = 9$、
+$\mathit{EF}(G) = 7 + 1 = 8$、$\mathit{EF}(F) = 9 + 1 = 10$、
+$\mathit{EF}(H) = \max(10, 8) + 1 = 11$。 最快 $11$ 天，由 A, C, D, F, H 這一串決定
+（$1 + 3 + 5 + 1 + 1 = 11$）。
+(b) H 最晚第 $11 - 1 = 10$ 天開始，所以 G 最晚第 $10$ 天結束（比最早的 $8$ 晚 $2$ 天）。
+F 也最晚第 $10$ 天結束，D 最晚第 $10 - 1 = 9$ 天結束、第 $9 - 5 = 4$ 天開始；E 最晚在 G
+開始的第 $10 - 1 = 9$ 天結束、第 $9 - 4 = 5$ 天開始。 B 要趕上 D 和 E 中較早的開始時間，
+最晚第 $\min(4, 5) = 4$ 天結束（比最早的 $3$ 晚 $1$ 天）。 這就是往回算的 $\mathit{le}$，
+只是放在活動上。
+
+\item 編號 $1..7$ 已經是拓樸順序。
+\begin{center}
+\begin{tabular}{cll}
+\toprule
+事件 & $\mathit{ee}$ & $\mathit{le}$ \\
+\midrule
+1 & 0 & $\min(6 - 5,\ 4 - 4,\ 5 - 2) = 0$ \\
+2 & $0 + 5 = 5$ & $\min(11 - 3,\ 9 - 3) = 6$ \\
+3 & $0 + 4 = 4$ & $\min(11 - 6,\ 9 - 5) = 4$ \\
+4 & $0 + 2 = 2$ & $9 - 4 = 5$ \\
+5 & $\max(5 + 3,\ 4 + 6) = 10$ & $15 - 4 = 11$ \\
+6 & $\max(5 + 3,\ 4 + 5,\ 2 + 4) = 9$ & $15 - 6 = 9$ \\
+7 & $\max(10 + 4,\ 9 + 6) = 15$ & $15$ \\
+\bottomrule
+\end{tabular}
+\qquad
+\begin{tabular}{cccc}
+\toprule
+活動 & $e$ & $l$ & $l - e$ \\
+\midrule
+$a_1$ & 0 & 1 & 1 \\
+$a_2$ & 0 & 0 & 0 \\
+$a_3$ & 0 & 3 & 3 \\
+$a_4$ & 5 & 8 & 3 \\
+$a_5$ & 5 & 6 & 1 \\
+$a_6$ & 4 & 5 & 1 \\
+$a_7$ & 4 & 4 & 0 \\
+$a_8$ & 2 & 5 & 3 \\
+$a_9$ & 10 & 11 & 1 \\
+$a_{10}$ & 9 & 9 & 0 \\
+\bottomrule
+\end{tabular}
+\end{center}
+最短工期 $15$ 天。 關鍵活動 $a_2, a_7, a_{10}$，只有一條關鍵路徑
+$1 \to 3 \to 6 \to 7$（$4 + 5 + 6 = 15$）。 把輸入改成這張圖，範例~\ref{ex:tps-aoe} 會印出
+同樣的表。
+
+\item 五條從 $1$ 到 $7$ 的路徑長度：$1\!-\!2\!-\!5\!-\!7$ 是 $12$、$1\!-\!2\!-\!6\!-\!7$ 是
+$14$、$1\!-\!3\!-\!5\!-\!7$ 是 $14$、$1\!-\!3\!-\!6\!-\!7$ 是 $15$、$1\!-\!4\!-\!6\!-\!7$ 是
+$12$。
+(a) $a_6$ 只有 $1$ 天寬裕，延後 $2$ 天讓 $1\!-\!3\!-\!5\!-\!7$ 變成 $16$，工期 $16$ 天。
+(b) $1\!-\!3\!-\!6\!-\!7$ 變成 $13$，但還有兩條 $14$ 天的路徑，工期是 $14$ 天，只少 $1$ 天。
+(c) 最少 $2$ 天：$a_2$、$a_{10}$ 各縮短 $1$ 天。 這時 $1\!-\!3\!-\!6\!-\!7$ 是 $13$，
+$1\!-\!3\!-\!5\!-\!7$ 少了 $a_2$ 的 $1$ 天變成 $13$，$1\!-\!2\!-\!6\!-\!7$ 少了 $a_{10}$ 的
+$1$ 天變成 $13$，其他兩條是 $12$。 不能更少：$1\!-\!3\!-\!6\!-\!7$ 本身就要少 $2$ 天，它
+的活動合計至少縮短 $2$ 天。
+
+\item (a) 錯，裝修工程的 $a_4$：事件 2、5 都是關鍵事件，$a_4$ 有 $8$ 天寬裕。 (b) 錯，
+裝修工程的關鍵活動工期加起來是 $4 + 5 + 6 + 6 + 0 + 5 + 3 + 2 = 31 \ne 25$，因為有兩條
+關鍵路徑，$a_6$ 和 $a_7$ 是並行的。 只有一條關鍵路徑時才相等。 (c) 對，裝修工程就有兩條。
+(d) 錯，裝修工程的 $a_2$ 有 $3$ 天寬裕，延後 $3$ 天之後，同一條路徑上的 $a_5$ 寬裕從 $3$ 變
+成 $0$。 (e) 對，$\mathit{le}[s] = T - \mathit{tail}[s]$（定理~\ref{thm:tps-critical} 的
+證明），而所有事件都在從 $s$ 出發的路徑上，從 $s$ 出發的最長路徑就是整張圖的最長路徑，
+$\mathit{tail}[s] = T$。
+
+\item 先說明每個事件都走得到。 對事件 $j \ne s$，$j$ 的入度至少 $1$（只有 $s$ 入度 $0$），
+從 $j$ 沿著進來的邊往回走；圖沒有環，不會重複，有限步內一定停在入度 $0$ 的頂點，也就是
+$s$，所以 $s$ 走得到 $j$。 記 $L(j)$ 為從 $s$ 到 $j$ 的最長路徑長度。 依拓樸順序歸納證明
+$\mathit{ee}[j] = L(j)$。 $j = s$ 時沒有邊指向 $s$，唯一的路徑是只有 $s$ 的空路徑，
+$L(s) = 0 = \mathit{ee}[s]$。 $j \ne s$ 時，任何從 $s$ 到 $j$ 的路徑最後一條邊是某個
+$\langle i, j \rangle$，前面那段是 $s$ 到 $i$ 的路徑，長度不超過 $L(i) = \mathit{ee}[i]$
+（$i$ 在拓樸順序裡比 $j$ 前面，用歸納假設），所以整條不超過 $\mathit{ee}[i] + \mathit{dur}
+\le \mathit{ee}[j]$，得到 $L(j) \le \mathit{ee}[j]$。 反過來，取使 $\max$ 成立的 $i$，把
+$s$ 到 $i$ 的最長路徑接上 $\langle i, j \rangle$，是一條長度 $\mathit{ee}[j]$ 的路徑（有向
+無環圖上不會重複經過 $j$），所以 $L(j) \ge \mathit{ee}[j]$。
+\end{enumerate}
