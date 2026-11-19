@@ -42,6 +42,8 @@
 \titlespacing*{\chapter}{0pt}{-20pt}{20pt}
 % 頁首寫「第 N 章 章名」，不用英文的 CHAPTER。
 \renewcommand{\chaptermark}[1]{\markboth{第~\thechapter~章\quad #1}{}}
+% 全書超過 999 頁，目錄的頁碼欄放寬，四位數頁碼才不會超出右邊界。
+\makeatletter\renewcommand{\@pnumwidth}{2.2em}\makeatother
 
 % 行內程式碼（\texttt）不能斷行，允許 TeX 多拉開一點字距。
 \setlength{\emergencystretch}{3em}
@@ -108,7 +110,14 @@
 \input{chapters/28_NPCompleteness/chapter}
 \input{chapters/29_Approximation/chapter}
 
+% 附錄（章號改成 A、B，標題改成「附錄 A」）
+\appendix
+\titleformat{\chapter}{\normalfont\huge\bfseries}{附錄~\thechapter}{1em}{}
+\renewcommand{\chaptermark}[1]{\markboth{附錄~\thechapter\quad #1}{}}
+\input{chapters/A_MathTools/chapter}
+\input{chapters/B_ExamWriting/chapter}
+
 % 書末（不編章號）
-% \input{chapters/99_References/chapter}
+\input{chapters/99_References/chapter}
 
 \end{document}

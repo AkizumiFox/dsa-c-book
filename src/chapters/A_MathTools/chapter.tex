@@ -1,0 +1,896 @@
+\chapter{數學工具}
+\label{ch:math}
+
+% 本附錄的圖共用的樣式（前綴 mth-）
+\tikzset{
+    mth-curve/.style={thick, coreStroke, smooth},
+    mth-lo/.style={draw=greenStroke, fill=greenFill},
+    mth-hi/.style={draw=memStroke, fill=memFill},
+    mth-axis/.style={-{Stealth[length=2mm]}},
+    mth-tick/.style={font=\scriptsize},
+    mth-cap/.style={font=\small, align=center},
+}
+% 公式後面的小標記：\mthuse{1、9} 印成「〔用在第 1、9 章〕」
+\newcommand{\mthuse}[1]{{\small\color{black!55}〔用在第~#1~章〕}}
+% 附錄裡的例題標題
+\newcommand{\mthex}[1]{\par\medskip\noindent\textbf{例：#1}\quad}
+
+正文分析演算法時，常常寫一句「由調和級數」「由期望值的線性」就帶過去。 這個附錄把
+那些一句帶過的數學工具放在一起：對數與地板、天花板，求和，階乘與組合數，數學歸納法，
+機率與期望值。 每個公式後面用〔用在第 N 章〕標出正文哪幾章用到它；正文已經證明過的，
+這裡只寫結論和出處，不重證。
+
+這個附錄不用從頭讀。 讀正文時卡在某個式子，再翻到對應的那一節。 第~\ref{sec:mth-quickref}~節
+的速查表按主題列出全部公式和出處。 記號和正文一樣：$\lg = \log_2$，$\ln = \log_e$，
+$\lg^k n$ 指 $(\lg n)^k$；$\Pr[A]$ 是事件 $A$ 的機率，$\mathrm{E}[X]$ 是隨機變數 $X$
+的期望值（有幾章把機率寫成 $\Pr\{A\}$，意思一樣）。
+
+\section{對數、指數、地板與天花板}
+\label{sec:mth-log}
+
+\subsection{對數與指數的運算}
+
+$a, b, c > 0$、$b \ne 1$、$c \ne 1$，$x, y > 0$ 時：
+\[
+\log_b(xy) = \log_b x + \log_b y, \qquad
+\log_b(x^k) = k \log_b x, \qquad
+\log_b x = \frac{\log_c x}{\log_c b}, \qquad
+a^{\log_b x} = x^{\log_b a}.
+\]
+第三個是換底公式，第四個兩邊取 $\log_b$ 就得到；第~1~章第~\ref{sec:ana-functions}~節已經用
+它們說明兩件事：對數的底只差常數倍，所以 $\Theta(\log n)$ 不用寫底；指數上的底不能丟，
+$4^n \ne O(2^n)$。 主定理的 $n^{\log_b a}$（第~2~章）、AVL 樹高度的
+$\log_\varphi(n+1) = \lg(n+1) / \lg\varphi$（第~10~章）都是這兩個公式。
+\mthuse{1、2、10}
+
+下面這個不等式在估計機率時很好用。
+
+\begin{lemma}
+\label{lem:mth-exp}
+\mthuse{12}
+對所有實數 $x$，$1 + x \le e^x$。 因此對整數 $m \ge 2$、$n \ge 0$：
+\[
+\left(1 - \frac{1}{m}\right)^{n} \le e^{-n/m},
+\qquad
+e^{-1}\left(1 - \frac{1}{m}\right) \le \left(1 - \frac{1}{m}\right)^{m} \le e^{-1}.
+\]
+\end{lemma}
+
+\begin{proof}
+令 $g(x) = e^x - 1 - x$，$g'(x) = e^x - 1$ 在 $x < 0$ 時是負的、$x > 0$ 時是正的，所以
+$g$ 在 $x = 0$ 有最小值 $g(0) = 0$，$g(x) \ge 0$。 取 $x = -1/m$ 再 $n$ 次方，得到第一個
+不等式，$n = m$ 時就是最右邊的那個。 左邊：取 $x = 1/(m - 1)$ 得到
+$1 + \frac{1}{m-1} \le e^{1/(m-1)}$，兩邊 $m - 1$ 次方後取倒數，
+$\left(1 - \frac{1}{m}\right)^{m-1} = \left(\frac{m-1}{m}\right)^{m-1} \ge e^{-1}$，再乘上
+$1 - \frac{1}{m}$。
+\end{proof}
+
+第~12~章說「$n = m$ 時大約 $37\%$ 的格子是空的」，就是這個引理：空格的比例
+$(1 - 1/m)^m$ 夾在 $e^{-1}(1 - 1/m)$ 和 $e^{-1} \approx 0.368$ 之間。 一般的 $n$，把
+$(1 - 1/m)^n$ 寫成 $\bigl((1 - 1/m)^m\bigr)^{n/m}$，同樣夾在 $e^{-n/m}$ 附近。
+
+\subsection{地板與天花板}
+
+$\lfloor x \rfloor$ 是不超過 $x$ 的最大整數，$\lceil x \rceil$ 是不小於 $x$ 的最小整數。
+下面 $x$ 是實數，$n$ 是整數，$k$ 是正整數。
+
+\begin{enumerate}
+\item $x - 1 < \lfloor x \rfloor \le x \le \lceil x \rceil < x + 1$；$\lfloor x + n \rfloor
+= \lfloor x \rfloor + n$。
+\item $\lfloor n/2 \rfloor + \lceil n/2 \rceil = n$。 合併排序、二分搜尋把範圍切成兩半，
+兩半的大小就是這兩個數。 \mthuse{2、14、17}
+\item $\lceil n/k \rceil = \lfloor (n + k - 1)/k \rfloor$。 C 的整數除法對非負數就是
+$\lfloor \cdot \rfloor$，所以 $\lceil n/k \rceil$ 寫成 \texttt{(n + k - 1) / k}，例如
+第~16~章分組的 \texttt{(n + 4) / 5}、第~11~章的 \texttt{(M + 1) / 2}。
+\mthuse{11、16}
+\item 巢狀：$\bigl\lfloor \lfloor x \rfloor / k \bigr\rfloor = \lfloor x / k \rfloor$，
+$\bigl\lceil \lceil x \rceil / k \bigr\rceil = \lceil x / k \rceil$。 \mthuse{1、16、17}
+\end{enumerate}
+
+第 4 點的證明：令 $q = \lfloor x / k \rfloor$，則 $qk \le x < (q + 1)k$。 $qk$ 是不超過
+$x$ 的整數，所以 $qk \le \lfloor x \rfloor \le x < (q + 1)k$，除以 $k$ 得到
+$q \le \lfloor x \rfloor / k < q + 1$，也就是 $\lfloor \lfloor x \rfloor / k \rfloor = q$。
+天花板的證明一樣。 它的用處是：迴圈每次做 $i \gets \lfloor i/2 \rfloor$，做 $t$ 次之後
+$i = \lfloor n / 2^t \rfloor$，不用每一步都擔心捨去累積起來。 第~1~章的迴圈 (e) 和
+第~17~章二分搜尋的輪數都是這樣算的。
+
+\begin{lemma}
+\label{lem:mth-bits}
+\mthuse{7、8、17}
+整數 $n \ge 1$ 時，下面三個數相等：$\lfloor \lg n \rfloor + 1$；$\lceil \lg(n + 1) \rceil$；
+$n$ 的二進位位數。 它們也等於 C 迴圈 \texttt{while (n > 0) n /= 2;} 執行的次數。
+\end{lemma}
+
+\begin{proof}
+令 $k = \lfloor \lg n \rfloor$，則 $2^k \le n < 2^{k+1}$。 所以 $2^k < n + 1 \le 2^{k+1}$，
+$\lceil \lg(n+1) \rceil = k + 1$。 落在 $[2^k, 2^{k+1})$ 的整數，二進位剛好 $k + 1$ 位。
+迴圈做完 $t$ 次後 $n$ 變成 $\lfloor n / 2^t \rfloor$（巢狀地板），它大於 $0$ 若且唯若
+$2^t \le n$，也就是 $t \le k$；所以 $t = 0, 1, \ldots, k$ 時條件成立，迴圈做 $k + 1$ 次。
+\end{proof}
+
+第~7~章的「$n$ 個節點的二元樹高度至少 $\lceil \lg(n+1) \rceil$」和第~8~章的「$n$ 個節點的
+堆積高度是 $\lfloor \lg n \rfloor + 1$」說的是同一個數。 第~2~章的
+引理~\ref{lem:rec-lg-half}（$\lceil \lg \lceil n/2 \rceil \rceil = \lceil \lg n \rceil - 1$
+和地板的版本）是同一類的等式，證明在那裡。
+
+\begin{examnote}
+$\lfloor \lg n \rfloor + 1$ 和 $\lceil \lg n \rceil$ 只在 $n$ 是 $2$ 的次方時不同（差 $1$），
+很容易混。 $n = 8$：前者是 $4$，後者是 $3$。 作答時把 $n = 7, 8, 9$ 代進去檢查一次，
+看自己的公式在 $2$ 的次方附近對不對。
+\end{examnote}
+
+\mthex{天花板減半要幾次。}迴圈 \texttt{while (n > 1) \{ n = (n + 1) / 2; rounds++; \}}
+每次把 $n$ 變成 $\lceil n/2 \rceil$，第~16~章錦標賽每一輪的人數就是這樣變的（$n \ge 1$，
+\texttt{rounds} 從 $0$ 開始）。
+由巢狀天花板，做完 $t$ 次之後 $n$ 變成 $\lceil n_0 / 2^t \rceil$（$n_0$ 是一開始的值）。
+迴圈停在第一個讓 $\lceil n_0 / 2^t \rceil \le 1$ 的 $t$，也就是 $n_0 / 2^t \le 1$、
+$t \ge \lg n_0$，最小的整數 $t$ 是 $\lceil \lg n_0 \rceil$。 所以 \texttt{rounds}
+$= \lceil \lg n_0 \rceil$。 驗算 $n_0 = 5$：$5 \to 3 \to 2 \to 1$，三次，$\lceil \lg 5
+\rceil = 3$。
+
+\section{求和}
+\label{sec:mth-sum}
+
+\subsection{基本性質}
+
+$\sum_{k=a}^{b} f(k)$ 在 $b < a$ 時是空的和，等於 $0$。 常用的操作有四種：
+
+\begin{itemize}
+\item \textbf{線性}：$\sum (c\,a_k + b_k) = c \sum a_k + \sum b_k$。
+\item \textbf{換下標}：$\sum_{k=1}^{n} a_{k} = \sum_{j=0}^{n-1} a_{j+1}$，例如令 $j = n - k$
+把和倒過來加。
+\item \textbf{交換順序}：$\displaystyle\sum_{i=1}^{n} \sum_{j=i}^{n} a_{ij}
+= \sum_{j=1}^{n} \sum_{i=1}^{j} a_{ij}$，兩邊都是對 $1 \le i \le j \le n$ 的所有數對加總。
+第~14~章算快速排序的期望比較次數時，把 $\sum_{i<j}$ 改成按距離 $d = j - i$ 分組，就是這一招。
+\mthuse{9、14}
+\item \textbf{望遠鏡和}（telescoping）：$\sum_{k=1}^{n} (a_k - a_{k-1}) = a_n - a_0$，中間
+的項兩兩抵消。
+\end{itemize}
+
+\subsection{多項式型的和}
+
+\begin{theorem}
+\label{thm:mth-powsum}
+\mthuse{1}
+\[
+\sum_{k=1}^{n} k = \frac{n(n+1)}{2}, \qquad
+\sum_{k=1}^{n} k^2 = \frac{n(n+1)(2n+1)}{6}, \qquad
+\sum_{k=1}^{n} k^3 = \left(\frac{n(n+1)}{2}\right)^2 .
+\]
+一般地，$c \ge 0$ 是常數時，$\sum_{k=1}^{n} k^c = \Theta(n^{c+1})$。
+\end{theorem}
+
+\begin{proof}
+第一個是第~1~章算兩兩比較次數用的等差級數。 第二個用望遠鏡和：$(k+1)^3 - k^3 = 3k^2 +
+3k + 1$，對 $k = 1, \ldots, n$ 加總，左邊剩下 $(n+1)^3 - 1$，右邊是 $3S + \frac{3n(n+1)}{2}
++ n$，其中 $S = \sum k^2$。 解出
+\[
+3S = (n+1)^3 - (n+1) - \frac{3n(n+1)}{2} = (n+1)\left(n^2 + \frac{n}{2}\right)
+= \frac{n(n+1)(2n+1)}{2}.
+\]
+第三個在第~\ref{sec:mth-induction}~節當作歸納法的例子證明。
+
+最後一句：上界，每一項都不超過 $n^c$，共 $n$ 項，和不超過 $n^{c+1}$。 下界用第~1~章「只
+看後半」的手法：$k \ge \lceil n/2 \rceil$ 的項至少有 $n/2$ 個，每個至少 $(n/2)^c$，和至少
+$(n/2)^{c+1} = n^{c+1} / 2^{c+1}$，$2^{c+1}$ 是常數。
+\end{proof}
+
+\subsection{等比級數}
+
+\begin{theorem}
+\label{thm:mth-geo}
+\mthuse{1、2、3、8、16}
+$r \ne 1$ 時
+\[
+\sum_{k=0}^{m} r^k = \frac{r^{m+1} - 1}{r - 1}.
+\]
+$0 < r < 1$ 時，對所有 $m$，這個和介於 $1$ 和 $\frac{1}{1 - r}$ 之間，無窮級數
+$\sum_{k=0}^{\infty} r^k = \frac{1}{1-r}$。 $r > 1$ 時，和介於最後一項 $r^m$ 和
+$r^m \cdot \frac{r}{r - 1}$ 之間。
+\end{theorem}
+
+\begin{proof}
+令 $S = \sum_{k=0}^{m} r^k$，則 $rS - S = r^{m+1} - 1$，中間的項都抵消了。 $0 < r < 1$ 時
+$S = \frac{1 - r^{m+1}}{1 - r} < \frac{1}{1-r}$。 $r > 1$ 時
+$S < \frac{r^{m+1}}{r - 1} = r^m \cdot \frac{r}{r-1}$。
+\end{proof}
+
+第~1~章把這個定理濃縮成兩句話：公比小於 $1$，總和和第一項同一級；公比大於 $1$，總和和
+最後一項同一級。 第~3~章加倍的動態陣列（$r = 2$：搬動總數小於最後一次的兩倍）、第~2~章
+主定理的三種情況、第~16~章「每次丟掉固定比例」的線性時間，用的都是這兩句。
+
+\begin{theorem}
+\label{thm:mth-wgeo}
+\mthuse{8}
+$r \ne 1$ 時
+\[
+\sum_{k=0}^{m} k\, r^k = \frac{r - (m+1) r^{m+1} + m\, r^{m+2}}{(1 - r)^2}.
+\]
+$0 < r < 1$ 時 $\sum_{k=0}^{\infty} k\, r^k = \frac{r}{(1-r)^2}$；例如
+$\sum_{k \ge 0} k / 2^k = 2$。
+\end{theorem}
+
+\begin{proof}
+仿照上一個證明，令 $S$ 是左邊的和：
+\[
+S - rS = \sum_{k=0}^{m} k\, r^k - \sum_{k=1}^{m+1} (k - 1) r^k
+= \sum_{k=1}^{m} r^k - m\, r^{m+1}
+= \frac{r - r^{m+1}}{1 - r} - m\, r^{m+1}.
+\]
+兩邊除以 $1 - r$ 整理就是公式。 $0 < r < 1$ 時 $m r^{m+1}$ 和 $m r^{m+2}$ 在 $m \to \infty$
+時趨近 $0$，得到無窮和。
+\end{proof}
+
+\mthex{換一個方法數建堆積的交換次數。}第~8~章定理~\ref{thm:hp-build} 用「數高度至少
+$\ell$ 的節點」證明高度 $k$ 的滿二元樹（$N = 2^k - 1$ 個節點）由下而上建堆積，下沉的步數
+總和是 $N - k$。 也可以按深度直接加：深度 $d$ 的節點有 $2^d$ 個，每個最多往下走
+$k - 1 - d$ 步。 令 $j = k - 1 - d$：
+\[
+\sum_{d=0}^{k-1} 2^d (k - 1 - d) = \sum_{j=0}^{k-1} 2^{k-1-j}\, j
+= 2^{k-1} \sum_{j=0}^{k-1} j \left(\frac{1}{2}\right)^j
+< 2^{k-1} \cdot 2 = 2^k = N + 1 .
+\]
+用定理~\ref{thm:mth-wgeo} 的有限版本代 $r = \frac12$、$m = k - 1$，括號裡的和是
+$2 - (k+1)/2^{k-1}$，乘上 $2^{k-1}$ 正好是 $2^k - k - 1 = N - k$，和第~8~章一致。 考卷
+上兩種證法都常見；按深度加的寫法比較直接，但要記得 $\sum k / 2^k = 2$。
+
+\subsection{用積分夾住一個和}
+
+和沒有封閉形式時，可以用積分估計。 想法見圖~\ref{fig:mth-integral}：每一項 $f(k)$ 是一個
+寬度 $1$ 的長方形，函數單調時，長方形整排落在曲線下面或整排蓋過曲線。
+
+\begin{lemma}
+\label{lem:mth-integral}
+\mthuse{1、12}
+$f$ 在 $[a - 1, b + 1]$ 上不遞增時，
+\[
+\int_{a}^{b+1} f(x)\,dx \;\le\; \sum_{k=a}^{b} f(k) \;\le\; \int_{a-1}^{b} f(x)\,dx .
+\]
+$f$ 不遞減時，兩個不等號反過來：$\int_{a-1}^{b} f \le \sum_{k=a}^{b} f(k) \le
+\int_{a}^{b+1} f$。
+\end{lemma}
+
+\begin{proof}
+$f$ 不遞增時，$x \in [k, k+1]$ 有 $f(x) \le f(k)$，所以 $\int_k^{k+1} f \le f(k)$；
+$x \in [k-1, k]$ 有 $f(x) \ge f(k)$，所以 $f(k) \le \int_{k-1}^{k} f$。 對
+$k = a, \ldots, b$ 加總。 不遞減的情形對調。
+\end{proof}
+
+\begin{center}
+\begin{tikzpicture}[x=0.72cm, y=2.5cm]
+\begin{scope}
+\foreach \k in {2,...,6} { \filldraw[mth-lo] (\k-1,0) rectangle (\k,1/\k); }
+\draw[mth-curve, domain=0.85:7, samples=60] plot (\x, {1/\x});
+\draw[mth-axis] (0,0) -- (7.6,0) node[right, font=\small] {$x$};
+\draw[mth-axis] (0,0) -- (0,1.2);
+\foreach \t in {1,...,7} { \draw (\t,0) -- (\t,-0.03) node[below, mth-tick] {\t}; }
+\draw (0,1) -- (-0.1,1) node[left, mth-tick] {$1$};
+\node[mth-cap] at (3.8,-0.38) {(a) 綠色長方形在曲線下面：\\
+$\frac12 + \cdots + \frac16 \le \int_1^6 \frac{dx}{x}$};
+\end{scope}
+\begin{scope}[xshift=9.6cm]
+\foreach \k in {1,...,6} { \filldraw[mth-hi] (\k,0) rectangle (\k+1,1/\k); }
+\draw[mth-curve, domain=0.85:7.4, samples=60] plot (\x, {1/\x});
+\draw[mth-axis] (0,0) -- (7.8,0) node[right, font=\small] {$x$};
+\draw[mth-axis] (0,0) -- (0,1.2);
+\foreach \t in {1,...,7} { \draw (\t,0) -- (\t,-0.03) node[below, mth-tick] {\t}; }
+\draw (0,1) -- (-0.1,1) node[left, mth-tick] {$1$};
+\node[mth-cap] at (3.9,-0.38) {(b) 橘色長方形蓋過曲線：\\
+$1 + \frac12 + \cdots + \frac16 \ge \int_1^7 \frac{dx}{x}$};
+\end{scope}
+\end{tikzpicture}
+\diagcaption{用 $1/x$ 的積分夾住 $H_6$。 長方形的高度是 $1/k$，寬度是 $1$。 (a) 放在
+$[k-1, k]$，(b) 放在 $[k, k+1]$。}
+\label{fig:mth-integral}
+\end{center}
+
+\begin{theorem}[調和數]
+\label{thm:mth-harmonic}
+\mthuse{1、9、12、14、16、29}
+$H_n = \sum_{k=1}^{n} \frac{1}{k}$ 滿足 $\ln(n+1) \le H_n \le \ln n + 1$，所以
+$H_n = \ln n + O(1) = \Theta(\lg n)$。 另外
+\[
+\sum_{k=1}^{n} H_k = (n+1) H_n - n .
+\]
+\end{theorem}
+
+\begin{proof}
+$1/x$ 遞減。 下界：引理~\ref{lem:mth-integral} 取 $a = 1$、$b = n$，
+$H_n \ge \int_1^{n+1} \frac{dx}{x} = \ln(n+1)$（圖~\ref{fig:mth-integral}(b)）。 上界不能直接
+取 $a = 1$，因為 $\int_0^n \frac{dx}{x}$ 發散；先把第一項拿出來，
+$H_n = 1 + \sum_{k=2}^{n} \frac1k \le 1 + \int_1^n \frac{dx}{x} = 1 + \ln n$
+（圖~\ref{fig:mth-integral}(a)）。
+
+第二式交換加總順序：$\frac{1}{j}$ 出現在 $H_j, H_{j+1}, \ldots, H_n$ 裡，共 $n - j + 1$ 次，
+\[
+\sum_{k=1}^{n} \sum_{j=1}^{k} \frac{1}{j} = \sum_{j=1}^{n} \frac{n - j + 1}{j}
+= (n+1) \sum_{j=1}^{n} \frac{1}{j} - \sum_{j=1}^{n} 1 = (n+1)H_n - n. \qedhere
+\]
+\end{proof}
+
+第~9~章隨機建成的二元搜尋樹、第~14~章隨機快速排序的 $2(n+1)H_n - 4n$，都是先用指示變數
+寫成一串 $H_k$ 的和，再用第二式化簡。 $H_n$ 的大小要記成 $\ln n$，不是 $\lg n$：
+$2n \ln n \approx 1.39\, n \lg n$ 的 $1.39$ 就是 $2 \ln 2$（因為 $\ln n = \ln 2 \cdot \lg n$）。 第~12~章定理~\ref{thm:hash-succ} 的
+$\sum_{j=m-n+1}^{m} \frac1j \le \ln \frac{m}{m-n}$ 是引理~\ref{lem:mth-integral} 的另一個
+例子，證明在那裡。
+
+\section{階乘與組合數}
+\label{sec:mth-binom}
+
+\subsection{排列與組合}
+
+$n$ 個不同的東西排成一列有 $n! = 1 \cdot 2 \cdots n$ 種（$0! = 1$）。 從 $n$ 個裡選 $k$
+個、不管順序，有
+\[
+\binom{n}{k} = \frac{n!}{k!\,(n-k)!}
+\]
+種（$0 \le k \le n$）。 正文用到的性質：
+
+\begin{itemize}
+\item $\binom{n}{2} = \frac{n(n-1)}{2}$：$n$ 個東西裡的數對個數。 兩兩比較、逆序對、雜湊
+的碰撞對都用它。 \mthuse{1、12、14、15、21}
+\item $\binom{n}{k} = \binom{n-1}{k-1} + \binom{n-1}{k}$（巴斯卡公式）：把第 $n$ 個東西有
+選和沒選分開數。 \mthuse{8、18}
+\item $\sum_{k=0}^{n} \binom{n}{k} = 2^n$：兩邊都在數 $n$ 個東西的子集合個數，每個東西選
+或不選，共 $2^n$ 種。 \mthuse{1、20、28}
+\end{itemize}
+
+\subsection{階乘的大小}
+
+第~1~章第~\ref{sec:ana-functions}~節列了 Stirling 公式
+$n! = \sqrt{2\pi n}\,(n/e)^n\bigl(1 + \Theta(1/n)\bigr)$（沒有證明），並用「只看後半」證明
+了 $\lg(n!) = \Theta(n \lg n)$。 排序下界（第~15~章）要的是 $\lg(n!)$ 的首項係數，下面這個
+簡單版本就夠了，而且證明只用到引理~\ref{lem:mth-integral}。
+
+\begin{theorem}
+\label{thm:mth-stirling}
+\mthuse{1、15}
+$n \ge 1$ 時，$e \left(\frac{n}{e}\right)^n \le n! \le e\, n \left(\frac{n}{e}\right)^n$。
+因此 $\lg(n!) = n \lg n - n \lg e + O(\lg n)$，$\lg e \approx 1.4427$。
+\end{theorem}
+
+\begin{proof}
+$\ln(n!) = \sum_{k=1}^{n} \ln k$，$\ln$ 遞增，而 $\int_1^n \ln x\,dx = n \ln n - n + 1$。
+下界：$\ln k \ge \int_{k-1}^{k} \ln x\,dx$，對 $k = 2, \ldots, n$ 加總（$\ln 1 = 0$），
+$\ln(n!) \ge n \ln n - n + 1$，取指數得 $n! \ge e(n/e)^n$。 上界：$\ln k \le \int_k^{k+1}
+\ln x\,dx$，對 $k = 1, \ldots, n - 1$ 加總，$\ln((n-1)!) \le n \ln n - n + 1$，所以
+$(n-1)! \le e(n/e)^n$，再乘上 $n$。 兩邊取 $\lg$ 得到最後一句：上下界只差 $\lg n$。
+\end{proof}
+
+所以比較排序最壞至少要 $\lceil \lg(n!) \rceil \approx n \lg n - 1.44n$ 次比較。 完整的
+Stirling 公式說 $n!/(n/e)^n \approx \sqrt{2\pi n}$，正好落在這裡的 $e$ 和 $en$ 之間。
+
+\subsection{中間的二項式係數與卡特蘭數}
+
+\begin{theorem}
+\label{thm:mth-central}
+\mthuse{6、7、18}
+$n \ge 1$ 時
+\[
+\frac{4^n}{2\sqrt{n}} \le \binom{2n}{n} \le \frac{4^n}{\sqrt{2n+1}} .
+\]
+因此卡特蘭數 $C_n = \frac{1}{n+1}\binom{2n}{n} = \Theta\!\left(\frac{4^n}{n^{3/2}}\right)$。
+\end{theorem}
+
+證明在下一節，當作「加強歸納假設」的例子。 第~6~章用它說明堆疊輸出順序的個數、第~7~章說明
+二元樹形狀的個數、第~18~章說明矩陣連乘加括號的方法都以大約 $4^n$ 的速度成長，不能全部試。
+第~7~章寫的近似值 $4^n / (n^{3/2}\sqrt{\pi})$ 來自完整的 Stirling 公式：
+$\binom{2n}{n} \approx 4^n / \sqrt{\pi n}$，而 $\frac{1}{\sqrt{\pi n}} \approx
+\frac{0.564}{\sqrt n}$ 剛好夾在定理的 $\frac{0.5}{\sqrt n}$ 和 $\frac{1}{\sqrt{2n+1}} <
+\frac{0.708}{\sqrt n}$ 之間。
+
+\section{數學歸納法}
+\label{sec:mth-induction}
+
+正文用歸納法的地方很多：第~1~章的迴圈不變量、第~2~章的代換法、第~7~章二元樹的節點數、
+第~10~章 AVL 樹的高度、第~13~章秩的性質、第~15~章決策樹的不等式。 這一節整理三種形式和
+寫法。 \mthuse{1、2、7、10、13、15}
+
+\subsection{一般的歸納法}
+
+要證明命題 $P(n)$ 對所有整數 $n \ge n_0$ 成立：
+
+\begin{enumerate}
+\item \textbf{基礎}：證明 $P(n_0)$。
+\item \textbf{歸納步驟}：對任意 $n \ge n_0$，假設 $P(n)$ 成立（\textbf{歸納假設}），證明
+$P(n+1)$。
+\end{enumerate}
+
+\mthex{立方和。}證明 $\sum_{k=1}^{n} k^3 = \left(\frac{n(n+1)}{2}\right)^2$，$n \ge 1$。
+
+基礎：$n = 1$，兩邊都是 $1$。 歸納步驟：設 $\sum_{k=1}^{n} k^3 = \frac{n^2(n+1)^2}{4}$，則
+\[
+\sum_{k=1}^{n+1} k^3 = \frac{n^2(n+1)^2}{4} + (n+1)^3
+= \frac{(n+1)^2 (n^2 + 4n + 4)}{4} = \frac{(n+1)^2 (n+2)^2}{4},
+\]
+正是 $P(n+1)$。
+
+\subsection{強歸納法}
+
+歸納步驟改成：假設 $P(n_0), P(n_0+1), \ldots, P(n-1)$ \textbf{全部}成立，證明 $P(n)$。 遞迴式
+把 $n$ 切成 $\lfloor n/2 \rfloor$ 這類大小時，用到的不是 $P(n-1)$，就要用這個形式；第~2~章的
+代換法都是強歸納法。 證明力和一般的歸納法一樣，只是寫起來方便。
+
+\mthex{減半的遞迴式。}$T(1) = 0$，$n \ge 2$ 時 $T(n) = T(\lfloor n/2 \rfloor) + 1$。 證明
+$T(n) = \lfloor \lg n \rfloor$。
+
+基礎：$T(1) = 0 = \lfloor \lg 1 \rfloor$。 歸納步驟：設 $n \ge 2$，比 $n$ 小的都成立。
+$1 \le \lfloor n/2 \rfloor < n$，所以可以用歸納假設：
+\[
+T(n) = \lfloor \lg \lfloor n/2 \rfloor \rfloor + 1 = (\lfloor \lg n \rfloor - 1) + 1
+= \lfloor \lg n \rfloor ,
+\]
+中間用了第~2~章引理~\ref{lem:rec-lg-half}。 注意 $\lfloor n/2 \rfloor \ge 1$ 這一句：它保證
+用到的是已經證過的範圍，基礎情況 $n = 1$ 有涵蓋到。
+
+步驟裡用到前面兩個值時（例如 $P(n-1)$ 和 $P(n-2)$），基礎要驗兩個。 第~10~章證明費氏數
+$F_k \ge \varphi^{k-2}$ 就驗了 $k = 1, 2$ 兩個（定理~\ref{thm:bal-avl-height}）。
+
+\subsection{結構歸納}
+
+對二元樹的命題，可以照樹的遞迴定義歸納：證明 $P$ 對空樹成立，再證明「左右子樹都滿足 $P$
+時，加上一個根也滿足 $P$」。 這等於對節點數做強歸納，因為兩棵子樹的節點數都比整棵少。
+
+\mthex{空子樹的個數。}把空樹本身算成一個空子樹，令 $N(T)$ 是樹 $T$ 裡空子樹的個數（非空時就是
+\NIL 指標的個數）。 證明 $n$ 個節點的二元樹 $N(T) = n + 1$。
+
+空樹：$n = 0$，$N = 1$。 非空：根的左右子樹有 $n_L$、$n_R$ 個節點，$n = n_L + n_R + 1$。 由
+歸納假設 $N(T) = (n_L + 1) + (n_R + 1) = n + 1$。 第~7~章第~\ref{sec:bt-linked}~節用數邊的方法
+得到同一個結果。
+
+\subsection{加強歸納假設}
+
+有時候要證的式子是對的，歸納步驟卻推不過去；改證一個\textbf{更強}的式子，反而推得過去，因為
+歸納假設也一起變強了。 第~2~章的「減去低次項」是一個例子。 下面用定理~\ref{thm:mth-central}
+再示範一次。
+
+先算相鄰兩項的比：
+\[
+\binom{2n+2}{n+1} = \binom{2n}{n} \cdot \frac{(2n+1)(2n+2)}{(n+1)^2}
+= \binom{2n}{n} \cdot 4 \cdot \frac{2n+1}{2n+2}.
+\]
+
+\textbf{推不過去的版本。} 想證 $\binom{2n}{n} \le 4^n / \sqrt{n}$。 由歸納假設，
+$\binom{2n+2}{n+1} \le \frac{4^{n+1}}{\sqrt n} \cdot \frac{2n+1}{2n+2}$，要它不超過
+$\frac{4^{n+1}}{\sqrt{n+1}}$，需要 $(2n+1)\sqrt{n+1} \le (2n+2)\sqrt{n}$，平方後是
+$(2n+1)^2(n+1) \le 4n(n+1)^2$，展開得 $4n^3 + 8n^2 + 5n + 1 \le 4n^3 + 8n^2 + 4n$，不成立。
+式子本身是對的（下面證的更強），只是這個歸納假設太弱。
+
+\textbf{加強之後。} 改證 $\binom{2n}{n} \le 4^n / \sqrt{2n+1}$，它比上面的強。 基礎
+$n = 1$：$2 \le 4/\sqrt{3} \approx 2.31$。 步驟需要
+\begin{align*}
+&\frac{4^n}{\sqrt{2n+1}} \cdot 4 \cdot \frac{2n+1}{2n+2} \le \frac{4^{n+1}}{\sqrt{2n+3}} \\
+\iff\; &(2n+1)(2n+3) \le (2n+2)^2
+\iff 4n^2 + 8n + 3 \le 4n^2 + 8n + 4,
+\end{align*}
+成立。 下界 $\binom{2n}{n} \ge 4^n / (2\sqrt n)$ 一樣做：基礎 $2 \ge 4/2$；步驟需要
+$(2n+1)^2(n+1) \ge 4n(n+1)^2$，就是上面那個不成立的式子反過來，展開後是 $n + 1 \ge 0$。
+最後 $C_n = \binom{2n}{n}/(n+1)$，上下界都是 $4^n / n^{3/2}$ 的常數倍。
+
+\begin{examnote}
+歸納法的證明，寫出四樣東西：基礎（代了哪個值）、歸納假設（假設了什麼，對哪些 $n$）、要證
+的式子、用到歸納假設的那一步。 用到 $P(\lfloor n/2 \rfloor)$ 這種值時，順便寫一句它落在已證
+的範圍內。 式子裡有 $O$、$\Theta$ 時，先換成具體的常數再歸納（第~2~章第~\ref{sec:rec-subst}~節
+「常數在歸納中變大」）。
+\end{examnote}
+
+\section{機率與期望值}
+\label{sec:mth-prob}
+
+\subsection{樣本空間、事件與機率}
+
+本書的機率都是離散的。 \textbf{樣本空間} $S$ 是所有可能結果的集合，每個結果 $s$ 有機率
+$\Pr[s] \ge 0$，全部加起來是 $1$。 \textbf{事件}是 $S$ 的子集合，$\Pr[A] = \sum_{s \in A}
+\Pr[s]$。 每個結果機率一樣時，$\Pr[A] = |A| / |S|$，例如「$n!$ 種排列機會一樣」（第~1~章、
+第~15~章）或「從範圍裡均勻挑一個樞紐」（第~14、16~章）。
+
+\begin{itemize}
+\item $\Pr[\overline{A}] = 1 - \Pr[A]$。
+\item \textbf{聯集上界}：$\Pr[A_1 \cup \cdots \cup A_k] \le \Pr[A_1] + \cdots + \Pr[A_k]$，
+不需要任何假設。
+\item \textbf{條件機率}：$\Pr[B] > 0$ 時 $\Pr[A \mid B] = \Pr[A \cap B] / \Pr[B]$。
+\item \textbf{獨立}：$\Pr[A \cap B] = \Pr[A]\Pr[B]$。 第~12~章的簡單均勻雜湊假設每個鍵\textbf{獨立地}
+均勻落在 $m$ 格之一；第~15~章的桶子排序假設每個數獨立地落進各個桶子。 \mthuse{12、15}
+\end{itemize}
+
+機率從哪裡來要分清楚。 第~1~章插入排序的平均情況、第~15~章的桶子排序，是假設\textbf{輸入}
+照某個分布出現；第~14~章的隨機快速排序、第~16~章的隨機選擇，輸入固定，機率來自
+\textbf{演算法自己}挑的亂數，結論對每一個輸入都成立（第~16~章第~\ref{sec:sel-random}~節）。
+
+\subsection{隨機變數與期望值}
+
+\textbf{隨機變數} $X$ 是從 $S$ 到實數的函數。 它的\textbf{期望值}
+\[
+\mathrm{E}[X] = \sum_{s \in S} X(s) \Pr[s] = \sum_{x} x \cdot \Pr[X = x],
+\]
+第二種寫法把 $X$ 值相同的結果合在一起。
+
+\begin{theorem}[期望值的線性]
+\label{thm:mth-linearity}
+\mthuse{1、9、12、14、15、16、20、27}
+對任意隨機變數 $X$、$Y$ 和常數 $a$、$b$，$\mathrm{E}[aX + bY] = a\,\mathrm{E}[X] +
+b\,\mathrm{E}[Y]$。 不需要 $X$、$Y$ 獨立。 推廣到任意有限多個隨機變數的和。
+\end{theorem}
+
+\begin{proof}
+$\mathrm{E}[aX + bY] = \sum_s (aX(s) + bY(s))\Pr[s] = a\sum_s X(s)\Pr[s] + b\sum_s Y(s)\Pr[s]$。
+證明只是把一個和拆成兩個，完全沒有用到 $X$ 和 $Y$ 的關係。
+\end{proof}
+
+事件 $A$ 的\textbf{指示變數} $I\{A\}$ 在 $A$ 發生時是 $1$，否則是 $0$，所以
+$\mathrm{E}[I\{A\}] = \Pr[A]$。 \mthuse{9、12、14、16}
+兩者合起來是本書最常用的算期望值的方法：
+
+\begin{enumerate}
+\item 把要數的量 $X$ 寫成指示變數的和 $X = \sum_i I\{A_i\}$；
+\item 由線性，$\mathrm{E}[X] = \sum_i \Pr[A_i]$，只要算每個事件的機率。
+\end{enumerate}
+
+第~1~章的逆序對（每一對位置是逆序的機率 $\frac12$）、第~9~章的節點深度、第~12~章的串列長度、
+第~14~章的快速排序比較次數（定理~\ref{thm:so-quick-avg}）都是這個步驟。 這些 $I\{A_i\}$
+之間通常不獨立，線性照樣可以用。
+
+另外兩個工具：只在獨立時成立的乘法，以及分情況取平均。
+
+\begin{itemize}
+\item $X$、$Y$ 獨立（對所有 $x$、$y$，$\Pr[X = x, Y = y] = \Pr[X = x]\Pr[Y = y]$）時，
+$\mathrm{E}[XY] = \mathrm{E}[X]\,\mathrm{E}[Y]$。 證明：$\mathrm{E}[XY] = \sum_{x,y} xy
+\Pr[X = x]\Pr[Y = y]$，拆成兩個和的乘積。 不獨立時一般不成立。
+\item \textbf{分情況取平均}：$B_1, \ldots, B_k$ 把 $S$ 分成互斥的幾塊，則
+$\mathrm{E}[X] = \sum_i \Pr[B_i]\, \mathrm{E}[X \mid B_i]$，其中 $\mathrm{E}[X \mid B_i]$ 是
+只在 $B_i$ 裡、用條件機率算的期望值。 第~16~章按樞紐的名次 $k$ 分成 $n$ 種情況、每種機率
+$\frac1n$，寫出 $T(n)$ 的不等式，用的就是它；第~20~章 Knuth 探測估計的期望值也是。
+\mthuse{16、20}
+\end{itemize}
+
+\mthex{雜湊的碰撞。}\mthuse{12}
+$n$ 個鍵用簡單均勻雜湊放進 $m$ 格。 令 $X$ 是「落在同一格的鍵對」的個數：
+\[
+X = \sum_{i < j} I\{h(x_i) = h(x_j)\}, \qquad
+\mathrm{E}[X] = \binom{n}{2} \cdot \frac{1}{m} = \frac{n(n-1)}{2m}.
+\]
+$m = 10^6$ 時，只要 $n \ge 1415$，期望的碰撞對就至少是 $1$，鍵數才是格數的千分之一多一點。
+完全沒有碰撞的機率是第 $i$ 個鍵（$i = 0, \ldots, n - 1$）都避開前面 $i$ 個鍵佔的格子，由
+引理~\ref{lem:mth-exp}，
+\[
+\Pr[\text{沒有碰撞}] = \prod_{i=0}^{n-1}\left(1 - \frac{i}{m}\right)
+\le \prod_{i=0}^{n-1} e^{-i/m} = e^{-n(n-1)/(2m)}.
+\]
+$m = 10^6$、$n = 3000$ 時，指數是 $-4.4985$，沒有碰撞的機率不到 $1.2\%$。 所以第~12~章的
+雜湊表即使格數比鍵數多很多，還是一定要處理碰撞。 同一個設定下，空格的個數是
+$Y = \sum_{j} I\{\text{第 } j \text{ 格是空的}\}$，每一格是空的機率是 $(1 - 1/m)^n$，所以
+$\mathrm{E}[Y] = m(1 - 1/m)^n \approx m e^{-n/m}$。
+
+這三個公式可以用小的 $m$、$n$ 把所有落點列出來驗證。 下面的程式取 $m = 10$，把 $n$ 個鍵
+的 $10^n$ 種落點全部列舉，算出空格數、碰撞對數的平均和沒有碰撞的比例，和公式並排印出
+（\texttt{formula1} 是 $m(1-1/m)^n$，\texttt{formula2} 是 $\binom{n}{2}/m$，
+\texttt{bound} 是 $e^{-n(n-1)/(2m)}$）。
+
+\begin{example}[label=ex:mth-hash-enum]{c}{(hash\_enum.c) 列舉所有落點驗證碰撞的期望值}
+#include <stdio.h>
+#include <math.h>
+
+#define M 10                    // 格數
+#define MAXN 7                  // 鍵數最多到 7，共 10^7 種落點
+
+int main(void)
+{
+    printf("n empty formula1 pairs formula2 nocoll bound\n");
+    long long total = 1;
+    for (int n = 1; n <= MAXN; n++) {
+        total *= M;
+        long long empty = 0, pairs = 0, nocoll = 0;
+        for (long long code = 0; code < total; code++) {
+            int cnt[M] = {0};
+            long long c = code;
+            for (int i = 0; i < n; i++) {   // M 進位的第 i 位是第 i 個鍵的格子
+                cnt[c % M]++;
+                c /= M;
+            }
+            long long p = 0;
+            for (int j = 0; j < M; j++) {
+                empty += (cnt[j] == 0);
+                p += (long long)cnt[j] * (cnt[j] - 1) / 2;
+            }
+            pairs += p;
+            nocoll += (p == 0);
+        }
+        double t = (double)total;
+        printf("%d %.4f %.4f %.4f %.4f %.4f %.4f\n", n,
+               empty / t, M * pow(1.0 - 1.0 / M, n),
+               pairs / t, n * (n - 1) / 2.0 / M,
+               nocoll / t, exp(-n * (n - 1) / 2.0 / M));
+    }
+    return 0;
+}
+\end{example}
+\iosample{}{n empty formula1 pairs formula2 nocoll bound \\ 1 9.0000 9.0000 0.0000 0.0000 1.0000 1.0000 \\ 2 8.1000 8.1000 0.1000 0.1000 0.9000 0.9048 \\ 3 7.2900 7.2900 0.3000 0.3000 0.7200 0.7408 \\ 4 6.5610 6.5610 0.6000 0.6000 0.5040 0.5488 \\ 5 5.9049 5.9049 1.0000 1.0000 0.3024 0.3679 \\ 6 5.3144 5.3144 1.5000 1.5000 0.1512 0.2231 \\ 7 4.7830 4.7830 2.1000 2.1000 0.0605 0.1225}
+
+兩個期望值和公式完全一樣，因為它們是精確的等式，不是近似。 沒有碰撞的比例
+（\texttt{nocoll}）一直不超過上界 \texttt{bound}；$n = 5$ 時期望的碰撞對已經是 $1$，
+十格只放了五個鍵，有碰撞的機會已經接近七成。
+
+\subsection{幾何分布：平均要試幾次}
+
+每次試驗獨立、成功的機率都是 $p > 0$，一直試到第一次成功。 試的次數 $N$ 滿足
+$\Pr[N = k] = (1 - p)^{k-1} p$，叫做\textbf{幾何分布}。
+
+\begin{theorem}
+\label{thm:mth-geom-dist}
+\mthuse{12、16}
+(1) 取值為非負整數的隨機變數 $X$，$\mathrm{E}[X] = \sum_{k=1}^{\infty} \Pr[X \ge k]$。
+(2) 幾何分布的 $\mathrm{E}[N] = 1/p$。
+\end{theorem}
+
+\begin{proof}
+(1) 交換加總順序：$\mathrm{E}[X] = \sum_{j \ge 1} j \Pr[X = j] = \sum_{j \ge 1}
+\sum_{k=1}^{j} \Pr[X = j] = \sum_{k \ge 1} \sum_{j \ge k} \Pr[X = j] = \sum_{k \ge 1}
+\Pr[X \ge k]$。 (2) $N \ge k$ 表示前 $k - 1$ 次都失敗，機率 $(1-p)^{k-1}$。 由 (1) 和等比
+級數，$\mathrm{E}[N] = \sum_{k \ge 1} (1-p)^{k-1} = 1/p$。
+\end{proof}
+
+第~16~章說「樞紐落在中間一半的機率是 $\frac12$，平均兩次分割就有一次好的」，就是
+$p = \frac12$ 的情形。 第~12~章均勻雜湊插入時的期望探測次數不超過 $\frac{1}{1-\alpha}$，
+也可以這樣理解：每次探測找到空格的機率至少是 $1 - \alpha$。 （正文用了更精確的論證，結果
+是 $\frac{m+1}{m-n+1}$。）
+
+期望值也可以換成機率的保證。 \textbf{Markov 不等式}：$X \ge 0$ 時，對任何 $t > 0$，
+$\Pr[X \ge t] \le \mathrm{E}[X] / t$。 證明：$\mathrm{E}[X] \ge \sum_{x \ge t} x \Pr[X = x]
+\ge t \Pr[X \ge t]$。 正文沒有直接用到它，但要把第~14、16~章的「期望時間 $T$」換成「至少
+有一半的機會在 $2T$ 以內結束」時，用的就是 $t = 2T$。
+
+\subsection{變異數與二項分布}
+
+期望值只說平均，\textbf{變異數}量的是離平均多遠：
+\[
+\mathrm{Var}[X] = \mathrm{E}\bigl[(X - \mathrm{E}[X])^2\bigr] = \mathrm{E}[X^2] - \mathrm{E}[X]^2 .
+\]
+第二個等號：展開平方，$\mathrm{E}[X^2 - 2\mu X + \mu^2] = \mathrm{E}[X^2] - 2\mu^2 + \mu^2$，
+其中 $\mu = \mathrm{E}[X]$ 是常數，用了線性。 $X$、$Y$ 獨立時，$\mathrm{E}[XY] =
+\mathrm{E}[X]\mathrm{E}[Y]$，展開 $(X + Y)^2$ 就得到 $\mathrm{Var}[X + Y] = \mathrm{Var}[X] +
+\mathrm{Var}[Y]$。 不獨立時這個加法不成立（觀念題第~\ref{mth-q-fixed}~題）。
+
+\begin{theorem}[二項分布]
+\label{thm:mth-binomial}
+\mthuse{15}
+$X$ 是 $n$ 個獨立指示變數的和，每個是 $1$ 的機率都是 $p$（記作 $X \sim B(n, p)$）。 則
+\[
+\mathrm{E}[X] = np, \qquad \mathrm{Var}[X] = np(1-p), \qquad
+\mathrm{E}[X^2] = np(1-p) + n^2p^2 .
+\]
+\end{theorem}
+
+\begin{proof}
+期望值由線性。 一個指示變數 $I$ 滿足 $I^2 = I$，所以 $\mathrm{Var}[I] = p - p^2 = p(1-p)$；
+$n$ 個獨立的加起來是 $np(1-p)$。 最後一式就是 $\mathrm{E}[X^2] = \mathrm{Var}[X] +
+\mathrm{E}[X]^2$。
+\end{proof}
+
+第~15~章桶子排序的期望時間要的是 $\mathrm{E}[n_j^2]$，桶子 $j$ 裡的個數 $n_j \sim B(n, 1/n)$，
+代進去得到 $2 - 1/n$。 要算的是平方的期望值，不能先算 $\mathrm{E}[n_j] = 1$ 再平方。
+
+\textbf{其他只引用結論的工具。} 第~15~章平均情況下界用到算幾不等式（高中數學）；第~27~章
+Rabin--Karp 的分析用到「模質數 $q$ 時，次數不超過 $m - 1$ 的非零多項式最多有 $m - 1$ 個
+根」，屬於數論，第~27~章直接引用，這個附錄不涵蓋。
+
+\section{公式速查}
+\label{sec:mth-quickref}
+
+\begin{center}
+\small
+\begin{tabular}{p{0.45\linewidth}p{0.25\linewidth}p{0.22\linewidth}}
+\toprule
+公式或性質 & 證明在 & 用在第幾章 \\
+\midrule
+換底、$a^{\log_b n} = n^{\log_b a}$ & 第~1~章第~\ref{sec:ana-functions}~節 & 1、2、10 \\
+$1 + x \le e^x$，$(1 - 1/m)^n \le e^{-n/m}$ & 引理~\ref{lem:mth-exp} & 12 \\
+$\lfloor \lfloor x \rfloor / k \rfloor = \lfloor x/k \rfloor$，$\lceil n/k \rceil =
+\lfloor (n + k - 1)/k \rfloor$ & 第~\ref{sec:mth-log}~節 & 1、11、16、17 \\
+$\lfloor \lg n \rfloor + 1 = \lceil \lg(n+1) \rceil$ = 二進位位數 & 引理~\ref{lem:mth-bits} &
+7、8、17 \\
+$\lceil \lg \lceil n/2 \rceil \rceil = \lceil \lg n \rceil - 1$ & 第~2~章引理~\ref{lem:rec-lg-half}
+& 2 \\
+$\sum k$、$\sum k^2$、$\sum k^3$，$\sum k^c = \Theta(n^{c+1})$ & 定理~\ref{thm:mth-powsum} & 1 \\
+等比級數 & 定理~\ref{thm:mth-geo} & 1、2、3、8、16 \\
+$\sum k r^k$，$\sum k/2^k = 2$ & 定理~\ref{thm:mth-wgeo} & 8 \\
+用積分夾和 & 引理~\ref{lem:mth-integral} & 1、12 \\
+$\ln(n+1) \le H_n \le \ln n + 1$ & 定理~\ref{thm:mth-harmonic} & 1、9、12、14、16、29 \\
+$\sum_{k=1}^{n} H_k = (n+1)H_n - n$ & 定理~\ref{thm:mth-harmonic} & 9、14 \\
+$\lg(n!) = \Theta(n \lg n)$ & 第~1~章第~\ref{sec:ana-functions}~節 & 15 \\
+$e(n/e)^n \le n! \le en(n/e)^n$ & 定理~\ref{thm:mth-stirling} & 1、15 \\
+$\binom{n}{2}$、巴斯卡公式、$\sum_k \binom{n}{k} = 2^n$ & 第~\ref{sec:mth-binom}~節 &
+1、8、12、14、15、18、20、21、28 \\
+$\binom{2n}{n}$ 的上下界，$C_n = \Theta(4^n / n^{3/2})$ & 定理~\ref{thm:mth-central} & 6、7、18 \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\begin{center}
+\small
+\begin{tabular}{p{0.45\linewidth}p{0.25\linewidth}p{0.22\linewidth}}
+\toprule
+公式或性質 & 證明在 & 用在第幾章 \\
+\midrule
+$F_k \ge \varphi^{k-2}$ & 第~10~章定理~\ref{thm:bal-avl-height} & 10 \\
+二階線性遞迴的特徵方程式 & 第~2~章定理~\ref{thm:rec-linear} & 2 \\
+期望值的線性、指示變數 & 定理~\ref{thm:mth-linearity} & 1、9、12、14、15、16、20、27 \\
+分情況取平均 & 第~\ref{sec:mth-prob}~節 & 16、20 \\
+碰撞對的期望值 $\binom{n}{2}/m$ & 第~\ref{sec:mth-prob}~節 & 12 \\
+幾何分布 $\mathrm{E}[N] = 1/p$ & 定理~\ref{thm:mth-geom-dist} & 12、16 \\
+二項分布的變異數 & 定理~\ref{thm:mth-binomial} & 15 \\
+算幾不等式 & 高中數學 & 15 \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\section{觀念題}
+\label{sec:mth-exercises}
+
+題型和研究所考試的筆試相近，有選擇、計算和證明。 解答在本附錄最後。
+
+\begin{enumerate}
+\item \label{mth-q-log}（選擇，可能不只一個答案）下列哪些對所有整數 $n \ge 1$ 都成立？\\
+(a) $\lg(n^3) = 3 \lg n$ \quad
+(b) $\lg^2 n = \lg \lg n$ \quad
+(c) $5^{\lg n} = n^{\lg 5}$ \quad
+(d) $\log_8 n = \frac13 \lg n$ \\
+(e) $\lceil \lg(n + 1) \rceil = \lceil \lg n \rceil$ \quad
+(f) $\bigl\lfloor \lfloor n/4 \rfloor / 6 \bigr\rfloor = \lfloor n / 24 \rfloor$
+
+\item \label{mth-q-base3}（計算）$n \ge 1$，\texttt{cnt} 從 $0$ 開始。 執行
+\texttt{for (int i = n; i >= 1; i /= 3) cnt++;} 之後，求 \texttt{cnt} 的確切值，以 $n$ 表示，
+並說明理由。
+
+\item \label{mth-q-tele}（計算）利用 $k(k+1)(k+2) - (k-1)k(k+1) = 3k(k+1)$，求
+$\sum_{k=1}^{n} k(k+1)$ 的封閉形式，再用它重新推出 $\sum_{k=1}^{n} k^2$。
+
+\item \label{mth-q-wgeo}（計算）求 $\sum_{k=0}^{m} k \cdot 3^k$ 的封閉形式，並寫成 $\Theta$。
+它和最後一項 $m \cdot 3^m$ 的比值在 $m \to \infty$ 時趨近多少？
+
+\item \label{mth-q-sqrt}（估計）用引理~\ref{lem:mth-integral} 證明
+$\frac23 n^{3/2} \le \sum_{k=1}^{n} \sqrt{k} \le \frac23 (n+1)^{3/2}$。
+
+\item \label{mth-q-ceil}（證明）$T(1) = 1$，$n \ge 2$ 時 $T(n) = T(\lceil n/2 \rceil) + 1$。 用強
+歸納法證明 $T(n) = \lceil \lg n \rceil + 1$。
+
+\item \label{mth-q-fake}（找錯）下面的「證明」錯在哪裡？ 給一個反例。
+\begin{quote}
+命題：$n \ge 1$ 個節點的二元樹，高度不超過 $\lfloor \lg n \rfloor + 1$。 基礎：$n = 1$ 時高度
+$1$，成立。 歸納步驟：設 $n$ 個節點的二元樹都成立。 $n + 1$ 個節點的二元樹可以由某棵 $n$ 個
+節點的樹加一個葉子得到。 新的葉子放在最下面一層還有空位的地方；只有最下面一層已經全滿時才要
+開新的一層，這時 $n + 1$ 是 $2$ 的次方，高度變成 $\lfloor \lg n \rfloor + 2 = \lfloor \lg(n+1)
+\rfloor + 1$。 所以命題對 $n + 1$ 也成立。
+\end{quote}
+
+\item \label{mth-q-leaves}（證明）用結構歸納證明：$n$ 個節點的二元樹，葉子不超過 $(n + 1)/2$
+個。 （提示：只有一個節點的樹要當成另一個基礎。）
+
+\item \label{mth-q-perm}（計算）$\pi$ 是 $1, 2, \ldots, n$ 的隨機排列（$n!$ 種機會一樣），
+$n \ge 3$。
+\begin{enumerate}[nosep]
+\item 位置 $i$（$1 \le i \le n - 1$）叫做\textbf{下降}，如果 $\pi(i) > \pi(i+1)$。 下降個數的
+期望值是多少？
+\item 位置 $i$（$2 \le i \le n - 1$）叫做\textbf{山峰}，如果 $\pi(i)$ 比兩邊的鄰居都大。 山峰
+個數的期望值是多少？
+\end{enumerate}
+
+\item \label{mth-q-single}（計算）簡單均勻雜湊，$n$ 個鍵放進 $m$ 格。
+\begin{enumerate}[nosep]
+\item 恰好放了一個鍵的格子，期望有幾格？
+\item $n = m = 100$ 時，(a) 的值約是多少？ 和第~12~章觀念題算出的空格數合起來，平均有幾格放了
+兩個以上的鍵？
+\end{enumerate}
+
+\item \label{mth-q-retry}（計算）$A[1..n]$ 有 $n$ 個互不相同的數，$n$ 是 $4$ 的倍數。 一個程序
+每次均勻隨機挑一個位置（可以重複挑），直到挑到的數名次落在 $(n/4, 3n/4]$ 為止。
+\begin{enumerate}[nosep]
+\item 期望挑幾次？
+\item 挑超過 $10$ 次的確切機率是多少？
+\item 只知道 (a) 的期望值，用 Markov 不等式能保證挑超過 $10$ 次的機率不超過多少？
+和 (b) 比較。
+\end{enumerate}
+
+\item \label{mth-q-fixed}（計算）$\pi$ 是 $1, \ldots, n$ 的隨機排列，$n \ge 2$。 $X$ 是滿足
+$\pi(i) = i$ 的 $i$ 的個數。
+\begin{enumerate}[nosep]
+\item 求 $\mathrm{E}[X]$。
+\item 求 $\mathrm{E}[X^2]$ 和 $\mathrm{Var}[X]$。
+\item 有人說「$X$ 是 $n$ 個機率 $1/n$ 的指示變數的和，所以 $\mathrm{Var}[X] = n \cdot \frac1n
+(1 - \frac1n)$」。 錯在哪裡？
+\end{enumerate}
+
+\item \label{mth-q-stir}（估計）用定理~\ref{thm:mth-stirling} 算出 $\lg(20!)$ 的上下界（取
+$\lg 20 \approx 4.3219$、$\lg e \approx 1.4427$），再和實際值 $\lg(20!) \approx 61.08$ 比較。 比較排序
+排 $20$ 個數，最壞至少要比幾次？
+\end{enumerate}
+
+\section*{延伸閱讀}
+\addcontentsline{toc}{section}{延伸閱讀}
+
+\begin{itemize}
+\item Thomas H. Cormen 等，\textit{Introduction to Algorithms}，第 4 版，附錄 A（求和）、附錄 C
+（計數與機率）、第 5 章（指示隨機變數與機率分析）：和本附錄的範圍最接近，例子偏向演算法。
+\item Ronald L. Graham、Donald E. Knuth、Oren Patashnik，\textit{Concrete Mathematics}，第 2 版，
+1994，第 2 章（求和）、第 3 章（地板與天花板）、第 5 章（二項式係數）、第 8 章（離散機率）：
+想把這些技巧練熟的人讀，習題很多。
+\item Eric Lehman、F. Thomson Leighton、Albert R. Meyer，\textit{Mathematics for Computer
+Science}，2017 年版（MIT 免費公開）：歸納法、求和與漸近、機率各有完整的章，寫給資工系大一、
+大二的學生，比上一本平易。
+\item Michael Mitzenmacher、Eli Upfal，\textit{Probability and Computing}，第 2 版，2017，
+第 1--3 章與第 5 章（球與箱子）：隨機演算法和雜湊分析用到的機率，從期望值、變異數到更精確的
+尾端估計。
+\end{itemize}
+
+\addcontentsline{toc}{section}{觀念題解答}
+\section*{觀念題解答}
+
+\begin{enumerate}
+\item (a)、(c)、(d)、(f)。 (b) 錯：$\lg^2 n$ 是 $(\lg n)^2$。 (c)：$a^{\log_b x} = x^{\log_b a}$。
+(d)：換底，$\log_8 n = \lg n / \lg 8$。 (e) 錯：$n = 4$ 時左邊 $\lceil \lg 5 \rceil = 3$，右邊
+$2$；$n$ 是 $2$ 的次方時都不成立（$n = 1$ 也是：$1 \ne 0$）。 (f)：巢狀地板，$k = 6$。
+
+\item $\texttt{cnt} = \lfloor \log_3 n \rfloor + 1$，也就是 $n$ 的三進位位數。 由巢狀地板，做完
+$t$ 次之後 $i = \lfloor n / 3^t \rfloor$；迴圈主體在 $\lfloor n / 3^t \rfloor \ge 1$，也就是
+$3^t \le n$、$t \le \log_3 n$ 時執行，$t = 0, 1, \ldots, \lfloor \log_3 n \rfloor$，共
+$\lfloor \log_3 n \rfloor + 1$ 次。
+
+\item 對 $k = 1, \ldots, n$ 加總，左邊是望遠鏡和，剩下 $n(n+1)(n+2) - 0$，所以
+$\sum_{k=1}^{n} k(k+1) = \frac{n(n+1)(n+2)}{3}$。 $k^2 = k(k+1) - k$，所以
+\[
+\sum_{k=1}^{n} k^2 = \frac{n(n+1)(n+2)}{3} - \frac{n(n+1)}{2} = \frac{n(n+1)(2n + 4 - 3)}{6}
+= \frac{n(n+1)(2n+1)}{6}.
+\]
+
+\item 定理~\ref{thm:mth-wgeo} 代 $r = 3$：
+\[
+\sum_{k=0}^{m} k \cdot 3^k = \frac{3 - (m+1)3^{m+1} + m \cdot 3^{m+2}}{4}
+= \frac{(2m - 1)\, 3^{m+1} + 3}{4} = \Theta(m\, 3^m).
+\]
+驗算 $m = 2$：$3 + 18 = 21 = \frac{3 \cdot 27 + 3}{4}$。 和 $m \cdot 3^m$ 的比值是
+$\frac{3(2m-1)}{4m} + \frac{3}{4m 3^m} \to \frac32$。
+
+\item $\sqrt{x}$ 遞增，用不遞減的版本，$a = 1$、$b = n$：
+$\sum_{k=1}^{n} \sqrt k \ge \int_0^n \sqrt x\,dx = \frac23 n^{3/2}$；
+$\sum_{k=1}^{n} \sqrt k \le \int_1^{n+1} \sqrt x\,dx = \frac23\bigl((n+1)^{3/2} - 1\bigr)
+\le \frac23 (n+1)^{3/2}$。 所以和是 $\Theta(n^{3/2})$，這是第~1~章迴圈 (b) 的精確版本。
+
+\item 基礎：$T(1) = 1 = \lceil \lg 1 \rceil + 1$。 歸納步驟：設 $n \ge 2$，比 $n$ 小的都成立。
+$1 \le \lceil n/2 \rceil < n$（$n \ge 2$ 時 $\lceil n/2 \rceil \le (n+1)/2 < n$），可以用歸納
+假設：$T(n) = \lceil \lg \lceil n/2 \rceil \rceil + 1 + 1 = (\lceil \lg n \rceil - 1) + 2 =
+\lceil \lg n \rceil + 1$，中間用了第~2~章引理~\ref{lem:rec-lg-half}。
+
+\item 反例：三個節點排成一條鏈，高度 $3$，但 $\lfloor \lg 3 \rfloor + 1 = 2$。 錯在歸納步驟的
+方向：要證的是\textbf{每一棵} $n + 1$ 個節點的樹，證明卻只看了「新葉子放在最好位置」的那些樹。
+從任意一棵 $n + 1$ 個節點的樹拿掉一個葉子，再放回去時，它可能在最深一層下面再開一層，高度加
+$1$，而 $\lfloor \lg \rfloor$ 不一定加 $1$。 這個命題只對完整二元樹成立
+（第~7~章定理~\ref{thm:bt-complete-height}）。
+
+\item 令 $L(T)$ 是葉子數。 空樹：$L = 0 \le \frac12$。 只有一個節點：$L = 1 \le \frac{1+1}{2}$。
+其他情況：根至少有一個孩子，所以根不是葉子，整棵樹的葉子就是兩棵子樹的葉子：
+$L(T) = L(T_L) + L(T_R) \le \frac{n_L + 1}{2} + \frac{n_R + 1}{2} = \frac{n + 1}{2}$。 單一節點
+另外處理，因為 $1 \ne 0 + 0$。
+
+\item (a) 令 $I_i = I\{\pi(i) > \pi(i+1)\}$。 兩個位置上的數對調，可以把排列兩兩配對，每對裡恰好
+一個在 $i$ 是下降，所以 $\Pr = \frac12$。 由線性，期望值是 $\frac{n-1}{2}$。 (b) $\pi(i-1)$、
+$\pi(i)$、$\pi(i+1)$ 三個數裡最大的在三個位置的機會一樣，所以 $\pi(i)$ 是山峰的機率是 $\frac13$，
+期望值是 $\frac{n-2}{3}$。 相鄰兩個位置不可能都是山峰，這些指示變數不獨立，但線性不需要獨立。
+
+\item (a) 第 $j$ 格恰好一個鍵：選哪一個鍵（$n$ 種），它落在 $j$（機率 $\frac1m$），其他
+$n - 1$ 個都不落在 $j$。 機率是 $\frac{n}{m}(1 - \frac1m)^{n-1}$，對 $m$ 格加總，期望值是
+$n(1 - \frac1m)^{n-1}$。 (b) $100 \times 0.99^{99} \approx 37.0$（引理~\ref{lem:mth-exp} 說它接近
+$100/e \approx 36.8$）。 空格約 $36.6$ 格，所以放了兩個以上的約 $100 - 36.6 - 37.0 = 26.4$ 格。
+
+\item (a) 名次在 $(n/4, 3n/4]$ 的數有 $n/2$ 個，每次成功的機率 $p = \frac12$，期望 $2$ 次。
+(b) 前 $10$ 次都失敗：$(1/2)^{10} = 1/1024$。 (c) $\Pr[N \ge 11] \le 2/11 \approx
+0.18$。 Markov 不等式只用到期望值，所以鬆很多；它的好處是不必知道分布。
+
+\item (a) $I_i = I\{\pi(i) = i\}$，$\Pr = \frac{(n-1)!}{n!} = \frac1n$，$\mathrm{E}[X] = 1$。
+(b) $X^2 = \sum_i I_i^2 + \sum_{i \ne j} I_i I_j = \sum_i I_i + \sum_{i \ne j} I_i I_j$。
+$i \ne j$ 時 $\mathrm{E}[I_i I_j] = \Pr[\pi(i) = i, \pi(j) = j] = \frac{(n-2)!}{n!} =
+\frac{1}{n(n-1)}$，有序數對 $(i, j)$ 共 $n(n-1)$ 個，所以 $\mathrm{E}[X^2] = 1 + 1 = 2$，
+$\mathrm{Var}[X] = 2 - 1^2 = 1$。 (c) 這些 $I_i$ 不獨立（$n - 1$ 個位置都固定時，最後一個一定也
+固定），不能套二項分布的變異數。
+
+\item 定理~\ref{thm:mth-stirling} 取 $\lg$，$n = 20$：下界 $n \lg n - n \lg e + \lg e = 86.44 - 28.85 +
+1.44 = 59.03$，上界再加 $\lg n$ 得 $63.35$。 最壞至少比 $\lceil \lg(20!) \rceil = 62$ 次（第~15~章）。
+\end{enumerate}

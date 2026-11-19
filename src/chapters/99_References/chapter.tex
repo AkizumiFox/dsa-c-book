@@ -1,3 +1,413 @@
-% 書末：參考資料與延伸閱讀（不編章號）。全書寫完時再整理，格式照 C++ 演算法解題 2。
+% 書末：參考資料與延伸閱讀（不編章號）
 \chapter*{參考資料與延伸閱讀}
 \addcontentsline{toc}{chapter}{參考資料與延伸閱讀}
+\markboth{參考資料與延伸閱讀}{參考資料與延伸閱讀}
+\label{ch:references}
+
+各章最後的「延伸閱讀」和正文提到的書與論文，完整的書目資料都列在這裡。 書的部分
+每本附一兩句它適合做什麼，以及和本書哪幾章搭配；括號裡的章節號碼是那本書的章節，
+以這裡列出的版本為準，換了版本，章節號碼可能不同。 論文依本書的六個部分分組，每篇
+後面註明是哪一章提到的。
+
+本書的講解、例子、虛擬碼和程式都是自己寫的，參考這些書的地方是章節的安排、名詞的
+用法和經典的結論。 想看另一種講法、完整的證明，或想知道某個結果最早出自哪裡，可以
+從下面挑。
+
+\section*{演算法的主要教科書}
+
+\begin{itemize}
+\item Thomas H. Cormen、Charles E. Leiserson、Ronald L. Rivest、Clifford Stein，
+\textit{Introduction to Algorithms}，第 4 版，The MIT Press，2022。
+
+大學演算法課最常用的教科書，也是本書章節安排的主要參考。 每個演算法都有完整的正確
+性證明和分析，想知道本書省略的證明細節，可以從這本開始找。 和本書搭配的地方：第~1~
+章（第 2、3 章，附錄 A），第~2~章（4.3--4.7 節），第~3~章（第 16 章），第~4~章（10.1
+節，第 30 章），第~5~章（10.2 節），第~6~章（10.1、10.2 節），第~7~章（10.3、12.1
+節，附錄 B.5），第~8~章（第 6 章），第~9~章（第 12 章，17.1 節），第~10~章（第 13
+章），第~11~章（第 18 章），第~12~章（第 11 章），第~13~章（第 19 章），第~14~章（2.3
+節，第 6、7 章），第~15~章（第 8 章），第~16~章（第 9 章），第~17~章（4.1、4.2 節，
+問題 2-4），第~18~章（第 14 章），第~19~章（第 15 章），第~21~章（20.1--20.3 節），
+第~22~章（20.4、22.2 節），第~23~章（20.5 節，問題 20-2），第~24~章（第 21 章），
+第~25~章（第 22、23 章），第~26~章（第 24、25 章），第~27~章（32.1--32.4 節），
+第~28~章（第 34 章），第~29~章（第 35 章）。
+
+\item Thomas H. Cormen、Charles E. Leiserson、Ronald L. Rivest、Clifford Stein，
+\textit{Introduction to Algorithms}，第 3 版，The MIT Press，2009。
+
+第 4 版刪掉或移到書的網站的幾個題目，要看這一版：第 19 章費氏堆積（本書第~8~
+章），12.4 節隨機建立的二元搜尋樹期望高度的證明（第~9~章），16.4、16.5 節擬陣與期
+限排程（第~19~章）。 二項堆積要再往前找第 2 版（2001）的第 19 章。
+
+\item Jon Kleinberg、Éva Tardos，\textit{Algorithm Design}，Addison-Wesley，2006。
+
+證明的寫法講得特別清楚，例如把貪心法的證明分成「逐步領先」和「交換論證」兩種。 例
+子多半從實際的問題出發，適合想練習「怎麼把問題建成模型」的讀者。 和本書搭配的地
+方：第~17~章（第 5 章），第~19~章（第 4 章），第~26~章（第 7 章），第~28~章（第 8
+章），第~29~章（第 11 章）。
+
+\item Steven S. Skiena，\textit{The Algorithm Design Manual}，第 3 版，Springer，2020。
+
+重點放在怎麼想出演算法、怎麼把實際的問題對應到已知的問題，後半是一份常見問題的
+目錄。 篇幅比上面兩本輕，適合想先抓直覺的讀者。 和本書搭配的地方：第~1~章（第 2
+章），第~2~章（5.3、5.4 節），第~3、5~章（3.1 節），第~6~章（3.2 節），第~9、10~
+章（3.4 節），第~12~章（3.7 節，第 6 章），第~15~章（第 4 章），第~17~章（5.1、5.5、
+5.6 節），第~18~章（第 10 章），第~19~章（1.2、1.3 節），第~20~章（第 9 章），
+第~21~章（第 7 章），第~23~章（7.9、7.10 節），第~24~章（8.1 節），第~26~章（8.5
+節），第~27~章（6.7、21.3 節），第~28~章（第 11 章），第~29~章（第 12 章）。
+
+\item Robert Sedgewick、Kevin Wayne，\textit{Algorithms}，第 4 版，Addison-Wesley，
+2011。
+
+實作導向，程式和圖都多。 它從 2-3 樹講到只允許左傾紅色連結的紅黑樹，規則和本書第~
+10~章不同，對照著讀可以看出兩種紅黑樹其實是同一件事。 和本書搭配的地方：第~10、
+11~章（3.3 節），第~14~章（第 2 章）。
+\end{itemize}
+
+\section*{資料結構與演算法的大學課本}
+
+\begin{itemize}
+\item Ellis Horowitz、Sartaj Sahni、Susan Anderson-Freed，\textit{Fundamentals of
+Data Structures in C}，第 2 版，Silicon Press，2008。
+
+國內大學資料結構課常用的課本，程式用 C 寫。 鄰接多重串列、AOV 與 AOE 網路、加權規
+則和塌陷規則這類名詞和表格寫法，考卷上常見的版本多半出自這一系列的課本。 和本書搭
+配的地方：第~8~章（第 9 章），第~13~章（5.10 節），第~21、22、25~章（第 6 章）。
+
+\item Mark Allen Weiss，\textit{Data Structures and Algorithm Analysis in C}，第 2
+版，Addison-Wesley，1997。
+
+同樣用 C 寫，取向偏實作。 第 6 章的 $d$ 元堆積、左傾堆積、斜堆積和二項佇列可以和本
+書第~8~章對照。
+
+\item Ellis Horowitz、Sartaj Sahni、Sanguthevar Rajasekaran，\textit{Computer
+Algorithms}，Computer Science Press，1998。
+
+演算法課的課本，用虛擬碼寫。 第 7 章（回溯）和第 8 章（分支限界）的狀態空間樹、子集
+合和的剪枝條件、縮減矩陣的 TSP，和本書第~20~章的題材相同。
+
+\item Richard E. Neapolitan，\textit{Foundations of Algorithms}，第 5 版，Jones \&
+Bartlett Learning，2015。
+
+用很多小例子講每一種設計方法。 第 5、6 章的回溯和分支限界寫得很仔細，0/1 背包的最
+佳優先搜尋可以和本書第~20~章對照。
+
+\item Alfred V. Aho、John E. Hopcroft、Jeffrey D. Ullman，\textit{Data Structures
+and Algorithms}，Addison-Wesley，1983。
+
+較早的資料結構課本。 本書第~23~章提到它，是因為它把兩次 DFS 求強連通元件的方法歸功
+於 Kosaraju，這個方法因此常叫 Kosaraju 演算法。
+\end{itemize}
+
+\section*{經典與數學}
+
+\begin{itemize}
+\item Donald E. Knuth，\textit{The Art of Computer Programming, Vol.~1: Fundamental
+Algorithms}，第 3 版，Addison-Wesley，1997。
+
+串列、樹、拓樸排序這些題材最早的系統整理，寫法嚴謹，適合想看原始證明的人。 和本書
+搭配的地方：第~4~章（2.2.6 節），第~5~章（2.2.3--2.2.6 節），第~7~章（2.3 節），
+第~19~章（2.3.4.5 節），第~22~章（2.2.3 節）。
+
+\item Donald E. Knuth，\textit{The Art of Computer Programming, Vol.~2: Seminumerical
+Algorithms}，第 3 版，Addison-Wesley，1997。
+
+本書第~17~章用到 4.3.3 節（快速乘法）和 4.6.3 節（冪的計算）。
+
+\item Donald E. Knuth，\textit{The Art of Computer Programming, Vol.~3: Sorting and
+Searching}，第 2 版，Addison-Wesley，1998。
+
+排序和搜尋的經典，各種比較次數、探測次數的精確分析都在這裡。 和本書搭配的地方：
+第~9~章（6.2.2 節），第~10~章（6.2.3 節），第~11~章（6.2.4 節），第~12~章（6.4 節），
+第~14~章（5.2 節），第~15~章（5.3.1、5.4、5.4.1 節），第~16~章（5.3.3 節）。
+
+\item Ronald L. Graham、Donald E. Knuth、Oren Patashnik，\textit{Concrete
+Mathematics}，第 2 版，Addison-Wesley，1994。
+
+離散數學的計算技巧。 第 1 章用幾個經典問題示範怎麼解遞迴式，第 7 章講生成函數，7.5
+節用它解出卡特蘭數。 和本書搭配的地方：第~2~章（第 1、7 章），第~7~章（7.5 節）。
+
+\item Jon Bentley，\textit{Programming Pearls}，第 2 版，Addison-Wesley，2000。
+
+一系列短文。 第 4 欄用二分搜尋示範怎麼寫出正確的程式，第 8 欄把最大子陣列從
+$\Theta(n^3)$ 一路改進到線性時間，都和本書第~17~章有關。
+
+\item Edsger W. Dijkstra，\textit{A Discipline of Programming}，Prentice-Hall，1976。
+
+談怎麼從規格推導出程式。 本書第~14~章觀念題解答提到的「荷蘭國旗」問題出自這本書。
+
+\item Robert E. Tarjan，\textit{Data Structures and Network Algorithms}，SIAM，1983。
+
+篇幅不長的專書。 第 6 章用「藍色規則」（切割性質）和「紅色規則」（環性質）統一所有
+最小生成樹演算法，可以和本書第~24~章對照。
+\end{itemize}
+
+\section*{專題的書}
+
+\begin{itemize}
+\item Michael R. Garey、David S. Johnson，\textit{Computers and Intractability: A
+Guide to the Theory of NP-Completeness}，W. H. Freeman，1979。
+
+NP 完備理論的經典。 附錄列了三百多個 NP 完備問題，遇到新問題時可以先查；第 4 章講
+強 NP 完備。 和本書第~28~章搭配。
+
+\item Michael Sipser，\textit{Introduction to the Theory of Computation}，第 3 版，
+Cengage Learning，2013。
+
+計算理論的課本，從圖靈機的角度定義 P 和 NP。 第 7 章（特別是 7.4、7.5 節的 Cook--Levin
+定理和一串歸約）和本書第~28~章搭配。
+
+\item Vijay V. Vazirani，\textit{Approximation Algorithms}，Springer，2001。
+
+近似演算法的入門專書，每章一個問題。 第 1--3 章和第 8 章（頂點覆蓋、集合覆蓋、TSP、
+背包）和本書第~29~章搭配。
+
+\item David P. Williamson、David B. Shmoys，\textit{The Design of Approximation
+Algorithms}，Cambridge University Press，2011。
+
+依設計方法分章，作者網站提供免費的電子版。 第 1--3 章用集合覆蓋示範好幾種方法，2.4
+節有 Christofides 演算法的完整證明，和本書第~29~章搭配。
+
+\item Dan Gusfield，\textit{Algorithms on Strings, Trees, and Sequences}，Cambridge
+University Press，1997。
+
+字串演算法的專書，從 Z 演算法一路講到後綴樹和生物序列的應用。 想把本書第~27~章讀深
+的人可以看這本。
+\end{itemize}
+
+\section*{篇幅短、適合快速複習}
+
+\begin{itemize}
+\item Antti Laaksonen，\textit{Competitive Programmer's Handbook}，2018 年 7 月 3 日
+草稿版，作者公開的 PDF。
+
+寫給程式競賽的讀者，每個主題只用幾頁、一兩個小例子講完，程式寫法偏向競賽。 適合讀
+完本書某一章後，花十幾分鐘從另一個角度再看一次。 和本書搭配的地方：第~1~章（第 2
+章），第~3~章（第 8 章），第~6~章（8.2、8.3 節），第~7~章（第 14 章），第~18~章（第
+7 章），第~19~章（第 6 章），第~21~章（第 11、12 章），第~26~章（第 20 章），第~27~
+章（第 26 章）。
+\end{itemize}
+
+\section*{C 語言與本系列的其他書}
+
+\begin{itemize}
+\item 《C 程式設計基礎》：本書的先備，各章「《C 程式設計基礎》回顧」框指回的就是這
+本。 和本書搭配的地方：第~4~章（6.11 節，9.6--9.8 節），第~5~章（第 19 章），第~6~
+章（第 20 章），第~7~章（19.14--19.18 節），第~8、9~章（第 19 章），第~14~章（18.6
+節）。
+
+\item ISO/IEC 9899:2011，\textit{Information technology --- Programming languages ---
+C}。 C11 標準，本書的程式都照這一版編譯。 \texttt{qsort} 的規定在 7.22.5 節，有號和無
+號整數之間的轉換在 6.3.1.3 節。
+
+\item 《C++ 演算法解題 1：APCS 實作題核心》、《C++ 演算法解題 2：動態規劃與圖論》：本
+系列的前兩本，用 C++ 寫，以解題為主。 想多練習程式題的讀者可以接著讀；本書不需要先
+讀它們。
+\end{itemize}
+
+\section*{原始論文}
+
+依本書的六個部分分組，同一部分裡照章的順序排。 俄文的論文標題用通行的英文譯名，後
+面註明原文是俄文。
+
+\subsection*{第一部　基礎（第 1--3 章）}
+
+\begin{itemize}
+\item Mohamad Akra、Louay Bazzi，``On the Solution of Linear Recurrence Equations''，
+\textit{Computational Optimization and Applications} 10(2)，195--210 頁，1998。（第~2~章）
+\item Robert E. Tarjan，``Amortized Computational Complexity''，\textit{SIAM Journal on
+Algebraic and Discrete Methods} 6(2)，306--318 頁，1985。（第~3~章）
+\end{itemize}
+
+\subsection*{第二部　資料結構（第 4--13 章）}
+
+\begin{itemize}
+\item Fred G. Gustavson，``Two Fast Algorithms for Sparse Matrices: Multiplication and
+Permuted Transposition''，\textit{ACM Transactions on Mathematical Software} 4(3)，
+250--269 頁，1978。（第~4~章）
+\item Robert W. Floyd，``Algorithm 245: Treesort 3''，\textit{Communications of the ACM}
+7(12)，701 頁，1964。（第~8~章）
+\item G. M. Adel'son-Vel'ski\u{\i}、E. M. Landis，``An Algorithm for the Organization of
+Information''，\textit{Doklady Akademii Nauk SSSR} 146(2)，263--266 頁，1962（俄文）。
+（第~10~章）
+\item Rudolf Bayer、Edward M. McCreight，``Organization and Maintenance of Large Ordered
+Indexes''，\textit{Acta Informatica} 1(3)，173--189 頁，1972。（第~11~章）
+\item Douglas Comer，``The Ubiquitous B-Tree''，\textit{ACM Computing Surveys} 11(2)，
+121--137 頁，1979。（第~11~章）
+\item J. Lawrence Carter、Mark N. Wegman，``Universal Classes of Hash Functions''，
+\textit{Journal of Computer and System Sciences} 18(2)，143--154 頁，1979。（第~12~章）
+\item Ronald Fagin、Jürg Nievergelt、Nicholas Pippenger、H. Raymond Strong，``Extendible
+Hashing---A Fast Access Method for Dynamic Files''，\textit{ACM Transactions on Database
+Systems} 4(3)，315--344 頁，1979。（第~12~章）
+\item George S. Lueker、Mariko Molodowitch，``More Analysis of Double Hashing''，
+\textit{Combinatorica} 13(1)，83--96 頁，1993。（第~12~章）
+\item John E. Hopcroft、Jeffrey D. Ullman，``Set Merging Algorithms''，\textit{SIAM
+Journal on Computing} 2(4)，294--303 頁，1973。（第~13~章）
+\item Robert E. Tarjan，``Efficiency of a Good But Not Linear Set Union Algorithm''，
+\textit{Journal of the ACM} 22(2)，215--225 頁，1975。（第~13~章）
+\item Robert E. Tarjan、Jan van Leeuwen，``Worst-Case Analysis of Set Union
+Algorithms''，\textit{Journal of the ACM} 31(2)，245--281 頁，1984。（第~13~章）
+\item Michael L. Fredman、Michael E. Saks，``The Cell Probe Complexity of Dynamic Data
+Structures''，\textit{Proceedings of the 21st Annual ACM Symposium on Theory of
+Computing}（STOC），345--354 頁，1989。（第~13~章）
+\end{itemize}
+
+\subsection*{第三部　排序與選擇（第 14--16 章）}
+
+\begin{itemize}
+\item Donald L. Shell，``A High-Speed Sorting Procedure''，\textit{Communications of the
+ACM} 2(7)，30--32 頁，1959。（第~14~章）
+\item C. A. R. Hoare，``Algorithm 64: Quicksort''，\textit{Communications of the ACM}
+4(7)，321 頁，1961；``Quicksort''，\textit{The Computer Journal} 5(1)，10--16 頁，1962。
+（第~14~章）
+\item Thomas N. Hibbard，``An Empirical Study of Minimal Storage Sorting''，
+\textit{Communications of the ACM} 6(5)，206--213 頁，1963。（第~14~章）
+\item Vaughan R. Pratt，\textit{Shellsort and Sorting Networks}，博士論文，Stanford
+University，1971。（第~14~章）
+\item Robert Sedgewick，``A New Upper Bound for Shellsort''，\textit{Journal of
+Algorithms} 7(2)，159--173 頁，1986。（第~14~章）
+\item Marcin Ciura，``Best Increments for the Average Case of Shellsort''，
+\textit{Fundamentals of Computation Theory}（FCT 2001），Lecture Notes in Computer Science
+2138，106--117 頁，Springer，2001。（第~14~章）
+\item Jon L. Bentley、M. Douglas McIlroy，``Engineering a Sort Function''，
+\textit{Software: Practice and Experience} 23(11)，1249--1265 頁，1993。（第~14~章）
+\item Russel Schaffer、Robert Sedgewick，``The Analysis of Heapsort''，\textit{Journal
+of Algorithms} 15(1)，76--100 頁，1993。（第~14~章）
+\item C. A. R. Hoare，``Algorithm 65: Find''，\textit{Communications of the ACM} 4(7)，
+321--322 頁，1961。（第~16~章）
+\item Manuel Blum、Robert W. Floyd、Vaughan Pratt、Ronald L. Rivest、Robert E. Tarjan，
+``Time Bounds for Selection''，\textit{Journal of Computer and System Sciences} 7(4)，
+448--461 頁，1973。（第~16~章）
+\item David R. Musser，``Introspective Sorting and Selection Algorithms''，
+\textit{Software: Practice and Experience} 27(8)，983--993 頁，1997。（第~16~章）
+\item Ke Chen、Adrian Dumitrescu，``Select with Groups of 3 or 4''，\textit{Algorithms
+and Data Structures}（WADS 2015），Lecture Notes in Computer Science 9214，189--199 頁，
+Springer，2015。（第~16~章）
+\end{itemize}
+
+\subsection*{第四部　演算法設計（第 17--20 章）}
+
+\begin{itemize}
+\item A. Karatsuba、Yu. Ofman，``Multiplication of Multidigit Numbers on Automata''，
+\textit{Soviet Physics Doklady} 7，595--596 頁，1963（俄文原文 1962 年發表）。（第~17~章）
+\item Volker Strassen，``Gaussian Elimination Is Not Optimal''，\textit{Numerische
+Mathematik} 13(4)，354--356 頁，1969。（第~17~章）
+\item Michael Ian Shamos、Dan Hoey，``Closest-Point Problems''，\textit{Proceedings of the
+16th Annual Symposium on Foundations of Computer Science}（FOCS），151--162 頁，1975。
+（第~17~章）
+\item Donald E. Knuth，``Optimum Binary Search Trees''，\textit{Acta Informatica} 1(1)，
+14--25 頁，1971。（第~18~章）
+\item Daniel S. Hirschberg，``A Linear Space Algorithm for Computing Maximal Common
+Subsequences''，\textit{Communications of the ACM} 18(6)，341--343 頁，1975。（第~18~章）
+\item David A. Huffman，``A Method for the Construction of Minimum-Redundancy Codes''，
+\textit{Proceedings of the IRE} 40(9)，1098--1101 頁，1952。（第~19~章）
+\item Richard Rado，``Note on Independence Functions''，\textit{Proceedings of the London
+Mathematical Society}（第 3 輯）7，300--320 頁，1957。（第~19~章）
+\item Jack Edmonds，``Matroids and the Greedy Algorithm''，\textit{Mathematical
+Programming} 1(1)，127--136 頁，1971。（第~19~章）
+\item Dexter Kozen、Shmuel Zaks，``Optimal Bounds for the Change-Making Problem''，
+\textit{Theoretical Computer Science} 123(2)，377--388 頁，1994。（第~19~章）
+\item John D. C. Little、Katta G. Murty、Dura W. Sweeney、Caroline Karel，``An Algorithm
+for the Traveling Salesman Problem''，\textit{Operations Research} 11(6)，972--989 頁，
+1963。（第~20~章）
+\item Donald E. Knuth，``Estimating the Efficiency of Backtrack Programs''，
+\textit{Mathematics of Computation} 29(129)，1975。（第~20~章）
+\end{itemize}
+
+\subsection*{第五部　圖論（第 21--26 章）}
+
+\begin{itemize}
+\item Robert E. Tarjan，``Depth-First Search and Linear Graph Algorithms''，\textit{SIAM
+Journal on Computing} 1(2)，146--160 頁，1972。（第~21、23~章）
+\item A. B. Kahn，``Topological Sorting of Large Networks''，\textit{Communications of the
+ACM} 5(11)，558--562 頁，1962。（第~22~章）
+\item James E. Kelley Jr.、Morgan R. Walker，``Critical-Path Planning and Scheduling''，
+\textit{Proceedings of the Eastern Joint Computer Conference}，160--173 頁，1959。
+（第~22~章）
+\item John E. Hopcroft、Robert E. Tarjan，``Algorithm 447: Efficient Algorithms for Graph
+Manipulation''，\textit{Communications of the ACM} 16(6)，372--378 頁，1973。（第~23~章）
+\item K. P. Eswaran、Robert E. Tarjan，``Augmentation Problems''，\textit{SIAM Journal on
+Computing} 5(4)，653--665 頁，1976。（第~23~章）
+\item Bengt Aspvall、Michael F. Plass、Robert E. Tarjan，``A Linear-Time Algorithm for
+Testing the Truth of Certain Quantified Boolean Formulas''，\textit{Information Processing
+Letters} 8(3)，121--123 頁，1979。（第~23~章）
+\item M. Sharir，``A Strong-Connectivity Algorithm and Its Applications in Data Flow
+Analysis''，\textit{Computers and Mathematics with Applications} 7(1)，67--72 頁，1981。
+（第~23~章）
+\item Otakar Borůvka，``O jistém problému minimálním''，\textit{Práce moravské
+přírodovědecké společnosti} 3，1926（捷克文）。（第~24~章）
+\item Vojtěch Jarník，``O jistém problému minimálním''，\textit{Práce moravské
+přírodovědecké společnosti} 6(4)，57--63 頁，1930（捷克文）。（第~24~章）
+\item Joseph B. Kruskal，``On the Shortest Spanning Subtree of a Graph and the Traveling
+Salesman Problem''，\textit{Proceedings of the American Mathematical Society} 7(1)，48--50
+頁，1956。（第~24~章）
+\item Robert C. Prim，``Shortest Connection Networks and Some Generalizations''，
+\textit{Bell System Technical Journal} 36(6)，1389--1401 頁，1957。（第~24~章）
+\item R. L. Graham、Pavol Hell，``On the History of the Minimum Spanning Tree Problem''，
+\textit{Annals of the History of Computing} 7(1)，43--57 頁，1985。（第~24~章）
+\item David R. Karger、Philip N. Klein、Robert E. Tarjan，``A Randomized Linear-Time
+Algorithm to Find Minimum Spanning Trees''，\textit{Journal of the ACM} 42(2)，321--328 頁，
+1995。（第~24~章）
+\item L. R. Ford Jr.，\textit{Network Flow Theory}，RAND Paper P-923，RAND Corporation，
+1956。（第~25~章）
+\item Richard Bellman，``On a Routing Problem''，\textit{Quarterly of Applied Mathematics}
+16(1)，87--90 頁，1958。（第~25~章）
+\item Edsger W. Dijkstra，``A Note on Two Problems in Connexion with Graphs''，
+\textit{Numerische Mathematik} 1，269--271 頁，1959。（第~25~章）
+\item Robert W. Floyd，``Algorithm 97: Shortest Path''，\textit{Communications of the ACM}
+5(6)，345 頁，1962。（第~25~章）
+\item Stephen Warshall，``A Theorem on Boolean Matrices''，\textit{Journal of the ACM}
+9(1)，11--12 頁，1962。（第~25~章）
+\item Donald B. Johnson，``Efficient Algorithms for Shortest Paths in Sparse Networks''，
+\textit{Journal of the ACM} 24(1)，1--13 頁，1977。（第~25~章）
+\item Michael L. Fredman、Robert E. Tarjan，``Fibonacci Heaps and Their Uses in Improved
+Network Optimization Algorithms''，\textit{Journal of the ACM} 34(3)，596--615 頁，1987。
+（第~25~章）
+\item L. R. Ford Jr.、D. R. Fulkerson，``Maximal Flow through a Network''，
+\textit{Canadian Journal of Mathematics} 8，399--404 頁，1956。（第~26~章）
+\item Claude Berge，``Two Theorems in Graph Theory''，\textit{Proceedings of the National
+Academy of Sciences} 43(9)，842--844 頁，1957。（第~26~章）
+\item E. A. Dinic，``An Algorithm for the Solution of the Problem of Maximal Flow in a
+Network with Power Estimation''，\textit{Doklady Akademii Nauk SSSR} 194(4)，754--757 頁，
+1970（俄文）。（第~26~章）
+\item Jack Edmonds、Richard M. Karp，``Theoretical Improvements in Algorithmic Efficiency
+for Network Flow Problems''，\textit{Journal of the ACM} 19(2)，248--264 頁，1972。
+（第~26~章）
+\item John E. Hopcroft、Richard M. Karp，``An $n^{5/2}$ Algorithm for Maximum Matchings in
+Bipartite Graphs''，\textit{SIAM Journal on Computing} 2(4)，225--231 頁，1973。（第~26~章）
+\end{itemize}
+
+\subsection*{第六部　字串比對、NP 完備與近似（第 27--29 章）}
+
+\begin{itemize}
+\item Donald E. Knuth、James H. Morris Jr.、Vaughan R. Pratt，``Fast Pattern Matching in
+Strings''，\textit{SIAM Journal on Computing} 6(2)，323--350 頁，1977。（第~27~章）
+\item Robert S. Boyer、J Strother Moore，``A Fast String Searching Algorithm''，
+\textit{Communications of the ACM} 20(10)，762--772 頁，1977。（第~27~章）
+\item Richard M. Karp、Michael O. Rabin，``Efficient Randomized Pattern-Matching
+Algorithms''，\textit{IBM Journal of Research and Development} 31(2)，249--260 頁，1987。
+（第~27~章）
+\item Stephen A. Cook，``The Complexity of Theorem-Proving Procedures''，
+\textit{Proceedings of the Third Annual ACM Symposium on Theory of Computing}（STOC），
+151--158 頁，1971。（第~28~章）
+\item Richard M. Karp，``Reducibility among Combinatorial Problems''，收錄於 R. E. Miller、
+J. W. Thatcher 編，\textit{Complexity of Computer Computations}，Plenum Press，85--103 頁，
+1972。（第~28~章）
+\item Leonid A. Levin，``Universal Sequential Search Problems''，\textit{Problemy Peredachi
+Informatsii} 9(3)，115--116 頁，1973（俄文）。（第~28~章）
+\item Richard E. Ladner，``On the Structure of Polynomial Time Reducibility''，
+\textit{Journal of the ACM} 22(1)，155--171 頁，1975。（第~28~章）
+\item Michael R. Garey、David S. Johnson，``\,`Strong' NP-Completeness Results: Motivation,
+Examples, and Implications''，\textit{Journal of the ACM} 25(3)，499--508 頁，1978。
+（第~28~章）
+\item Manindra Agrawal、Neeraj Kayal、Nitin Saxena，``PRIMES Is in P''，\textit{Annals
+of Mathematics} 160(2)，781--793 頁，2004。（第~28~章）
+\item Nicos Christofides，\textit{Worst-Case Analysis of a New Heuristic for the
+Travelling Salesman Problem}，Report 388，Graduate School of Industrial Administration，
+Carnegie-Mellon University，1976。（第~29~章）
+\item Irit Dinur、David Steurer，``Analytical Approach to Parallel Repetition''，
+\textit{Proceedings of the 46th Annual ACM Symposium on Theory of Computing}（STOC），
+624--633 頁，2014。（第~29~章）
+\item Anna R. Karlin、Nathan Klein、Shayan Oveis Gharan，``A (Slightly) Improved
+Approximation Algorithm for Metric TSP''，\textit{Proceedings of the 53rd Annual ACM
+Symposium on Theory of Computing}（STOC），32--45 頁，2021。（第~29~章）
+\end{itemize}
