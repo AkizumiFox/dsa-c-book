@@ -1,0 +1,1973 @@
+\chapter{分治}
+\label{ch:dc}
+
+% 本章的圖共用的樣式（名稱都以 dc 開頭，避免和其他章衝突）
+\tikzset{
+    dc-cell/.style={draw=black!55, minimum width=0.8cm, minimum height=0.62cm, inner sep=0pt, font=\small},
+    dc-run/.style={dc-cell, fill=coreFill, draw=coreStroke},
+    dc-ghost/.style={dc-cell, draw=black!30, dashed, text=black!45},
+    dc-arr/.style={-{Stealth[length=1.8mm]}, draw=black!65},
+    dc-tn/.style={draw=black!55, rounded corners=2pt, inner sep=2.5pt, font=\scriptsize, align=center, fill=white},
+    dc-tnw/.style={dc-tn, draw=memStroke, thick, fill=memFill},
+    dc-leaf/.style={draw=black!40, rounded corners=2pt, inner sep=2pt, font=\scriptsize, minimum width=0.75cm, align=center},
+    dc-edge/.style={draw=black!55},
+    dc-pt/.style={circle, fill=black!80, inner sep=0pt, minimum size=4.2pt},
+    dc-ptlab/.style={font=\scriptsize, inner sep=1.5pt},
+}
+
+夜市一個飲料攤把開張以來每天的盈虧記在本子上，賺錢記正數，賠錢記負數。 老闆想找
+出「連續幾天加起來賺最多」的那一段，回頭看那幾天做對了什麼。 一年有三百多天，每
+一段都加加看，要試五萬多段。 如果先把這一年從中間切成上半年和下半年，賺最多的那
+一段只可能落在哪幾種地方？ 每一種地方各要花多少工夫才找得到？ 往下讀之前，先想
+一想。
+
+第~14~章的合併排序把陣列切成兩半，兩半各自排好，再合併起來。 這種做法叫
+\textbf{分治法}（divide and conquer），每一層遞迴都做三件事：
+
+\begin{enumerate}
+\item \textbf{分}（divide）：把問題切成幾個同類型、規模比較小的子問題。
+\item \textbf{治}（conquer）：用同樣的方法遞迴解每個子問題；規模夠小時直接解。
+\item \textbf{合}（combine）：把子問題的答案組合成原問題的答案。
+\end{enumerate}
+
+切成 $a$ 個規模 $n/b$ 的子問題、分和合一共花 $f(n)$ 時，執行時間是
+$T(n) = aT(n/b) + f(n)$，用第~2~章的遞迴樹或主定理（定理~2.4）就能解。 這個式子
+也告訴我們，想讓分治法變快，有兩個方向：讓 $f(n)$ 變小（合得更省），或讓 $a$ 變
+小（少解幾個子問題）。 這一章的五節分別示範幾種情形。
+
+\begin{itemize}
+\item 第~\ref{sec:dc-bsearch}~節的二分搜尋和快速冪只需要解\textbf{一個}子問題，
+$a = 1$。
+\item 第~\ref{sec:dc-maxsub}~節的最大子陣列，難的是「合」：最好的一段可能跨過切
+開的地方。 這一節最後會用一個線性時間的做法和分治版對照。
+\item 第~\ref{sec:dc-mult}~節的 Karatsuba 大數乘法和 Strassen 矩陣乘法，靠代數把
+子問題的個數從 $4$ 減成 $3$、從 $8$ 減成 $7$，指數就跟著變小。
+\item 第~\ref{sec:dc-closest}~節的平面最近點對，「合」的步驟要靠一個幾何的論證，
+才能在線性時間內完成。
+\item 第~\ref{sec:dc-inv}~節的逆序數計數，把計數藏在合併排序的合併步驟裡。
+\end{itemize}
+
+子問題如果彼此重疊，同一個子問題會被解很多次，分治法就不划算了，這時要改用第~18~
+章的動態規劃。
+
+這一章用到第~1~章的迴圈不變量和逆序對、第~2~章的遞迴式和主定理、第~14~章的合併。
+C 程式用到《C 程式設計基礎》第~9~章的指標參數、第~14~章的結構、第~15~章的遞迴、第~18~章
+的 \texttt{qsort} 和第~19~章的 \texttt{malloc}；遞迴在第~2~章複習過，其他的用到時先在框
+裡複習。
+
+\section{二分搜尋與快速冪}
+\label{sec:dc-bsearch}
+
+分治不一定要把每一份都解。 如果比一次就能判斷答案只可能在哪一份，另一份就整個丟
+掉，遞迴式變成 $T(n) = T(n/b) + f(n)$。 有些書把這種只留一個子問題的情形叫做「減
+而治之」（decrease and conquer）。 這一節的兩個例子都屬於這一類。
+
+\subsection{找一個值}
+
+輸入是由小到大排好（允許相等）的 $A[1..n]$ 和一個數 $x$。 如果 $x$ 在裡面，回傳
+一個位置 $i$ 使 $A[i] = x$；不在就回傳 \NIL。 第~2~章的虛擬碼~2.1 是遞迴版：看中
+間那一格，相等就回答，比 $x$ 小就到右半邊找，比 $x$ 大就到左半邊找。 遞迴呼叫是
+函式的最後一步（第~6~章的尾遞迴），所以可以直接改成迴圈，用 $\mathit{lo}$、
+$\mathit{hi}$ 記住還要找的範圍 $A[\mathit{lo}..\mathit{hi}]$。
+
+\begin{pseudo}[label=alg:dc-bsearch]{二分搜尋（閉區間）}
+\Function{Binary-Search}{$A, n, x$}
+    \State $\mathit{lo} \gets 1$；$\mathit{hi} \gets n$
+    \While{$\mathit{lo} \le \mathit{hi}$}
+        \State $\mathit{mid} \gets \lfloor (\mathit{lo} + \mathit{hi}) / 2 \rfloor$
+        \If{$A[\mathit{mid}] = x$}
+            \State \Return $\mathit{mid}$
+        \ElsIf{$A[\mathit{mid}] < x$}
+            \State $\mathit{lo} \gets \mathit{mid} + 1$
+        \Else
+            \State $\mathit{hi} \gets \mathit{mid} - 1$
+        \EndIf
+    \EndWhile
+    \State \Return \NIL
+\EndFunction
+\end{pseudo}
+
+\textbf{不變量}：每次檢查第 3 行的條件時，$A[1..\mathit{lo}-1]$ 的每個數都小於
+$x$，$A[\mathit{hi}+1..n]$ 的每個數都大於 $x$。 照第~1~章 1.4 節的三步來證。
+
+\begin{itemize}
+\item \textbf{初始}：$\mathit{lo} = 1$、$\mathit{hi} = n$，兩段都是空的，敘述成立。
+\item \textbf{維持}：迴圈裡 $\mathit{lo} \le \mathit{mid} \le \mathit{hi}$，所以
+$A[\mathit{mid}]$ 存在。 如果 $A[\mathit{mid}] = x$，程序直接回傳，不必維持。 如
+果 $A[\mathit{mid}] < x$，因為陣列排好了，$A[\mathit{lo}..\mathit{mid}]$ 都不大於
+$A[\mathit{mid}]$，也就都小於 $x$；第 8 行把 $\mathit{lo}$ 改成 $\mathit{mid} +
+1$ 之後，$A[1..\mathit{lo}-1]$ 仍然都小於 $x$。 $A[\mathit{mid}] > x$ 的情形對稱，
+$A[\mathit{mid}..\mathit{hi}]$ 都大於 $x$，第 10 行之後第二段仍然成立。
+\item \textbf{結束}：如果是第 6 行回傳，$A[\mathit{mid}] = x$，答案正確。 否則迴
+圈停在 $\mathit{lo} = \mathit{hi} + 1$（每一輪 $\mathit{lo}$ 最多跳到
+$\mathit{hi} + 1$，$\mathit{hi}$ 最少降到 $\mathit{lo} - 1$），代進不變量：
+$A[1..\mathit{hi}]$ 都小於 $x$，$A[\mathit{hi}+1..n]$ 都大於 $x$，整個陣列沒有一
+個等於 $x$，回傳 \NIL{} 正確。
+\end{itemize}
+
+\textbf{一定會停，而且很快}。 令 $k = \mathit{hi} - \mathit{lo} + 1$ 是還要找的
+格數。 中間那格左邊剩 $\mathit{mid} - \mathit{lo} = \lfloor (k-1)/2 \rfloor$ 格，
+右邊剩 $\mathit{hi} - \mathit{mid} = \lceil (k-1)/2 \rceil = \lfloor k/2 \rfloor$
+格，所以每一輪之後 $k$ 最多剩 $\lfloor k/2 \rfloor$。 $t$ 輪之後
+$k \le \lfloor n / 2^t \rfloor$；$t = \lfloor \lg n \rfloor + 1$ 時 $n / 2^t < 1$，
+範圍已經是空的。 所以迴圈最多跑 $\lfloor \lg n \rfloor + 1$ 輪，每一輪 $\Theta(1)$，
+最壞情況 $\Theta(\lg n)$。 這和第~2~章算出的遞迴版一致。
+
+\subsection{第一個大於等於、第一個大於}
+
+用 $A = \langle 12, 15, 15, 15, 23, 31, 31, 40 \rangle$ 找 $x = 15$：第一輪
+$\mathit{mid} = 4$，$A[4] = 15$，馬上回傳 $4$。 $15$ 出現在第 $2$、$3$、$4$ 格，
+\proc{Binary-Search} 回傳的是\textbf{其中一個}，不一定是第一個。 很多問題要的是
+邊界：第一個 $15$ 在哪裡、$15$ 有幾個、比 $20$ 小的最後一個數在哪裡。 這時改用兩
+個「找邊界」的版本：
+
+\begin{itemize}
+\item \proc{Lower-Bound}$(A, n, x)$：第一個滿足 $A[i] \ge x$ 的位置 $i$；全部都小
+於 $x$ 時回傳 $n + 1$。
+\item \proc{Upper-Bound}$(A, n, x)$：第一個滿足 $A[i] > x$ 的位置 $i$；全部都不大
+於 $x$ 時回傳 $n + 1$。
+\end{itemize}
+
+\proc{Lower-Bound} 的虛擬碼和正確性證明在第~1~章觀念題第 11 題。 它用的是
+\textbf{半開區間}：答案一定在 $\mathit{lo}..\mathit{hi}$ 之間（可能等於
+$\mathit{hi}$），$\mathit{hi}$ 從 $n + 1$ 開始，迴圈條件是 $\mathit{lo} <
+\mathit{hi}$，往左縮時寫 $\mathit{hi} \gets \mathit{mid}$。 \proc{Upper-Bound} 只
+差一個比較符號：
+
+\begin{pseudo}[label=alg:dc-upper]{第一個大於 $x$ 的位置（半開區間）}
+\Function{Upper-Bound}{$A, n, x$}
+    \State $\mathit{lo} \gets 1$；$\mathit{hi} \gets n + 1$
+    \While{$\mathit{lo} < \mathit{hi}$}
+        \State $\mathit{mid} \gets \lfloor (\mathit{lo} + \mathit{hi}) / 2 \rfloor$
+        \If{$A[\mathit{mid}] \le x$}
+            \State $\mathit{lo} \gets \mathit{mid} + 1$
+        \Else
+            \State $\mathit{hi} \gets \mathit{mid}$
+        \EndIf
+    \EndWhile
+    \State \Return $\mathit{lo}$
+\EndFunction
+\end{pseudo}
+
+不變量換成：$A[1..\mathit{lo}-1]$ 都不大於 $x$，$A[\mathit{hi}..n]$ 都大於 $x$。
+證明和第~1~章那一題逐字相同，只要把「小於 $x$」換成「不大於 $x$」、「大於等於
+$x$」換成「大於 $x$」。 每一輪 $\mathit{hi} - \mathit{lo}$ 從 $k$ 變成
+$\lfloor k/2 \rfloor$ 或 $\lceil k/2 \rceil - 1$，都不超過 $\lfloor k/2 \rfloor$，
+所以迴圈最多跑 $\lfloor \lg n \rfloor + 1$ 輪。 兩個版本在找不到時都不必另外處
+理，這是半開區間寫法的好處。
+
+用上面的陣列手算。 每一列是一輪迴圈開始時的 $\mathit{lo}$、$\mathit{hi}$，以及這
+一輪的 $\mathit{mid}$ 和改了哪一邊。
+
+\begin{center}
+\begin{tabular}{cccccl}
+\toprule
+& $\mathit{lo}$ & $\mathit{hi}$ & $\mathit{mid}$ & $A[\mathit{mid}]$ & 動作 \\
+\midrule
+\proc{Lower-Bound}$(A, 8, 15)$ & 1 & 9 & 5 & 23 & $23 \ge 15$，$\mathit{hi} \gets 5$ \\
+& 1 & 5 & 3 & 15 & $15 \ge 15$，$\mathit{hi} \gets 3$ \\
+& 1 & 3 & 2 & 15 & $15 \ge 15$，$\mathit{hi} \gets 2$ \\
+& 1 & 2 & 1 & 12 & $12 < 15$，$\mathit{lo} \gets 2$ \\
+& 2 & 2 & & & 停，回傳 $2$ \\
+\midrule
+\proc{Upper-Bound}$(A, 8, 15)$ & 1 & 9 & 5 & 23 & $23 > 15$，$\mathit{hi} \gets 5$ \\
+& 1 & 5 & 3 & 15 & $15 \le 15$，$\mathit{lo} \gets 4$ \\
+& 4 & 5 & 4 & 15 & $15 \le 15$，$\mathit{lo} \gets 5$ \\
+& 5 & 5 & & & 停，回傳 $5$ \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+$15$ 佔了第 $2$ 到第 $4$ 格，下界 $2$ 指到第一個 $15$，上界 $5$ 指到最後一個 $15$
+的下一格，$5 - 2 = 3$ 正好是 $15$ 的個數。
+
+\begin{center}
+\begin{tikzpicture}
+\foreach \v [count=\k] in {12,15,15,15,23,31,31,40} {
+    \ifnum\k>1 \ifnum\k<5
+        \node[dc-run] (c\k) at (\k*0.9, 0) {\v};
+    \else
+        \node[dc-cell] (c\k) at (\k*0.9, 0) {\v};
+    \fi \else
+        \node[dc-cell] (c\k) at (\k*0.9, 0) {\v};
+    \fi
+    \node[idxlbl] at (\k*0.9, 0.48) {\k};
+}
+\node[dc-ghost] (c9) at (8.1, 0) {};
+\node[idxlbl] at (8.1, 0.48) {9};
+\draw[dc-arr] (0.9, -1.25) node[left, font=\scriptsize] {\proc{Lower-Bound}$(15) = 2$} -- (c2.south);
+\draw[dc-arr] (6.0, -1.25) node[right, font=\scriptsize] {\proc{Upper-Bound}$(15) = 5$} -- (c5.south);
+\draw[dc-arr] (3.6, 1.5) node[left, font=\scriptsize] {\proc{Lower-Bound}$(31) = 6$} -- ($(c6.north)+(0,0.36)$);
+\draw[dc-arr] (8.6, 1.5) node[right, font=\scriptsize] {\proc{Upper-Bound}$(31) = 8$} -- ($(c8.north)+(0,0.36)$);
+\end{tikzpicture}
+\diagcaption{兩個邊界版本的回傳值。 藍底是 $15$ 佔的範圍，$5 - 2 = 3$ 格；第 $9$ 格是虛線，表示
+「超過最後一格」的 $n + 1$。}
+\label{fig:dc-bounds}
+\end{center}
+
+有了這兩個函式，常見的邊界問題都可以直接寫出來：
+
+\begin{center}
+\begin{tabular}{ll}
+\toprule
+要找的 & 寫法 \\
+\midrule
+$x$ 出現幾次 & \proc{Upper-Bound}$(x) - $\proc{Lower-Bound}$(x)$ \\
+第一個 $x$ 的位置 & $i = $\proc{Lower-Bound}$(x)$，還要檢查 $i \le n$ 且 $A[i] = x$ \\
+最後一個 $x$ 的位置 & $i = $\proc{Upper-Bound}$(x) - 1$，還要檢查 $i \ge 1$ 且 $A[i] = x$ \\
+最後一個小於 $x$ 的位置 & \proc{Lower-Bound}$(x) - 1$（$0$ 表示沒有）\\
+最後一個不大於 $x$ 的位置 & \proc{Upper-Bound}$(x) - 1$（$0$ 表示沒有）\\
+落在 $[u, v]$ 裡的個數 & \proc{Upper-Bound}$(v) - $\proc{Lower-Bound}$(u)$（$u \le v$）\\
+\bottomrule
+\end{tabular}
+\end{center}
+
+兩個版本其實是同一件事。 位置 $1, 2, \ldots, n$ 上有一個條件 $P(i)$，前面一段都不
+成立、後面一段都成立（叫做\textbf{單調}的條件），要找第一個成立的位置。
+\proc{Lower-Bound} 的 $P(i)$ 是「$A[i] \ge x$」，\proc{Upper-Bound} 的是
+「$A[i] > x$」。 只要條件是單調的，即使沒有陣列，例如「容量 $c$ 夠不夠裝下所有
+貨物」，同一個迴圈也能找出最小的可行值，每一輪只要能判斷一次 $P(\mathit{mid})$。
+
+\subsection{邊界的三個陷阱}
+\label{sec:dc-traps}
+
+二分搜尋的程式很短，卻很容易寫錯。 錯誤幾乎都出在邊界，下面三種最常見。
+
+\textbf{區間的寫法要一致}。 閉區間 $[\mathit{lo}, \mathit{hi}]$ 配
+$\mathit{lo} \le \mathit{hi}$ 和 $\mathit{hi} \gets \mathit{mid} - 1$；半開區間
+$[\mathit{lo}, \mathit{hi})$ 配 $\mathit{lo} < \mathit{hi}$ 和
+$\mathit{hi} \gets \mathit{mid}$。 混用就會出事：如果條件寫成
+$\mathit{lo} \le \mathit{hi}$，卻用 $\mathit{hi} \gets \mathit{mid}$，那麼範圍縮到
+只剩一格、而且 $A[\mathit{mid}] \ge x$ 時，$\mathit{lo} = \mathit{hi} =
+\mathit{mid}$，$\mathit{hi} \gets \mathit{mid}$ 什麼都沒改，迴圈永遠不停。
+
+\textbf{往右縮成 $\mathit{lo} \gets \mathit{mid}$ 時，中點要取天花板}。 例如要找
+「最後一個不大於 $x$ 的位置」，有人寫成：$A[\mathit{mid}] \le x$ 就
+$\mathit{lo} \gets \mathit{mid}$，否則 $\mathit{hi} \gets \mathit{mid} - 1$。 範圍
+只剩兩格（$\mathit{hi} = \mathit{lo} + 1$）時，$\lfloor (\mathit{lo} + \mathit{hi})
+/ 2 \rfloor = \mathit{lo}$，如果 $A[\mathit{lo}] \le x$，$\mathit{lo}$ 原地不動，
+又是無窮迴圈。 改成 $\mathit{mid} \gets \lceil (\mathit{lo} + \mathit{hi}) / 2
+\rceil$ 就保證 $\mathit{mid} > \mathit{lo}$。 更簡單的做法是不要自己寫這一種，直接
+用表上的 \proc{Upper-Bound}$(x) - 1$。
+
+\textbf{C 的 $\mathit{lo} + \mathit{hi}$ 會溢位}。 虛擬碼裡的數不會溢位，C 的
+\texttt{int} 會。 下標接近 $2^{31}$ 時，\texttt{(lo + hi) / 2} 先算出一個超過
+\texttt{INT\_MAX} 的和，這是未定義行為。 改寫成 \texttt{lo + (hi - lo) / 2}，算出
+來的值相同，中間值卻不會超過 \texttt{hi}。
+
+檢查一個二分搜尋寫得對不對，最有效的是手算幾個小例子：$n = 1$、$n = 2$；$x$ 比全
+部都小、比全部都大；$x$ 等於第一格、等於最後一格；$x$ 出現好幾次。 兩格的例子特
+別能抓出無窮迴圈。
+
+\begin{examnote}
+二分搜尋的題目先看清楚三件事：位置從 $0$ 還是從 $1$ 開始；找不到時要回傳什麼
+（$-1$、\NIL、$n$ 還是 $n + 1$）；有重複時要第一個、最後一個還是任一個。 不同課本
+的「上界」「下界」定義不完全一樣，照題目的定義寫。 作答時把迴圈不變量寫在程式旁
+邊，再用「只剩兩格」的情況自己代一次，確認迴圈會停。
+\end{examnote}
+
+\subsection{C 程式}
+
+C 版只寫兩個邊界版本，對上面的陣列做幾個查詢，印出下界、上界、出現次數、第一個
+$x$ 的位置（沒有就印 $-1$）和最後一個不大於 $x$ 的位置，後兩個照上表的寫法算。 C 的
+下標從 $0$ 開始，所以 \texttt{lower\_bound} 回傳的是虛擬碼的 \proc{Lower-Bound} 減
+一，全部都小於 $x$ 時回傳 \texttt{n}；次數是兩者相減，不受影響。
+
+\begin{example}[label=ex:dc-bsearch]{c}{(bsearch\_bounds.c) 兩個邊界版本的二分搜尋}
+#include <stdio.h>
+
+// 半開區間 [lo, hi)：第一個 >= x 的位置，全部都 < x 時回傳 n。
+int lower_bound(const int *a, int n, int x)
+{
+    int lo = 0, hi = n;
+    while (lo < hi) {
+        int mid = lo + (hi - lo) / 2;      // 不寫 (lo + hi) / 2，避免溢位
+        if (a[mid] < x) {
+            lo = mid + 1;
+        } else {
+            hi = mid;
+        }
+    }
+    return lo;
+}
+
+// 第一個 > x 的位置，全部都 <= x 時回傳 n。只有比較的方向不同。
+int upper_bound(const int *a, int n, int x)
+{
+    int lo = 0, hi = n;
+    while (lo < hi) {
+        int mid = lo + (hi - lo) / 2;
+        if (a[mid] <= x) {
+            lo = mid + 1;
+        } else {
+            hi = mid;
+        }
+    }
+    return lo;
+}
+
+int main(void)
+{
+    int a[] = {12, 15, 15, 15, 23, 31, 31, 40};
+    int q[] = {15, 31, 20, 5, 12, 40, 41};
+    printf("x lower upper count first last_le\n");
+    for (int k = 0; k < 7; k++) {
+        int lb = lower_bound(a, 8, q[k]), ub = upper_bound(a, 8, q[k]);
+        int first = (lb < 8 && a[lb] == q[k]) ? lb : -1;    // 第一個 x 的位置
+        printf("%d %d %d %d %d %d\n", q[k], lb, ub, ub - lb, first, ub - 1);
+    }
+    return 0;
+}
+\end{example}
+\iosample{}{x lower upper count first last\_le \\ 15 1 4 3 1 3 \\ 31 5 7 2 5 6 \\ 20 4 4 0 -1 3 \\ 5 0 0 0 -1 -1 \\ 12 0 1 1 0 0 \\ 40 7 8 1 7 7 \\ 41 8 8 0 -1 7}
+
+$20$ 不在陣列裡，下界和上界都是 $4$：$20$ 要插進去的話應該放在 C 的位置 $4$，也就
+是 $23$ 的前面，而最後一個不大於 $20$ 的是位置 $3$ 的 $15$。 $5$ 比全部都小，最後一
+欄是 $-1$，表示沒有。
+
+\subsection{快速冪}
+\label{sec:dc-power}
+
+第二個例子是算 $x^n$，$n$ 是非負整數。 從 $1$ 開始乘 $n$ 次 $x$ 要做 $n$ 次乘法
+（第一次乘 $1$ 可以省掉，是 $n - 1$ 次）。 分治的想法是先算一半：
+\[
+x^n = \begin{cases}
+\left(x^{\lfloor n/2 \rfloor}\right)^2, & n \text{ 是偶數}, \\[2pt]
+\left(x^{\lfloor n/2 \rfloor}\right)^2 \cdot x, & n \text{ 是奇數}.
+\end{cases}
+\]
+$x^{\lfloor n/2 \rfloor}$ 只要算一次，平方是把它和自己相乘，不必再遞迴第二次。
+
+\begin{pseudo}[label=alg:dc-power]{快速冪（遞迴）}
+\Function{Power}{$x, n$}
+    \If{$n = 0$}
+        \State \Return $1$
+    \EndIf
+    \If{$n = 1$}
+        \State \Return $x$
+    \EndIf
+    \State $h \gets$ \Call{Power}{$x, \lfloor n/2 \rfloor$}
+    \State $r \gets h \cdot h$
+    \If{$n$ 是奇數}
+        \State $r \gets r \cdot x$
+    \EndIf
+    \State \Return $r$
+\EndFunction
+\end{pseudo}
+
+每次呼叫只往下呼叫一次，規模減半，呼叫以外做常數件事，所以
+$T(n) = T(\lfloor n/2 \rfloor) + \Theta(1) = \Theta(\lg n)$，就是第~2~章主定理表格
+裡 $T(n/2) + 1$ 那一列。 乘法次數可以算得更精確。 把 $n$ 寫成二進位：$n \ge 2$
+時，$\lfloor n/2 \rfloor$ 的二進位就是 $n$ 去掉最右邊一位。 遞迴從 $n$ 一路去掉最
+低位，直到只剩最高位的 $1$（$n = 1$），途中每去掉一位做一次平方（第 7 行），去掉
+的那一位是 $1$ 時再多乘一次 $x$（第 9 行）。 令 $\nu(n)$ 是 $n$ 的二進位裡 $1$ 的
+個數，$n$ 有 $\lfloor \lg n \rfloor + 1$ 位，所以
+\[
+\text{乘法次數} = \lfloor \lg n \rfloor + (\nu(n) - 1) \le 2 \lfloor \lg n \rfloor
+\qquad (n \ge 1).
+\]
+例如 $n = 45 = 101101_2$，$\lfloor \lg 45 \rfloor = 5$，$\nu(45) = 4$，共 $8$ 次乘
+法，比連乘的 $44$ 次少很多。
+
+遞迴是從最高位往下處理的。 也可以從最低位往上，寫成迴圈，不用遞迴堆疊：
+
+\begin{pseudo}[label=alg:dc-power-iter]{快速冪（迴圈，從最低位開始）}
+\Function{Power-Iter}{$x, n$}
+    \State $r \gets 1$；$b \gets x$；$e \gets n$
+    \While{$e > 0$}
+        \If{$e$ 是奇數}
+            \State $r \gets r \cdot b$
+        \EndIf
+        \State $e \gets \lfloor e/2 \rfloor$
+        \If{$e > 0$}
+            \State $b \gets b \cdot b$
+        \EndIf
+    \EndWhile
+    \State \Return $r$
+\EndFunction
+\end{pseudo}
+
+\textbf{不變量}：每次檢查第 3 行的條件時，$r \cdot b^e = x^n$。
+
+\begin{itemize}
+\item \textbf{初始}：$r = 1$、$b = x$、$e = n$，$1 \cdot x^n = x^n$。
+\item \textbf{維持}：設這一輪開始時 $r b^e = x^n$。 若 $e = 2k + 1$ 是奇數，
+$r b^e = (r b) \cdot (b^2)^k$；第 5 行把 $r$ 換成 $rb$，第 6 行把 $e$ 換成 $k$，第
+8 行把 $b$ 換成 $b^2$（$k = 0$ 時不換，但這時 $b^k = 1$，換不換都一樣），所以新的
+$r b^e$ 仍然是 $x^n$。 若 $e = 2k$ 是偶數，$r b^e = r (b^2)^k$，同樣成立。
+\item \textbf{結束}：迴圈停在 $e = 0$，代進不變量得 $r \cdot b^0 = r = x^n$。
+\end{itemize}
+
+$e$ 每一輪去掉一個二進位位數，迴圈跑 $\lfloor \lg n \rfloor + 1$ 輪。 第 5 行做
+$\nu(n)$ 次，第 8 行做 $\lfloor \lg n \rfloor$ 次，合計比遞迴版多一次，多的那次是
+一開始的 $1 \cdot b$。
+
+實際應用時 $x^n$ 大得存不下，通常要的是 $x^n$ 除以某個 $m$ 的餘數。 因為
+\[
+(u \cdot v) \bmod m = \bigl((u \bmod m)(v \bmod m)\bigr) \bmod m,
+\]
+每次乘完就取餘數，結果不變，而且所有中間值都小於 $m$。 C 程式要注意的只剩一件事：
+兩個小於 $m$ 的數相乘，最大接近 $m^2$，必須放得進 \texttt{long long}，所以 $m$ 不
+能超過 $\sqrt{2^{63} - 1} \approx 3.04 \times 10^9$。
+
+用 $x = 7$、$n = 45$、$m = 1000$ 手算 \proc{Power-Iter}，每一列是一輪開始時的值。
+$45 = 101101_2$，從最右邊一位讀起。
+
+\begin{center}
+\begin{tabular}{ccccl}
+\toprule
+$e$ & $e$ 的二進位 & $r$ & $b$ & 這一輪做的事（都取除以 $1000$ 的餘數）\\
+\midrule
+45 & 101101 & 1 & 7 & 奇數：$r = 1 \cdot 7 = 7$；$b = 7^2 = 49$ \\
+22 & 10110 & 7 & 49 & 偶數；$b = 49^2 = 2401 \to 401$ \\
+11 & 1011 & 7 & 401 & 奇數：$r = 7 \cdot 401 = 2807 \to 807$；$b = 401^2 \to 801$ \\
+5 & 101 & 807 & 801 & 奇數：$r = 807 \cdot 801 \to 407$；$b = 801^2 \to 601$ \\
+2 & 10 & 407 & 601 & 偶數；$b = 601^2 \to 201$ \\
+1 & 1 & 407 & 201 & 奇數：$r = 407 \cdot 201 \to 807$；$e$ 變成 $0$，不再平方 \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+答案是 $7^{45} \bmod 1000 = 807$，共 $\nu(45) + \lfloor \lg 45 \rfloor = 4 + 5 = 9$
+次乘法。
+
+快速冪是第~1~章 1.9 節那個區別的好例子。 輸入的 $n$ 只有 $\lg n$ 個位元。 連乘 $n$
+次是位元數的指數；快速冪只要 $\Theta(\lg n)$ 次乘法，是位元數的多項式。
+
+同一個演算法只用到「乘法有結合律」，所以把數換成矩陣也可以。 例如費氏數列
+$F_0 = 0$、$F_1 = 1$、$F_{k} = F_{k-1} + F_{k-2}$，對 $n \ge 1$ 歸納可以證明
+\[
+\begin{pmatrix} 1 & 1 \\ 1 & 0 \end{pmatrix}^{n}
+= \begin{pmatrix} F_{n+1} & F_n \\ F_n & F_{n-1} \end{pmatrix},
+\]
+（$n = 1$ 時兩邊相等；乘上一次左邊的矩陣，右邊的每一格正好變成下一項。）所以
+$F_n \bmod m$ 只要 $\Theta(\lg n)$ 次 $2 \times 2$ 矩陣乘法，每次 $8$ 次數的乘
+法。 第~25~章的所有點對最短路徑也會用到這種「反覆平方」。
+
+\subsection{C 程式}
+
+\begin{cbookrecap}[第~9~章 9.2 節]
+函式只能回傳一個值。 \texttt{power\_mod} 另外用指標參數 \texttt{int *mults} 把乘
+法次數帶回去：函式裡的 \texttt{(*mults)++} 改的是呼叫端的變數，呼叫時傳 \texttt{\&c}。
+\end{cbookrecap}
+
+C 版只寫迴圈版，每次乘完就取餘數。 測資裡
+$1000000007$ 是質數，由費馬小定理 $5^{1000000006} \bmod 1000000007 = 1$，可以拿來檢
+查。 最後一組 $m = 1$：任何數除以 $1$ 的餘數都是 $0$，所以 $e = 0$ 時要回傳
+\texttt{1 \% m}，不是 \texttt{1}。
+
+\begin{example}[label=ex:dc-power]{c}{(power\_mod.c) 快速冪取餘數}
+#include <stdio.h>
+
+// 回傳 b^e mod m。要求 1 <= m <= 3037000499，兩個小於 m 的數相乘才不會溢位。
+// 不變量：每一輪開始時，r * b^e 除以 m 的餘數就是答案。*mults 是乘法次數。
+long long power_mod(long long b, long long e, long long m, int *mults)
+{
+    long long r = 1 % m;
+    b %= m;
+    *mults = 0;
+    while (e > 0) {
+        if (e % 2 == 1) {
+            r = r * b % m;
+            (*mults)++;
+        }
+        e /= 2;
+        if (e > 0) {                    // 最後一輪不必再平方
+            b = b * b % m;
+            (*mults)++;
+        }
+    }
+    return r;
+}
+
+int main(void)
+{
+    long long t[][3] = {{7, 45, 1000}, {5, 1000000006, 1000000007},
+                        {123456789, 987654321987LL, 998244353}, {10, 0, 1}};
+    for (int k = 0; k < 4; k++) {
+        int c;
+        long long r = power_mod(t[k][0], t[k][1], t[k][2], &c);
+        printf("%lld %lld %lld -> %lld (%d mults)\n", t[k][0], t[k][1], t[k][2], r, c);
+    }
+    return 0;
+}
+\end{example}
+\iosample{}{7 45 1000 -> 807 (9 mults) \\ 5 1000000006 1000000007 -> 1 (44 mults) \\ 123456789 987654321987 998244353 -> 125393818 (62 mults) \\ 10 0 1 -> 0 (0 mults)}
+
+乘法次數和公式 $\nu(e) + \lfloor \lg e \rfloor$ 一致：$987654321987$ 有 $40$ 個位
+元，其中 $23$ 個是 $1$，共 $23 + 39 = 62$ 次；連乘要將近 $10^{12}$ 次。
+
+\section{最大子陣列}
+\label{sec:dc-maxsub}
+
+回到章首的飲料攤。 把每天的盈虧依序放進 $A[1..n]$，要找的是\textbf{最大子陣列}
+（maximum subarray）：一段連續、至少有一個數的 $A[i..j]$，讓
+$A[i] + A[i+1] + \cdots + A[j]$ 最大。 至少要有一個數，是為了全部都賠錢的時候，
+答案是賠最少的那一天，而不是「什麼都不選」的 $0$。 下面用 $S(i..j)$ 表示
+$A[i..j]$ 的和。
+
+最直接的做法是每一段都算。 固定開頭 $i$，讓結尾 $j$ 從 $i$ 往右走，邊走邊累加，
+每一段只要多加一個數，總共 $n(n+1)/2$ 段，$\Theta(n^2)$。 （每一段都從頭加起是
+$\Theta(n^3)$。）$n$ 到幾十萬時，$n^2$ 已經太慢。
+
+\subsection{分治：左半、右半、跨過中點}
+
+取中點 $q = \lfloor (p + r)/2 \rfloor$，把 $A[p..r]$ 切成 $A[p..q]$ 和
+$A[q+1..r]$。 任何一段 $A[i..j]$ 一定是下面三種之一：
+
+\begin{enumerate}
+\item 整段在左半：$p \le i \le j \le q$。
+\item 整段在右半：$q + 1 \le i \le j \le r$。
+\item 跨過中點：$i \le q < j$，也就是同時包含 $A[q]$ 和 $A[q+1]$。
+\end{enumerate}
+
+前兩種是規模減半的同一個問題，遞迴去解。 第三種不是同一個問題（它多了「一定要包
+含中點兩側」的限制），但它好解：
+
+\begin{lemma}
+\label{lem:dc-crossing}
+跨過中點的段裡，和最大的是「結尾在 $q$ 的最佳段」接上「開頭在 $q+1$ 的最佳段」：
+\[
+\max_{p \le i \le q < j \le r} S(i..j)
+= \max_{p \le i \le q} S(i..q) + \max_{q+1 \le j \le r} S(q+1..j).
+\]
+\end{lemma}
+
+\begin{proof}
+跨過中點的段都可以拆成 $S(i..j) = S(i..q) + S(q+1..j)$，左邊只和 $i$ 有關，右邊只
+和 $j$ 有關，而 $i$、$j$ 可以各自任選（$i$ 在 $p..q$、$j$ 在 $q+1..r$）。 兩項互不
+影響，所以和的最大值等於兩項各自的最大值相加。
+\end{proof}
+
+結尾在 $q$ 的最佳段，從 $A[q]$ 往左一格一格加就找得到；開頭在 $q+1$ 的最佳段，從
+$A[q+1]$ 往右加。 兩邊合起來只看過 $A[p..r]$ 每一格一次，$\Theta(n)$。
+
+\begin{pseudo}[label=alg:dc-crossing]{跨過中點的最佳段，回傳（開頭、結尾、和）}
+\Function{Max-Crossing}{$A, p, q, r$}
+    \State $s \gets 0$；$\mathit{left} \gets -\infty$
+    \For{$i \gets q$ \DownTo $p$}
+        \State $s \gets s + A[i]$
+        \If{$s > \mathit{left}$}
+            \State $\mathit{left} \gets s$；$i^* \gets i$
+        \EndIf
+    \EndFor
+    \State $s \gets 0$；$\mathit{right} \gets -\infty$
+    \For{$j \gets q + 1$ \To $r$}
+        \State $s \gets s + A[j]$
+        \If{$s > \mathit{right}$}
+            \State $\mathit{right} \gets s$；$j^* \gets j$
+        \EndIf
+    \EndFor
+    \State \Return $(i^*, j^*, \mathit{left} + \mathit{right})$
+\EndFunction
+\end{pseudo}
+
+\begin{pseudo}[label=alg:dc-maxsub]{最大子陣列（分治），回傳（開頭、結尾、和）}
+\Function{Max-Subarray}{$A, p, r$}
+    \If{$p = r$}
+        \State \Return $(p, p, A[p])$
+    \EndIf
+    \State $q \gets \lfloor (p + r)/2 \rfloor$
+    \State $L \gets$ \Call{Max-Subarray}{$A, p, q$}
+    \State $R \gets$ \Call{Max-Subarray}{$A, q + 1, r$}
+    \State $C \gets$ \Call{Max-Crossing}{$A, p, q, r$}
+    \State $\mathit{best} \gets L$
+    \If{$C.\mathit{sum} > \mathit{best}.\mathit{sum}$}
+        \State $\mathit{best} \gets C$
+    \EndIf
+    \If{$R.\mathit{sum} > \mathit{best}.\mathit{sum}$}
+        \State $\mathit{best} \gets R$
+    \EndIf
+    \State \Return $\mathit{best}$
+\EndFunction
+\end{pseudo}
+
+\textbf{正確性}：對 $n = r - p + 1$ 用強歸納法。 $n = 1$ 時唯一的一段就是
+$A[p..p]$。 $n \ge 2$ 時兩半的規模都比 $n$ 小，由歸納假設 $L$、$R$ 分別是兩半的最
+佳段；由引理~\ref{lem:dc-crossing}，$C$ 是跨中點的最佳段。 每一段都屬於三種之一，
+所以三者中和最大的就是整個 $A[p..r]$ 的最佳段。
+
+\textbf{執行時間}：兩次遞迴各是一半的規模，\proc{Max-Crossing} 和其他步驟
+$\Theta(n)$：
+\[
+T(n) = 2T(n/2) + \Theta(n) = \Theta(n \lg n),
+\]
+和合併排序同一個遞迴式（主定理情況 2）。
+
+\textbf{平手的規則}。 \proc{Max-Crossing} 用嚴格的 $>$，所以往左、往右都停在第一
+次達到最大值的地方，也就是取最短的那一段。 \proc{Max-Subarray} 的第 9、11 行也用
+$>$，三者一樣大時依序取左半、跨中點、右半。 和只有一個，但達到最大和的段可能不只
+一段，題目要你寫出「哪一段」時，回答會受這些規則影響。
+
+\begin{examnote}
+最大子陣列有兩個地方各書不同：允不允許空的子陣列（允許時全部是負數的答案是
+$0$），以及好幾段一樣大時回答哪一段。 作答時先照題目決定這兩件事，寫在答案開頭。
+跨中點的段要寫出「往左累加」「往右累加」兩列和它們的最大值，不能只寫結果；這一段
+一定同時包含 $A[q]$ 和 $A[q+1]$，往左、往右都至少取一格。
+\end{examnote}
+
+\subsection{手算：八天的盈虧}
+
+飲料攤某八天的盈虧（單位：千元）是
+\[
+A = \langle 4, -6, 3, 5, -2, 7, -9, 6 \rangle .
+\]
+最上層 $p = 1$、$r = 8$、$q = 4$。 跨中點的部分這樣算：
+
+\begin{center}
+\begin{tabular}{l*{8}{c}}
+\toprule
+第幾天 & 1 & 2 & 3 & 4 & 5 & 6 & 7 & 8 \\
+$A$ & 4 & $-6$ & 3 & 5 & $-2$ & 7 & $-9$ & 6 \\
+\midrule
+從第 4 天往左累加 & 6 & 2 & \textbf{8} & 5 & & & & \\
+從第 5 天往右累加 & & & & & $-2$ & \textbf{5} & $-4$ & 2 \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+往左的最大值是 $8$（第 3 到 4 天），往右的最大值是 $5$（第 5 到 6 天），跨中點的最
+佳段是第 3 到 6 天，和 $13$。 左半 $\langle 4, -6, 3, 5 \rangle$ 遞迴算出來的最佳
+段是第 3 到 4 天（$8$），右半 $\langle -2, 7, -9, 6 \rangle$ 是第 6 天（$7$），三者
+取最大，答案是第 3 到 6 天，賺 $13$ 千元。 整棵遞迴樹如下，每個節點寫出它的範圍和
+回傳的段，以及這一段來自三種情形的哪一種。
+
+\begin{center}
+\begin{tikzpicture}[x=1.75cm, y=1.35cm]
+\foreach \v [count=\k] in {4,-6,3,5,-2,7,-9,6} {
+    \node[dc-leaf] (l\k) at (\k, -3) {$\v$};
+}
+\node[dc-tn] (m1) at (1.5,-2) {第 1--2 天\\左半 1--1：4};
+\node[dc-tn] (m2) at (3.5,-2) {第 3--4 天\\跨中點 3--4：8};
+\node[dc-tn] (m3) at (5.5,-2) {第 5--6 天\\右半 6--6：7};
+\node[dc-tn] (m4) at (7.5,-2) {第 7--8 天\\右半 8--8：6};
+\node[dc-tn] (h1) at (2.5,-1) {第 1--4 天\\右半 3--4：8};
+\node[dc-tn] (h2) at (6.5,-1) {第 5--8 天\\左半 6--6：7};
+\node[dc-tnw] (t) at (4.5,0) {第 1--8 天\\跨中點 3--6：13};
+\foreach \a/\b in {t/h1, t/h2, h1/m1, h1/m2, h2/m3, h2/m4, m1/l1, m1/l2, m2/l3, m2/l4, m3/l5, m3/l6, m4/l7, m4/l8} {
+    \draw[dc-edge] (\a) -- (\b);
+}
+\end{tikzpicture}
+\diagcaption{\proc{Max-Subarray} 在八天盈虧上的遞迴樹。 最下面一列是每天的盈虧，
+其他節點寫「範圍、最佳段的來源、最佳段：和」。}
+\label{fig:dc-maxsub-tree}
+\end{center}
+
+\subsection{線性的做法}
+\label{sec:dc-kadane}
+
+分治版每一層都重新把跨中點的和加一次，其實浪費了。 換一個角度：令
+\[
+E[i] = \text{結尾\textbf{剛好}在第 } i \text{ 天的段裡，最大的和}.
+\]
+任何一段都有一個結尾，所以答案是 $\max_{1 \le i \le n} E[i]$。 $E[i]$ 可以從
+$E[i-1]$ 算出來：結尾在 $i$ 的段，要嘛只有 $A[i]$ 一天，要嘛是某個結尾在 $i - 1$
+的段再接上 $A[i]$。 後一種的和是（結尾在 $i-1$ 的某段的和）$+ A[i]$，最大是
+$E[i-1] + A[i]$。 所以
+\[
+E[1] = A[1], \qquad E[i] = A[i] + \max(E[i-1], 0) \quad (i \ge 2).
+\]
+白話是：前面那段如果是負的，接上它只會更差，不如從今天重新開始。 這個做法通常稱
+為 \textbf{Kadane 演算法}。 每個 $E[i]$ 只用到 $E[i-1]$，所以只要一個變數
+$\mathit{cur}$ 記住它。
+
+\begin{pseudo}[label=alg:dc-kadane]{最大子陣列（線性），回傳（開頭、結尾、和）}
+\Function{Max-Subarray-Linear}{$A, n$}
+    \State $\mathit{cur} \gets A[1]$；$\mathit{start} \gets 1$
+    \State $\mathit{best} \gets (1, 1, A[1])$
+    \For{$i \gets 2$ \To $n$}
+        \If{$\mathit{cur} < 0$}
+            \State $\mathit{cur} \gets A[i]$；$\mathit{start} \gets i$
+        \Else
+            \State $\mathit{cur} \gets \mathit{cur} + A[i]$
+        \EndIf
+        \If{$\mathit{cur} > \mathit{best}.\mathit{sum}$}
+            \State $\mathit{best} \gets (\mathit{start}, i, \mathit{cur})$
+        \EndIf
+    \EndFor
+    \State \Return $\mathit{best}$
+\EndFunction
+\end{pseudo}
+
+\textbf{不變量}：外層迴圈每一輪開始時（$i$ 是這一輪的值），$\mathit{cur} =
+E[i-1] = S(\mathit{start}..i-1)$，而 $\mathit{best}$ 是 $A[1..i-1]$ 裡的最佳段。
+初始時 $i = 2$，$\mathit{cur} = A[1] = E[1]$，$A[1..1]$ 只有一段，成立。 維持：第
+5--8 行正是 $E[i] = A[i] + \max(E[i-1], 0)$（$E[i-1] = 0$ 時接上或不接一樣，程式選
+擇接上），第 9--10 行把 $\mathit{best}$ 更新成 $A[1..i]$ 的最佳段，因為
+$A[1..i]$ 裡的段不是在 $A[1..i-1]$ 裡，就是結尾在 $i$，後者最大是 $E[i]$。 結束時
+$i = n + 1$，$\mathit{best}$ 是整個陣列的最佳段。 時間 $\Theta(n)$，額外空間
+$\Theta(1)$。
+
+同一組八天的數字，一天一列：
+
+\begin{center}
+\begin{tabular}{ccccl}
+\toprule
+$i$ & $A[i]$ & 上一輪的 $\mathit{cur}$ & 這一輪的 $\mathit{cur} = E[i]$ & $\mathit{best}$ \\
+\midrule
+1 & 4 & & 4 & 1--1：4 \\
+2 & $-6$ & 4 & $4 - 6 = -2$ & 1--1：4 \\
+3 & 3 & $-2$ & 重新開始：3 & 1--1：4 \\
+4 & 5 & 3 & 8 & 3--4：8 \\
+5 & $-2$ & 8 & 6 & 3--4：8 \\
+6 & 7 & 6 & 13 & 3--6：13 \\
+7 & $-9$ & 13 & 4 & 3--6：13 \\
+8 & 6 & 4 & 10 & 3--6：13 \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+兩種做法得到同一段。 線性做法其實是第~18~章動態規劃的第一個例子：$E[i]$ 是一個子
+問題，它的答案從上一個子問題的答案直接算出來，每個子問題只算一次。 分治版慢在
+「合」：每一層都從中點往兩邊重新加一次。 觀念題第~\ref{dc-q-four}~題會讓分治版每
+次多回傳幾個值，把「合」變成 $\Theta(1)$，分治版也能做到 $\Theta(n)$。
+
+\subsection{C 程式}
+
+\begin{cbookrecap}[第~14~章 14.1、14.3 節]
+\texttt{typedef struct} 定義的結構可以整個當成回傳值，也可以用 \texttt{=} 整個複
+製，\texttt{best = C;} 會把三個欄位一起抄過去。 用結構 \texttt{Range} 把「開頭、結
+尾、和」包在一起，就不必用三個指標參數帶回三個值。
+\end{cbookrecap}
+
+程式在八天的資料上跑分治版，每處理完一個長度大於一的範圍印一行（後序），再跑線性
+版。 天數從 $1$ 開始印。 \texttt{max\_crossing} 把 $\mathit{left}$、
+$\mathit{right}$ 的初值設成 \texttt{a[mid]}、\texttt{a[mid + 1]}，而不是 $-\infty$：
+C 的整數沒有 $-\infty$，而這兩格本來就一定要取，效果和虛擬碼相同。 金額用
+\texttt{long long}。
+
+\begin{example}[label=ex:dc-maxsub]{c}{(max\_subarray.c) 最大子陣列的分治版與線性版}
+#include <stdio.h>
+
+typedef struct {
+    int lo, hi;                         // 區段 a[lo..hi]
+    long long sum;
+} Range;
+
+// 跨過中點的最佳段：一定包含 a[mid] 和 a[mid+1]。
+Range max_crossing(const long long *a, int lo, int mid, int hi)
+{
+    Range r = {mid, mid + 1, 0};
+    long long s = 0, left = a[mid], right = a[mid + 1];
+    for (int i = mid; i >= lo; i--) {   // 結尾固定在 mid 的最佳段
+        s += a[i];
+        if (s > left) {
+            left = s;
+            r.lo = i;
+        }
+    }
+    s = 0;
+    for (int j = mid + 1; j <= hi; j++) { // 開頭固定在 mid+1 的最佳段
+        s += a[j];
+        if (s > right) {
+            right = s;
+            r.hi = j;
+        }
+    }
+    r.sum = left + right;
+    return r;
+}
+
+// 分治：平手時依序取左半、跨中點、右半。每處理完一段印一行（天數從 1 開始）。
+Range max_subarray(const long long *a, int lo, int hi)
+{
+    if (lo == hi) {
+        Range r = {lo, hi, a[lo]};
+        return r;
+    }
+    int mid = lo + (hi - lo) / 2;
+    Range L = max_subarray(a, lo, mid);
+    Range R = max_subarray(a, mid + 1, hi);
+    Range C = max_crossing(a, lo, mid, hi);
+    Range best = L;
+    if (C.sum > best.sum) {
+        best = C;
+    }
+    if (R.sum > best.sum) {
+        best = R;
+    }
+    printf("days %d-%d: left %d-%d (%lld) cross %d-%d (%lld) right %d-%d (%lld)\n",
+           lo + 1, hi + 1, L.lo + 1, L.hi + 1, L.sum, C.lo + 1, C.hi + 1, C.sum,
+           R.lo + 1, R.hi + 1, R.sum);
+    return best;
+}
+
+// 線性做法：cur 是結尾在第 i 天的最佳和。
+Range max_subarray_linear(const long long *a, int n)
+{
+    Range best = {0, 0, a[0]};
+    long long cur = a[0];
+    int start = 0;
+    for (int i = 1; i < n; i++) {
+        if (cur < 0) {                  // 前面那段是負的，從今天重新開始
+            cur = a[i];
+            start = i;
+        } else {
+            cur += a[i];
+        }
+        if (cur > best.sum) {
+            best.lo = start;
+            best.hi = i;
+            best.sum = cur;
+        }
+    }
+    return best;
+}
+
+int main(void)
+{
+    long long day[] = {4, -6, 3, 5, -2, 7, -9, 6};
+    Range r1 = max_subarray(day, 0, 7);
+    Range r2 = max_subarray_linear(day, 8);
+    printf("divide: %d-%d (%lld)\n", r1.lo + 1, r1.hi + 1, r1.sum);
+    printf("linear: %d-%d (%lld)\n", r2.lo + 1, r2.hi + 1, r2.sum);
+    return 0;
+}
+\end{example}
+\iosample{}{days 1-2: left 1-1 (4) cross 1-2 (-2) right 2-2 (-6) \\ days 3-4: left 3-3 (3) cross 3-4 (8) right 4-4 (5) \\ days 1-4: left 1-1 (4) cross 1-4 (6) right 3-4 (8) \\ days 5-6: left 5-5 (-2) cross 5-6 (5) right 6-6 (7) \\ days 7-8: left 7-7 (-9) cross 7-8 (-3) right 8-8 (6) \\ days 5-8: left 6-6 (7) cross 6-8 (4) right 8-8 (6) \\ days 1-8: left 3-4 (8) cross 3-6 (13) right 6-6 (7) \\ divide: 3-6 (13) \\ linear: 3-6 (13)}
+
+第 3 行的 \texttt{cross 1-4 (6)} 說明跨中點的段不一定好：第 1 到 4 天跨過中點最多
+只有 $6$，比右半的 $8$ 小。 輸出和圖~\ref{fig:dc-maxsub-tree} 的每個節點一致。
+
+\section{大數乘法與矩陣乘法}
+\label{sec:dc-mult}
+
+前兩節的分治法，子問題的個數都是題目本身決定的。 這一節的兩個例子不一樣：直接切
+開會得到 $4$ 個（或 $8$ 個）子問題，但用一點代數，可以少算一個。 子問題少一個，
+主定理裡的 $\log_b a$ 就變小，整個演算法換了一級。
+
+兩個 $n$ 位數相乘，小學的直式乘法把一個數的每一位乘上另一個數的每一位，共 $n^2$ 次
+一位乘一位，再做 $\Theta(n^2)$ 次加法和進位，時間 $\Theta(n^2)$。 這裡的輸入大小
+是位數 $n$，不是數值本身（第~1~章 1.9 節）：密碼學裡的整數動輒上千位，一次乘法不
+能當成一步。
+
+設 $x$、$y$ 都是 $n$ 位數，$m = \lfloor n/2 \rfloor$，把每個數切成高位和低位：
+\[
+x = a \cdot 10^m + b, \qquad y = c \cdot 10^m + d,
+\]
+$b$、$d$ 是最後 $m$ 位，$a$、$c$ 是前面 $n - m$ 位。 乘開得到
+\[
+xy = ac \cdot 10^{2m} + (ad + bc) \cdot 10^m + bd .
+\]
+乘上 $10$ 的次方只是在後面補 $0$，加法是 $\Theta(n)$，所以真正費工的是
+$ac$、$ad$、$bc$、$bd$ 四次半長的乘法：
+\[
+T(n) = 4T(n/2) + \Theta(n).
+\]
+$n^{\log_2 4} = n^2$ 比 $n$ 大了多項式倍，主定理情況 1 給出 $\Theta(n^2)$，和直式乘
+法一樣。 切開本身沒有省到任何東西。
+
+\subsection{Karatsuba：三次就夠}
+
+關鍵在中間那一項只要 $ad + bc$ 的\textbf{和}，不需要 $ad$ 和 $bc$ 各自的值。 注意
+\[
+(a + b)(c + d) = ac + ad + bc + bd,
+\]
+所以
+\[
+ad + bc = (a + b)(c + d) - ac - bd .
+\]
+$ac$ 和 $bd$ 本來就要算，再多算一次 $(a+b)(c+d)$，就能得到中間項。 三次乘法加上
+幾次加減，這是 1960 年代初 Karatsuba 提出的方法。
+
+\begin{pseudo}[label=alg:dc-karatsuba]{Karatsuba 乘法，$x$、$y$ 是非負整數}
+\Function{Karatsuba}{$x, y$}
+    \If{$x < 10$ \OR $y < 10$}
+        \State \Return $x \cdot y$ \Comment{有一個是一位數，直接乘}
+    \EndIf
+    \State $n \gets$ $x$、$y$ 中比較長的位數；$m \gets \lfloor n/2 \rfloor$
+    \State $a \gets \lfloor x / 10^m \rfloor$；$b \gets x \bmod 10^m$
+    \State $c \gets \lfloor y / 10^m \rfloor$；$d \gets y \bmod 10^m$
+    \State $z_2 \gets$ \Call{Karatsuba}{$a, c$}
+    \State $z_0 \gets$ \Call{Karatsuba}{$b, d$}
+    \State $z_1 \gets$ \Call{Karatsuba}{$a + b, c + d$} $- z_2 - z_0$
+    \State \Return $z_2 \cdot 10^{2m} + z_1 \cdot 10^m + z_0$
+\EndFunction
+\end{pseudo}
+
+第 2 行處理一位數乘任何數，那是 $\Theta(n)$ 的直式乘法，不再遞迴。 遞迴一定會停：
+$n \ge 2$ 時 $m \ge 1$，而 $x - (a + b) = a(10^m - 1)$、$y - (c + d) = c(10^m -
+1)$，$a$、$c$ 至少有一個不是 $0$，所以每一次呼叫的 $x + y$ 都比上一層小。
+
+\textbf{執行時間}。 $a$、$c$ 最多 $n - m = \lceil n/2 \rceil$ 位，$b$、$d$ 最多
+$m$ 位，$a + b$、$c + d$ 可能進位多一位，最多 $\lceil n/2 \rceil + 1$ 位。 第 5、
+6、9、10 行的拆開、移位、加減都是 $\Theta(n)$。 所以
+\[
+T(n) \le 3T(\lceil n/2 \rceil + 1) + \Theta(n).
+\]
+多出來的 $+1$ 用第~2~章的換變數處理：令 $S(n) = T(n + 2)$，因為
+$\lceil (n+2)/2 \rceil + 1 = \lceil n/2 \rceil + 2$，得到
+$S(n) \le 3S(\lceil n/2 \rceil) + \Theta(n)$，這正是第~2~章圖~2.2 算過的
+$3T(n/2) + n$，解是 $\Theta(n^{\lg 3})$。 所以 $T(n) = S(n-2) = O(n^{\lg 3})$，
+$\lg 3 \approx 1.585$。 $n = 1000$ 時 $n^2 = 10^6$，$n^{\lg 3}$ 只有大約
+$5.7 \times 10^4$。
+
+\subsection{手算：\texorpdfstring{$4726 \times 1853$}{4726 × 1853}}
+
+$n = 4$，$m = 2$，$a = 47$、$b = 26$、$c = 18$、$d = 53$。
+
+\begin{center}
+\begin{tabular}{lll}
+\toprule
+乘積 & 算式 & 值 \\
+\midrule
+$z_2 = ac$ & $47 \times 18$ & $846$ \\
+$z_0 = bd$ & $26 \times 53$ & $1378$ \\
+$(a + b)(c + d)$ & $73 \times 71$ & $5183$ \\
+$z_1$ & $5183 - 846 - 1378$ & $2959$ \\
+\midrule
+$xy$ & $846 \times 10^4 + 2959 \times 10^2 + 1378$ & $8757278$ \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+$8460000 + 295900 + 1378 = 8757278$，可以用直式乘法驗算。 三個兩位數的乘法再各自
+用同樣的方法拆一次，例如 $73 \times 71$：$a = 7$、$b = 3$、$c = 7$、$d = 1$，
+$ac = 49$、$bd = 3$、$(a+b)(c+d) = 10 \times 8 = 80$，中間項 $80 - 49 - 3 = 28$，
+$49 \times 100 + 28 \times 10 + 3 = 5183$。 這裡 $a + b = 10$ 進位成兩位數，但另一
+個因數 $8$ 只有一位，第 2 行直接乘。
+
+遞迴樹每往下一層，節點數乘以 $3$、規模減半，這個例子最下層是 $9$ 次一位數的乘法；$n = 2^k$ 時最下層有 $3^k = n^{\lg 3}$ 個節點，直式
+乘法要 $4^k = n^2$ 次。 $n = 4$ 時是 $9$ 比 $16$，差距不大；位數越多差得越多，而且
+每一層還有加減和進位的 $\Theta(n)$ 成本，所以實際的程式在位數少時改用直式乘法，只
+有夠長才遞迴。
+
+\subsection{C 程式}
+
+\proc{Karatsuba} 的虛擬碼可以直接翻成 C，只要乘積放得進 \texttt{long long}（$18$ 位
+以內）。 真正的大數程式要把數字存成位數的陣列，拆開、相加、移位都在陣列上做，結構
+和下面完全相同。 程式先印出 $4726 \times 1853$ 每一次（不是一位數的）呼叫的三個乘
+積，順序是遞迴的後序；再對幾組數驗算，並數最下層直接乘的次數。
+
+\begin{example}[label=ex:dc-karatsuba]{c}{(karatsuba.c) Karatsuba 乘法}
+#include <stdio.h>
+
+long long leaf_mults;                   // 遞迴停下來時直接做的乘法次數
+int trace;                              // 1：每次呼叫做完印一行
+
+int digits(long long v)                 // v 的十進位位數（0 算一位）
+{
+    int d = 1;
+    while (v >= 10) {
+        v /= 10;
+        d++;
+    }
+    return d;
+}
+
+// x、y 是非負整數，乘積不超過 long long。
+long long karatsuba(long long x, long long y)
+{
+    if (x < 10 || y < 10) {             // 有一個是一位數：直接乘
+        leaf_mults++;
+        return x * y;
+    }
+    int n = digits(x) > digits(y) ? digits(x) : digits(y);
+    long long p = 1;                    // p = 10^m，m = n / 2
+    for (int i = 0; i < n / 2; i++) {
+        p *= 10;
+    }
+    long long a = x / p, b = x % p, c = y / p, d = y % p;
+    long long z2 = karatsuba(a, c);
+    long long z0 = karatsuba(b, d);
+    long long z1 = karatsuba(a + b, c + d) - z2 - z0;
+    long long r = z2 * p * p + z1 * p + z0;
+    if (trace) {
+        printf("%lld * %lld: z2=%lld z1=%lld z0=%lld -> %lld\n", x, y, z2, z1, z0, r);
+    }
+    return r;
+}
+
+int main(void)
+{
+    trace = 1;
+    long long r = karatsuba(4726, 1853);
+    printf("leaf mults: %lld (school: 16)\n", leaf_mults);
+    trace = 0;
+    long long xs[][2] = {{4726, 1853}, {31415926, 27182818}, {99999999, 99999999},
+                         {123456789, 987654321}};
+    for (int k = 0; k < 4; k++) {
+        leaf_mults = 0;
+        r = karatsuba(xs[k][0], xs[k][1]);
+        printf("%lld * %lld = %lld %s, leaf mults %lld\n", xs[k][0], xs[k][1], r,
+               r == xs[k][0] * xs[k][1] ? "ok" : "WRONG", leaf_mults);
+    }
+    return 0;
+}
+\end{example}
+\iosample{}{47 * 18: z2=4 z1=39 z0=56 -> 846 \\ 26 * 53: z2=10 z1=36 z0=18 -> 1378 \\ 73 * 71: z2=49 z1=28 z0=3 -> 5183 \\ 4726 * 1853: z2=846 z1=2959 z0=1378 -> 8757278 \\ leaf mults: 9 (school: 16) \\ 4726 * 1853 = 8757278 ok, leaf mults 9 \\ 31415926 * 27182818 = 853973398759468 ok, leaf mults 33 \\ 99999999 * 99999999 = 9999999800000001 ok, leaf mults 63 \\ 123456789 * 987654321 = 121932631112635269 ok, leaf mults 45}
+
+前四行是遞迴樹的四個內部節點。 後面三組是八、九位數，最下層
+各做 $33$、$63$、$45$ 次乘法，同樣位數的直式乘法要 $64$、$64$、$81$ 次。
+$99999999 \times 99999999$ 幾乎沒省到：每一層的 $a + b$ 都進位多一位（$9999 +
+9999 = 19998$），子問題比一半大，最下層的乘法也變多。 這就是分析裡那個「$+1$」，漸
+近上不影響，常數上卻看得到。 實際的程式會把基礎情況放大（例如幾十位以下就用直式乘
+法），並用更大的進位制（例如每格存 $10^9$），減少遞迴的層數。
+
+
+\subsection{Strassen 矩陣乘法}
+\label{sec:dc-strassen}
+
+兩個 $n \times n$ 矩陣相乘，$C = AB$，定義是
+$c_{ij} = \sum_{k=1}^{n} a_{ik} b_{kj}$。 $n^2$ 個元素各要 $n$ 次乘法，共 $n^3$ 次，
+三層迴圈 $\Theta(n^3)$。
+
+設 $n$ 是 $2$ 的次方，把每個矩陣切成四塊 $\frac{n}{2} \times \frac{n}{2}$ 的子矩
+陣：
+\[
+\begin{pmatrix} C_{11} & C_{12} \\ C_{21} & C_{22} \end{pmatrix}
+= \begin{pmatrix} A_{11} & A_{12} \\ A_{21} & A_{22} \end{pmatrix}
+\begin{pmatrix} B_{11} & B_{12} \\ B_{21} & B_{22} \end{pmatrix},
+\]
+\[
+\begin{aligned}
+C_{11} &= A_{11} B_{11} + A_{12} B_{21}, & C_{12} &= A_{11} B_{12} + A_{12} B_{22}, \\
+C_{21} &= A_{21} B_{11} + A_{22} B_{21}, & C_{22} &= A_{21} B_{12} + A_{22} B_{22}.
+\end{aligned}
+\]
+分塊的乘法規則和 $2 \times 2$ 的數字矩陣一模一樣，只是每個元素換成子矩陣。 這要 $8$
+次半大的矩陣乘法和 $4$ 次矩陣加法（每次 $\Theta(n^2)$）：
+\[
+T(n) = 8T(n/2) + \Theta(n^2) = \Theta(n^3),
+\]
+主定理情況 1（$n^{\log_2 8} = n^3$）。 一樣沒省到。
+
+1969 年 Strassen 發現 $7$ 次乘法就夠。 先算七個乘積：
+\[
+\begin{aligned}
+M_1 &= (A_{11} + A_{22})(B_{11} + B_{22}), &
+M_2 &= (A_{21} + A_{22})\,B_{11}, \\
+M_3 &= A_{11}\,(B_{12} - B_{22}), &
+M_4 &= A_{22}\,(B_{21} - B_{11}), \\
+M_5 &= (A_{11} + A_{12})\,B_{22}, &
+M_6 &= (A_{21} - A_{11})(B_{11} + B_{12}), \\
+M_7 &= (A_{12} - A_{22})(B_{21} + B_{22}),
+\end{aligned}
+\]
+再組合：
+\[
+C_{11} = M_1 + M_4 - M_5 + M_7, \quad
+C_{12} = M_3 + M_5, \quad
+C_{21} = M_2 + M_4, \quad
+C_{22} = M_1 - M_2 + M_3 + M_6 .
+\]
+算 $M_1$ 到 $M_7$ 的括號裡有 $10$ 次子矩陣加減，組合 $C$ 又有 $8$ 次，共 $18$ 次，
+每次 $\Theta(n^2)$。 所以
+\[
+T(n) = 7T(n/2) + \Theta(n^2).
+\]
+$\log_2 7 \approx 2.807$，$n^2 = O(n^{\log_2 7 - 0.8})$，主定理情況 1：
+$T(n) = \Theta(n^{\lg 7}) \approx \Theta(n^{2.81})$。 加法從 $4$ 次變成 $18$ 次，
+只影響 $f(n)$ 的常數；少掉的那一次乘法卻讓遞迴樹每一層少分出一個分支，改變了葉子
+的個數 $7^{\lg n} = n^{\lg 7}$。
+
+\begin{whybox}[為什麼 \texorpdfstring{$C_{11} = M_1 + M_4 - M_5 + M_7$}{C11 = M1 + M4 - M5 + M7}]
+把四個乘積展開（子矩陣的乘法不能交換，但有分配律，展開時保持左右順序）：
+\[
+\begin{aligned}
+M_1 &= A_{11}B_{11} + A_{11}B_{22} + A_{22}B_{11} + A_{22}B_{22}, \\
+M_4 &= A_{22}B_{21} - A_{22}B_{11}, \\
+-M_5 &= -A_{11}B_{22} - A_{12}B_{22}, \\
+M_7 &= A_{12}B_{21} + A_{12}B_{22} - A_{22}B_{21} - A_{22}B_{22}.
+\end{aligned}
+\]
+相加時 $A_{11}B_{22}$、$A_{22}B_{11}$、$A_{22}B_{22}$、$A_{22}B_{21}$、$A_{12}B_{22}$
+都一正一負消掉，只剩 $A_{11}B_{11} + A_{12}B_{21}$，正是 $C_{11}$。 其他三塊用同樣
+的方法展開驗證，例如 $M_3 + M_5 = A_{11}B_{12} - A_{11}B_{22} + A_{11}B_{22} +
+A_{12}B_{22} = C_{12}$。 整個推導只用到加法、減法和分配律，所以子矩陣的元素是整
+數、實數或任何可以相減的數都適用。
+\end{whybox}
+
+\textbf{手算}。 考卷上常見的是 $2 \times 2$ 的數字矩陣，每一塊都是一個數。 取
+\[
+A = \begin{pmatrix} 2 & 5 \\ 3 & -1 \end{pmatrix}, \qquad
+B = \begin{pmatrix} 4 & 1 \\ -2 & 6 \end{pmatrix}.
+\]
+
+\begin{center}
+\begin{tabular}{lll}
+\toprule
+乘積 & 代入 & 值 \\
+\midrule
+$M_1 = (a_{11} + a_{22})(b_{11} + b_{22})$ & $(2 + (-1))(4 + 6) = 1 \times 10$ & $10$ \\
+$M_2 = (a_{21} + a_{22})\,b_{11}$ & $(3 + (-1)) \times 4$ & $8$ \\
+$M_3 = a_{11}\,(b_{12} - b_{22})$ & $2 \times (1 - 6)$ & $-10$ \\
+$M_4 = a_{22}\,(b_{21} - b_{11})$ & $(-1) \times (-2 - 4)$ & $6$ \\
+$M_5 = (a_{11} + a_{12})\,b_{22}$ & $(2 + 5) \times 6$ & $42$ \\
+$M_6 = (a_{21} - a_{11})(b_{11} + b_{12})$ & $(3 - 2)(4 + 1)$ & $5$ \\
+$M_7 = (a_{12} - a_{22})(b_{21} + b_{22})$ & $(5 - (-1))(-2 + 6) = 6 \times 4$ & $24$ \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+組合起來：
+\[
+\begin{aligned}
+c_{11} &= M_1 + M_4 - M_5 + M_7 = 10 + 6 - 42 + 24 = -2, &
+c_{12} &= M_3 + M_5 = -10 + 42 = 32, \\
+c_{21} &= M_2 + M_4 = 8 + 6 = 14, &
+c_{22} &= M_1 - M_2 + M_3 + M_6 = -3.
+\end{aligned}
+\]
+其中 $c_{22} = 10 - 8 - 10 + 5$。 直接乘驗算：$c_{11} = 2 \cdot 4 + 5 \cdot (-2) = -2$，$c_{12} = 2 \cdot 1 + 5 \cdot 6 =
+32$，$c_{21} = 3 \cdot 4 + (-1)(-2) = 14$，$c_{22} = 3 \cdot 1 + (-1) \cdot 6 = -3$，
+全部相符。
+
+\begin{examnote}
+Strassen 的七個乘積在不同課本裡的編號和寫法不一樣，有的書先定義十個和差
+$S_1, \ldots, S_{10}$ 再定義乘積 $P_1, \ldots, P_7$，組合的式子也跟著不同。 題目
+給了式子就照題目的式子算；題目沒給，先把你用的七個定義和四個組合式寫出來，再代數
+字。 每個乘積寫成「式子、代入、值」三段，最後一定要用一般的乘法驗算 $C$，代錯一
+個正負號，驗算馬上看得出來。
+\end{examnote}
+
+\textbf{實務上的幾點}。 $n$ 不是 $2$ 的次方時補零補到 $2$ 的次方，時間只差常數倍。
+Strassen 的常數比三層迴圈大，浮點數的捨入誤差也比較大，所以實際的程式在子矩陣夠小
+時改回一般的乘法。 它還需要「減法」：第~25~章把最短路徑寫成類似矩陣乘法的運算時，
+加法換成取最小值，沒有對應的減法，Strassen 就用不上。
+
+\section{最近點對}
+\label{sec:dc-closest}
+
+平面上有 $n$ 個點，要找出距離最近的兩個點，距離是一般的直線距離
+$\mathit{dist}(p, q) = \sqrt{(p.x - q.x)^2 + (p.y - q.y)^2}$。 兩兩比較要算
+$\binom{n}{2}$ 次距離，$\Theta(n^2)$。 這一節用分治做到 $\Theta(n \lg n)$。
+
+一維的情形很簡單：點都在數線上時，排好之後最近的兩點一定相鄰，掃一次相鄰的差就
+好。 用分治的眼光看，把排好的點切成左右兩半，跨兩半的點對裡最近的一定是左半最右
+邊和右半最左邊那一對。 二維沒有這種「相鄰」，依 $x$ 排好之後，最近的兩點在 $x$ 的順
+序上可以相隔很遠。 二維的分治法一樣是切兩半、遞迴、再處理跨兩半的點對，難在最後
+一步怎麼不必把左右所有的點兩兩比較。
+
+\subsection{演算法}
+
+先把所有點依 $x$ 排序（$x$ 相同時依 $y$），放在 $P[1..n]$。 遞迴程序
+\proc{Closest}$(P, p, r)$ 處理 $P[p..r]$ 這 $n = r - p + 1$ 個點，回傳它們之間的
+最近距離 $\delta$。 為了不在每一層重新排序，它還做一件事：進來時 $P[p..r]$ 依
+$x$ 排好，回去時改成依 $y$ 排好（$y$ 相同時依 $x$）。 這和合併排序一樣，兩半各自
+排好以後合併就好。
+
+\begin{pseudo}[label=alg:dc-closest]{最近點對，$P[p..r]$ 進來時依 $x$ 排好，回去時依 $y$ 排好}
+\Function{Closest}{$P, p, r$}
+    \If{$r - p + 1 \le 3$}
+        \State $\delta \gets P[p..r]$ 兩兩比較的最小距離
+        \State 把 $P[p..r]$ 依 $y$ 排好
+        \State \Return $\delta$
+    \EndIf
+    \State $q \gets \lfloor (p + r)/2 \rfloor$
+    \State $x_m \gets P[q].x$ \Comment{遞迴會重排 $P$，先記下分界}
+    \State $\delta \gets \min($\Call{Closest}{$P, p, q$}$,\ $\Call{Closest}{$P, q + 1, r$}$)$
+    \State 依 $y$ 合併 $P[p..q]$ 和 $P[q+1..r]$ \Comment{虛擬碼 14.4，鍵換成 $y$}
+    \State $S \gets P[p..r]$ 裡 $|x - x_m| < \delta$ 的點，保持依 $y$ 的順序；$k \gets |S|$
+    \For{$i \gets 1$ \To $k - 1$}
+        \State $j \gets i + 1$
+        \While{$j \le k$ \AND $S[j].y - S[i].y < \delta$}
+            \State $\delta \gets \min(\delta, \mathit{dist}(S[i], S[j]))$
+            \State $j \gets j + 1$
+        \EndWhile
+    \EndFor
+    \State \Return $\delta$
+\EndFunction
+\end{pseudo}
+
+第 2--5 行處理三個點以內的範圍，所以遞迴永遠不會碰到只有一個點、沒有距離可言的範
+圍。 其他幾行的重點：
+
+\begin{itemize}
+\item 第 6--8 行：以第 $q$ 個點的 $x$ 座標當分界。 左半 $L = P[p..q]$ 的點都滿足
+$x \le x_m$，右半 $R = P[q+1..r]$ 的點都滿足 $x \ge x_m$（$x$ 相同的點可能分在兩
+邊，這不影響後面的論證）。 $x_m$ 一定要在遞迴\textbf{之前}讀：遞迴回來以後
+$P[p..q]$ 已經依 $y$ 重排，$P[q]$ 不再是左半 $x$ 最大的點。
+\item 第 10 行：第 8 行之後，$\delta$ 是兩點同在一半的最近距離。 如果 $u \in L$、$v \in R$ 而且 $\mathit{dist}(u, v) < \delta$，那麼
+$x_m - u.x \le v.x - u.x \le \mathit{dist}(u, v) < \delta$，同理 $v.x - x_m < \delta$，
+所以兩點都在以分界線為中心、寬 $2\delta$ 的\textbf{帶狀區域}裡。 帶狀區域以外的點
+不可能參與更近的點對。
+\item 第 11--15 行：帶狀區域裡的點依 $y$ 排好了。 每個點往後看，直到 $y$ 差不小於
+$\delta$ 為止，因為再往後的點 $y$ 差只會更大，距離不可能小於 $\delta$。
+\end{itemize}
+
+第 13 行的迴圈看起來可能跑很多次，下面的引理說它最多跑 $7$ 次。
+
+\subsection{帶狀區域裡最多看 7 個點}
+
+\begin{lemma}
+\label{lem:dc-seven}
+在 $n \ge 4$ 的一次呼叫裡，令 $\delta_0$ 是第 8 行算出的 $\delta$。 對每一個 $i$，
+第 13 行的 \textbf{while} 迴圈主體最多執行 $7$ 次。
+\end{lemma}
+
+\begin{proof}
+$\delta_0 = 0$ 時沒有點滿足 $|x - x_m| < 0$，$S$ 是空的，沒有什麼要證。 以下設
+$\delta_0 > 0$。
+
+固定 $i$，令 $y_0 = S[i].y$。 迴圈主體執行時的 $j$ 都滿足 $S[j].y - y_0 < \delta
+\le \delta_0$（$\delta$ 在迴圈裡只會變小）。 $S$ 依 $y$ 排好，所以
+$S[i], S[i+1], \ldots, S[j]$ 的 $y$ 座標都在 $[y_0, y_0 + \delta_0]$ 裡；它們又在帶
+狀區域裡，$x$ 座標在 $(x_m - \delta_0, x_m + \delta_0)$。 因此這些點全都落在長方形
+\[
+\mathcal{R} = [x_m - \delta_0,\ x_m + \delta_0] \times [y_0,\ y_0 + \delta_0]
+\]
+裡。 只要證明 $\mathcal{R}$ 裡最多有 $8$ 個 $S$ 的點，就有 $j - i \le 7$，迴圈主體最
+多 $7$ 次。
+
+把 $\mathcal{R}$ 的左半 $[x_m - \delta_0, x_m] \times [y_0, y_0 + \delta_0]$ 用四個
+邊長 $\delta_0/2$ 的\textbf{閉}正方形蓋滿（圖~\ref{fig:dc-cp-box}）。 $\mathcal{R}$ 裡
+屬於 $L$ 的點都滿足 $x \le x_m$，所以都在左半，也就都在某一個正方形裡（落在邊上的
+點可能同時屬於兩個正方形，沒有關係）。 同一個閉正方形裡的兩點，距離不超過對角線
+$\delta_0 / \sqrt{2} < \delta_0$；但 $L$ 裡任兩點的距離都至少是 $L$ 的最近距離，而
+那個距離不小於 $\delta_0 = \min(\delta_L, \delta_R)$。 所以每個正方形最多一個 $L$
+的點，$\mathcal{R}$ 裡最多 $4$ 個 $L$ 的點。 右半同理，最多 $4$ 個 $R$ 的點。 合計最
+多 $8$ 個，包括 $S[i]$ 自己。
+\end{proof}
+
+\begin{center}
+\begin{tikzpicture}[scale=1]
+\def\d{2.6}
+\fill[coreFill] (-\d,0) rectangle (\d,\d);
+\draw[black!45] (-\d/2,0) -- (-\d/2,\d) (\d/2,0) -- (\d/2,\d) (-\d,\d/2) -- (\d,\d/2);
+\draw[thick, black!70] (-\d,0) rectangle (\d,\d);
+\draw[very thick, dashed, memStroke] (0,-0.5) -- (0,\d+0.5) node[above, font=\small] {$x = x_m$};
+\node[dc-pt, label={[font=\scriptsize]below:$S[i]$}] at (-0.75,0) {};
+\node[dc-pt] at (-2.3,0.95) {};
+\node[dc-pt] at (-0.25,1.7) {};
+\node[dc-pt] at (-1.5,2.45) {};
+\node[dc-pt] at (0.35,0.5) {};
+\node[dc-pt] at (2.2,0.2) {};
+\node[dc-pt] at (1.0,2.05) {};
+\node[dc-pt] at (2.45,1.95) {};
+\draw[|<->|, black!60] (-\d,-0.75) -- (0,-0.75) node[midway, below, font=\scriptsize] {$\delta_0$};
+\draw[|<->|, black!60] (0,-0.75) -- (\d,-0.75) node[midway, below, font=\scriptsize] {$\delta_0$};
+\draw[|<->|, black!60] (\d+0.3,0) -- (\d+0.3,\d) node[midway, right, font=\scriptsize] {$\delta_0$};
+\draw[|<->|, black!60] (-\d-0.3,0) -- (-\d-0.3,\d/2) node[midway, left, font=\scriptsize] {$\delta_0/2$};
+\node[font=\small] at (-\d/2, \d+0.3) {左半 $L$};
+\node[font=\small] at (\d/2, \d+0.3) {右半 $R$};
+\end{tikzpicture}
+\diagcaption{引理~\ref{lem:dc-seven} 的長方形 $\mathcal{R}$：寬 $2\delta_0$、高
+$\delta_0$，底邊通過 $S[i]$。 左右各切成四個邊長 $\delta_0/2$ 的正方形，同一邊的兩
+點距離至少 $\delta_0$，每個正方形最多一個點，所以 $\mathcal{R}$ 裡最多 $8$ 個點。}
+\label{fig:dc-cp-box}
+\end{center}
+
+\begin{theorem}
+\label{thm:dc-closest}
+$P[p..r]$ 至少有兩個點、依 $x$ 排好時，\proc{Closest}$(P, p, r)$ 回傳 $P[p..r]$ 的最
+近距離，並把 $P[p..r]$ 改成依 $y$ 排好。 先排序再呼叫 \proc{Closest}$(P, 1, n)$，
+總時間 $\Theta(n \lg n)$。
+\end{theorem}
+
+\begin{proof}
+對 $n = r - p + 1$ 用強歸納法。 $n = 2, 3$ 時第 2--5 行直接比完所有點對，也排好了
+$y$。
+
+$n \ge 4$ 時，兩半各有 $\lceil n/2 \rceil \ge 2$ 和 $\lfloor n/2 \rfloor \ge 2$ 個
+點，由歸納假設，兩次遞迴分別回傳兩半的最近距離 $\delta_L$、$\delta_R$，並把兩半各
+自依 $y$ 排好，第 9 行的合併因此得到依 $y$ 排好的 $P[p..r]$。 設 $\delta^*$ 是
+$P[p..r]$ 真正的最近距離，$\delta_0 = \min(\delta_L, \delta_R) \ge \delta^*$。 第
+14 行只會把 $\delta$ 換成某兩點的實際距離，所以 $\delta$ 永遠 $\ge \delta^*$；只
+要證明程序結束時 $\delta \le \delta^*$。
+
+如果最近的一對在同一半，$\delta_0 = \delta^*$，成立。 否則最近的一對是 $u \in L$、
+$v \in R$，$\mathit{dist}(u, v) = \delta^* < \delta_0$。 由第 10 行的說明，$u$、$v$
+都在 $S$ 裡；設它們在 $S$ 裡的位置是 $a < b$。 考慮外層迴圈 $i = a$ 那一輪。 如果
+這一輪開始時 $\delta$ 已經等於 $\delta^*$，就不必再證。 否則 $\delta > \delta^*$，
+而對 $a < j \le b$，$S[j].y - S[a].y \le S[b].y - S[a].y \le \mathit{dist}(u, v) =
+\delta^* < \delta$，所以第 13 行的條件一路成立到 $j = b$（中途 $\delta$ 如果已經降到 $\delta^*$，也已
+經證完），第 14 行算到 $\mathit{dist}(S[a], S[b]) = \delta^*$，$\delta$ 變成
+$\delta^*$。
+
+時間：第 9、10 行 $\Theta(n)$；由引理~\ref{lem:dc-seven}，第 11--15 行最多算
+$7k \le 7n$ 次距離，也是 $O(n)$。 所以 $T(n) = 2T(n/2) + \Theta(n) = \Theta(n \lg n)$，
+加上一開始排序的 $\Theta(n \lg n)$，合計 $\Theta(n \lg n)$。
+\end{proof}
+
+如果不讓遞迴順便依 $y$ 排好，改成每一層重新排序帶狀區域，時間會多一個 $\lg n$ 的
+因子（觀念題第~\ref{dc-q-tf}~題 (e)）。
+
+\subsection{手算：十個點}
+
+十個點依 $x$ 排好，名字依序是 A 到 J：
+\[
+\begin{gathered}
+A(2, 10),\ B(4, 6),\ C(5, 11),\ D(9, 14),\ E(11, 8), \\
+F(12, 5),\ G(13, 9),\ H(14, 14),\ I(16, 1),\ J(18, 5).
+\end{gathered}
+\]
+座標都是整數，所以下面一律寫距離的平方，比較大小時不必開根號：$\delta^2$ 和
+$(x \text{ 差})^2$、$(y \text{ 差})^2$ 比。 帶狀區域的條件 $|x - x_m| < \delta$ 也
+寫成 $(x - x_m)^2 < \delta^2$。
+
+\begin{center}
+\begin{tikzpicture}[x=0.62cm, y=0.48cm]
+\fill[coreFill] (7.838,0) rectangle (14.162,15.3);
+\draw[-{Stealth[length=2mm]}, black!60] (0,0) -- (19.6,0) node[right, font=\small] {$x$};
+\draw[-{Stealth[length=2mm]}, black!60] (0,0) -- (0,15.6) node[above, font=\small] {$y$};
+\foreach \t in {5,10,15} { \draw[black!60] (\t,0) -- (\t,-0.25) node[below, font=\scriptsize] {\t}; }
+\foreach \t in {5,10,15} { \draw[black!60] (0,\t) -- (-0.2,\t) node[left, font=\scriptsize] {\t}; }
+\draw[very thick, dashed, memStroke] (11,0) -- (11,15.3) node[above, font=\scriptsize] {$x_m = 11$};
+\draw[dashed, black!45] (2,10) -- (5,11);
+\draw[dashed, black!45] (12,5) -- (13,9);
+\draw[very thick, optStroke] (11,8) -- (13,9);
+\foreach \n/\x/\y/\pos in {A/2/10/left, B/4/6/left, C/5/11/above, D/9/14/above, E/11/8/left, F/12/5/below, G/13/9/right, H/14/14/above, I/16/1/right, J/18/5/right} {
+    \node[dc-pt, label={[dc-ptlab]\pos:\n}] at (\x,\y) {};
+}
+\end{tikzpicture}
+\diagcaption{十個點。 藍底是最上層的帶狀區域 $|x - 11| < \sqrt{10}$；虛線是左右兩
+半各自的最近點對（AC、FG），紅色粗線是答案 EG。}
+\label{fig:dc-cp-points}
+\end{center}
+
+遞迴依後序展開，每一列是一次呼叫做完時的結果。 帶狀區域裡的點依 $y$ 排列；「比
+較」一欄列出第 14 行實際算過距離的點對和它們的距離平方。
+
+\begin{center}
+\small
+\begin{tabular}{lcccp{0.22\linewidth}p{0.27\linewidth}c}
+\toprule
+範圍 & $x_m$ & $\delta_L^2$ & $\delta_R^2$ & 帶狀區域（依 $y$） & 比較 & 結果 $\delta^2$ \\
+\midrule
+A--C & & & & & AB 20、AC 10、BC 26 & 10 \\
+D--E & & & & & DE 40 & 40 \\
+A--E & 5 & 10 & 40 & B, A, C & AC 10 & 10 \\
+F--H & & & & & FG 17、FH 85、GH 26 & 17 \\
+I--J & & & & & IJ 20 & 20 \\
+F--J & 14 & 17 & 20 & I, F, J, G, H & IF 32、IJ 20、FJ 36、FG 17、JG 41 & 17 \\
+A--J & 11 & 10 & 17 & F, E, G, D, H & FE 10、EG 5、DH 25 & 5 \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+最上層的帶狀區域依 $y$ 排是 F(5)、E(8)、G(9)、D(14)、H(14)。 FE 的距離平方剛好是
+$10$，不比 $\delta^2$ 小，不更新；EG 是 $4 + 1 = 5$，$\delta^2$ 變成 $5$；接著 G 往後
+看 D，$y$ 差 $5$，$25 \ge 5$，停；D 和 H 的 $y$ 差是 $0$，算一次 DH。 F 和 J 的 $y$
+都是 $5$，依 $x$ 排，F 在前。
+
+答案是 E、G 兩點，距離 $\sqrt{5} \approx 2.24$。 它們分在分界線的兩邊，只看左半
+或只看右半都找不到。 整個過程算了 $17$ 次距離，兩兩比較要 $45$ 次。
+
+\subsection{C 程式}
+
+\begin{cbookrecap}[第~18~章 18.6 節、第~19~章 19.3 節]
+\texttt{qsort(p, n, sizeof *p, cmp\_x)} 用比較函式 \texttt{cmp\_x} 排序 \texttt{p} 指
+到的 \texttt{n} 個元素。 比較函式收到兩個 \texttt{const void *}，先轉回
+\texttt{const Point *} 再比；回傳負數、$0$、正數分別表示第一個應該排在前面、一樣、排
+在後面。 不要寫成 \texttt{p->x - q->x}，兩個很大的整數相減會溢位，第~14~章
+14.7 節有例子；這裡用 \texttt{(a > b) - (a < b)}。 暫存陣列 \texttt{tmp} 用
+\texttt{malloc} 一次要 $n$ 格，整個遞迴共用，最後 \texttt{free}。
+\end{cbookrecap}
+
+程式全部用整數算距離的平方，不用 \texttt{sqrt}，沒有浮點誤差；座標的差先轉成
+\texttt{long long} 再平方，不會溢位。 \texttt{best} 的初值 \texttt{LLONG\_MAX} 代表
+「還沒找到」，只拿來比大小，不做加減。 點故意以打亂的順序給，先用 \texttt{qsort}
+依 $x$ 排好；三個點以內的範圍也用 \texttt{qsort} 依 $y$ 排。 每處理完一個不是基礎
+情況的範圍，印出 $x_m$、兩半的結果、帶狀區域的點數和這一層的答案。
+
+\begin{example}[label=ex:dc-closest]{c}{(closest\_pair.c) 平面最近點對}
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <limits.h>
+
+typedef struct {
+    int x, y;
+} Point;
+
+int dist_calls;                         // 算了幾次距離
+
+long long dist2(Point p, Point q)       // 距離的平方，全部用整數算
+{
+    long long dx = (long long)p.x - q.x, dy = (long long)p.y - q.y;
+    dist_calls++;
+    return dx * dx + dy * dy;
+}
+
+int cmp_x(const void *pa, const void *pb)   // 先比 x 再比 y，不用相減
+{
+    const Point *p = pa, *q = pb;
+    if (p->x != q->x) {
+        return (p->x > q->x) - (p->x < q->x);
+    }
+    return (p->y > q->y) - (p->y < q->y);
+}
+
+int cmp_y(const void *pa, const void *pb)   // 先比 y 再比 x
+{
+    const Point *p = pa, *q = pb;
+    if (p->y != q->y) {
+        return (p->y > q->y) - (p->y < q->y);
+    }
+    return (p->x > q->x) - (p->x < q->x);
+}
+
+// p[lo..hi] 進來時依 x 排好，出去時依 y 排好；回傳最近距離的平方。
+long long closest(Point *p, Point *tmp, int lo, int hi)
+{
+    long long best = LLONG_MAX;
+    if (hi - lo + 1 <= 3) {             // 三個點以內：兩兩比較，再依 y 排
+        for (int i = lo; i <= hi; i++) {
+            for (int j = i + 1; j <= hi; j++) {
+                long long d = dist2(p[i], p[j]);
+                best = d < best ? d : best;
+            }
+        }
+        qsort(p + lo, hi - lo + 1, sizeof *p, cmp_y);
+        return best;
+    }
+    int mid = lo + (hi - lo) / 2;
+    int xm = p[mid].x;                  // 遞迴會依 y 重排 p，先記下分界
+    long long dl = closest(p, tmp, lo, mid);
+    long long dr = closest(p, tmp, mid + 1, hi);
+    best = dl < dr ? dl : dr;
+
+    memcpy(tmp + lo, p + lo, (hi - lo + 1) * sizeof *p);   // 依 y 合併兩半
+    for (int k = lo, i = lo, j = mid + 1; k <= hi; k++) {
+        if (i <= mid && (j > hi || cmp_y(&tmp[i], &tmp[j]) <= 0)) {
+            p[k] = tmp[i++];
+        } else {
+            p[k] = tmp[j++];
+        }
+    }
+    int k = 0;                          // 帶狀區域依 y 的順序放進 s[0..k-1]
+    Point *s = tmp + lo;
+    for (int t = lo; t <= hi; t++) {
+        long long dx = (long long)p[t].x - xm;
+        if (dx * dx < best) {
+            s[k++] = p[t];
+        }
+    }
+    for (int a = 0; a < k; a++) {
+        for (int b = a + 1; b < k; b++) {
+            long long dy = (long long)s[b].y - s[a].y;
+            if (dy * dy >= best) {      // y 差不小於 delta，後面的更遠
+                break;
+            }
+            long long d = dist2(s[a], s[b]);
+            best = d < best ? d : best;
+        }
+    }
+    printf("n=%d xm=%d dL2=%lld dR2=%lld strip=%d d2=%lld\n",
+           hi - lo + 1, xm, dl, dr, k, best);
+    return best;
+}
+
+int main(void)
+{
+    Point p[] = {{12, 5}, {2, 10}, {16, 1}, {9, 14}, {13, 9},
+                 {4, 6}, {18, 5}, {11, 8}, {5, 11}, {14, 14}};
+    int n = 10;
+    Point *tmp = malloc(n * sizeof *tmp);
+    if (tmp == NULL) {
+        return 1;
+    }
+    qsort(p, n, sizeof *p, cmp_x);
+    long long d2 = closest(p, tmp, 0, n - 1);
+    printf("answer d2=%lld, %d distances (all pairs: %d)\n", d2, dist_calls,
+           n * (n - 1) / 2);
+    free(tmp);
+    return 0;
+}
+\end{example}
+\iosample{}{n=5 xm=5 dL2=10 dR2=40 strip=3 d2=10 \\ n=5 xm=14 dL2=17 dR2=20 strip=5 d2=17 \\ n=10 xm=11 dL2=10 dR2=17 strip=5 d2=5 \\ answer d2=5, 17 distances (all pairs: 45)}
+
+三行追蹤依序是上表的 A--E、F--J、A--J 三列，共算了 $17$ 次距離。 點數多時差距更明
+顯：隨機的點上，帶狀區域裡的點通常只往後看一兩個點就停，算距離的次數和 $n$ 同一
+級，兩兩比較卻是 $n^2/2$。
+
+\section{逆序數}
+\label{sec:dc-inv}
+
+第~1~章定義過\textbf{逆序對}：$i < j$ 而 $A[i] > A[j]$。 逆序對的個數（逆序數）量
+的是一個序列離「由小到大」有多遠：排好的序列是 $0$，完全相反的是
+$\binom{n}{2}$。 第~1~章證明了插入排序的挪動次數等於逆序數，第~14~章說明氣泡排序
+的交換次數也是。 所以這兩種排序都能用來數逆序數，但它們最壞要 $\Theta(n^2)$；兩兩
+檢查也是 $\Theta(n^2)$。 這一節用合併排序在 $\Theta(n \lg n)$ 內數完。
+
+\subsection{在合併時順便數}
+
+把 $A[p..r]$ 從 $q$ 切開，逆序對分成三種：兩個數都在左半、都在右半、一個在左一個在
+右（叫\textbf{跨兩半}的逆序對）。 前兩種遞迴去數。 第三種只和「左半有哪些數、右半
+有哪些數」有關，和兩半內部的順序無關：把左半或右半各自重新排列，跨兩半的數對還是
+那些，大小關係也不變。 所以可以先讓遞迴把兩半各自排好，再數跨兩半的，而兩段排好
+的序列正是第~14~章 \proc{Merge} 的輸入。
+
+\begin{pseudo}[label=alg:dc-merge-count]{合併 $A[p..q]$ 和 $A[q+1..r]$，回傳跨兩半的逆序對個數}
+\Function{Merge-Count}{$A, B, p, q, r$}
+    \For{$k \gets p$ \To $r$}
+        \State $B[k] \gets A[k]$
+    \EndFor
+    \State $i \gets p$；$j \gets q + 1$；$c \gets 0$
+    \For{$k \gets p$ \To $r$}
+        \If{$i \le q$ \AND ($j > r$ \OR $B[i] \le B[j]$)}
+            \State $A[k] \gets B[i]$；$i \gets i + 1$
+        \Else
+            \State $A[k] \gets B[j]$；$j \gets j + 1$
+            \State $c \gets c + (q - i + 1)$ \Comment{左半還沒拿的都比它大}
+        \EndIf
+    \EndFor
+    \State \Return $c$
+\EndFunction
+\end{pseudo}
+
+\begin{pseudo}[label=alg:dc-sort-count]{排序並回傳 $A[p..r]$ 的逆序數}
+\Function{Sort-Count}{$A, B, p, r$}
+    \If{$p \ge r$}
+        \State \Return $0$
+    \EndIf
+    \State $q \gets \lfloor (p + r)/2 \rfloor$
+    \State $a \gets$ \Call{Sort-Count}{$A, B, p, q$}
+    \State $b \gets$ \Call{Sort-Count}{$A, B, q + 1, r$}
+    \State \Return $a + b + $\Call{Merge-Count}{$A, B, p, q, r$}
+\EndFunction
+\end{pseudo}
+
+\proc{Merge-Count} 和第~14~章的虛擬碼~14.4 只差第 10 行和 $c$。
+
+\begin{lemma}
+\label{lem:dc-cross}
+$B[p..q]$、$B[q+1..r]$ 各自由小到大排好時，\proc{Merge-Count} 回傳的 $c$ 等於滿足
+$u$ 在左半、$v$ 在右半、$u > v$ 的數對 $(u, v)$ 的個數。
+\end{lemma}
+
+\begin{proof}
+看右半的某個數 $v = B[j]$ 被第 9 行放進 $A$ 的那一刻。 這時左半已經拿走的是
+$B[p..i-1]$，還沒拿的是 $B[i..q]$。
+\begin{itemize}
+\item 還沒拿的都比 $v$ 大：如果 $i \le q$，走到第 8 行表示第 6 行的條件不成立，而
+$i \le q$、$j \le r$，所以 $B[i] > B[j] = v$；左半排好了，$B[i..q]$ 都不小於
+$B[i]$，也就都大於 $v$。
+\item 已經拿走的都不比 $v$ 大：每個 $B[i']$（$i' < i$）被拿走時，要嘛
+$B[i'] \le B[j']$，$j' \le j$ 是當時右半的位置，右半排好了，所以
+$B[i'] \le B[j'] \le v$；要嘛當時 $j' > r$，但 $v$ 還沒被拿，不可能。
+\end{itemize}
+所以左半裡大於 $v$ 的數剛好是 $B[i..q]$，共 $q - i + 1$ 個，第 10 行加的正是以 $v$
+為右端的跨兩半逆序對個數。 右半每個數都被拿一次，加起來就是全部跨兩半的逆序對。
+\end{proof}
+
+第 6 行的 $B[i] \le B[j]$ 是關鍵：相等時先拿左邊的。 相等的兩個數不算逆序；如果改成
+$<$，相等時先拿右邊，左半那個相等的數還沒被拿，就會被多算進去。 這和第~14~章合併
+排序要穩定時的規則是同一條。
+
+由引理和前面的討論，對 $n = r - p + 1$ 歸納可得 \proc{Sort-Count} 回傳
+$A[p..r]$ 的逆序數，並把它排好。 \proc{Merge-Count} 是 $\Theta(n)$，所以
+$T(n) = 2T(n/2) + \Theta(n) = \Theta(n \lg n)$。
+
+\subsection{手算}
+
+用 $A = \langle 6, 2, 9, 4, 4, 1, 8, 3 \rangle$。 前三層的合併各數到 $1$ 個（例如
+$\langle 6 \rangle$ 和 $\langle 2 \rangle$ 合併時數到 $(6, 2)$），左半
+$\langle 6, 2, 9, 4 \rangle$ 共 $3$ 個，右半 $\langle 4, 1, 8, 3 \rangle$ 也是
+$3$ 個。 最上層合併 $\langle 2, 4, 6, 9 \rangle$ 和 $\langle 1, 3, 4, 8 \rangle$：
+
+\begin{center}
+\begin{tabular}{cccccl}
+\toprule
+$k$ & 比較 & 拿 & 左半還沒拿的 & $c$ 增加 & 說明 \\
+\midrule
+1 & $2$ 對 $1$ & 右 $1$ & $2, 4, 6, 9$ & 4 & $(2,1)$、$(4,1)$、$(6,1)$、$(9,1)$ \\
+2 & $2$ 對 $3$ & 左 $2$ & & & \\
+3 & $4$ 對 $3$ & 右 $3$ & $4, 6, 9$ & 3 & \\
+4 & $4$ 對 $4$ & 左 $4$ & & & 相等，先拿左邊 \\
+5 & $6$ 對 $4$ & 右 $4$ & $6, 9$ & 2 & 左半的 $4$ 已經拿走，不算 \\
+6 & $6$ 對 $8$ & 左 $6$ & & & \\
+7 & $9$ 對 $8$ & 右 $8$ & $9$ & 1 & \\
+8 & 右半用完 & 左 $9$ & & & \\
+\midrule
+& & & & 10 & \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+總共 $3 + 3 + 10 = 16$ 個逆序對。 第 5 步如果改成相等時先拿右邊，那時左半還沒拿的
+是 $4, 6, 9$，會加 $3$ 而不是 $2$，把 $(4, 4)$ 算成逆序，答案多一。
+
+逆序數的一個用途是比較兩份排名：兩位評審替同一群人排名次，依第一位的順序寫下第二位給
+的名次，這個序列的逆序數就是兩人意見相反的配對數。
+
+C 程式只要在第~14~章範例 \texttt{merge\_sort.c} 的 \texttt{merge} 裡，從右半拿數的那
+一個分支加上 \texttt{cross += mid - i + 1;}，再讓遞迴函式回傳三個計數的和。 $n$ 個數
+最多有 $n(n-1)/2$ 個逆序對，$n = 10^5$ 時接近 $5 \times 10^9$，超過 \texttt{int}，計
+數要用 \texttt{long long}。
+
+
+\section{本章常見錯誤}
+\label{sec:dc-pitfalls}
+
+\begin{center}
+\begin{tabular}{p{0.25\linewidth}p{0.50\linewidth}p{0.15\linewidth}}
+\toprule
+錯誤 & 例子 & 見 \\
+\midrule
+區間寫法混用 & 條件寫 $\mathit{lo} \le \mathit{hi}$，卻用 $\mathit{hi} \gets
+\mathit{mid}$，只剩一格時停不下來 & 第~\ref{sec:dc-traps}~節 \\
+$\mathit{lo} \gets \mathit{mid}$ 配地板 & 剩兩格時 $\mathit{mid} = \mathit{lo}$，
+無窮迴圈 & 第~\ref{sec:dc-traps}~節 \\
+以為會找到第一個 & 有重複時 \proc{Binary-Search} 回傳任一個；要第一個用
+\proc{Lower-Bound} & 第~\ref{sec:dc-bsearch}~節 \\
+快速冪溢位 & 沒有先把底數取餘數，或 $m$ 太大，\texttt{b * b} 超過 \texttt{long long} &
+第~\ref{sec:dc-power}~節 \\
+跨中點只延伸一邊 & 跨中點的段沒有同時包含 $A[q]$ 和 $A[q+1]$ &
+第~\ref{sec:dc-maxsub}~節 \\
+全部是負數答 $0$ & 題目要求非空的段時，答案是最大的那一個負數 &
+第~\ref{sec:dc-maxsub}~節 \\
+Karatsuba 還是四次乘法 & 分別算出 $ad$、$bc$ 再相加，沒有用 $(a+b)(c+d)$ &
+第~\ref{sec:dc-mult}~節 \\
+遞迴之後才讀分界 & 遞迴已把 $P$ 依 $y$ 重排，$P[q].x$ 不是左半最大的 $x$ &
+第~\ref{sec:dc-closest}~節 \\
+相等時先拿右邊 & 把相等的數對算成逆序 & 第~\ref{sec:dc-inv}~節 \\
+逆序數用 \texttt{int} & $n = 10^5$ 時逆序數可達約 $5 \times 10^9$ &
+第~\ref{sec:dc-inv}~節 \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\section{觀念題}
+\label{sec:dc-exercises}
+
+題型和研究所考試、期中期末考的筆試相近，有選擇、計算、追蹤和證明。 解答在本章最後。
+
+\begin{enumerate}
+\item \label{dc-q-tf}（選擇，可能不只一個答案）下列哪些敘述正確？
+\begin{enumerate}
+\item 把 \proc{Binary-Search} 第 4 行改成 $\mathit{mid} \gets \lfloor (\mathit{lo} +
+2\,\mathit{hi})/3 \rfloor$，其他不變，最壞情況仍是 $\Theta(\lg n)$。
+\item 把兩個 $n$ 位數各切成三段，如果能只用 $6$ 次三分之一長度的乘法，加上
+$\Theta(n)$ 的加減完成乘法，這個方法比 Karatsuba 快。
+\item 把矩陣切成四塊、直接做 $8$ 次子矩陣乘法，矩陣加法只有 $4$ 次，比 Strassen 的
+$18$ 次少，所以總時間也是 $\Theta(n^{\lg 7})$。
+\item 把 \proc{Max-Crossing} 換成 $\Theta(n^2)$ 的做法（兩層迴圈枚舉所有跨中點的段，
+邊走邊加），\proc{Max-Subarray} 的時間變成 $\Theta(n^2)$。
+\item 最近點對如果不讓遞迴依 $y$ 合併，改成每一層用合併排序把帶狀區域依 $y$ 重排，
+最壞情況的時間是 $O(n \lg^2 n)$。
+\end{enumerate}
+
+\item \label{dc-q-bounds}（追蹤）$A = \langle 3, 8, 8, 8, 8, 14, 20, 20, 27 \rangle$，
+$n = 9$。 寫出 \proc{Lower-Bound}$(A, 9, 8)$、\proc{Upper-Bound}$(A, 9, 8)$、
+\proc{Lower-Bound}$(A, 9, 21)$ 每一輪的 $\mathit{lo}$、$\mathit{hi}$、
+$\mathit{mid}$、$A[\mathit{mid}]$ 和回傳值。 由結果寫出 $8$ 出現幾次，以及最後一個
+不大於 $21$ 的數在第幾格。
+
+\item \label{dc-q-fix}（改錯與證明）下面的程序想回傳最後一個滿足 $A[i] \le x$ 的位置，
+$A[1..n]$ 已經由小到大排好，而且保證 $A[1] \le x$。
+\begin{pseudo}{最後一個不大於 $x$ 的位置（有錯）}
+\Function{Last-Le}{$A, n, x$}
+    \State $\mathit{lo} \gets 1$；$\mathit{hi} \gets n$
+    \While{$\mathit{lo} < \mathit{hi}$}
+        \State $\mathit{mid} \gets \lfloor (\mathit{lo} + \mathit{hi}) / 2 \rfloor$
+        \If{$A[\mathit{mid}] \le x$}
+            \State $\mathit{lo} \gets \mathit{mid}$
+        \Else
+            \State $\mathit{hi} \gets \mathit{mid} - 1$
+        \EndIf
+    \EndWhile
+    \State \Return $\mathit{lo}$
+\EndFunction
+\end{pseudo}
+\begin{enumerate}
+\item 給一組 $A$ 和 $x$，讓這個程序永遠不停。
+\item 只改一行讓它正確，寫出迴圈不變量，用三步證明正確，並說明迴圈一定會停。
+\item 用 \proc{Upper-Bound} 寫出同樣的結果。
+\end{enumerate}
+
+\item \label{dc-q-pow}（計算）
+\begin{enumerate}
+\item 用 \proc{Power-Iter} 算 $3^{100}$。 寫出每一輪開始時的 $e$、$r$、$b$（$r$、$b$
+寫成 $3$ 的次方即可），以及第 5 行、第 8 行各執行了幾次。
+\item \proc{Power}$(x, 15)$ 做幾次乘法？ 找出一種只用 $5$ 次乘法算出 $x^{15}$ 的方
+法。
+\end{enumerate}
+
+\item \label{dc-q-maxsub}（追蹤）$A = \langle -3, 5, -1, 4, -7, 6, -2 \rangle$。
+\begin{enumerate}
+\item 對 \proc{Max-Subarray}$(A, 1, 7)$ 的最上層，寫出 $q$、跨中點的兩列累加和它們
+的最大值、\proc{Max-Crossing} 的結果，以及左半、右半遞迴回傳的段（可以直接觀察）。
+最後的答案是哪一段？
+\item 用 \proc{Max-Subarray-Linear} 再算一次，寫出每一輪的 $\mathit{cur}$ 和
+$\mathit{best}$。
+\end{enumerate}
+
+\item \label{dc-q-four}（設計與計算）讓分治版的最大子陣列每次回傳四個值：整段的和
+$T$、最佳前綴和 $P$（開頭固定在最左邊的段的最大和）、最佳後綴和 $S$、最大子陣列的
+和 $M$。
+\begin{enumerate}
+\item 已知左半的 $(T_L, P_L, S_L, M_L)$ 和右半的 $(T_R, P_R, S_R, M_R)$，寫出整段的
+四個值，並說明理由。
+\item 寫出執行時間的遞迴式並解出來。 和第~\ref{sec:dc-maxsub}~節的分治版比，差在
+哪裡？
+\end{enumerate}
+
+\item \label{dc-q-strassen}（計算）用 Strassen 的七個乘積（第~\ref{sec:dc-strassen}~節
+的式子）計算
+\[
+\begin{pmatrix} 2 & -3 \\ 1 & 4 \end{pmatrix}
+\begin{pmatrix} 2 & 0 \\ 5 & -1 \end{pmatrix},
+\]
+寫出 $M_1$ 到 $M_7$ 的值，組合出 $C$，再用一般的乘法驗算。
+
+\item \label{dc-q-cp}（追蹤）八個點依 $x$ 排好：
+$A(1, 1)$、$B(3, 7)$、$C(7, 7)$、$D(9, 12)$、$E(10, 7)$、$F(11, 11)$、$G(13, 3)$、
+$H(14, 9)$。 用 \proc{Closest} 處理全部八個點。 寫出最上層的 $x_m$、
+$\delta_L^2$、$\delta_R^2$（兩半的最近距離可以直接兩兩比較求得）、帶狀區域裡的點
+（依 $y$ 排列）、第 14 行依序算過的點對和每次之後的 $\delta^2$，以及答案。 落在分界
+線上的點屬於哪一半？
+
+\item \label{dc-q-inv}（追蹤）$A = \langle 5, 1, 7, 3, 3, 8, 2, 6 \rangle$。
+\begin{enumerate}
+\item 用 \proc{Sort-Count} 計算逆序數，寫出每一次 \proc{Merge-Count} 的範圍和回傳
+值。
+\item 寫出最上層合併的每一步（比較、拿哪一邊、$c$ 增加多少）。
+\item 如果把 \proc{Merge-Count} 第 6 行的 $B[i] \le B[j]$ 改成 $B[i] < B[j]$，回傳的
+總數是多少？ 多算了哪一對？
+\end{enumerate}
+
+\end{enumerate}
+
+\section{實作練習}
+\label{sec:dc-practice}
+
+下面是 Aki-Judge 上和本章相關的題目。 兩題二分搜尋、「模冪函式」和「耗體力的淘汰
+賽對戰表」只交函式（標頭檔或 \texttt{.c} 檔），不寫 \texttt{main}；其他題自己讀輸
+入。
+
+\begin{center}
+\begin{tabular}{llc}
+\toprule
+小節 & 題目 & 難度 \\
+\midrule
+二分搜尋 & \akiref{binary-search-index-function}{二分搜尋索引函式} & 暖身 \\
+ & \akiref{lower-and-upper-bound-in-a-sorted-array}{已排序陣列的下界與上界} & 基本 \\
+快速冪 & \akiref{modular-exponentiation-function}{模冪函式} & 基本 \\
+ & \akiref{fibonacci-number-modulo-1000000007}{費氏數列取模} & 進階 \\
+最大子陣列 & \akiref{maximum-contiguous-subarray-sum}{最大連續子陣列和} & 基本 \\
+ & \akiref{largest-contiguous-sum}{連續區段的最大和} & 基本 \\
+最近點對 & \akiref{smallest-gap-between-points-on-a-line}{數線上最近兩點的距離} & 基本 \\
+分治的結構 & \akiref{heavier-half-first}{重的一半排前面} & 基本 \\
+ & \akiref{stamina-knockout-bracket}{耗體力的淘汰賽對戰表} & 進階 \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+幾題的提示。 兩題二分搜尋的位置從 $0$ 開始，「二分搜尋索引函式」找不到回傳 $-1$，
+「已排序陣列的下界與上界」找不到回傳 $n$；交之前用第~\ref{sec:dc-traps}~節列的小例子
+自己測。 「模冪函式」的指數到 $10^{12}$，先把底數取餘數，指數是 $0$ 時回傳 $1$。
+「費氏數列取模」用第~\ref{sec:dc-power}~節的矩陣快速冪，每次乘法和加法之後都取餘
+數。 兩題最大子陣列都要求非空的段，用 \texttt{long long}；第一題用分治版，第二題的
+$n$ 到 $10^6$，用線性版。 「數線上最近兩點的距離」是一維的最近點對，座標可以重複。
+最後兩題都是「切成兩半、兩半各自處理完、再由兩半的結果決定這一段」，先寫出遞迴式再
+動手；「耗體力的淘汰賽對戰表」要用 \texttt{malloc} 建出整棵遞迴樹，上半區是
+$\lceil m/2 \rceil$ 人。 逆序數的兩題在第~14~章的題單，可以用 \proc{Sort-Count} 再
+做一次。
+
+\section{讀完你應該會}
+\label{sec:dc-checklist}
+
+\begin{itemize}
+\item 寫出閉區間和半開區間的二分搜尋、\proc{Lower-Bound}、\proc{Upper-Bound}，用迴圈
+不變量證明正確，並用它們算出現次數、最後一個不大於 $x$ 的位置等邊界問題；看得出
+混用區間寫法、$\mathit{lo} \gets \mathit{mid}$ 配地板造成的無窮迴圈。
+\item 寫出遞迴和迴圈兩種快速冪，算出乘法次數 $\lfloor \lg n \rfloor + \nu(n) - 1$，
+在取餘數時不溢位，並能把同樣的方法用在矩陣上。
+\item 用分治法和線性做法解最大子陣列，寫出跨中點的兩列累加，說明線性做法的
+$E[i]$ 遞迴為什麼對。
+\item 手算 Karatsuba 的三個乘積和 Strassen 的七個乘積，寫出它們的遞迴式，用主定理
+說明為什麼少一次乘法就改變了指數。
+\item 說明最近點對的帶狀區域為什麼寬 $2\delta$、每個點為什麼最多往後看 $7$ 個點，
+並能手算每一層的 $x_m$、帶狀區域和比較的點對。
+\item 用合併排序在 $\Theta(n \lg n)$ 內數逆序數，說明相等時為什麼要先拿左邊。
+\end{itemize}
+
+\textbf{延伸閱讀}（書末會整理完整的參考資料）
+
+\begin{itemize}
+\item Thomas H. Cormen 等，\textit{Introduction to Algorithms}，第 4 版，4.1、4.2 節：
+矩陣乘法的分治版和 Strassen 演算法，Strassen 的七個乘積用另一組式子寫；章末問題
+2-4 是逆序數。
+\item Steven S. Skiena，\textit{The Algorithm Design Manual}，第 3 版，5.1、5.5、
+5.6 節：二分搜尋的各種變化、快速乘法、最大子陣列與最近點對，用很短的篇幅講直覺。
+\item Jon Kleinberg、Éva Tardos，\textit{Algorithm Design}，第 5 章：逆序數、最近點
+對、整數乘法三節，最近點對的證明用了另一種切格子的方法，可以和本章對照。
+\item Jon Bentley，\textit{Programming Pearls}，第 2 版，第 4 欄與第 8 欄：前者用二分
+搜尋示範怎麼寫出正確的程式，後者從 $\Theta(n^3)$ 一路改進最大子陣列到線性時間。
+\item Donald E. Knuth，\textit{The Art of Computer Programming, Vol.~2: Seminumerical
+Algorithms}，第 3 版，4.3.3 節（快速乘法）與 4.6.3 節（冪的計算）：後者討論算 $x^n$
+最少要幾次乘法，二進位法不一定最少（觀念題第~\ref{dc-q-pow}~題）。
+\end{itemize}
+
+\addcontentsline{toc}{section}{觀念題解答}
+\section*{觀念題解答}
+
+\begin{enumerate}
+\item (a)、(d)、(e) 正確。
+
+(a)：$k = \mathit{hi} - \mathit{lo} + 1$ 格時，$\mathit{mid}$ 左邊約 $2k/3$ 格、右邊
+約 $k/3$ 格，最壞每輪剩下不超過約 $2k/3$，輪數不超過 $\log_{3/2} n + O(1)$；每輪
+至多縮成三分之一，輪數也至少約 $\log_3 n$（$x$ 不在陣列裡時）。 兩者都是
+$\Theta(\lg n)$，只差底數。
+
+(b)：$T(n) = 6T(n/3) + \Theta(n)$，$\log_3 6 \approx 1.631 > \lg 3 \approx 1.585$，
+比 Karatsuba 慢。 要比 Karatsuba 快，三段的切法最多只能用 $5$ 次乘法
+（$\log_3 5 \approx 1.465$）。
+
+(c)：$8T(n/2) + \Theta(n^2) = \Theta(n^3)$。 加法的次數只影響 $f(n)$ 的常數，決定指
+數的是乘法的次數。
+
+(d)：$T(n) = 2T(n/2) + \Theta(n^2)$，$n^2 = \Omega(n^{1 + \varepsilon})$，正則條件
+$2(n/2)^2 = \frac{1}{2} n^2$，主定理情況 3 給出 $\Theta(n^2)$。
+
+(e)：帶狀區域最多 $n$ 個點，重排 $O(n \lg n)$，$T(n) = 2T(n/2) + O(n \lg n) =
+O(n \lg^2 n)$（定理~2.5，$k = 1$）。
+
+\item
+\begin{center}
+\begin{tabular}{cccccl}
+\toprule
+& $\mathit{lo}$ & $\mathit{hi}$ & $\mathit{mid}$ & $A[\mathit{mid}]$ & 動作 \\
+\midrule
+\proc{Lower-Bound}$(8)$ & 1 & 10 & 5 & 8 & $8 \ge 8$，$\mathit{hi} \gets 5$ \\
+& 1 & 5 & 3 & 8 & $\mathit{hi} \gets 3$ \\
+& 1 & 3 & 2 & 8 & $\mathit{hi} \gets 2$ \\
+& 1 & 2 & 1 & 3 & $3 < 8$，$\mathit{lo} \gets 2$；回傳 $2$ \\
+\midrule
+\proc{Upper-Bound}$(8)$ & 1 & 10 & 5 & 8 & $8 \le 8$，$\mathit{lo} \gets 6$ \\
+& 6 & 10 & 8 & 20 & $20 > 8$，$\mathit{hi} \gets 8$ \\
+& 6 & 8 & 7 & 20 & $\mathit{hi} \gets 7$ \\
+& 6 & 7 & 6 & 14 & $\mathit{hi} \gets 6$；回傳 $6$ \\
+\midrule
+\proc{Lower-Bound}$(21)$ & 1 & 10 & 5 & 8 & $8 < 21$，$\mathit{lo} \gets 6$ \\
+& 6 & 10 & 8 & 20 & $20 < 21$，$\mathit{lo} \gets 9$ \\
+& 9 & 10 & 9 & 27 & $27 \ge 21$，$\mathit{hi} \gets 9$；回傳 $9$ \\
+\bottomrule
+\end{tabular}
+\end{center}
+$8$ 出現 $6 - 2 = 4$ 次。 陣列裡沒有 $21$，所以「最後一個不大於 $21$」等於「最後一
+個小於 $21$」，是 \proc{Lower-Bound}$(21) - 1 = 8$，$A[8] = 20$。 （用
+\proc{Upper-Bound}$(21) - 1$ 也一樣是 $8$。）
+
+\item
+\begin{enumerate}
+\item $A = \langle 4, 9 \rangle$，$x = 9$。 $\mathit{lo} = 1$、$\mathit{hi} = 2$，
+$\mathit{mid} = 1$，$A[1] = 4 \le 9$，$\mathit{lo} \gets 1$，什麼都沒變，永遠重複。 只
+要範圍剩兩格、左邊那格不大於 $x$，就會發生。
+\item 把第 4 行改成 $\mathit{mid} \gets \lceil (\mathit{lo} + \mathit{hi}) / 2
+\rceil$。 不變量：每次檢查第 3 行時，$1 \le \mathit{lo} \le \mathit{hi} \le n$，
+$A[\mathit{lo}] \le x$，而且 $A[\mathit{hi}+1..n]$ 都大於 $x$。 初始：
+$\mathit{lo} = 1$，題目保證 $A[1] \le x$；$A[n+1..n]$ 是空的。 維持：
+$\mathit{lo} < \mathit{hi}$ 時 $\mathit{lo} < \mathit{mid} \le \mathit{hi}$。 若
+$A[\mathit{mid}] \le x$，新的 $\mathit{lo} = \mathit{mid}$ 仍滿足 $A[\mathit{lo}] \le
+x$；否則 $A[\mathit{mid}..n]$ 都大於 $x$，新的 $\mathit{hi} = \mathit{mid} - 1 \ge
+\mathit{lo}$，第二段仍成立。 結束：$\mathit{lo} = \mathit{hi}$，$A[\mathit{lo}] \le
+x$ 而 $A[\mathit{lo}+1..n]$ 都大於 $x$，$\mathit{lo}$ 正是最後一個不大於 $x$ 的位
+置。 會停：每輪 $\mathit{lo}$ 嚴格變大（$\mathit{mid} > \mathit{lo}$）或
+$\mathit{hi}$ 嚴格變小，$\mathit{hi} - \mathit{lo}$ 是非負整數，有限輪後變成 $0$。
+\item \proc{Upper-Bound}$(A, n, x) - 1$。 這個寫法不需要「$A[1] \le x$」的保證，
+全部都大於 $x$ 時回傳 $0$。
+\end{enumerate}
+
+\item
+\begin{enumerate}
+\item $100 = 1100100_2$。
+\begin{center}
+\begin{tabular}{cccl}
+\toprule
+$e$ & $r$ & $b$ & 這一輪 \\
+\midrule
+100 & 1 & $3$ & 偶數；$b \gets 3^2$ \\
+50 & 1 & $3^2$ & 偶數；$b \gets 3^4$ \\
+25 & 1 & $3^4$ & 奇數：$r \gets 3^4$；$b \gets 3^8$ \\
+12 & $3^4$ & $3^8$ & 偶數；$b \gets 3^{16}$ \\
+6 & $3^4$ & $3^{16}$ & 偶數；$b \gets 3^{32}$ \\
+3 & $3^4$ & $3^{32}$ & 奇數：$r \gets 3^{36}$；$b \gets 3^{64}$ \\
+1 & $3^{36}$ & $3^{64}$ & 奇數：$r \gets 3^{100}$；$e$ 變成 $0$，不再平方 \\
+\bottomrule
+\end{tabular}
+\end{center}
+第 5 行執行 $\nu(100) = 3$ 次，第 8 行執行 $\lfloor \lg 100 \rfloor = 6$ 次，共 $9$ 次。
+\item $\lfloor \lg 15 \rfloor + \nu(15) - 1 = 3 + 3 = 6$ 次（$x^2$、$x^3$、$x^6$、
+$x^7$、$x^{14}$、$x^{15}$）。 $5$ 次的方法：$x^2 = x \cdot x$，$x^3 = x^2 \cdot x$，
+$x^6 = x^3 \cdot x^3$，$x^{12} = x^6 \cdot x^6$，$x^{15} = x^{12} \cdot x^3$。 二進位
+法不一定用最少的乘法。 最少要幾次沒有簡單的公式，但任何方法至少要 $\lceil \lg n
+\rceil$ 次（每次乘法最多讓指數加倍），二進位法不超過 $2\lfloor \lg n \rfloor$ 次，
+最多差一倍左右。
+\end{enumerate}
+
+\item
+\begin{enumerate}
+\item $q = 4$。 往左累加（從第 4 個往左）：$4, 3, 8, 5$，最大 $8$（第 2 到 4 個）；往
+右累加（從第 5 個往右）：$-7, -1, -3$，最大 $-1$（第 5 到 6 個）。
+\proc{Max-Crossing} 回傳第 2 到 6 個，和 $7$。 左半 $\langle -3, 5, -1, 4 \rangle$ 的
+最佳段是第 2 到 4 個，和 $8$；右半 $\langle -7, 6, -2 \rangle$ 是第 6 個，和 $6$。
+答案是第 2 到 4 個，和 $8$，來自左半。 往右累加的最大值是負的，但跨中點的段一定要
+包含第 5 個，所以只能取 $-1$。
+\item
+\begin{center}
+\begin{tabular}{cccl}
+\toprule
+$i$ & $A[i]$ & $\mathit{cur}$ & $\mathit{best}$ \\
+\midrule
+1 & $-3$ & $-3$ & 1--1：$-3$ \\
+2 & 5 & 重新開始：5 & 2--2：5 \\
+3 & $-1$ & 4 & 2--2：5 \\
+4 & 4 & 8 & 2--4：8 \\
+5 & $-7$ & 1 & 2--4：8 \\
+6 & 6 & 7 & 2--4：8 \\
+7 & $-2$ & 5 & 2--4：8 \\
+\bottomrule
+\end{tabular}
+\end{center}
+\end{enumerate}
+
+\item
+\begin{enumerate}
+\item $T = T_L + T_R$。 $P = \max(P_L,\ T_L + P_R)$：開頭在最左邊的段，要嘛整段在左
+半，要嘛包含整個左半再接右半的一個前綴。 $S = \max(S_R,\ T_R + S_L)$，理由對稱。
+$M = \max(M_L,\ M_R,\ S_L + P_R)$：最後一項就是引理~\ref{lem:dc-crossing}，左半的最佳
+後綴正是「結尾在 $q$ 的最佳段」。 基礎情況一個數 $a$：四個值都是 $a$。
+\item 合併只要常數時間，$T(n) = 2T(n/2) + \Theta(1)$，主定理情況 1，$\Theta(n)$。
+第~\ref{sec:dc-maxsub}~節的版本每一層從中點重新往兩邊加，花 $\Theta(n)$；這裡讓子問
+題把以後會用到的前綴、後綴資訊一起交回來，合併時就不必再看陣列。
+\end{enumerate}
+
+\item
+\[
+\begin{aligned}
+M_1 &= (2 + 4)(2 + (-1)) = 6, & M_2 &= (1 + 4) \times 2 = 10, \\
+M_3 &= 2 \times (0 - (-1)) = 2, & M_4 &= 4 \times (5 - 2) = 12, \\
+M_5 &= (2 + (-3)) \times (-1) = 1, & M_6 &= (1 - 2)(2 + 0) = -2, \\
+M_7 &= (-3 - 4)(5 + (-1)) = -28.
+\end{aligned}
+\]
+$c_{11} = 6 + 12 - 1 + (-28) = -11$，$c_{12} = 2 + 1 = 3$，$c_{21} = 10 + 12 = 22$，
+$c_{22} = 6 - 10 + 2 + (-2) = -4$。 驗算：$c_{11} = 2 \cdot 2 + (-3) \cdot 5 = -11$，
+$c_{12} = 2 \cdot 0 + (-3)(-1) = 3$，$c_{21} = 1 \cdot 2 + 4 \cdot 5 = 22$，
+$c_{22} = 1 \cdot 0 + 4 \cdot (-1) = -4$。
+
+\item 最上層 $q = 4$，$x_m = 9$（D 的 $x$）。 D 落在分界線上，屬於左半（左半是依
+$x$ 排序後的前 $4$ 個點）。 左半 A、B、C、D 的最近距離平方是 BC $= 16$，右半 E、F、
+G、H 是 FH $= 9 + 4 = 13$，$\delta^2 = 13$。 帶狀區域 $(x - 9)^2 < 13$：C（$4$）、
+D（$0$）、E（$1$）、F（$4$），B（$36$）和 G（$16$）不在。 依 $y$ 排：C(7, 7)、
+E(10, 7)、F(11, 11)、D(9, 12)，C 和 E 的 $y$ 相同，依 $x$ 排。 比較：
+\begin{itemize}
+\item C 往後：CE，$y$ 差 $0$，距離平方 $9 < 13$，$\delta^2 \gets 9$；下一個 F 的
+$y$ 差 $4$，$16 \ge 9$，停。
+\item E 往後：F 的 $y$ 差 $4$，$16 \ge 9$，停，沒有算距離。
+\item F 往後：FD，$y$ 差 $1$，距離平方 $4 + 1 = 5 < 9$，$\delta^2 \gets 5$。
+\end{itemize}
+答案是 F、D，距離 $\sqrt{5}$。 這一層 $\delta$ 在迴圈裡變小了兩次，第一次（CE）找
+到的也是跨兩半的點對，但還不是最近的。
+
+\item
+\begin{enumerate}
+\item 依遞迴的完成順序：$A[1..2]$：$1$（$(5, 1)$）；$A[3..4]$：$1$（$(7, 3)$）；
+$A[1..4]$：$\langle 1, 5 \rangle$ 和 $\langle 3, 7 \rangle$，$1$（$(5, 3)$）；
+$A[5..6]$：$0$；$A[7..8]$：$0$；$A[5..8]$：$\langle 3, 8 \rangle$ 和
+$\langle 2, 6 \rangle$，$3$（$(3, 2)$、$(8, 2)$、$(8, 6)$）；最上層 $6$。 總數
+$1 + 1 + 1 + 0 + 0 + 3 + 6 = 12$。
+\item 合併 $\langle 1, 3, 5, 7 \rangle$ 和 $\langle 2, 3, 6, 8 \rangle$：
+$1$ 對 $2$，拿左 $1$；$3$ 對 $2$，拿右 $2$，左半還沒拿的 $3, 5, 7$，$+3$；$3$ 對 $3$，
+相等，拿左 $3$；$5$ 對 $3$，拿右 $3$，還沒拿的 $5, 7$，$+2$；$5$ 對 $6$，拿左 $5$；
+$7$ 對 $6$，拿右 $6$，$+1$；$7$ 對 $8$，拿左 $7$；左半用完，拿右 $8$，$+0$。 共
+$6$。
+\item 改成 $<$ 之後，$3$ 對 $3$ 時先拿右邊的 $3$，左半還沒拿的是 $3, 5, 7$，加 $3$
+而不是 $2$；其他層的合併沒有相等的情形。 總數變成 $13$，多算了左半的 $3$ 和右半的
+$3$ 這一對，它們相等，不是逆序。
+\end{enumerate}
+
+\end{enumerate}
