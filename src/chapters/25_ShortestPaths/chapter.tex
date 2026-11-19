@@ -34,8 +34,9 @@
 是 $1$；權重不一樣時，要找的是權重總和最小的路徑。 先定下問題和一個所有演算法共用的
 動作「鬆弛」，證明幾個鬆弛的性質，之後的每個演算法都用這些性質證明。 接著是三個單一
 起點的演算法：權重不是負數時用 \textbf{Dijkstra 演算法}，它是第~19~章的貪心法，搭配
-第~8~章的優先佇列；有負的權重時用 \textbf{Bellman--Ford 演算法}，它還能發現負環；圖沒有
-環時，依第~22~章的拓樸順序鬆弛一遍就好。 最後是所有點對的最短路徑：第~18~章已經用動
+第~8~章的優先佇列；有負的權重時用 \textbf{Bellman--Ford 演算法}，它還能發現負環，也能用來
+解一組「兩個變數的差不超過某個數」的不等式，叫做\textbf{差分約束系統}；圖沒有環時，依第~22~章
+的拓樸順序鬆弛一遍就好。 最後是所有點對的最短路徑：第~18~章已經用動
 態規劃推出 Floyd--Warshall 演算法的遞迴式，這一章補上路徑還原、負環偵測和手算的矩陣序
 列，再講同一個架構求的遞移閉包，以及在稀疏圖上比較快的 Johnson 演算法。
 
@@ -1385,6 +1386,297 @@ int main(void)
 同。 程式沒有做提早結束，為的是把 $n - 1$ 輪都印出來和表對照；實際使用時，某一輪
 \texttt{relax\_all} 回傳 $-1$ 就可以停了。
 
+\section{差分約束系統}
+\label{sec:spt-diff}
+
+Bellman--Ford 演算法除了求最短路徑，還能解一類不等式。 系上的程式設計營有五項準備工作，
+令 $x_i$ 是工作 $i$ 的開工日（以天為單位）。 工作之間有一些先後和期限的要求，例如「工作 3
+至少要比工作 1 晚 $1$ 天開工」「工作 2 不能比工作 1 晚超過 $4$ 天開工」。 每一條要求都只牽涉
+兩個工作，而且只管它們開工日的\textbf{差}：
+\[
+x_1 - x_3 \le -1, \qquad x_2 - x_1 \le 4 .
+\]
+問題是：所有要求能不能同時滿足？ 能的話，各項工作哪一天開工？ 這一節說明這種問題可以化成
+單一起點最短路徑，用 Bellman--Ford 一次解決：有解時給出一組解，無解時找得到無解的原因。
+
+\subsection{問題}
+
+\begin{definition}[差分約束系統]
+\label{def:spt-diff}
+有 $n$ 個實數變數 $x_1, x_2, \ldots, x_n$ 和 $m$ 條限制，每條限制都寫成
+\[
+x_j - x_i \le b_k \qquad (1 \le i, j \le n,\ i \ne j,\ b_k \text{ 是實數})
+\]
+的形式，叫做\textbf{差分約束系統}（system of difference constraints）。 讓每一條限制都成立的
+$x = (x_1, \ldots, x_n)$ 叫做一組\textbf{可行解}（feasible solution）；沒有可行解時，說這個系統
+\textbf{無解}（infeasible）。
+\end{definition}
+
+這一節的 $n$、$m$ 是變數和限制的個數；化成圖之後，圖有 $n + 1$ 個頂點、$n + m$ 條邊，下面會
+再說一次，免得和本章其他地方的 $n$、$m$ 混在一起。
+
+可行解如果有，就有無限多組：
+\begin{lemma}
+\label{lem:spt-diff-shift}
+若 $x = (x_1, \ldots, x_n)$ 是可行解，$c$ 是任意實數，則 $(x_1 + c, \ldots, x_n + c)$ 也是可行解。
+\end{lemma}
+
+\begin{proof}
+每條限制只看差：$(x_j + c) - (x_i + c) = x_j - x_i \le b_k$。
+\end{proof}
+
+所以開工日的「絕對日期」沒有意義，求出一組解之後，整組加減同一個數，讓最早的工作在第 $0$
+天開工就好。
+
+其他形式的限制，大多可以改寫成 $\le$：
+\begin{itemize}
+\item $x_j - x_i \ge b$：兩邊乘 $-1$，寫成 $x_i - x_j \le -b$。
+\item $x_j - x_i = b$：拆成 $x_j - x_i \le b$ 和 $x_i - x_j \le -b$ 兩條。
+\item 變數都是整數時，$x_j - x_i < b$（$b$ 是整數）就是 $x_j - x_i \le b - 1$。
+\item 只牽涉一個變數的 $x_i \le b$ 或 $x_i \ge b$：多一個變數 $z$ 代表「第 $0$ 天」，寫成
+$x_i - z \le b$ 或 $z - x_i \le -b$。 解出來之後每個變數都減掉 $z$；由
+引理~\ref{lem:spt-diff-shift}，減完仍是可行解，而且 $z$ 變成 $0$，原本的 $x_i \le b$ 也就成立了。
+\end{itemize}
+像 $x_1 + x_2 \le 5$ 這種「和」的限制改寫不了，那是一般的線性規劃，不在本書範圍。
+
+\subsection{約束圖}
+
+關鍵是把 $x_j - x_i \le b_k$ 移項寫成
+\[
+x_j \le x_i + b_k ,
+\]
+它和三角不等式 $\delta(s, v) \le \delta(s, u) + w(u, v)$（引理~\ref{lem:spt-triangle}）長得一
+模一樣：$x_i$ 對應 $u$，$x_j$ 對應 $v$，$b_k$ 對應邊的權重。 所以替每個變數開一個頂點，每條
+限制畫一條邊，最短距離自然會滿足這些不等式。
+
+\begin{definition}[約束圖]
+\label{def:spt-cgraph}
+差分約束系統的\textbf{約束圖}（constraint graph）是一張加權有向圖：
+\begin{itemize}
+\item 頂點是 $v_0, v_1, \ldots, v_n$。 $v_i$ 對應變數 $x_i$，$v_0$ 是多加的\textbf{超級源點}。
+\item 每條限制 $x_j - x_i \le b_k$ 對應一條邊 $(v_i, v_j)$，權重 $b_k$。 方向是\textbf{從減掉的
+那個變數，指向被減的那個變數}。
+\item 另外對每個 $i = 1, \ldots, n$ 加一條邊 $(v_0, v_i)$，權重 $0$。
+\end{itemize}
+約束圖有 $n + 1$ 個頂點、$n + m$ 條邊。
+\end{definition}
+
+超級源點的作用和第~\ref{sec:spt-bf}~節「偵測整張圖的負環」時加的新頂點一樣：從 $v_0$ 走得到每一個頂點，所以每個變數都會拿到一個有限的值，每個負環也都偵測得到。 如果改從 $v_1$
+出發，約束圖從 $v_1$ 走不到的變數會停在 $\infty$，不是一組解。
+
+\begin{theorem}
+\label{thm:spt-diff}
+設 $G$ 是一個差分約束系統的約束圖。
+\begin{enumerate}
+\item 若 $G$ 沒有負環，令 $x_i = \delta(v_0, v_i)$，$i = 1, \ldots, n$，則 $x$ 是一組可行解。
+\item 若 $G$ 有負環，這個系統無解。
+\end{enumerate}
+\end{theorem}
+
+\begin{proof}
+(1) $v_0$ 有邊連到每個 $v_i$，從 $v_0$ 走得到每個頂點；沒有負環，由引理~\ref{lem:spt-simple}
+每個 $\delta(v_0, v_i)$ 都是有限的數。 對每條限制 $x_j - x_i \le b_k$，約束圖有邊 $(v_i, v_j)$，
+權重 $b_k$，由三角不等式（引理~\ref{lem:spt-triangle}），
+\[
+x_j = \delta(v_0, v_j) \le \delta(v_0, v_i) + b_k = x_i + b_k ,
+\]
+也就是 $x_j - x_i \le b_k$。 每條限制都成立。
+
+(2) 設負環是 $c = \langle u_0, u_1, \ldots, u_k = u_0 \rangle$，$w(c) < 0$。 $v_0$ 沒有進來的邊，
+不會在環上，所以環上每個頂點都是某個 $v_i$，每條邊 $(u_{t-1}, u_t)$ 都來自一條限制。 假設系統有
+可行解 $x$，把 $u_t$ 對應的變數記成 $x(u_t)$，環上每條邊的限制是
+\[
+x(u_t) - x(u_{t-1}) \le w(u_{t-1}, u_t), \qquad t = 1, 2, \ldots, k .
+\]
+把 $k$ 條加起來，左邊一加一減全部消掉（$u_k = u_0$），得到 $0 \le w(c) < 0$，矛盾。
+\end{proof}
+
+(2) 的證明也告訴我們無解時怎麼說服別人：找出負環，把環上的限制加起來，得到 $0 \le$ 負數。
+這和定理~\ref{thm:spt-bf} (2) 的證明是同一個加法。
+
+\subsection{用 Bellman--Ford 求解}
+
+約束圖可能有負邊，所以用 Bellman--Ford 從 $v_0$ 出發。 從 $v_0$ 走得到每個頂點，所以
+「從 $v_0$ 走得到負環」就是「$G$ 有負環」，回傳值正好分辨定理~\ref{thm:spt-diff} 的兩種情況。
+
+\begin{pseudo}[label=alg:spt-diff]{用 Bellman--Ford 解差分約束系統}
+\Function{Difference-Constraints}{$n, C$}
+    \State $G \gets$ 頂點 $v_0, v_1, \ldots, v_n$，還沒有邊
+    \For{$i \gets 1$ \To $n$}
+        \State 加邊 $(v_0, v_i)$，權重 $0$
+    \EndFor
+    \For{$C$ 裡的每條限制 $x_j - x_i \le b$} \Comment{依 $C$ 的順序}
+        \State 加邊 $(v_i, v_j)$，權重 $b$
+    \EndFor
+    \If{\Call{Bellman-Ford}{$G, w, v_0$} $=$ \FALSE}
+        \State \Return 「無解」
+    \EndIf
+    \State \Return $(d[v_1], d[v_2], \ldots, d[v_n])$
+\EndFunction
+\end{pseudo}
+
+由定理~\ref{thm:spt-bf}，第 7 行回傳 \FALSE 若且唯若約束圖有負環，這時由定理~\ref{thm:spt-diff}
+(2) 無解；否則 $d[v_i] = \delta(v_0, v_i)$，由定理~\ref{thm:spt-diff} (1) 是一組可行解。
+Bellman--Ford 照第 2--6 行加邊的順序掃描：先掃 $v_0$ 的 $n$ 條邊，再依題目列出的順序掃各條限制
+的邊。 手算時也照這個順序（本節的約定）。
+
+\textbf{時間。} 約束圖有 $n + 1$ 個頂點、$n + m$ 條邊，建圖 $O(n + m)$，Bellman--Ford 是
+$O\bigl((n + 1)(n + m)\bigr) = O(n^2 + nm)$。 第一輪掃過 $v_0$ 的邊之後，所有的 $d$ 都變成
+$0$，所以也可以不建 $v_0$，直接把每個 $d[v_i]$ 的初值設成 $0$，只掃 $m$ 條限制的邊，結果相同；
+第~\ref{sec:spt-bf}~節說的「所有 $d$ 從 $0$ 開始」就是這件事。
+
+兩個附帶的性質：
+\begin{itemize}
+\item \textbf{整數解。} $b_k$ 都是整數時，最短距離都是整數，求出的解也是整數；開工日、座位
+編號這類只能是整數的問題可以直接用。
+\item \textbf{求出的解不超過 $0$，而且是其中最大的。} $v_0$ 到 $v_i$ 有一條權重 $0$ 的邊，所以
+$x_i = \delta(v_0, v_i) \le 0$。 更進一步，設 $y$ 是任何一組可行解，而且每個 $y_i \le 0$，
+則 $y_i \le x_i$。 理由：取一條從 $v_0$ 到 $v_i$ 的最短路徑
+$v_0 \to v_{a_1} \to v_{a_2} \to \cdots \to v_{a_k} = v_i$，第一條邊權重 $0$，而
+$y_{a_1} \le 0$；之後每條邊 $(v_{a_{t-1}}, v_{a_t})$ 都是一條限制，
+$y_{a_t} \le y_{a_{t-1}} + w(v_{a_{t-1}}, v_{a_t})$。 一路代進去，
+$y_i \le 0 + \sum_{t=2}^{k} w(v_{a_{t-1}}, v_{a_t}) = \delta(v_0, v_i) = x_i$。 用在排程上，就是
+「在第 $0$ 天以前（含）開工」的所有排法裡，每項工作都盡量晚開工的那一個。
+\end{itemize}
+
+\subsection{手算追蹤}
+\label{sec:spt-diff-trace}
+
+回到程式設計營。 七條要求和對應的限制、約束圖的邊如下（邊的順序就是 Bellman--Ford 掃描的順序，
+排在 $v_0$ 的五條邊之後）：
+
+\begin{center}
+\small
+\begin{tabular}{clll}
+\toprule
+ & 要求 & 限制 & 邊 \\
+\midrule
+(a) & 工作 2 不能比工作 1 晚超過 $4$ 天開工 & $x_2 - x_1 \le 4$ & $(v_1, v_2)$，$4$ \\
+(b) & 工作 3 至少比工作 1 晚 $1$ 天開工 & $x_1 - x_3 \le -1$ & $(v_3, v_1)$，$-1$ \\
+(c) & 工作 3 不能比工作 1 晚超過 $3$ 天開工 & $x_3 - x_1 \le 3$ & $(v_1, v_3)$，$3$ \\
+(d) & 工作 4 至少比工作 2 晚 $2$ 天開工 & $x_2 - x_4 \le -2$ & $(v_4, v_2)$，$-2$ \\
+(e) & 工作 4 不能比工作 3 晚超過 $2$ 天開工 & $x_4 - x_3 \le 2$ & $(v_3, v_4)$，$2$ \\
+(f) & 工作 5 至少比工作 4 晚 $3$ 天開工 & $x_4 - x_5 \le -3$ & $(v_5, v_4)$，$-3$ \\
+(g) & 工作 5 不能比工作 2 晚超過 $6$ 天開工 & $x_5 - x_2 \le 6$ & $(v_2, v_5)$，$6$ \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+「至少晚 $1$ 天」是 $x_3 \ge x_1 + 1$，先寫成 $x_3 - x_1 \ge 1$，再改成 (b) 的 $\le$ 形式；
+「不能晚超過 $4$ 天」直接就是 $\le$。 約束圖畫在圖~\ref{fig:spt-diff}。
+
+\begin{center}
+\begin{tikzpicture}[x=1cm, y=1cm]
+\node[spt-v] (q0) at (-2.4, 0) {$v_0$};
+\node[spt-v] (q1) at (0, 1.2) {$v_1$};
+\node[spt-v] (q3) at (0, -1.2) {$v_3$};
+\node[spt-v] (q2) at (3, 1.6) {$v_2$};
+\node[spt-v] (q4) at (3, -1.6) {$v_4$};
+\node[spt-v] (q5) at (5.6, 0) {$v_5$};
+\draw[spt-sa] (q0) -- node[spt-w, above left, pos=0.45] {$0$} (q1);
+\draw[spt-sa] (q0) -- node[spt-w, below left, pos=0.45] {$0$} (q3);
+\draw[spt-sa] (q0) to[out=75, in=160] node[spt-w, pos=0.3, above left] {$0$} (q2);
+\draw[spt-sa] (q0) to[out=-75, in=-160] node[spt-w, pos=0.3, below left] {$0$} (q4);
+\draw[spt-sa] (q0) to[out=95, in=85, looseness=1.15] node[spt-w, pos=0.5, above] {$0$} (q5);
+\draw[spt-a] (q1) -- node[spt-w, above] {$4$} (q2);
+\draw[spt-neg] (q3) to[bend left=25] node[spt-wn, left] {$-1$} (q1);
+\draw[spt-a] (q1) to[bend left=25] node[spt-w, right] {$3$} (q3);
+\draw[spt-a] (q3) -- node[spt-w, below] {$2$} (q4);
+\draw[spt-neg] (q4) -- node[spt-wn, right] {$-2$} (q2);
+\draw[spt-a] (q2) -- node[spt-w, above right] {$6$} (q5);
+\draw[spt-neg] (q5) -- node[spt-wn, below right] {$-3$} (q4);
+\end{tikzpicture}\par\nopagebreak
+\diagcaption{程式設計營的約束圖。 灰色的是超級源點 $v_0$ 的五條邊，紅色是負邊。 $v_1$、
+$v_3$ 之間兩個方向各有一條邊，分別來自 (b) 和 (c)。}
+\label{fig:spt-diff}
+\end{center}
+
+照虛擬碼~\ref{alg:spt-diff} 執行。 每一輪先掃 $v_0$ 的五條邊，再依 (a) 到 (g) 的順序掃：
+
+\begin{center}
+\begin{tabular}{c*{6}{c}l}
+\toprule
+輪 & $d[v_0]$ & $d[v_1]$ & $d[v_2]$ & $d[v_3]$ & $d[v_4]$ & $d[v_5]$ & 這一輪成功鬆弛的邊 \\
+\midrule
+初始 & $0$ & $\infty$ & $\infty$ & $\infty$ & $\infty$ & $\infty$ & \\
+1 & $0$ & $-1$ & $-2$ & $0$ & $-3$ & $0$ & $v_0$ 的五條、(b)、(d)、(f) \\
+2 & $0$ & $-1$ & \sptnew{$-5$} & $0$ & $-3$ & $0$ & (d) \\
+3 & $0$ & $-1$ & $-5$ & $0$ & $-3$ & $0$ & 沒有 \\
+\midrule
+$\pi$ & \NIL & $v_3$ & $v_4$ & $v_0$ & $v_5$ & $v_0$ & 第 4、5 輪和檢查都沒有變化，回傳 \TRUE \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+第 1 輪掃完 $v_0$ 的邊，$d[v_1..v_5]$ 都是 $0$；接著 (b) 讓 $d[v_1] = 0 - 1$，(d) 讓
+$d[v_2] = 0 - 2$，(f) 讓 $d[v_4] = 0 - 3$；(a)、(c)、(e)、(g) 都不成功，例如 (c) 是
+$-1 + 3 = 2 \not< 0$。 第 2 輪 (d) 用到第 1 輪才改好的 $d[v_4] = -3$，得到 $d[v_2] = -3 - 2 = -5$。
+第 3 輪沒有任何改變，照第~\ref{sec:spt-bf}~節的「提早結束」可以在這裡停。
+
+解是 $x = (-1, -5, 0, -3, 0)$。 逐條檢查：(a) $-5 - (-1) = -4 \le 4$；(b) $-1 - 0 = -1 \le -1$；
+(c) $0 - (-1) = 1 \le 3$；(d) $-5 - (-3) = -2 \le -2$；(e) $-3 - 0 = -3 \le 2$；(f) $-3 - 0 = -3
+\le -3$；(g) $0 - (-5) = 5 \le 6$，全部成立。 每個值都加 $5$，讓最早的工作 2 在第 $0$ 天開工：
+\[
+(x_1, x_2, x_3, x_4, x_5) = (4, 0, 5, 2, 5).
+\]
+工作 2 先開工，兩天後工作 4，第 $4$ 天工作 1，第 $5$ 天工作 3 和工作 5。 這組解裡等號成立的限制
+是 (b)、(d)、(f)，正好是 $\pi$ 用到的三條邊：$\pi$ 構成的最短路徑樹上，每條邊都讓三角不等式取
+等號。
+
+\textbf{無解的例子。} 把 (g) 改成「工作 5 不能比工作 2 晚超過 $4$ 天開工」，也就是
+$x_5 - x_2 \le 4$，邊 $(v_2, v_5)$ 的權重變成 $4$。 照同樣的順序：
+
+\begin{center}
+\begin{tabular}{c*{6}{c}l}
+\toprule
+輪 & $d[v_0]$ & $d[v_1]$ & $d[v_2]$ & $d[v_3]$ & $d[v_4]$ & $d[v_5]$ & 這一輪成功鬆弛的邊 \\
+\midrule
+1 & $0$ & $-1$ & $-2$ & $0$ & $-3$ & $0$ & $v_0$ 的五條、(b)、(d)、(f) \\
+2 & $0$ & $-1$ & \sptnew{$-5$} & $0$ & $-3$ & \sptnew{$-1$} & (d)、(g) \\
+3 & $0$ & $-1$ & $-5$ & $0$ & \sptnew{$-4$} & $-1$ & (f) \\
+4 & $0$ & $-1$ & \sptnew{$-6$} & $0$ & $-4$ & \sptnew{$-2$} & (d)、(g) \\
+5 & $0$ & $-1$ & $-6$ & $0$ & \sptnew{$-5$} & $-2$ & (f) \\
+\midrule
+檢查 & \multicolumn{6}{c}{(d)：$-5 - 2 = -7 < -6$} & 回傳 \FALSE \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+$d[v_2]$、$d[v_4]$、$d[v_5]$ 每兩輪少 $1$，停不下來，檢查時 (d) 還能鬆弛，所以無解。 照
+第~\ref{sec:spt-negcycle}~節的方法找負環：檢查那一輪照樣鬆弛，(d)、(g) 依序成功，最後變小的是
+$v_5$；$\pi[v_5] = v_2$、$\pi[v_2] = v_4$、$\pi[v_4] = v_5$，往回走 $6$ 步停在 $v_5$，繞一圈倒過來
+是負環 $v_4 \to v_2 \to v_5 \to v_4$，權重 $-2 + 4 - 3 = -1$。 把這三條邊的限制加起來：
+\[
+(x_2 - x_4) + (x_5 - x_2) + (x_4 - x_5) \le -2 + 4 + (-3),
+\]
+左邊是 $0$，得到 $0 \le -1$。 用白話說：工作 5 至少比工作 4 晚 $3$ 天，工作 4 又至少比工作 2 晚 $2$
+天，所以工作 5 至少比工作 2 晚 $5$ 天，和「不超過 $4$ 天」衝突。 負環就是一串互相矛盾的要求。
+
+\begin{examnote}
+差分約束的題目，答案依序寫：(1) 每條限制改寫成 $x_j - x_i \le b$，對應的邊 $(v_i, v_j)$ 和權
+重；(2) 加上超級源點 $v_0$ 和權重 $0$ 的邊；(3) Bellman--Ford 每一輪的 $d$（寫明邊的掃描順序）；
+(4) 有解就寫出 $x_i = d[v_i]$，並把每條限制代進去驗算；無解就寫出負環，把環上的限制加起來得到
+$0 \le$ 負數。 最常見的錯誤是邊的方向畫反：$x_j - x_i \le b$ 是從 $v_i$ 指向 $v_j$（從減數指向
+被減數）。 題目要的是「一組」解時，任何一組可行解都對，整組加減同一個數也對；有些課本省略 $v_0$，
+改成所有 $d$ 從 $0$ 開始，結果相同。
+\end{examnote}
+
+\subsection{和其他做法的比較}
+
+\begin{itemize}
+\item \textbf{約束圖沒有環時}，例如只有「誰比誰晚多少天」的先後要求，而且先後關係沒有循環，
+約束圖加上 $v_0$ 是有向無環圖，可以改用第~\ref{sec:spt-dag}~節依拓樸順序鬆弛，時間
+$\Theta(n + m)$。 這時的問題和第~22~章 AOE 網路的最早時間是同一類。
+\item \textbf{限制都是 $\le$ 而且 $b_k \ge 0$ 時}，$x_1 = \cdots = x_n = 0$ 就是解，不必算。 有
+意思的都是同時有「至少」和「至多」的系統，兩種要求互相拉扯才會出現負邊和環。
+\item \textbf{和 Johnson 演算法的關係。} 第~\ref{sec:spt-johnson}~節要找一組 $h$ 讓
+$h(v) \le h(u) + w(u, v)$ 對每條邊成立，正是一個差分約束系統；它加的新頂點 $q$ 就是這裡的超級
+源點。
+\item \textbf{一般的線性規劃。} 每條限制可以牽涉很多變數、係數任意的線性不等式組，要用線性規劃
+的方法（單形法等），沒有這麼簡單的圖論解法。 差分約束是線性規劃裡「每條限制恰好一個 $+1$、一個
+$-1$」的特例，所以能用最短路徑解。
+\end{itemize}
+
 \section{有向無環圖上的最短路徑}
 \label{sec:spt-dag}
 
@@ -2047,7 +2339,9 @@ w(u, v)$。 這正是三角不等式的形狀：加一個新頂點 $q$，從 $q$
 h(v) = \delta(q, v) \le \delta(q, u) + w(u, v) = h(u) + w(u, v).
 \]
 $q$ 走得到每個頂點，所以 $h(v)$ 有限（而且 $\le 0$）；$q$ 沒有入邊，$G'$ 的環都是 $G$ 原本的環。
-用 Bellman--Ford 從 $q$ 出發算 $h$，順便檢查 $G$ 有沒有負環。
+用 Bellman--Ford 從 $q$ 出發算 $h$，順便檢查 $G$ 有沒有負環。 換個角度看，要找的是一組滿足
+$h(v) - h(u) \le w(u, v)$ 的 $h$，正是第~\ref{sec:spt-diff}~節的差分約束系統：$G'$ 就是它的約束圖，
+$q$ 就是超級源點。
 
 \begin{pseudo}[label=alg:spt-johnson]{Johnson 演算法}
 \Function{Johnson}{$G, w$}
@@ -2187,6 +2481,10 @@ $W$ 的對角線沒有設 $0$ & 對角線用 $\infty$ 開始，算出的 $d_{ii}
 第~\ref{sec:spt-fw}~節 \\
 遞移閉包的對角線 & $A^{+}$ 的 $t_{ii}$ 要看 $i$ 在不在環上，照抄 $1$ 或 $0$ 都可能錯 &
 第~\ref{sec:spt-fw}~節 \\
+差分約束的邊畫反 & $x_1 - x_3 \le -1$ 畫成 $v_1 \to v_3$，算出的解不滿足限制；應該是 $v_3 \to v_1$ &
+第~\ref{sec:spt-diff}~節 \\
+差分約束不加超級源點 & 從 $v_1$ 出發，約束圖從 $v_1$ 走不到的變數停在 $\infty$，也漏掉走不到的負環 &
+第~\ref{sec:spt-diff}~節 \\
 \bottomrule
 \end{tabular}
 \end{center}
@@ -2331,7 +2629,138 @@ $3 \to 5$、$5 \to 3$。
 \item 用 $O(m \lg n)$ 時間找出所有「至少在一條 $s$ 到 $t$ 的最短路徑上」的邊，並證明你的判斷
 條件。
 \end{enumerate}
+\item \label{spt-q-diff}（計算）變數 $x_1, x_2, x_3, x_4$ 有下列限制：
+\[
+x_1 - x_4 \le 5, \qquad x_2 - x_1 = 2, \qquad x_3 - x_2 \ge 1, \qquad x_4 - x_3 \le -3, \qquad
+x_3 - x_1 \le 6.
+\]
+\begin{enumerate}
+\item 把每條限制改寫成 $x_j - x_i \le b$ 的形式（等式拆成兩條，先寫 $x_2 - x_1 \le 2$），依題目
+的順序列出約束圖的邊和權重。
+\item 照虛擬碼~\ref{alg:spt-diff} 執行（每一輪先掃 $v_0$ 的邊，再依 (a) 的順序），寫出每一輪結束時
+的 $d[v_1..v_4]$，得到一組可行解並驗算。 再把它平移成最小的 $x_i$ 是 $0$ 的那一組。
+\item 把第一條限制的 $5$ 換成參數 $c$。 $c$ 最小是多少時系統仍然有解？ $c$ 比它小時，寫出約束圖
+的負環和互相矛盾的那幾條限制。
 \end{enumerate}
+
+\item \label{spt-q-sched}（設計）工廠有 $n$ 項工作，工作 $i$ 要做 $p_i$ 天（正整數），開工日 $s_i$
+是整數。 有兩種要求：\textbf{先後要求} $(i, j)$ 表示工作 $j$ 要等工作 $i$ 做完才能開工；
+\textbf{期限要求} $(i, j, T)$ 表示工作 $j$ 必須在工作 $i$ 開工後 $T$ 天之內開工，也就是
+$s_j \le s_i + T$。 先後要求有 $P$ 個，期限要求有 $Q$ 個。
+\begin{enumerate}
+\item 把所有要求寫成差分約束系統，說明約束圖有幾個頂點、幾條邊。
+\item 設計演算法，判斷能不能排出符合所有要求的開工日；能的話輸出一組，而且最早開工的工作在第
+$0$ 天開工。 寫出時間。
+\item 舉一個 $n = 2$ 的例子說明為什麼可能排不出來，並指出約束圖的負環。
+\item 如果只有先後要求，而且先後關係沒有循環（沒有「$1$ 要等 $2$、$2$ 又要等 $1$」這種情形），
+怎麼做得比 (b) 快？
+\end{enumerate}
+\end{enumerate}
+
+\section{歷屆試題}
+\label{sec:spt-pastexam}
+
+以下是研究所入學考試的原題，題目照原卷（語言、記號、配分照錄）。 詳解在本章最後。
+
+\begin{pastexam}[label={px:spt-1}]{中正資工所甲組 115 學年度 第 24 題}
+(For Questions 1 to 24.) Select \textbf{multiple} correct answers 複選題(可選多個選項): Choose all
+\textbf{(one or more)} that apply. \textbf{NO} partial credit is given.
+
+(3\%) (\qquad) Determine the order in which vertices are selected by Dijkstra's algorithm on the
+graph below, starting from source vertex \textit{A}. If two unvisited vertices have the same
+tentative distance, select the vertex with the smaller alphabetical label first.
+\begin{center}
+\begin{tikzpicture}[x=1cm,y=0.85cm,v/.style={circle,draw,minimum size=6.5mm,inner sep=1pt,font=\small\sffamily},lab/.style={font=\scriptsize\sffamily,inner sep=2pt}]
+\node[v] (A) at (1.64,-0.58) {A};
+\node[v] (B) at (3.11,-1.19) {B};
+\node[v] (D) at (0.69,-1.71) {D};
+\node[v] (C) at (4.63,-2.26) {C};
+\node[v] (E) at (1.89,-3.03) {E};
+\node[v] (F) at (3.42,-3.03) {F};
+\node[v] (G) at (4.03,-4.31) {G};
+\draw (A) -- node[lab,above,pos=0.4]{8} (B);
+\draw (A) -- node[lab,above left]{10} (D);
+\draw (B) -- node[lab,above right]{6} (C);
+\draw (B) -- node[lab,left]{4} (F);
+\draw (D) -- node[lab,below left=2pt]{15} (E);
+\draw (E) -- node[lab,above]{14} (F);
+\draw (E) -- node[lab,below left]{18} (G);
+\draw (F) -- node[lab,right]{8} (G);
+\draw (C) -- node[lab,right]{12} (G);
+\end{tikzpicture}
+\end{center}
+(a) (A, D, B, E, F, C, G) \quad (b) (A, B, F, G, C, D, E) \quad (c) (A, D, B, F, G, C, E)\\
+(d) (A, B, D, F, C, G, E) \quad (e) none of the above
+\end{pastexam}
+
+\begin{pastexam}[label={px:spt-2}]{臺大資工所 112 學年度 第 12 題}
+（複選題，每個選項單獨計分。）
+
+\textbf{Properties of shortest path problem:} Which of the following statements is/are correct?
+\begin{enumerate}[label=(\Alph*)]
+\item Dijkstra's algorithm can be applied to any directed graph with no negative cycle.
+\item The heap data structure is likely to be used in Dijkstra's algorithm.
+\item Floyd-Warshall algorithm can be applied to any directed graph with negative weights.
+\item Floyd-Warshall algorithm is based on the concept of dynamic programming.
+\item Every shortest path in a weighted directed graph $G$ will not change if an extra weight is
+added on every edge of $G$
+\end{enumerate}
+\end{pastexam}
+
+\begin{pastexam}[label={px:spt-3}]{中正資工所甲組 111 學年度 第 19 題}
+(17\%)
+\begin{center}
+\begin{tikzpicture}[>={Stealth[length=2.2mm]},thick,
+  v/.style={circle,draw,minimum size=7mm,inner sep=0pt,font=\sffamily},lab/.style={font=\sffamily\small,inner sep=1.5pt}]
+\node[v] (a) at (0,2) {a}; \node[v] (b) at (2.2,2) {b};
+\node[v] (c) at (0,0) {c}; \node[v] (d) at (2.2,0) {d};
+\draw[->] ([yshift=3pt]a.east) -- node[lab,above] {6} ([yshift=3pt]b.west);
+\draw[->] (a) -- node[lab,left] {3} (c);
+\draw[->] (b) -- node[lab,right] {2} (d);
+\draw[->] (d) -- node[lab,above right,pos=0.45] {$-7$} (a);
+\draw[->] ([yshift=3pt]c.east) -- node[lab,above] {5} ([yshift=3pt]d.west);
+\draw[->] ([yshift=-3pt]d.west) -- node[lab,below] {$-3$} ([yshift=-3pt]c.east);
+\end{tikzpicture}
+\end{center}
+\begin{enumerate}[label=\alph*.,itemsep=2pt,topsep=2pt]
+\item (2\%) Argue what the output will be if we specify a source node and input the graph at
+left into the Dijkstra algorithm. Write down your reasoning.
+\item (4\%) Reweight the graph at left.
+\item (8\%) Apply Floyd-Warshall algorithm to the left graph and derive the distance and
+predecessor matrices. Write down your derivation.
+\item (3\%) Given another graph G=\{V,E\}, how do you tell which of Floyd-Warshall algorithm and
+Johnson's algorithm is theoretically faster to solve the shortest path problem?
+\end{enumerate}
+\end{pastexam}
+
+\begin{pastexam}[label={px:spt-4}]{成大資訊聯招 113 學年度 第 15 題}
+(10\%) Find the set of feasible solutions $\{x=(x_1,x_2,x_3,x_4,x_5)\}$ or determine that no
+feasible solution exists for the following system of difference constraints:
+\begin{align*}
+x_1-x_3&\le 1\\
+x_2-x_3&\le 4\\
+x_4-x_5&\le -2\\
+x_3-x_4&\le 4\\
+x_5-x_1&\le 3\\
+x_4-x_2&\le -7\\
+x_1-x_2&\le -2\\
+x_5-x_3&\le 1
+\end{align*}
+\end{pastexam}
+
+\begin{pastexam}[label={px:spt-5}]{中央資工所 110 學年度 問答題第 2 題（節錄 (B) 小題）}
+A weighted graph G=(V, E) is an undirected graph with nonnegative weight assigned to each edge in
+E. The length of a path in G is the sum of edge weights of the edges in the path. A path P from
+vertex u to vertex v is said to be shortest if the length of P is smallest for all paths from
+vertex u to vertex v.
+
+(B) (13\%) Now you are given a weighted graph $G$=($V$, $E$), a specified vertex $s$ in $V$, an
+array $d$[\,] of size $|V|$, and it is claimed that for each $v$ in $V$, $d$[$v$] is the length of
+the shortest path from $s$ to $v$. The claim may be correct or may be not. Design a linear time
+algorithm to check whether the claim is correct. Analyses the time complexity of your algorithm
+and make sure it is linear, that is, the running time of your algorithm must be
+$O(|V|+|E|)$.
+\end{pastexam}
 
 \section{實作練習}
 \label{sec:spt-practice}
@@ -2395,6 +2824,8 @@ $u$、時間是 $t$ 時，任何還沒去的站 $v$ 最早也要到 $t + \delta(
 \item 依拓樸順序求有向無環圖的最短路徑和最長路徑，說明它和第~22~章關鍵路徑的關係。
 \item 寫出 Floyd--Warshall 的 $D^{(k)}$、$\Pi^{(k)}$ 序列並還原路徑，用 $d_{ii} < 0$ 判斷負環；
 用 Warshall 演算法求 $A^{+}$、$A^{*}$。
+\item 把差分約束系統化成約束圖，用 Bellman--Ford 求一組可行解，或找出負環說明無解；會把 $\ge$、
+$=$ 和單一變數的限制改寫成標準形式。
 \item 說明 Johnson 演算法為什麼改權重之後最短路徑不變、權重一定非負，並依圖的大小、疏密和
 權重的正負選擇演算法。
 \end{itemize}
@@ -2403,8 +2834,7 @@ $u$、時間是 $t$ 時，任何還沒去的站 $v$ 最早也要到 $t + \delta(
 
 \begin{itemize}
 \item Thomas H. Cormen 等，\textit{Introduction to Algorithms}，第 4 版，第 22、23 章：本章的主要
-參考。 22.4 節的差分約束（把一組 $x_j - x_i \le b$ 的不等式化成最短路徑）本章沒有講，是
-Bellman--Ford 的一個應用。
+參考。 22.4 節的差分約束和第~\ref{sec:spt-diff}~節的內容相同，另外說明了它和線性規劃的關係。
 \item Ellis Horowitz、Sartaj Sahni、Susan Anderson-Freed，\textit{Fundamentals of Data Structures
 in C}，第 2 版，第 6 章：$\mathit{dist}^{k}$ 形式的 Bellman--Ford、$A^{+}$ 與 $A^{*}$ 等寫法，都是
 這一系列資料結構課本常見的記號。
@@ -2615,4 +3045,355 @@ $\delta(s, t) = w(p) \ge d_s(u) + w(u, v) + d_t(v)$；而左邊這三段接起�
 $\ge \delta(s, t)$，等號成立。 充分：把 $s$ 到 $u$ 的最短路徑、邊 $(u, v)$、$v$ 到 $t$ 的最短路徑接
 起來，權重正好是 $\delta(s, t)$，是一條經過 $(u, v)$ 的最短路徑。 每條邊檢查一次，總時間
 $O(m \lg n)$。 第~21~章觀念題第~\ref{q:gtr-on-path}~題是權重都是 $1$ 的版本。
+\item (a) 改寫後依序是：$x_1 - x_4 \le 5$：邊 $(v_4, v_1)$，$5$；$x_2 - x_1 \le 2$：$(v_1, v_2)$，$2$；
+$x_1 - x_2 \le -2$：$(v_2, v_1)$，$-2$；$x_3 - x_2 \ge 1$ 改成 $x_2 - x_3 \le -1$：$(v_3, v_2)$，$-1$；
+$x_4 - x_3 \le -3$：$(v_3, v_4)$，$-3$；$x_3 - x_1 \le 6$：$(v_1, v_3)$，$6$。 另外 $v_0$ 到 $v_1..v_4$
+各一條權重 $0$ 的邊，共 $5$ 個頂點、$10$ 條邊。
+
+(b) 每一輪結束時：
+\begin{center}
+\begin{tabular}{c*{4}{c}l}
+\toprule
+輪 & $d[v_1]$ & $d[v_2]$ & $d[v_3]$ & $d[v_4]$ & 這一輪成功鬆弛的限制邊 \\
+\midrule
+1 & $-2$ & $-1$ & $0$ & $-3$ & $(v_2, v_1)$、$(v_3, v_2)$、$(v_3, v_4)$ \\
+2 & \sptnew{$-3$} & $-1$ & $0$ & $-3$ & $(v_2, v_1)$ \\
+3 & $-3$ & $-1$ & $0$ & $-3$ & 沒有 \\
+\bottomrule
+\end{tabular}
+\end{center}
+第 1 輪：$v_0$ 的邊讓 $d$ 都變成 $0$；$(v_4, v_1)$、$(v_1, v_2)$ 不成功；$(v_2, v_1)$ 得 $d[v_1] = -2$；
+$(v_3, v_2)$ 得 $d[v_2] = -1$；$(v_3, v_4)$ 得 $d[v_4] = -3$；$(v_1, v_3)$：$-2 + 6$ 不比 $0$ 小。 第 2 輪
+$(v_2, v_1)$ 用到新的 $d[v_2] = -1$，得 $d[v_1] = -3$。 第 3 輪起不再改變，第 4 輪和檢查也一樣，有解。
+$x = (-3, -1, 0, -3)$。 驗算：$x_1 - x_4 = 0 \le 5$；$x_2 - x_1 = 2$；$x_3 - x_2 = 1 \ge 1$；
+$x_4 - x_3 = -3 \le -3$；$x_3 - x_1 = 3 \le 6$。 每個加 $3$：$(0, 2, 3, 0)$。
+
+(c) $c$ 最小是 $-3$。 約束圖的簡單環只有三個：$v_1 \to v_2 \to v_1$，權重 $2 - 2 = 0$；
+$v_1 \to v_3 \to v_2 \to v_1$，權重 $6 - 1 - 2 = 3$；$v_4 \to v_1 \to v_3 \to v_4$，權重 $c + 6 - 3 =
+c + 3$（$v_2$ 只有連回 $v_1$ 的邊，$v_4$ 只有連到 $v_1$ 的邊，所以沒有別的環）。 由
+定理~\ref{thm:spt-diff}，有解若且唯若沒有負環，也就是 $c + 3 \ge 0$。 $c = -3$ 時 Bellman--Ford 算出
+$x = (-6, -4, 0, -3)$，可以驗算 $x_1 - x_4 = -3$。 $c < -3$ 時負環是 $v_4 \to v_1 \to v_3 \to v_4$，
+對應的限制 $x_1 - x_4 \le c$、$x_3 - x_1 \le 6$、$x_4 - x_3 \le -3$ 加起來是 $0 \le c + 3 < 0$。 白話是：
+$x_4$ 至少比 $x_3$ 小 $3$，$x_3$ 最多比 $x_1$ 大 $6$，所以 $x_1 - x_4 \ge -3$，不可能 $\le c$。
+
+\item (a) 先後要求 $(i, j)$：$s_j \ge s_i + p_i$，寫成 $s_i - s_j \le -p_i$，邊 $(v_j, v_i)$，權重
+$-p_i$。 期限要求 $(i, j, T)$：$s_j - s_i \le T$，邊 $(v_i, v_j)$，權重 $T$。 加上 $v_0$ 和 $n$ 條權重 $0$
+的邊，約束圖有 $n + 1$ 個頂點、$n + P + Q$ 條邊。
+
+(b) 照虛擬碼~\ref{alg:spt-diff} 建約束圖、從 $v_0$ 跑 Bellman--Ford。 回傳 \FALSE 時排不出來（約束圖
+有負環，定理~\ref{thm:spt-diff} (2)）。 否則 $x_i = d[v_i]$ 是一組解，權重都是整數，$x_i$ 也是整數。 令
+$\mu = \min_i x_i$，輸出 $s_i = x_i - \mu$：由引理~\ref{lem:spt-diff-shift} 仍是解，每個 $s_i \ge 0$，而
+且取到最小值的那項工作 $s_i = 0$。 時間：建圖 $O(n + P + Q)$，Bellman--Ford $O(n(n + P + Q))$，平移
+$O(n)$，合計 $O(n(n + P + Q))$。
+
+(c) 例如 $p_1 = 3$，先後要求 $(1, 2)$（工作 2 等工作 1 做完），又有期限要求 $(1, 2, 2)$（工作 2 要在
+工作 1 開工後 $2$ 天內開工）。 前者要 $s_2 \ge s_1 + 3$，後者要 $s_2 \le s_1 + 2$，矛盾。 約束圖有
+$(v_2, v_1)$，權重 $-3$，和 $(v_1, v_2)$，權重 $2$，形成負環 $v_1 \to v_2 \to v_1$，權重 $-1$。
+
+(d) 只有先後要求時，每條邊 $(v_j, v_i)$ 都是先後關係 $i \to j$ 反過來；先後關係沒有循環，約束圖的
+這些邊也沒有環，$v_0$ 又沒有進來的邊，所以整張約束圖是有向無環圖。 一定沒有負環，一定排得出來；用
+第~\ref{sec:spt-dag}~節的 \proc{DAG-Shortest-Paths} 從 $v_0$ 出發，時間 $\Theta(n + P)$，再照 (b) 平移。
 \end{enumerate}
+
+\addcontentsline{toc}{section}{歷屆試題詳解}
+\section*{歷屆試題詳解}
+
+\pastsol{px:spt-1}{中正資工所甲組 115 學年度 第 24 題}
+答案：只有 (d)。
+
+圖是無向圖，每條邊兩個方向都能走。 從 A 執行 Dijkstra 演算法，平手時取字母小的（題目的規則，
+和本書「取編號小的」相同）。 每一列是取出那個頂點、鬆弛完它的鄰居之後的 $d$：
+
+\begin{center}
+\small
+\begin{tabular}{cc*{7}{c}}
+\toprule
+輪 & 取出 & A & B & C & D & E & F & G \\
+\midrule
+1 & A & \sptpick{0} & \sptnew{8} & $\infty$ & \sptnew{10} & $\infty$ & $\infty$ & $\infty$ \\
+2 & B & \sptold{0} & \sptpick{8} & \sptnew{14} & $10$ & $\infty$ & \sptnew{12} & $\infty$ \\
+3 & D & \sptold{0} & \sptold{8} & $14$ & \sptpick{10} & \sptnew{25} & $12$ & $\infty$ \\
+4 & F & \sptold{0} & \sptold{8} & $14$ & \sptold{10} & $25$ & \sptpick{12} & \sptnew{20} \\
+5 & C & \sptold{0} & \sptold{8} & \sptpick{14} & \sptold{10} & $25$ & \sptold{12} & $20$ \\
+6 & G & \sptold{0} & \sptold{8} & \sptold{14} & \sptold{10} & $25$ & \sptold{12} & \sptpick{20} \\
+7 & E & \sptold{0} & \sptold{8} & \sptold{14} & \sptold{10} & \sptpick{25} & \sptold{12} & \sptold{20} \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+幾個要看清楚的地方：第 4 輪 F 鬆弛 E 得到 $12 + 14 = 26$，不比 $25$ 小，不更新；第 5 輪 C 鬆弛 G
+得到 $14 + 12 = 26$，不比 $20$ 小；第 6 輪 G 鬆弛 E 得到 $20 + 18 = 38$，也不更新。 每一輪 $Q$ 裡
+最小的 $d$ 都只有一個，這張圖用不到平手規則。 取出的順序是 A, B, D, F, C, G, E。
+
+\begin{itemize}
+\item (a) 錯：第 2 個取出的應該是 $d = 8$ 的 B，不是 $d = 10$ 的 D。
+\item (b) 錯：前兩個 A, B 對，但第 3 個應該是 D（$10$），不是 F（$12$）。
+\item (c) 錯：第 2 個就錯了，理由同 (a)。
+\item (d) 對：和上表相同。
+\item (e) 錯：(d) 是對的。
+\end{itemize}
+
+\pastsol{px:spt-2}{臺大資工所 112 學年度 第 12 題}
+答案：(B)、(D)。
+
+\begin{itemize}
+\item \textbf{(A) 錯。} Dijkstra 演算法要求權重都 $\ge 0$（定理~\ref{thm:spt-dijkstra}）；沒有
+負環但有負邊時就可能算錯。 反例是圖~\ref{fig:spt-neg} 的 $N_1$：只有一條負邊 $3 \to 2$、沒有負
+環，Dijkstra 算出 $d[2] = 3$、$d[4] = 5$，正確答案是 $1$ 和 $3$（第~\ref{sec:spt-dijkstra-neg}~節）。
+\item \textbf{(B) 對。} Dijkstra 每一步要取出 $d$ 最小的頂點、並降低鄰居的 $d$，正是最小優先佇列
+的 \proc{Extract-Min} 和 \proc{Decrease-Key}，最常用二元堆積實作，時間
+$O((n + m) \lg n)$（第~\ref{sec:spt-dijkstra}~節的執行時間表）。 「likely」只是說常用，稠密圖也
+可以用陣列版，不影響這一項的對錯。
+\item \textbf{(C) 錯。} 「any directed graph with negative weights」包括有負環的圖。 有負環時，
+經過負環的點對最短距離是 $-\infty$，Floyd--Warshall 照樣跑完，算出的 $d_{ij}$ 不是正確答案；它
+能做的是用 $d_{ii} < 0$ \textbf{偵測}負環（第~\ref{sec:spt-fw}~節「有負環時」）。 只有負邊、沒有
+負環時，Floyd--Warshall 是對的。
+\item \textbf{(D) 對。} $d_{ij}^{(k)}$ 是「中間點只能用 $1..k$」的子問題，遞迴式
+$d_{ij}^{(k)} = \min(d_{ij}^{(k-1)}, d_{ik}^{(k-1)} + d_{kj}^{(k-1)})$ 由小的子問題算大的，是第~18~
+章的動態規劃（第~\ref{sec:dp-apsp}~節）。
+\item \textbf{(E) 錯。} 每條邊加同一個正數 $c$，$k$ 條邊的路徑多 $kc$，邊數不同的路徑加的量不同。
+反例：$1 \to 2$、$2 \to 3$ 權重都是 $1$，$1 \to 3$ 權重 $3$。 原本 $1$ 到 $3$ 的最短路徑是
+$1 \to 2 \to 3$（$2 < 3$）；每條邊加 $2$ 之後變成 $3, 3, 5$，$1 \to 2 \to 3$ 是 $6$，直接走是 $5$，最
+短路徑變了（觀念題第~\ref{spt-q-const}~題）。
+\end{itemize}
+
+\pastsol{px:spt-3}{中正資工所甲組 111 學年度 第 19 題}
+圖有 $4$ 個頂點、$6$ 條有向邊：$a \to b$：$6$、$a \to c$：$3$、$b \to d$：$2$、$c \to d$：$5$、
+$d \to a$：$-7$、$d \to c$：$-3$。 先確認沒有負環：簡單環只有 $a \to b \to d \to a$（$6 + 2 - 7 =
+1$）、$a \to c \to d \to a$（$3 + 5 - 7 = 1$）、$c \to d \to c$（$5 - 3 = 2$），都 $\ge 0$。 所以
+每一對頂點的最短距離都是有限的，(c) 的答案就是正確的 $\delta$。
+
+\textbf{a.} 圖有負邊，Dijkstra 演算法的正確性定理（定理~\ref{thm:spt-dijkstra}）不適用：它取出一
+個頂點就宣布距離確定，不再回頭，可能錯過「之後經過負邊才變短」的路徑，第~\ref{sec:spt-dijkstra-neg}~節
+的 $N_1$ 只有一條負邊就算錯了。 所以一般的答案是：輸出\textbf{不保證}是最短距離。
+
+但這張圖實際跑一次，結果剛好都對。 以起點 $a$ 為例（虛擬碼~\ref{alg:spt-dijkstra}，平手取字母小
+的）：
+
+\begin{center}
+\small
+\begin{tabular}{cc*{4}{c}l}
+\toprule
+輪 & 取出 & $a$ & $b$ & $c$ & $d$ & 說明 \\
+\midrule
+1 & $a$ & \sptpick{0} & \sptnew{6} & \sptnew{3} & $\infty$ & \\
+2 & $c$ & \sptold{0} & $6$ & \sptpick{3} & \sptnew{8} & \\
+3 & $b$ & \sptold{0} & \sptpick{6} & \sptold{3} & $8$ & $6 + 2 = 8$，相等不更新 \\
+4 & $d$ & \sptold{0} & \sptold{6} & \sptold{3} & \sptpick{8} & $d \to a$、$d \to c$ 指向 $S$ 裡的頂點，跳過 \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+輸出 $(0, 6, 3, 8)$。 四個起點的輸出和真正的最短距離（(c) 的 $D^{(4)}$）如下：
+
+\begin{center}
+\small
+\begin{tabular}{clll}
+\toprule
+起點 & 取出順序 & Dijkstra 的輸出 $d[a, b, c, d]$ & 正確的 $\delta$ \\
+\midrule
+$a$ & $a, c, b, d$ & $0, 6, 3, 8$ & $0, 6, 3, 8$ \\
+$b$ & $b, d, a, c$ & $-5, 0, -2, 2$ & $-5, 0, -2, 2$ \\
+$c$ & $c, d, a, b$ & $-2, 4, 0, 5$ & $-2, 4, 0, 5$ \\
+$d$ & $d, a, c, b$ & $-7, -1, -4, 0$ & $-7, -1, -4, 0$ \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+例如起點 $b$：取出 $b$ 得 $d[d] = 2$；取出 $d$ 得 $d[a] = -5$、$d[c] = -1$；取出 $a$（$-5$ 最小），
+$a \to c$ 得 $-5 + 3 = -2 < -1$，更新；最後取出 $c$。 四個起點都剛好正確：每個頂點被取出時，它的 $d$ 已經
+等於 $\delta$。 這是這張圖的巧合，不是 Dijkstra 的保證。 作答時兩件事都要寫：理論上不保
+證正確（舉 $N_1$ 這種反例或說明證明哪裡用到非負），這張圖實際跑出的輸出是上表，剛好正確。
+
+\textbf{b.} 照 Johnson 演算法（第~\ref{sec:spt-johnson}~節）：加新頂點 $q$，連 $q \to a, b, c, d$，
+權重 $0$，從 $q$ 跑 Bellman--Ford，令 $h(v) = \delta(q, v)$：
+\begin{itemize}
+\item $h(d) = 0$（$q \to d$；其他走法 $q \to b \to d = 2$、$q \to c \to d = 5$ 都比較大）；
+\item $h(a) = -7$（$q \to d \to a$）；
+\item $h(c) = -4$（$q \to d \to a \to c = -7 + 3$，比 $q \to d \to c = -3$ 小）；
+\item $h(b) = -1$（$q \to d \to a \to b = -7 + 6$）。
+\end{itemize}
+新的權重 $\hat{w}(u, v) = w(u, v) + h(u) - h(v)$：
+\begin{center}
+\small
+\begin{tabular}{cccccc}
+\toprule
+$a \to b$ & $a \to c$ & $b \to d$ & $c \to d$ & $d \to a$ & $d \to c$ \\
+\midrule
+$6 - 7 + 1 = 0$ & $3 - 7 + 4 = 0$ & $2 - 1 - 0 = 1$ & $5 - 4 - 0 = 1$ & $-7 + 0 + 7 = 0$ & $-3 + 0 + 4 = 1$ \\
+\bottomrule
+\end{tabular}
+\end{center}
+全部 $\ge 0$。 由引理~\ref{lem:spt-reweight}，$\hat{w}$ 之下的最短路徑和原本相同，$\delta(u, v) =
+\hat{\delta}(u, v) - h(u) + h(v)$，之後就能對每個起點跑 Dijkstra。
+
+\textbf{c.} 頂點依 $a, b, c, d$ 當成第 $1..4$ 個，照虛擬碼~\ref{alg:spt-fw}，粗體是這一層改過的格子，
+$\Pi$ 裡的「$-$」是 \NIL，列是起點、行是終點。
+\begin{gather*}
+D^{(0)} = \begin{pmatrix} 0 & 6 & 3 & \infty \\ \infty & 0 & \infty & 2 \\ \infty & \infty & 0 & 5 \\ -7 & \infty & -3 & 0 \end{pmatrix},\quad
+\Pi^{(0)} = \begin{pmatrix} - & a & a & - \\ - & - & - & b \\ - & - & - & c \\ d & - & d & - \end{pmatrix}; \\
+D^{(1)} = \begin{pmatrix} 0 & 6 & 3 & \infty \\ \infty & 0 & \infty & 2 \\ \infty & \infty & 0 & 5 \\ -7 & \mathbf{-1} & \mathbf{-4} & 0 \end{pmatrix},\quad
+\Pi^{(1)} = \begin{pmatrix} - & a & a & - \\ - & - & - & b \\ - & - & - & c \\ d & \mathbf{a} & \mathbf{a} & - \end{pmatrix}; \\
+D^{(2)} = \begin{pmatrix} 0 & 6 & 3 & \mathbf{8} \\ \infty & 0 & \infty & 2 \\ \infty & \infty & 0 & 5 \\ -7 & -1 & -4 & 0 \end{pmatrix},\quad
+\Pi^{(2)} = \begin{pmatrix} - & a & a & \mathbf{b} \\ - & - & - & b \\ - & - & - & c \\ d & a & a & - \end{pmatrix}; \\
+D^{(3)} = D^{(2)},\quad \Pi^{(3)} = \Pi^{(2)}; \\
+D^{(4)} = \begin{pmatrix} 0 & 6 & 3 & 8 \\ \mathbf{-5} & 0 & \mathbf{-2} & 2 \\ \mathbf{-2} & \mathbf{4} & 0 & 5 \\ -7 & -1 & -4 & 0 \end{pmatrix},\quad
+\Pi^{(4)} = \begin{pmatrix} - & a & a & b \\ \mathbf{d} & - & \mathbf{a} & b \\ \mathbf{d} & \mathbf{a} & - & c \\ d & a & a & - \end{pmatrix}.
+\end{gather*}
+逐層的推導（只看可能改變的格子：第 $k$ 行有限的列、第 $k$ 列有限的行）：
+\begin{itemize}
+\item $k = a$：第 $a$ 行有限的只有 $d_{da} = -7$，第 $a$ 列有限的是 $d_{ab} = 6$、$d_{ac} = 3$。 候選
+$d_{db}$：$-7 + 6 = -1 < \infty$，改，$\pi_{db} \gets \pi_{ab} = a$；$d_{dc}$：$-7 + 3 = -4 < -3$，改，
+$\pi_{dc} \gets \pi_{ac} = a$。
+\item $k = b$：第 $b$ 行有限的是 $d_{ab} = 6$、$d_{db} = -1$；第 $b$ 列有限的只有 $d_{bd} = 2$。
+$d_{ad}$：$6 + 2 = 8 < \infty$，改，$\pi_{ad} \gets \pi_{bd} = b$；$d_{dd}$：$-1 + 2 = 1$，不比 $0$ 小。
+\item $k = c$：第 $c$ 行有限的是 $d_{ac} = 3$、$d_{dc} = -4$；第 $c$ 列有限的只有 $d_{cd} = 5$。
+$d_{ad}$：$3 + 5 = 8$，不比 $8$ 小（相等不更新）；$d_{dd}$：$-4 + 5 = 1$，不變。 這一層沒有改變。
+\item $k = d$：第 $d$ 行有限的是 $d_{ad} = 8$、$d_{bd} = 2$、$d_{cd} = 5$；第 $d$ 列全部有限
+（$-7, -1, -4$）。 $d_{ab}$：$8 - 1 = 7$，不比 $6$ 小；$d_{ac}$：$8 - 4 = 4$，不比 $3$ 小；$d_{ba}$：
+$2 - 7 = -5$，改，$\pi_{ba} \gets \pi_{da} = d$；$d_{bc}$：$2 - 4 = -2$，改，$\pi_{bc} \gets \pi_{dc} = a$；
+$d_{ca}$：$5 - 7 = -2$，改，$\pi_{ca} \gets \pi_{da} = d$；$d_{cb}$：$5 - 1 = 4$，改，$\pi_{cb} \gets
+\pi_{db} = a$。
+\end{itemize}
+最後對角線都是 $0$，沒有負環，和開頭的檢查一致。 驗算一格：$b$ 到 $c$，$\pi_{bc} = a$、
+$\pi_{ba} = d$、$\pi_{bd} = b$，路徑 $b \to d \to a \to c$，權重 $2 - 7 + 3 = -2 = d_{bc}$。
+
+\textbf{d.} 設 $n = |V|$、$m = |E|$。 Floyd--Warshall 是 $\Theta(n^3)$，和邊數無關。 Johnson 是一次
+Bellman--Ford $O(nm)$，加上 $n$ 次 Dijkstra：用二元堆積共 $O(nm \lg n)$，用費氏堆積共
+$O(n^2 \lg n + nm)$。 所以看 $m$ 和 $n^2$ 的關係（第~\ref{sec:spt-johnson}~節）：
+\begin{itemize}
+\item 稀疏圖，$m = o(n^2 / \lg n)$（例如 $m = O(n)$）：Johnson 用二元堆積的 $O(nm \lg n)$ 就是
+$o(n^3)$，Johnson 比較快。
+\item 稠密圖，$m = \Theta(n^2)$：Johnson 用二元堆積是 $\Theta(n^3 \lg n)$，用費氏堆積是
+$\Theta(n^3)$，最好也只和 Floyd--Warshall 同級；Floyd--Warshall 常數小、程式短，選它。
+\item 介於中間（$n^2 / \lg n \lesssim m = o(n^2)$）：用費氏堆積的 Johnson 理論上仍是 $o(n^3)$，比較快。
+\end{itemize}
+簡單說：理論上 Johnson 用費氏堆積時，只要 $m = o(n^2)$ 就比 Floyd--Warshall 快；$m = \Theta(n^2)$ 時
+兩者同級。
+
+\pastsol{px:spt-4}{成大資訊聯招 113 學年度 第 15 題}
+答案：有可行解，例如 $x = (-2, 0, -3, -7, -2)$。
+
+題目寫「the set of feasible solutions」。 一個差分約束系統有解時，解有無限多組（引理~\ref{lem:spt-diff-shift}：
+任何一組解每個分量都加同一個數仍是解），而且解集合不只這些平移，所以這裡的解讀是「求出一組可
+行解」，再說明怎麼得到更多組。
+
+\textbf{約束圖}（第~\ref{sec:spt-diff}~節）。 頂點 $v_0, v_1, \ldots, v_5$；$v_0$ 到每個 $v_i$ 一條權
+重 $0$ 的邊；每條 $x_j - x_i \le b$ 是邊 $(v_i, v_j)$，權重 $b$。 依題目的順序：
+\begin{center}
+\small
+\begin{tabular}{llll}
+\toprule
+限制 & 邊 & 限制 & 邊 \\
+\midrule
+$x_1 - x_3 \le 1$ & $(v_3, v_1)$，$1$ & $x_5 - x_1 \le 3$ & $(v_1, v_5)$，$3$ \\
+$x_2 - x_3 \le 4$ & $(v_3, v_2)$，$4$ & $x_4 - x_2 \le -7$ & $(v_2, v_4)$，$-7$ \\
+$x_4 - x_5 \le -2$ & $(v_5, v_4)$，$-2$ & $x_1 - x_2 \le -2$ & $(v_2, v_1)$，$-2$ \\
+$x_3 - x_4 \le 4$ & $(v_4, v_3)$，$4$ & $x_5 - x_3 \le 1$ & $(v_3, v_5)$，$1$ \\
+\bottomrule
+\end{tabular}
+\end{center}
+（左欄由上而下是第 1--4 條，右欄是第 5--8 條。）
+
+\textbf{Bellman--Ford}，從 $v_0$ 出發，每一輪先掃 $v_0$ 的五條邊，再依上表的順序掃：
+\begin{center}
+\small
+\begin{tabular}{c*{6}{c}l}
+\toprule
+輪 & $d[v_0]$ & $d[v_1]$ & $d[v_2]$ & $d[v_3]$ & $d[v_4]$ & $d[v_5]$ & 這一輪成功鬆弛的限制邊 \\
+\midrule
+1 & $0$ & $-2$ & $0$ & $0$ & $-7$ & $0$ & $(v_5, v_4)$、$(v_2, v_4)$、$(v_2, v_1)$ \\
+2 & $0$ & $-2$ & $0$ & \sptnew{$-3$} & $-7$ & \sptnew{$-2$} & $(v_4, v_3)$、$(v_3, v_5)$ \\
+3 & $0$ & $-2$ & $0$ & $-3$ & $-7$ & $-2$ & 沒有 \\
+\bottomrule
+\end{tabular}
+\end{center}
+第 1 輪掃完 $v_0$ 的邊後 $d[v_1..v_5]$ 都是 $0$；$(v_5, v_4)$ 先把 $d[v_4]$ 改成 $-2$，$(v_2, v_4)$ 再
+改成 $-7$，$(v_2, v_1)$ 把 $d[v_1]$ 改成 $-2$；$(v_3, v_1)$ 在它們之前掃到，$0 + 1$ 不比 $0$ 小。 第 2 輪
+$(v_4, v_3)$：$-7 + 4 = -3$；$(v_3, v_5)$ 用剛改好的 $d[v_3]$：$-3 + 1 = -2$。 第 3 輪沒有改變，之後
+第 4、5 輪和檢查也不會有，回傳 \TRUE：約束圖沒有負環，系統有解。
+
+\textbf{一組解與驗算。} $x_i = d[v_i]$，$x = (-2, 0, -3, -7, -2)$。 代回八條限制：
+$x_1 - x_3 = 1 \le 1$；$x_2 - x_3 = 3 \le 4$；$x_4 - x_5 = -5 \le -2$；$x_3 - x_4 = 4 \le 4$；
+$x_5 - x_1 = 0 \le 3$；$x_4 - x_2 = -7 \le -7$；$x_1 - x_2 = -2 \le -2$；$x_5 - x_3 = 1 \le 1$，全部成
+立。
+
+\textbf{更多的解。} 對任何實數 $c$，$(-2 + c,\ c,\ -3 + c,\ -7 + c,\ -2 + c)$ 都是解，例如 $c = 7$
+得到全部非負的 $(5, 7, 4, 0, 5)$。 完整的解集合就是滿足這八條不等式的所有 $x$；在 $x_i \le 0$ 的解裡，
+上面這組每個分量都最大（第~\ref{sec:spt-diff}~節）。
+
+\pastsol{px:spt-5}{中央資工所 110 學年度 問答題第 2 題（節錄 (B) 小題）}
+記 $n = |V|$、$m = |E|$，$\delta(s, v)$ 是真正的最短距離，$s$ 走不到的頂點 $\delta = \infty$，假設
+$d[v]$ 允許是 $\infty$。 權重都 $\ge 0$，所以沒有負環。
+
+\textbf{想法。} $d$ 等於 $\delta$，要同時滿足兩件事：$d[v]$ 不比真正的距離大（真的有那麼短的路），
+也不比它小（沒有更短的路）。 「沒有更短的路」用三角不等式檢查每條邊；「真的有那麼短的路」要找到
+一條實際的路徑，只檢查每個頂點「有一個鄰居讓等號成立」還不夠，下面會給反例。
+
+\begin{pseudo}[label=alg:spt-px-verify]{檢查 $d$ 是不是最短距離}
+\Function{Verify-Distances}{$G, w, s, d$}
+    \If{$d[s] \ne 0$}
+        \State \Return \FALSE
+    \EndIf
+    \For{每條邊 $\{u, v\} \in E$}
+        \If{$d[v] > d[u] + w(u, v)$ \OR $d[u] > d[v] + w(u, v)$}
+            \State \Return \FALSE \Comment{有更短的走法}
+        \EndIf
+    \EndFor
+    \For{每個頂點 $v$}
+        \State $\mathit{seen}[v] \gets \FALSE$
+    \EndFor
+    \State $\mathit{seen}[s] \gets \TRUE$；$Q \gets \langle s \rangle$
+    \While{$Q$ 不是空的}
+        \State $u \gets$ \Call{Dequeue}{$Q$}
+        \For{每個 $v \in \mathit{Adj}[u]$}
+            \If{$\mathit{seen}[v] = \FALSE$ \AND $d[v] = d[u] + w(u, v)$}
+                \State $\mathit{seen}[v] \gets \TRUE$；\Call{Enqueue}{$Q, v$}
+            \EndIf
+        \EndFor
+    \EndWhile
+    \For{每個頂點 $v$}
+        \If{$d[v] < \infty$ \AND $\mathit{seen}[v] = \FALSE$}
+            \State \Return \FALSE \Comment{沒有路徑能達到 $d[v]$}
+        \EndIf
+    \EndFor
+    \State \Return \TRUE
+\EndFunction
+\end{pseudo}
+
+第 4--6 行檢查每條邊的兩個方向（無向邊可以兩個方向走）。 約定 $\infty \le \infty$ 成立、
+$\infty + w = \infty$，所以兩端都是 $\infty$ 的邊不會被判錯，一端有限一端 $\infty$ 的邊會被第 5 行抓到。
+第 9--14 行是第~21~章的 BFS，只走「等號成立」的邊（叫它\textbf{緊的邊}），$d[u] = \infty$ 的頂點
+不會被走到。
+
+\textbf{正確性。} 證明回傳 \TRUE 若且唯若每個 $v$ 都有 $d[v] = \delta(s, v)$。
+
+$(\Leftarrow)$ 設 $d = \delta$。 $d[s] = \delta(s, s) = 0$，第 2 行通過。 由三角不等式
+（引理~\ref{lem:spt-triangle}，無向邊兩個方向各是一條有向邊），第 5 行都不成立。 設 $v$ 有
+$d[v] < \infty$，取一條從 $s$ 到 $v$ 的最短路徑 $\langle s = u_0, u_1, \ldots, u_k = v \rangle$。 由
+引理~\ref{lem:spt-subpath}，每一段前綴都是最短路徑，所以 $\delta(s, u_t) = \delta(s, u_{t-1}) +
+w(u_{t-1}, u_t)$，路徑上每條邊都是緊的。 BFS 沿著緊的邊從 $s$ 出發，一定會走到 $v$（對 $t$ 歸納，
+$u_t$ 都會被標記）。 所以第 16 行的條件都不成立，回傳 \TRUE。
+
+$(\Rightarrow)$ 設回傳 \TRUE。
+\begin{itemize}
+\item \emph{$d[v] \le \delta(s, v)$。} $\delta(s, v) = \infty$ 時顯然。 否則取一條最短路徑
+$\langle u_0 = s, \ldots, u_k = v \rangle$，第 5 行不成立表示 $d[u_t] \le d[u_{t-1}] + w(u_{t-1}, u_t)$，
+從 $d[u_0] = 0$ 一路加上去，$d[v] \le w(\text{路徑}) = \delta(s, v)$。
+\item \emph{$d[v] \ge \delta(s, v)$。} $d[v] = \infty$ 時顯然。 否則第 15--17 行沒有回傳 \FALSE，$v$ 被 BFS 標記
+過，沿著 BFS 的前驅從 $v$ 走回 $s$，是一條每條邊都緊的路徑 $\langle s = u_0, \ldots, u_k = v \rangle$。
+把等式 $d[u_t] = d[u_{t-1}] + w(u_{t-1}, u_t)$ 加起來，$d[v] = d[s] + w(\text{路徑}) = w(\text{路徑})
+\ge \delta(s, v)$。
+\end{itemize}
+兩邊合起來 $d[v] = \delta(s, v)$。
+
+\textbf{為什麼不能只檢查「每個頂點有一條緊的邊」。} 權重可以是 $0$。 反例：邊 $\{s, u\}$ 權重 $10$、
+$\{u, v\}$ 權重 $0$，宣稱 $d = (d[s], d[u], d[v]) = (0, 5, 5)$。 每條邊的三角不等式都成立
+（$5 \le 0 + 10$、$0 \le 5 + 10$、$5 \le 5 + 0$），而且 $u$、$v$ 各有一條緊的邊（彼此之間那條）。 但
+真正的 $\delta(s, u) = \delta(s, v) = 10$。 上面的演算法從 $s$ 出發，$s$--$u$ 不緊（$0 + 10 \ne 5$），
+走不到 $u$、$v$，第 17 行回傳 \FALSE。 權重都是正數時，緊的邊一定從 $d$ 小的指向 $d$ 大的，沿著它往回
+走 $d$ 嚴格變小，最後只能停在 $s$，「每個頂點有一條緊的邊」就夠了；題目允許 $0$，所以要做 BFS。
+
+\textbf{時間。} 第 2 行 $O(1)$；第 4--6 行每條邊一次，$O(m)$；BFS 用鄰接串列，$O(n + m)$；最後掃一
+遍頂點 $O(n)$。 合計 $O(n + m)$，是線性時間。 沒有用到任何優先佇列，比重新跑一次 Dijkstra
+（$O(m \lg n)$）快。

@@ -1827,6 +1827,93 @@ $A[1..n]$。 寫出編號 $i$ 的節點的三個子節點和父節點的編號�
 
 \end{enumerate}
 
+\section{歷屆試題}
+\label{sec:bt-pastexam}
+
+以下是研究所入學考試的原題，題目照原卷（語言、記號、配分照錄）。 詳解在本章最後。
+注意各題的高度、層數可能和本書第~\ref{sec:bt-terms}~節的定義不同，詳解會先說明。
+
+\begin{pastexam}[label={px:bt-1}]{臺大資工所 110 學年度 第 V 題}
+（原卷為單選題，每格答對 5 分，答錯倒扣 2.5 分。）
+
+There is a binary tree stored in an array as:
+\[T[\,]=\{+,a,*,null,null,-,d,null,null,null,null,b,c\},\]
+in which $T[i]$ is the parent of $T[2i+1]$ and $T[2i+2]$, where $i$ is an index and $null$
+means there is no element in the slot.
+\begin{enumerate}[label=(\alph*)]
+\item What is its postorder traversal result? \underline{\makebox[5em]{(9)}}
+
+(A) $+a*-dbc$ \qquad (B) $a+b-c*d$ \qquad (C) $abc-d*+$ \qquad (D) $+a*-bcd$
+\item What is its BFS traversal result? \underline{\makebox[5em]{(10)}}
+
+(A) $+a*-dbc$ \qquad (B) $a+b-c*d$ \qquad (C) $abc-d*+$ \qquad (D) $+a*-bcd$
+\end{enumerate}
+\end{pastexam}
+
+\begin{pastexam}[label={px:bt-2}]{中央資工所 115 學年度 第 18 題}
+（原卷為複選題，全對才給分，每題 5 分，答錯一題倒扣 1 分，倒扣直到全部複選題零分為止。）
+
+Given a binary tree with inorder traversal, \textbf{ILOVENCU}, and postorder traversal,
+\textbf{LIVNUCEO}. Which of the following statements is (are) true?
+\begin{enumerate}[label=\Alph*.]
+\item The fifth letter in the level-order traversal is V.
+\item The height of the binary tree is 5.
+\item C is a leaf node.
+\item The six letter in the level-order traversal is U.
+\end{enumerate}
+\end{pastexam}
+
+\begin{pastexam}[label={px:bt-3}]{中正資工所甲組 111 學年度 第 14 題}
+(3\%) (\quad) The following is a list representation for a tree. The format of P(C1, C2)
+in the representation represents that P is a parent node with two children nodes C1 and
+C2.
+\begin{center}( A ( B ( E ( K, L ), F ), C ( G ), D ( H ( M ), I, J ) ) )\end{center}
+\begin{center}
+\begin{tikzpicture}[x=0.9cm,y=0.9cm,>={Stealth[length=2mm]},font=\sffamily]
+\newcommand{\pxlnode}[5]{% name, x, y, left, right
+  \def\tmpa{#4}\def\tmpb{#5}%
+  \ifx\tmpa\empty \draw[fill=gray!25] (#2,#3) rectangle ++(0.5,0.5);\else \draw (#2,#3) rectangle ++(0.5,0.5);\fi
+  \ifx\tmpb\empty \draw[fill=gray!25] (#2+0.5,#3) rectangle ++(0.5,0.5);\else \draw (#2+0.5,#3) rectangle ++(0.5,0.5);\fi
+  \node at (#2+0.25,#3+0.25) {#4}; \node at (#2+0.75,#3+0.25) {#5};
+  \coordinate (#1-l) at (#2+0.25,#3+0.25); \coordinate (#1-r) at (#2+0.75,#3+0.25);
+  \coordinate (#1-w) at (#2,#3+0.25); \coordinate (#1-n) at (#2+0.25,#3+0.5);}
+% row 1
+\pxlnode{A}{0.8}{0}{A}{} \pxlnode{P1}{2.5}{0}{}{} \pxlnode{P2}{7.05}{0}{}{} \pxlnode{P3}{10.05}{0}{}{0}
+% row 2
+\pxlnode{B}{2.5}{-1.7}{B}{} \pxlnode{P4}{4.0}{-1.7}{}{} \pxlnode{F}{5.4}{-1.7}{F}{0}
+\pxlnode{C}{7.05}{-1.7}{C}{} \pxlnode{G}{8.45}{-1.7}{G}{0}
+\pxlnode{D}{10.05}{-1.7}{D}{} \pxlnode{P5}{11.4}{-1.7}{}{} \pxlnode{I}{12.8}{-1.7}{I}{} \pxlnode{J}{14.2}{-1.7}{J}{0}
+% row 3
+\pxlnode{E}{4.0}{-3.4}{E}{} \pxlnode{K}{5.4}{-3.4}{K}{} \pxlnode{L}{6.75}{-3.4}{L}{0}
+\pxlnode{H}{11.4}{-3.4}{H}{} \pxlnode{M}{12.8}{-3.4}{M}{0}
+\foreach \a/\b in {A/P1,P1/P2,P2/P3,B/P4,P4/F,C/G,D/P5,P5/I,I/J,E/K,K/L,H/M} \draw[->] (\a-r) -- (\b-w);
+\foreach \a/\b in {P1/B,P2/C,P3/D,P4/E,P5/H} \draw[->] (\a-l) -- (\b-n);
+\end{tikzpicture}
+\end{center}
+Please draw this tree and convert it into a binary tree. What is the order of the nodes in
+a post-order traversal of the binary tree?
+
+a. L, K, F, E, G, M, H, J, I, D, C, B, A \quad b. L, K, F, E, G, M, J, I, H, D, C, B, A\\
+c. K, L, F, E, G, M, H, J, I, D, C, B, A \quad d. K, L, F, E, G, M, J, I, H, D, C, B, A\\
+e. None of the above
+\end{pastexam}
+
+\begin{pastexam}[label={px:bt-4}]{臺科大資工所 109 學年度 第 2 題}
+A binary tree has a total of 45 nodes. Answer the following questions please.
+\begin{enumerate}[label=(\alph*)]
+\item What is the minimum possible height of the tree? (Assume that the height of a
+binary tree with one node is one.) (2\%)
+\item Assume that we use linked representation for each node in the tree with two links
+pointing respectively to the left child and the right child of the node. How many links
+in the 45 nodes of the tree are set to NULL? (3\%)
+\end{enumerate}
+\end{pastexam}
+
+\begin{pastexam}[label={px:bt-5}]{中山資工所資安組 113 學年度 第 9 題}
+(Algorithm points) [10\%] Let $T$ be a complete $n$-ary tree of height $h$ with $m$
+leaves. Prove that $m\le n^h$ and $h\ge\lceil\log_n m\rceil$.
+\end{pastexam}
+
 \section{實作練習}
 \label{sec:bt-practice}
 
@@ -2092,3 +2179,190 @@ $-$ & $(((a + (b * c)) / (d - e)) - (f * g))$ \\
 \end{enumerate}
 
 \end{enumerate}
+
+\addcontentsline{toc}{section}{歷屆試題詳解}
+\section*{歷屆試題詳解}
+
+\pastsol{px:bt-1}{臺大資工所 110 學年度 第 V 題}
+答案：(9) 選 (C) $abc-d*+$；(10) 選 (A) $+a*-dbc$。
+
+陣列從 $0$ 開始，$T[i]$ 的子節點是 $T[2i + 1]$、$T[2i + 2]$，就是第~\ref{sec:bt-array}~節
+表格裡「從 $0$ 開始（C）」那一欄。 逐格還原：
+\begin{center}
+\small
+\begin{tabular}{cccl}
+\toprule
+$i$ & $T[i]$ & 子節點的格子 & 說明 \\
+\midrule
+0 & $+$ & 1、2 & 根，左 $a$、右 $*$ \\
+1 & $a$ & 3、4 & 兩格都是 null，$a$ 是葉節點 \\
+2 & $*$ & 5、6 & 左 $-$、右 $d$ \\
+5 & $-$ & 11、12 & 左 $b$、右 $c$ \\
+6 & $d$ & 13、14 & 超出陣列，$d$ 是葉節點 \\
+\bottomrule
+\end{tabular}
+\end{center}
+$T[3..4]$ 是 $a$ 的兩個空位；$T[7..10]$ 是 $T[3]$、$T[4]$（本身就不存在）的子節點位置，
+所以也是 null。 樹是 $+\bigl(a,\; *(-(b, c),\; d)\bigr)$，也就是運算式 $a + (b - c) * d$
+的運算式樹：
+
+\begin{center}
+\begin{tikzpicture}[bttree, level 1/.style={sibling distance=22mm}, level 2/.style={sibling distance=14mm}, level 3/.style={sibling distance=9mm}]
+\node[btop] {$+$}
+    child {node[btn] {$a$}}
+    child {node[btop] {$*$}
+        child {node[btop] {$-$} child {node[btn] {$b$}} child {node[btn] {$c$}}}
+        child {node[btn] {$d$}}};
+\end{tikzpicture}
+\end{center}
+
+後序（左、右、根）：$a$，接著 $*$ 的子樹：先 $-$ 的子樹 $b\;c\;-$，再 $d$，最後 $*$，
+最後是根 $+$，得到 $a\;b\;c\;-\;d\;*\;+$，選 (C)。 BFS 就是層序，用陣列存時層序正好
+是索引由小到大、跳過 null 的順序：$+\;a\;*\;-\;d\;b\;c$，選 (A)。
+
+另外兩個選項也各有來歷：(B) $a+b-c*d$ 是中序，(D) $+a*-bcd$ 是前序。 四種走訪都寫出
+來核對一次，可以確定沒有畫錯樹。
+
+\pastsol{px:bt-2}{中央資工所 115 學年度 第 18 題}
+答案是 A。
+
+照第~\ref{sec:bt-rebuild}~節的後序加中序重建：根是後序的最後一個，在中序裡切開，左子樹
+有 $\ell$ 個節點時，後序的前 $\ell$ 個是左子樹。
+\begin{center}
+\begin{tabular}{llcll}
+\toprule
+子樹的後序 & 子樹的中序 & 根 & 左子樹（中序）& 右子樹（中序）\\
+\midrule
+LIVNUCEO & IL\,|\,O\,|\,VENCU & O & IL & VENCU \\
+LI & |\,I\,|\,L & I & 空 & L \\
+VNUCE & V\,|\,E\,|\,NCU & E & V & NCU \\
+NUC & N\,|\,C\,|\,U & C & N & U \\
+\bottomrule
+\end{tabular}
+\end{center}
+樹是 $O\bigl(I(-, L),\; E(V, C(N, U))\bigr)$：
+\begin{center}
+\begin{tikzpicture}[bttree, level 1/.style={sibling distance=30mm}, level 2/.style={sibling distance=16mm}, level 3/.style={sibling distance=10mm}]
+\node[btn] {O}
+    child {node[btn] {I} child[missing] child {node[btn] {L}}}
+    child {node[btn] {E}
+        child {node[btn] {V}}
+        child {node[btn] {C} child {node[btn] {N}} child {node[btn] {U}}}};
+\end{tikzpicture}
+\end{center}
+驗算：這棵樹的中序是 ILOVENCU、後序是 LIVNUCEO，和題目相同。 層序是
+$O\;I\;E\;L\;V\;C\;N\;U$。
+
+\begin{itemize}
+\item A 對。 層序第五個是 V。
+\item B 錯。 這棵樹有 $4$ 層（$O$；$I, E$；$L, V, C$；$N, U$），照本書的定義高度是
+$4$，照數邊的定義是 $3$，兩種都不是 $5$。
+\item C 錯。 $C$ 有兩個子節點 $N$、$U$，不是葉節點。
+\item D 錯。 層序第六個是 C，U 是第八個。
+\end{itemize}
+
+\pastsol{px:bt-3}{中正資工所甲組 111 學年度 第 14 題}
+答案是 b。
+
+\textbf{讀圖。} 圖是這棵樹的廣義串列存法：每個串列節點兩格，右格指向同一層的下一個
+節點（$0$ 是 \NIL）。 左格是字母的節點就是樹上的節點；左格灰色的節點表示這一項是一
+棵子樹，左格指向那棵子樹的串列，串列的第一個是子樹的根，後面是它的子節點。 例如第
+一列 $A$ 後面接了三個子樹項，分別指向以 $B$、$C$、$D$ 開頭的串列，所以 $A$ 有三個子
+節點 $B, C, D$。 這和括號寫法一致，樹是
+\[
+A\bigl(B(E(K, L), F),\; C(G),\; D(H(M), I, J)\bigr).
+\]
+
+\textbf{轉成二元樹。} 用第~\ref{sec:bt-lcrs}~節的左孩子右兄弟：第一個子節點當左子節
+點，下一個兄弟當右子節點。
+\begin{itemize}
+\item $A$ 的左子節點 $B$；根沒有兄弟，右邊空。
+\item $B$ 的左 $E$、右 $C$（$B$ 的下一個兄弟）；$C$ 的左 $G$、右 $D$；$D$ 的左 $H$、右空。
+\item $E$ 的左 $K$、右 $F$；$K$ 的右 $L$。
+\item $H$ 的左 $M$、右 $I$；$I$ 的右 $J$。
+\end{itemize}
+用本章的寫法是
+$A\bigl(B(E(K(-, L), F),\; C(G, D(H(M, I(-, J)), -))),\; -\bigr)$：
+
+\begin{center}
+\begin{tikzpicture}[bttree, level distance=8.5mm,
+    level 1/.style={sibling distance=20mm}, level 2/.style={sibling distance=26mm},
+    level 3/.style={sibling distance=13mm}, level 4/.style={sibling distance=12mm},
+    level 5/.style={sibling distance=10mm}, level 6/.style={sibling distance=9mm}]
+\node[btn] {A}
+    child {node[btn] {B}
+        child {node[btn] {E}
+            child {node[btn] {K} child[missing] child {node[btn] {L}}}
+            child {node[btn] {F}}}
+        child {node[btn] {C}
+            child {node[btn] {G}}
+            child {node[btn] {D}
+                child {node[btn] {H}
+                    child {node[btn] {M}}
+                    child {node[btn] {I} child[missing] child {node[btn] {J}}}}
+                child[missing]}}}
+    child[missing];
+\end{tikzpicture}
+\end{center}
+
+\textbf{後序。} 照「左子樹、右子樹、根」：
+\begin{itemize}
+\item $E$ 的子樹：$K$ 的子樹是 $L\;K$，再 $F$，再 $E$，得 $L\;K\;F\;E$。
+\item $C$ 的子樹：$G$；$D$ 的子樹是「$H$ 的子樹、$D$」，$H$ 的子樹是 $M$、$J\;I$、$H$，
+所以是 $M\;J\;I\;H\;D$；再 $C$。 得 $G\;M\;J\;I\;H\;D\;C$。
+\item 接上 $B$、$A$：$L\;K\;F\;E\;G\;M\;J\;I\;H\;D\;C\;B\;A$，選 b。
+\end{itemize}
+
+其他選項：a 把 $H$ 放在 $J$、$I$ 前面，但 $I$、$J$ 在 $H$ 的右子樹裡，後序裡要排在 $H$
+之前。 c、d 把 $K$ 放在 $L$ 前面，但 $L$ 是 $K$ 的右子節點，後序要先寫 $L$。 e 錯，因
+為 b 對。 補充：這棵二元樹的\textbf{中序} $K\;L\;E\;F\;B\;G\;C\;M\;H\;I\;J\;D\;A$ 才是原
+來那棵樹的後序（第~\ref{sec:bt-lcrs}~節），二元樹的後序在原來的樹上沒有對應的意義，
+作答時不要把兩者搞混。
+
+\pastsol{px:bt-4}{臺科大資工所 109 學年度 第 2 題}
+答案：(a) $6$；(b) $46$。
+
+題目規定只有一個節點的樹高度是 $1$，和本書的定義相同。
+
+(a) 由定理~\ref{thm:bt-count}，高度 $h$ 的二元樹最多 $2^h - 1$ 個節點，所以 $45 \le
+2^h - 1$，$2^h \ge 46$。 $2^5 = 32 < 46 \le 64 = 2^6$，所以 $h \ge 6$。 $45$ 個節點的
+完整二元樹高度是 $\lfloor \lg 45 \rfloor + 1 = 5 + 1 = 6$（定理~\ref{thm:bt-complete-height}），
+達到下界，所以最小高度是 $6$。
+
+(b) $45$ 個節點共有 $2 \times 45 = 90$ 個指標。 除了根，每個節點恰好被一個指標指著，
+所以有 $45 - 1 = 44$ 個指標指向節點，其餘 $90 - 44 = 46 = n + 1$ 個是 \texttt{NULL}
+（第~\ref{sec:bt-linked}~節），和樹的形狀無關。
+
+\pastsol{px:bt-5}{中山資工所資安組 113 學年度 第 9 題}
+\textbf{約定。} 這題的用語來自離散數學課本：$n$-ary tree 是每個內部節點最多 $n$ 個子
+節點的有根樹；complete $n$-ary tree 是每個內部節點恰好 $n$ 個子節點、而且所有葉節點
+深度都相同的樹（也有書的 complete 是像完整二元樹那樣「最後一層靠左」，下面的證明兩
+種都適用）；高度是從根到最深的葉節點經過的\textbf{邊數}（只有根時高度 $0$）。 這
+和本書第~\ref{sec:bt-terms}~節數節點的定義差 $1$，下面照題目的定義。 另外假設
+$n \ge 2$，$\log_n$ 才有意義。
+
+下面證明一個更一般的敘述，「complete」的條件用不到。
+
+\textbf{引理。} 每個節點最多 $n$ 個子節點、高度（邊數）為 $h$ 的有根樹，葉節點最多
+$n^h$ 個。
+
+\textbf{證明}（對 $h$ 做強歸納）。 $h = 0$：樹只有根，根就是唯一的葉節點，
+$1 = n^0$，成立。 $h \ge 1$：根至少有一個子節點，所以根不是葉節點；設根有 $c$ 個子
+節點，$1 \le c \le n$。 每個子節點各是一棵子樹的根，子樹的高度最多 $h - 1$（子樹裡
+每條往下的路徑，加上根到它的那條邊，都是原樹的路徑），由歸納假設每棵子樹最多
+$n^{h-1}$ 個葉節點。 原樹的葉節點就是各子樹葉節點的聯集，所以
+\[
+m \le c \cdot n^{h-1} \le n \cdot n^{h-1} = n^h .
+\]
+歸納完成。
+
+\textbf{第二個不等式。} 由 $m \le n^h$，兩邊取 $\log_n$（$n \ge 2$ 時 $\log_n$ 遞增）
+得 $\log_n m \le h$。 $h$ 是整數，而 $\lceil \log_n m \rceil$ 是不小於 $\log_n m$ 的
+最小整數，所以 $h \ge \lceil \log_n m \rceil$。
+
+\textbf{補充。} 照第一種定義，樹是 complete 的時候，兩個不等式都會取等號：每層節點數是上一層
+的 $n$ 倍，第 $h$ 層（深度 $h$）恰好 $n^h$ 個，全是葉節點，所以 $m = n^h$、$h =
+\log_n m$。 如果照本書的定義（高度數節點），同一棵樹的高度是 $h + 1$，敘述要改成
+$m \le n^{h-1}$、$h \ge \lceil \log_n m \rceil + 1$；直接把題目的結論套到本書的高度
+上，不等式雖然還是成立，但不再是緊的。 $n = 2$ 時，這就是定理~\ref{thm:bt-count} 換成
+數邊、只看葉節點的版本。

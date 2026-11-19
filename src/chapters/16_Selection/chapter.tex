@@ -1215,6 +1215,64 @@ $\lceil g/4 \rceil$ 小，其他不變。 仿照引理~\ref{lem:sel-mom-split} �
 
 \end{enumerate}
 
+\section{歷屆試題}
+\label{sec:sel-pastexam}
+
+以下是研究所入學考試的原題，題目照原卷（語言、記號、配分照錄）。 詳解在本章最後。
+
+\begin{pastexam}[label={px:sel-1}]{中正資工所 113 學年度 第 20 題}
+(2\%) Determine if the following statement is true or false: "Find the median of $n$ elements takes $\Omega(nlogn)$ time for any algorithms working in the comparison-based model".
+\end{pastexam}
+
+\begin{pastexam}[label={px:sel-2}]{臺大資工所 113 學年度 第 1 題}
+（複選題，每個選項單獨計分）
+
+(5 points) Consider the following variation of the Selection Problem: Given a sequence $S=\langle a_1,a_2,\ldots,a_n\rangle$ of $n$ distinct integers and two positive integers $x$ and $y$, where each number in $S$ falls between 1 and $y$, the goal is to report the smallest $x$ numbers in $S$ in ascending order. This scenario assumes the conventional single-processor, random access machine (RAM) model, with a machine word size of at least $\lceil\log y\rceil$ bits. To tackle this problem, five algorithms have been proposed. Please select the correct description(s) below.
+\begin{enumerate}[label=\Alph*.]
+\item Algorithm A: The algorithm initializes an empty max-heap and sequentially inserts numbers from $S$. During insertion, if the size of the max-heap exceeds $x$, it removes the maximum element from the heap. Finally, the remaining numbers in the heap are sorted by heapsort and reported. If $x\le n/\log n$, Algorithm A runs in $O(n)$ time in the worst case.
+\item Algorithm B: The algorithm initially constructs a min-heap and proceeds to extract the minimum element $x$ times. If $x\le n/\log n$, Algorithm B runs in $O(n)$ time in the worst case.
+\item Algorithm C: The algorithm begins by performing a base-$n$ radix sort, followed by reporting the smallest $x$ values. If $y\le n^2$, Algorithm C runs in $O(n)$ time in the worst case.
+\item Algorithm D: The algorithm performs a counting sort by allocating an array $C$ of length $y$, traversing through $S$ and incrementing $C[a_i]$ for each $a_i$. It finally reports the smallest $x$ values by scanning through the counter array. If $y\le n^2$, Algorithm D runs in $O(n)$ time in the worst case.
+\item Algorithm E: The algorithm first applies quickselect, i.e., Randomized-Select, to determine the $x$-th smallest number in $S$. Subsequently, it traverses $S$ for extracting all numbers smaller than or equal to the $x$-th smallest number. Finally, these $x$ numbers are sorted by quicksort and reported. The time complexity of Algorithm E is $O(n+x\log x)$ in expectation.
+\end{enumerate}
+\end{pastexam}
+
+\begin{pastexam}[label={px:sel-3}]{中央資工所 115 學年度 第 10 題}
+（多選題，每一個選項單獨計分，每題 5 分）
+
+Consider the prune-and-search algorithm using the median of medians for finding the $k$-th smallest element in an unsorted array $A$ of $n$ distinct elements, where $1\le k\le n$, as described below:
+
+\begin{quote}
+Algorithm Select($A$, $k$):\\
+Input: An array $A$ of $n$ elements and an integer $k$, $1\le k\le |A|=n$\\
+Output: The $k$-th smallest element in $A$\\
+Step 1: If $|A|\le 5$, then sort array $A$ (with any method, e.g., insertion sort) and return the element with rank $k$ (i.e., the $k$-th element in the sorted array).\\
+Step 2: Divide the array $A$ into groups of five elements each (ignore the last group if it has fewer than five elements).\\
+Step 3: Find the median of each group.\\
+Step 4: Recursively compute the median of the found medians, denoted by $m$.\\
+Step 5: Partition the original array into the following three sets:\\
+$L=\{x\in A\mid x<m\}$\\
+$E=\{m\}$\\
+$R=\{x\in A\mid x>m\}$\\
+Step 6: If $k=|L|+1$ then return $m$\\
+\hspace*{3.2em}Else if $k\le|L|$ then return Select$(L,k)$\\
+\hspace*{3.2em}Else return Select$(R,k-|L|-1)$.
+\end{quote}
+
+Select one or more correct statements.
+\begin{enumerate}[label=\Alph*.]
+\item After grouping elements into blocks of five and choosing the median of medians as the pivot denoted $m$, at least $3n/10$ elements are guaranteed to be less than or equal to the pivot.
+\item The recurrence $\mathrm{T}(n)=\mathrm{T}(n/5)+\mathrm{T}(7n/10)+\mathrm{O}(n)$ implies that the algorithm runs in $\mathrm{O}(n\log n)$ time.
+\item Using groups of size 3 instead of 5 still guarantees linear worst-case running time.
+\item The correctness of the pruning step relies on the fact that the pivot is an approximate median of the entire array.
+\item The median-finding problem is a special case of the $k$-th smallest selection problem, where $k=\lceil n/2\rceil$, and both can be solved in worst-case linear time.
+\end{enumerate}
+\end{pastexam}
+
+\begin{pastexam}[label={px:sel-4}]{成大資訊聯招 109 學年度 演算法第 3 題}
+Show how the time complexity of quicksort can be made to run in $O(n\lg n)$ time. \quad (10\%)
+\end{pastexam}
+
 \section{實作練習}
 \label{sec:sel-practice}
 
@@ -1373,3 +1431,124 @@ $(1/5)^p + (17/20)^p = 1$ 的解 $p \approx 1.12$，這個上界只能給出
 $O(n^{1.12})$。）
 
 \end{enumerate}
+
+\addcontentsline{toc}{section}{歷屆試題詳解}
+\section*{歷屆試題詳解}
+
+\pastsol{px:sel-1}{中正資工所 113 學年度 第 20 題}
+答案：False。
+
+\textbf{上界。} 第~\ref{sec:sel-mom}~節的 \proc{Select} 只透過比較元素的大小得知資訊（各組的插入
+排序、找 $x$ 的位置、Lomuto 分割都只比較元素），是比較模型裡的演算法；由定理~\ref{thm:sel-mom}，
+它找第 $\lfloor (n+1)/2 \rfloor$ 小的最壞時間是 $O(n)$。 既然有比較模型裡的 $O(n)$ 演算法，
+「任何」演算法都要 $\Omega(n \lg n)$ 就不對。
+
+\textbf{為什麼排序的下界搬不過來。} 排序的 $\Omega(n \lg n)$ 來自「答案有 $n!$ 種」（第~15~章的
+決策樹）。 找中位數只要回答「是哪一個元素」，答案只有 $n$ 種，決策樹只能給出 $\lceil \lg n
+\rceil$ 的下界。
+
+\textbf{真正的下界是線性。} 設演算法回答 $m$，而另一個元素 $y$ 一次都沒有參加比較。 $y < m$
+時把 $y$ 改成比所有數都大，$y > m$ 時改成比所有數都小；所有比較的結果都不變，演算法仍然回答
+$m$，但比 $m$ 小的數的個數變了，$m$ 不再是中位數。 所以除了 $m$，每個元素都至少要參加一次
+比較，一次比較只碰兩個元素，至少要 $(n-1)/2$ 次。 找中位數在比較模型裡是 $\Theta(n)$。
+
+\pastsol{px:sel-2}{臺大資工所 113 學年度 第 1 題}
+答案：B、C、E。 以下 $\log$ 的底數不影響結論。
+\begin{itemize}
+\item A 錯誤。 堆積最多 $x + 1$ 個數，每次插入、刪除最大值是 $O(\log x)$，總共
+$O(n \log x)$，最後的堆積排序 $O(x \log x)$。 問題在 $O(n \log x)$ 不一定是 $O(n)$。 取
+$x = \lfloor n/\log n \rfloor$、$S$ 由小到大排好：堆積裝滿 $x$ 個之後，每個新來的數都比堆積
+裡全部的數大，插入時要從新的葉節點一路上浮到根，交換 $\lfloor \log(x+1) \rfloor$ 次。 後面
+$n - x \ge n/2$ 個數各花這麼多，共至少 $\frac{n}{2}\lfloor \log(x+1) \rfloor$。 $n \ge 16$ 時
+$x + 1 \ge n/\log n \ge \sqrt{n}$，$\log(x+1) \ge \frac{1}{2}\log n$，所以是 $\Omega(n \log n)$，
+不是 $O(n)$。
+\item B 正確。 由下而上建最小堆積 $O(n)$（第~8~章第~\ref{sec:hp-build}~節），取出最小值 $x$ 次，
+每次 $O(\log n)$，依取出的順序就是由小到大。 合計 $O(n + x \log n) \le
+O(n + \frac{n}{\log n} \cdot \log n) = O(n)$。
+\item C 正確。 每個數 $a_i \le y \le n^2$，以 $n$ 為基底最多 $3$ 位（$n^2$ 本身是 $100$）。
+LSD 基數排序做 $3$ 趟，每趟是 $n$ 個數、$n$ 種位值的計數排序，$\Theta(n + n)$
+（第~\ref{sec:lin-lsd}~節「一位要切多大」的最後一段）。 字組至少 $\lceil \log y \rceil$ 位元，
+$a_i$ 放得進一個字組，取出某一位（除以 $n^t$ 再取餘數）是常數時間。 再輸出前 $x$ 個，
+$O(x)$。 合計 $O(n)$。
+\item D 錯誤。 光是配置並掃過長度 $y$ 的陣列 $C$ 就要 $\Theta(y)$；條件只說 $y \le n^2$，
+$y = n^2$ 時是 $\Theta(n^2)$，不是 $O(n)$。 （$y = O(n)$ 時才是線性，見第~\ref{sec:lin-counting}~節的成本分析。）
+\item E 正確。 \proc{Randomized-Select} 的期望時間是 $O(n)$（定理~\ref{thm:sel-rselect}）；
+掃一次 $S$ 取出不大於第 $x$ 小的數是 $O(n)$，數兩兩不同，剛好取出 $x$ 個；（隨機化的）快速
+排序排 $x$ 個數，期望 $O(x \log x)$（第~14~章定理~\ref{thm:so-quick-avg}）。 由期望值的線性，
+總期望時間 $O(n + x \log x)$。
+\end{itemize}
+
+\pastsol{px:sel-3}{中央資工所 115 學年度 第 10 題}
+答案：A、E。
+
+先說明解讀。 (A) 和 (B) 照字面嚴格讀，結論會和出題的本意相反：(A) 的 $3n/10$ 要扣掉一個
+常數才嚴格成立，(B) 的 $O(n \log n)$ 字面上也是對的上界。 這裡照出題的本意判斷（(A) 是課
+本常見的近似說法；(B) 問的是這個遞迴式給出的界），下面把嚴格的情況也寫出來。
+\begin{itemize}
+\item A（照本意）正確。 Step 2 只用滿的組，共 $g = \lfloor n/5 \rfloor$ 組。 中位數不大於 $m$ 的組
+至少 $\lceil g/2 \rceil$ 組（包括 $m$ 自己那組），每組的中位數和比它小的兩個數，共 $3$ 個都
+$\le m$，所以至少 $3\lceil g/2 \rceil \approx 3n/10$ 個數 $\le m$。 嚴格地說，這個數可能比
+$3n/10$ 少一點：$n = 11$，$A = \langle 1, 2, 3, 20, 21, 10, 11, 12, 22, 23, 30 \rangle$，最後的
+$30$ 被忽略，兩組的中位數是 $3$、$12$，取下中位數 $m = 3$，$\le m$ 的只有 $3$ 個，比
+$3n/10 = 3.3$ 少。 一般來說 $3\lceil g/2 \rceil \ge \frac{3}{2}\lfloor \frac{n}{5} \rfloor
+\ge \frac{3(n-4)}{10}$，所以保證的是至少 $\frac{3n}{10} - \frac{6}{5}$ 個。
+\item B（照本意）錯誤。 $\frac{1}{5} + \frac{7}{10} = \frac{9}{10} < 1$，這個遞迴式的解是
+$O(n)$（定理~\ref{thm:sel-mom} 的代換法，或第~\ref{sec:sel-mom}~節的遞迴樹：每一層的工作量是上
+一層的 $9/10$）。 演算法是線性時間，說它「是 $O(n \log n)$」沒有給出它推得出的界。 嚴格地
+說，$O(n)$ 的函數也是 $O(n \log n)$，所以字面上這句話不算錯；作答時可以註明這一點。
+\item C 錯誤。 $3$ 個一組時，保證不大於 $m$ 的數只有大約 $2 \cdot \frac{g}{2} = \frac{n}{3}$
+個，往下遞迴的一邊可能有 $\frac{2n}{3}$ 個，遞迴式是 $T(n) = T(n/3) + T(2n/3) + O(n)$，比例
+加起來是 $1$，解是 $\Theta(n \lg n)$（第~\ref{sec:sel-mom}~節「為什麼是 5 個一組」）。 不能保
+證線性。
+\item D 錯誤。 正確性不需要 $m$ 接近中位數：Step 5 之後 $L$ 的數都比 $m$ 小、$R$ 的都比 $m$
+大，$m$ 是第 $|L| + 1$ 小；$k$ 落在哪一段、在那一段裡是第幾小都由此決定，不管 $m$ 是誰都對
+（和本章觀念題第~\ref{sel-q-correct}~題的歸納法一樣）。 $m$ 接近中位數只影響\textbf{時間}：它
+保證 $L$、$R$ 都不超過大約 $7n/10$。
+\item E 正確。 中位數就是第 $\lceil n/2 \rceil$ 小（$n$ 是偶數時是下中位數，和本書的約定相同），
+是選擇問題 $k = \lceil n/2 \rceil$ 的特例；\proc{Select} 對任何 $k$ 的最壞時間都是 $O(n)$
+（定理~\ref{thm:sel-mom}）。
+\end{itemize}
+
+\pastsol{px:sel-4}{成大資訊聯招 109 學年度 演算法第 3 題}
+快速排序本來的期望時間就是 $O(n \lg n)$（第~14~章定理~\ref{thm:so-quick-avg}），所以題目要的
+是\textbf{最壞情況}也是 $O(n \lg n)$。 最壞情況發生在每次都切得極偏；如果每次都用
+\textbf{中位數}當基準，兩邊各剩大約一半，而第~\ref{sec:sel-mom}~節的 \proc{Select} 可以在最壞
+$O(n)$ 時間找到中位數。 以下假設鍵互不相同。
+
+\begin{pseudo}{成大 109 學年度演算法第 3 題的解答}
+\Procedure{Median-Quicksort}{$A, p, r$}
+    \If{$p < r$}
+        \State $x \gets$ \Call{Select}{$A, p, r, \lfloor (r - p + 2)/2 \rfloor$} \Comment{$A[p..r]$ 的中位數}
+        \State $q \gets$ \Call{Partition-Around}{$A, p, r, x$}
+        \State \Call{Median-Quicksort}{$A, p, q - 1$}
+        \State \Call{Median-Quicksort}{$A, q + 1, r$}
+    \EndIf
+\EndProcedure
+\end{pseudo}
+
+\proc{Select} 和 \proc{Partition-Around} 都是虛擬碼~\ref{alg:sel-mom} 裡的程序。 範圍有
+$n = r - p + 1$ 個數，$\lfloor (r - p + 2)/2 \rfloor = \lfloor (n+1)/2 \rfloor$，就是中位數的名次。
+
+\textbf{正確性。} \proc{Select} 只在 $A[p..r]$ 裡搬動元素，不改變這一段裝的是哪些數。
+\proc{Partition-Around} 把 $x$ 換到 $A[r]$ 再做 Lomuto 分割，結束時
+$A[p..q-1] < A[q] = x < A[q+1..r]$。 之後和第~14~章的 \proc{Quicksort}（虛擬碼~\ref{alg:so-quick}）
+一樣：對 $n$ 歸納，兩邊遞迴的範圍都比 $n$ 小，由歸納假設各自排好，左邊每個數小於 $x$、右邊
+每個數大於 $x$，所以整段排好。 快速排序的正確性不依賴基準選誰，換成中位數也一樣。
+
+\textbf{時間。} 設 $T(n)$ 是 $n$ 個數時的最壞時間。 第 3 行由定理~\ref{thm:sel-mom} 是 $O(n)$，
+第 4 行找 $x$ 的位置和分割都是 $O(n)$，合計不超過 $cn$。 $x$ 是第 $\lceil n/2 \rceil$ 小，左邊有
+$\lceil n/2 \rceil - 1 \le \lfloor n/2 \rfloor$ 個數，右邊有 $n - \lceil n/2 \rceil = \lfloor n/2
+\rfloor$ 個數。 所以
+\[
+T(n) \le 2T(\lfloor n/2 \rfloor) + cn .
+\]
+用遞迴樹看：第 $d$ 層的每個範圍不超過 $n/2^d$ 個數，同一層的範圍互不重疊，所以每一層的工作量
+加起來不超過 $cn$；範圍每往下一層至少減半，$\lfloor \lg n \rfloor + 1$ 層以內就只剩 $0$ 或 $1$
+個數。 總時間 $O(n \lg n)$，這也是主定理（第~2~章定理~\ref{thm:rec-master}）$a = b = 2$、
+$f(n) = \Theta(n)$ 的情況 2。
+
+\textbf{補充。} 這個做法的常數很大（\proc{Select} 本身就要很多次比較），實務上不會這樣寫。 常見
+的做法是隨機選基準，只保證期望 $O(n \lg n)$；要保證最壞情況，C++ 程式庫的 introsort 在遞迴太
+深時改用堆積排序（第~14~章第~\ref{sec:so-heap}~節最後）。 作答時寫出上面的演算法和遞迴式就夠了，
+可以加一句說明這兩種實務做法。 鍵有重複時，把分割改成三路分割（第~14~章觀念題第 6 題），等於
+$x$ 的數全部留在中間，兩邊仍然各不超過一半。

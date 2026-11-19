@@ -7,6 +7,7 @@
 \RequirePackage{tcolorbox}
 \tcbuselibrary{breakable}
 \RequirePackage[noend]{algpseudocode}
+\RequirePackage{xspace}
 
 %%%%%%%%%%%%
 % Settings %
@@ -31,8 +32,8 @@
 \algnewcommand\DownTo{\textbf{downto}\space}
 \algnewcommand\Break{\textbf{break}}
 \algnewcommand\Error[1]{\textbf{error} ``#1''}
-\algnewcommand\AND{\textbf{and}}  % 前後的空白由原始碼提供，自帶空白會變成兩格
-\algnewcommand\OR{\textbf{or}}
+\algnewcommand\AND{\textbf{and}\xspace}  % xspace 補回控制字後面被吃掉的空白
+\algnewcommand\OR{\textbf{or}\xspace}
 \algnewcommand\NIL{\textsc{nil}}
 \algnewcommand\TRUE{\textsc{true}}
 % DFS 的三種顏色（第 21 章起用到，放在這裡單章編譯也找得到）

@@ -34,7 +34,8 @@
 何東西。 這一章先講搜尋、最小／最大和前驅／後繼，再講插入和刪除（刪除有三種情況，
 每種都畫出來）。 所有操作的成本都和樹高成正比，所以第~\ref{sec:bst-height}~節討論
 樹高：最壞會長成一條鏈，隨機的插入順序則讓樹高維持在 $O(\lg n)$ 左右。 最後在每個
-節點多記一個「子樹大小」，用它在 $O(h)$ 時間內找第 $k$ 小、算名次。
+節點多記一個「子樹大小」，用它在 $O(h)$ 時間內找第 $k$ 小、算名次。 章末收了幾題研究所入學考試
+的原題，詳解在本章最後。
 
 這一章用到《C 程式設計基礎》第~14~章的結構指標、第~15~章的遞迴、第~19~章的
 \texttt{malloc}、指標的指標和 BST 入門（那裡寫過插入和三種走訪，沒有寫刪除），用到
@@ -1332,6 +1333,82 @@ $H_j + H_{n-j+1} - 2$ 比對。
 
 \end{enumerate}
 
+\section{歷屆試題}
+\label{sec:bst-pastexam}
+
+以下是研究所入學考試的原題，題目照原卷（語言、記號、配分照錄）。 詳解在本章最後。
+
+\begin{pastexam}[label={px:bst-1}]{臺大資工所 115 學年度 第 17 題}
+(4 points) Consider the Binary Search Tree in Figure 1. If node 66 is removed (replacing it with its in-order successor), what is the resulting \emph{preorder} traversal sequence?
+\begin{center}
+\begin{tikzpicture}[x=0.0056cm,y=-0.0056cm,
+  every node/.style={circle,draw,line width=0.8pt,inner sep=0pt,minimum size=5.5mm,font=\sffamily\bfseries\footnotesize}]
+\node (n3) at (110,255) {3};
+\node (n23) at (455,185) {23};
+\node (n56) at (798,118) {56};
+\node (n57) at (1138,265) {57};
+\node (n66) at (1480,195) {66};
+\node (n72) at (1822,272) {72};
+\draw[line width=0.8pt] (n56)--(n23) (n23)--(n3) (n56)--(n66) (n66)--(n57) (n66)--(n72);
+\end{tikzpicture}\\[2pt]
+Figure 1: Binary Search Tree
+\end{center}
+\begin{enumerate}[label=(\Alph*)]
+\item 3, 23, 56, 57, 72.
+\item 56, 23, 3, 72, 57.
+\item 3, 23, 57, 72, 56.
+\item 56, 23, 57, 72, 3.
+\item None of the other choices.
+\end{enumerate}
+\end{pastexam}
+
+\begin{pastexam}[label={px:bst-2}]{中興資工所甲組 114 學年度 第二部分第 3 題}
+(5\%) You are given the sequence of integers 15, 10, 20, 8, 12, 17, 25, 19 to insert into an initially empty binary search tree (BST). After constructing the BST:
+\begin{enumerate}[label=\Roman*.]
+\item Delete the node with value 20 and replace it with its in-order successor.
+\item Perform a post-order traversal of the updated BST.
+\end{enumerate}
+What is the resulting post-order traversal of the BST after the deletion?
+\end{pastexam}
+
+\begin{pastexam}[label={px:bst-3}]{成大資訊聯招 107 學年度 第 1 題}
+(10\%) Suppose that we have numbers between 1 and 1000 in a binary search tree, and we want to search for the number 363. Which of the following sequences could not be the sequence of nodes examined?
+\begin{enumerate}[label=\alph*.]
+\item 2, 252, 401, 398, 330, 344, 397, 363.
+\item 924, 220, 911, 244, 898, 258, 362, 363.
+\item 925, 202, 911, 240, 912, 245, 363.
+\item 2, 399, 387, 219, 266, 382, 381, 278, 363.
+\item 935, 278, 347, 621, 299, 392, 358, 363.
+\end{enumerate}
+\end{pastexam}
+
+\begin{pastexam}[label={px:bst-4}]{政大資科所 113 學年度 第 6 題}
+(4\%) Which of the following statements about binary search trees is correct?
+\begin{enumerate}[label=\Alph*.]
+\item Searching a data in a binary search tree can be done in $O(\log n)$ time, regardless of the tree height.
+\item Sorting all the data in a binary search tree can be done in $O(n)$ time, regardless of the tree height.
+\item Finding the smallest data in a binary search tree can be done in $O(\log n)$ time, regardless of the tree height.
+\item None of the above statements is correct.
+\end{enumerate}
+\end{pastexam}
+
+\begin{pastexam}[label={px:bst-5}]{中正資工所甲組 108 學年度 第 2 題}
+(8\%) To build a binary search tree, the following elements are inserted in the given order: 65, 50, 80, 70, 60, 62, 90, 10. You have to use the following struct \textit{treeNode} with one additional filed \textit{leftSize}, where the field \textit{leftSize} of a tree node $u$ denotes the number of tree nodes in the $u$'s left subtree plus one. For example, if the number of nodes in the left subtree of the tree node $u$ is 3, then the tree node $u$'s field \textit{leftSize} is equal to 4.
+\begin{enumerate}[label=(\alph*)]
+\item (3\%) Please draw the binary search tree, and each tree node stores its element and \textit{leftSize}.
+\item (5\%) Please illustrate how to obtain the tree node storing the $k$-th smallest element in the binary search tree built in (a) from the tree root, and explain your procedure. Note that you have to use the additional field \textit{leftSize} and the time complexity of your procedure should be $O(\log n)$, where $n$ is the number of input elements.
+\end{enumerate}
+\begin{code}{c}{原題的結構}
+typedef struct _tree_node_ *treePointer;
+typedef struct _tree_node_ {
+    treePointer leftChild;
+    treePointer rightChild;
+    int element;
+    int leftSize;
+} treeNode;
+\end{code}
+\end{pastexam}
+
 \section{實作練習}
 \label{sec:bst-practice}
 
@@ -1581,3 +1658,193 @@ $n = 3$，$H_2 + H_2 - 2 = \frac32 + \frac32 - 2 = 1$，相同。
 \end{enumerate}
 
 \end{enumerate}
+
+\addcontentsline{toc}{section}{歷屆試題詳解}
+\section*{歷屆試題詳解}
+
+\pastsol{px:bst-1}{臺大資工所 115 學年度 第 17 題}
+答案是 (B)。 圖中的樹寫成「鍵值(左,右)」是 $56(23(3,-),66(57,72))$。 $66$ 有兩個子節點，
+屬於第~\ref{sec:bst-modify}~節的情況 3。 中序後繼是右子樹 $\{72\}$ 的最小值 $72$，它沒有左子節
+點，直接坐到 $66$ 的位置，接手左子樹 $57$，右邊是它原本的右子樹（空的）。 刪除之後是
+$56(23(3,-),72(57,-))$。
+
+前序走訪（先自己、再左、再右）：$56$，左子樹 $23, 3$，右子樹 $72, 57$，得到
+$56, 23, 3, 72, 57$，就是 (B)。
+
+其他選項：(A) 是中序走訪（BST 的中序一定由小到大，和刪除方式無關）。 (C) 是刪除之後的後序
+走訪。 (D) 不是任何一種走訪：前序的最後一個應該是右子樹裡的節點，$3$ 卻在 $56$ 的左子樹。
+(B) 正確，所以 (E) 不對。
+
+\pastsol{px:bst-2}{中興資工所甲組 114 學年度 第二部分第 3 題}
+依序插入，每個鍵值比較過的節點（第~\ref{sec:bst-modify}~節的寫法）：
+
+\begin{center}
+\begin{tabular}{cll}
+\toprule
+插入 & 比較過的節點 & 接在 \\
+\midrule
+15 & （空樹） & 成為根 \\
+10 & 15 & 15 的左邊 \\
+20 & 15 & 15 的右邊 \\
+8 & 15, 10 & 10 的左邊 \\
+12 & 15, 10 & 10 的右邊 \\
+17 & 15, 20 & 20 的左邊 \\
+25 & 15, 20 & 20 的右邊 \\
+19 & 15, 20, 17 & 17 的右邊 \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+得到下圖 (a)。 刪除 $20$：它有兩個子節點，中序後繼是右子樹 $\{25\}$ 的最小值 $25$。 $25$ 就是
+$20$ 的右子節點，沒有左子節點，直接坐到 $20$ 的位置，接手左子樹 $17(-,19)$，右邊是空的，得到
+圖 (b)。
+
+\begin{center}
+\begin{minipage}{0.48\linewidth}\centering
+\begin{tikzpicture}[bsts, level 1/.style={sibling distance=26mm}, level 2/.style={sibling distance=13mm}]
+\node[bnodes] {15}
+  child {node {10} child {node {8}} child {node {12}}}
+  child {node[bhl] {20}
+    child {node {17} child[missing] child {node {19}}}
+    child {node[bnew] {25}}};
+\end{tikzpicture}
+
+{\footnotesize (a) 插入完成；橘色是要刪的 $20$，粉紅色是後繼}
+\end{minipage}\hfill
+\begin{minipage}{0.48\linewidth}\centering
+\begin{tikzpicture}[bsts, level 1/.style={sibling distance=26mm}, level 2/.style={sibling distance=13mm}]
+\node[bnodes] {15}
+  child {node {10} child {node {8}} child {node {12}}}
+  child {node[bnew] {25}
+    child {node {17} child[missing] child {node {19}}}
+    child[missing]};
+\end{tikzpicture}
+
+{\footnotesize (b) 刪除 $20$ 之後}
+\end{minipage}
+\end{center}
+
+後序走訪（先左、再右、最後自己）：左子樹 $10(8,12)$ 給出 $8, 12, 10$；右子樹 $25(17(-,19),-)$
+給出 $19, 17, 25$；最後是根。 答案：
+\[
+8,\ 12,\ 10,\ 19,\ 17,\ 25,\ 15.
+\]
+檢查：中序走訪 $8, 10, 12, 15, 17, 19, 25$ 仍然遞增，而且少了 $20$。
+
+\pastsol{px:bst-3}{成大資訊聯招 107 學年度 第 1 題}
+答案是 c、e（題目問哪些「不可能」）。
+
+搜尋 $363$ 時，每看一個節點 $x$：$363 < x$ 就往左，之後看到的鍵值都在 $x$ 的左子樹裡，必須
+小於 $x$；$363 > x$ 就往右，之後的鍵值都必須大於 $x$。 所以從頭到尾維護一個開區間
+$(\mathit{lo}, \mathit{hi})$，一開始是 $(0, 1001)$；每個新看到的鍵值都要落在區間裡，看完之後，比
+$363$ 小的更新 $\mathit{lo}$，比 $363$ 大的更新 $\mathit{hi}$。 序列可能出現，若且唯若每個鍵值都落
+在當時的區間裡（落在區間裡時，把序列依序插入空樹，就得到一棵 BST，搜尋 $363$ 正好走過這些
+節點）。
+
+\begin{center}
+\small
+\begin{tabular}{cl}
+\toprule
+選項 & 每一步之後的區間 \\
+\midrule
+a & $2{:}(2, 1001)$，$252{:}(252, 1001)$，$401{:}(252, 401)$，$398{:}(252, 398)$，\\
+  & $330{:}(330, 398)$，$344{:}(344, 398)$，$397{:}(344, 397)$，$363$ 找到 \\
+b & $924{:}(0, 924)$，$220{:}(220, 924)$，$911{:}(220, 911)$，$244{:}(244, 911)$，\\
+  & $898{:}(244, 898)$，$258{:}(258, 898)$，$362{:}(362, 898)$，$363$ 找到 \\
+c & $925{:}(0, 925)$，$202{:}(202, 925)$，$911{:}(202, 911)$，$240{:}(240, 911)$，\\
+  & $912 \notin (240, 911)$，不可能 \\
+d & $2{:}(2, 1001)$，$399{:}(2, 399)$，$387{:}(2, 387)$，$219{:}(219, 387)$，\\
+  & $266{:}(266, 387)$，$382{:}(266, 382)$，$381{:}(266, 381)$，$278{:}(278, 381)$，$363$ 找到 \\
+e & $935{:}(0, 935)$，$278{:}(278, 935)$，$347{:}(347, 935)$，$621{:}(347, 621)$，\\
+  & $299 \notin (347, 621)$，不可能 \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+c：看到 $911$ 時 $363 < 911$ 往左走，之後的節點都在 $911$ 的左子樹，不可能再出現 $912$。
+e：看到 $347$ 時往右走，之後的節點都比 $347$ 大，不可能出現 $299$。 a、b、d 每一步都落在區
+間裡，都可能出現。
+
+\pastsol{px:bst-4}{政大資科所 113 學年度 第 6 題}
+答案是 B。
+\begin{itemize}
+\item[A.] 錯。 搜尋沿一條從根往下的路徑走，時間是 $O(h)$（第~\ref{sec:bst-query}~節）。 依序插入
+$1, 2, \ldots, n$ 時樹是一條鏈，$h = n$，搜尋 $n$ 要比較 $n$ 次，是 $\Theta(n)$，不是
+$O(\log n)$（第~\ref{sec:bst-height}~節）。
+\item[B.] 對。 中序走訪會由小到大印出所有鍵值，時間 $\Theta(n)$，和樹高無關
+（定理~\ref{thm:bst-inorder}）。 已經建好的 BST 要排序只要做一次中序走訪。
+\item[C.] 錯。 最小值要從根一直往左走（虛擬碼~\ref{alg:bst-minmax}），時間 $O(h)$。 依序插入
+$n, n - 1, \ldots, 1$ 時樹是往左的鏈，要走 $n$ 個節點。
+\item[D.] B 正確，所以錯。
+\end{itemize}
+
+\pastsol{px:bst-5}{中正資工所甲組 108 學年度 第 2 題}
+(a) 依序插入得到下圖，節點旁邊的藍色小字是 \textit{leftSize}（左子樹節點數加 $1$）。 例如根
+$65$ 的左子樹 $\{50, 10, 60, 62\}$ 有 $4$ 個節點，\textit{leftSize} 是 $5$；$60$ 沒有左子樹，是
+$1$。
+
+\begin{center}
+\begin{tikzpicture}[bst, bnode/.append style={minimum size=8.5mm},
+    level 1/.style={sibling distance=48mm},
+    level 2/.style={sibling distance=24mm}, level 3/.style={sibling distance=14mm}]
+\node[bnode, label={[bsize]0:5}] {65}
+  child {node[label={[bsize]0:2}] {50}
+    child {node[label={[bsize]0:1}] {10}}
+    child {node[label={[bsize]0:1}] {60}
+      child[missing]
+      child {node[label={[bsize]0:1}] {62}}}}
+  child {node[label={[bsize]0:2}] {80}
+    child {node[label={[bsize]0:1}] {70}}
+    child {node[label={[bsize]0:1}] {90}}};
+\end{tikzpicture}
+\end{center}
+
+(b) \textit{leftSize} 就是第~\ref{sec:bst-rank}~節的 $r = x.\mathit{left}.\mathit{size} + 1$：節點在自
+己這棵子樹裡排第幾小。 從根開始，比較 $k$ 和 \textit{leftSize}：
+\begin{itemize}
+\item $k = \textit{leftSize}$：這個節點就是答案。
+\item $k < \textit{leftSize}$：答案在左子樹，仍然找第 $k$ 小。
+\item $k > \textit{leftSize}$：左子樹和這個節點共 \textit{leftSize} 個都比答案小，到右子樹找第
+$k - \textit{leftSize}$ 小。
+\end{itemize}
+這就是虛擬碼~\ref{alg:bst-select} 的 \proc{Tree-Select}，寫成題目的結構：
+
+\begin{code}{c}{第 $k$ 小（$k$ 從 $1$ 開始）}
+treePointer kth_smallest(treePointer t, int k)
+{
+    while (t != NULL) {
+        if (k == t->leftSize)
+            return t;
+        if (k < t->leftSize) {
+            t = t->leftChild;
+        } else {
+            k -= t->leftSize;
+            t = t->rightChild;
+        }
+    }
+    return NULL;            // k < 1 或 k 大於節點數
+}
+\end{code}
+
+例子：找第 $6$ 小。
+
+\begin{center}
+\begin{tabular}{ccccl}
+\toprule
+步 & 節點 & $k$ & \textit{leftSize} & 動作 \\
+\midrule
+1 & 65 & 6 & 5 & $k > 5$，$k \gets 6 - 5 = 1$，往右 \\
+2 & 80 & 1 & 2 & $k < 2$，往左 \\
+3 & 70 & 1 & 1 & 相等，回傳 $70$ \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+由小到大是 $10, 50, 60, 62, 65, 70, 80, 90$，第 $6$ 小確實是 $70$。 再舉一個往左的例子，第 $4$ 小：
+$65$（$4 < 5$，往左）、$50$（$4 > 2$，$k \gets 2$，往右）、$60$（$2 > 1$，$k \gets 1$，往右）、
+$62$（相等），回傳 $62$。
+
+正確性：迴圈維持「答案是目前子樹裡第 $k$ 小」，三種情況都保持這件事，而每一步往下一層，最多
+走 $h$ 步，時間 $O(h)$。 題目要求 $O(\log n)$：這棵樹的 $h = 4$；一般的 BST 只有在高度是
+$O(\log n)$ 時才成立（例如第~10~章的平衡樹，或隨機插入時的期望情況），依序插入時 $h = n$，
+時間是 $\Theta(n)$。 作答時把「$O(h)$，平衡時為 $O(\log n)$」寫清楚。

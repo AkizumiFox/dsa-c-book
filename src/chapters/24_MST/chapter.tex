@@ -274,9 +274,8 @@ Sollin & 好幾棵樹組成的森林 & 每棵樹各自 vs. 其他，同時進行
 \end{tabular}
 \end{center}
 
-第~\ref{sec:gr-matroid}~節介紹過擬陣。 圖的邊、以「不含環」為獨立的條件，構成一個擬陣（圖擬陣），所以依權
-重由小到大的貪心一定對，這是 Kruskal 演算法正確的另一種說法。 本章用切割性質證明，因為
-它同時涵蓋三個演算法。
+三個演算法的正確性都用同一個方法證明：找出一個尊重 $A$ 的切割，說明這次加進來的邊是它
+的輕邊，再套用定理~\ref{thm:mst-cut}。 下面三節各做一次。
 
 \subsection{權重互不相同時，最小生成樹唯一}
 
@@ -1953,6 +1952,117 @@ n/2 \rceil$ 條。
 $3$ 回合（定理~\ref{thm:mst-rounds} 的上限），並寫出每回合加入的邊。
 \end{enumerate}
 
+\section{歷屆試題}
+\label{sec:mst-pastexam}
+
+以下是研究所入學考試的原題，題目照原卷（語言、記號、配分照錄）。 詳解在本章最後。
+
+\begin{pastexam}[label={px:mst-1}]{中央資工所 115 學年度 第 13 題}
+（多選題，每一個選項單獨計分；每題 5 分，答錯每個選項倒扣 1 分。）
+
+Given a weighted undirected graph G (V, E) below. Which of the following statement(s) about the
+minimum spanning tree (MST) of G is (are) true?
+\begin{center}
+\begin{tikzpicture}[v/.style={circle,draw,thick,fill=white,minimum size=6.5mm,inner sep=0pt,font=\footnotesize\sffamily\bfseries},x=1.15cm,y=1.15cm,
+  w/.style={font=\small\sffamily,inner sep=1.5pt}]
+\node[circle,draw=black!45,line width=2.4pt,minimum size=7.3mm,inner sep=0pt] at (0,1.88) {};
+\node[v] (A) at (0,1.88) {A};
+\node[v] (E) at (2.38,2.28) {E};
+\node[v] (F) at (5.29,1.96) {F};
+\node[v] (C) at (1.72,1.35) {C};
+\node[v] (G) at (3.67,1.24) {G};
+\node[v] (B) at (0.60,0.42) {B};
+\node[v] (D) at (2.64,0) {D};
+\draw[thick] (A) -- node[w,above,pos=0.5] {14} (E);
+\draw[thick] (A) -- node[w,above,pos=0.55] {9} (C);
+\draw[thick] (A) -- node[w,left,pos=0.5] {11} (B);
+\draw[thick] (E) -- node[w,above,pos=0.55] {15} (F);
+\draw[thick] (E) -- node[w,above right,pos=0.45,inner sep=0.5pt] {7} (G);
+\draw[thick] (C) -- node[w,above,pos=0.5] {20} (G);
+\draw[thick] (C) -- node[w,below right,pos=0.5,inner sep=0.5pt] {5} (B);
+\draw[thick] (C) -- node[w,right,pos=0.4] {16} (D);
+\draw[thick] (B) -- node[w,below,pos=0.4] {10} (D);
+\draw[thick] (D) -- node[w,below right,pos=0.5,inner sep=0.5pt] {6} (G);
+\draw[thick] (G) -- node[w,below right,pos=0.5,inner sep=0.5pt] {8} (F);
+\end{tikzpicture}
+\end{center}
+\begin{enumerate}[label=\Alph*.]
+\item If the MST is constructed by Kruskal's algorithm, edge (E, G) is the 6-th edge added to
+the MST.
+\item If the MST is constructed by Kruskal's algorithm, the MST is a binary tree.
+\item If the MST is constructed by Prim's algorithm and starting from vertex C, edge (E, G) is
+the 5-th edge added to the MST.
+\item If the MST is constructed by Prim's algorithm and starting from vertex D, there is an edge
+connecting vertex A and vertex B.
+\end{enumerate}
+\end{pastexam}
+
+\begin{pastexam}[label={px:mst-2}]{臺大資工所 112 學年度 第 13 題}
+（複選題，每個選項單獨計分。）
+
+\textbf{Properties of min. spanning tree (MST):} Let $T$ be a MST of a weighted graph $G$ with at
+least 3 vertices. Which of the following statements is/are correct?
+\begin{enumerate}[label=(\Alph*)]
+\item Given an edge $e$ in $G$ but not in $T$, we can form a cycle by putting $e$ to $T$. Then
+$e$ has the largest weight among edges in $C$.
+\item If we partition $G$ into two subsets, and let $e$ be the smallest-weight edge across the
+partition. Then $e$ belongs to some MST in $G$.
+\item The edge with the smallest weight in $G$ must belong to some MST of $G$.
+\item The edge with the second smallest weight in $G$ must belong to some MST of $G$.
+\item The edge with the third smallest weight in $G$ must belong to some MST of $G$.
+\end{enumerate}
+\end{pastexam}
+
+\begin{pastexam}[label={px:mst-3}]{中正資工所乙組 110 學年度 第 4 題}
+(25\%) Consider the following undirected graph. Please answer the following questions.
+\begin{enumerate}[label=(\alph*)]
+\item (5\%) Please write down the sequences of edges selected by Kruskal's algorithm.
+\item (5\%) Please write down the sequences of edges selected by Prim's algorithm (start from
+vertex A).
+\item (15\%) Let $G$ denote a given undirected graph with positive edge weights such as the
+following graph. Please prove that if each edge in $G$ has a \emph{distinct} weight, then there
+will be only one \emph{unique} minimum cost spanning tree in $G$ by contradiction.
+\end{enumerate}
+
+\begin{center}
+\begin{tikzpicture}[v/.style={circle,draw,minimum size=8mm,inner sep=0pt,font=\sffamily\small},w/.style={font=\sffamily\small,inner sep=2pt}]
+\node[v] (A) at (0,2.6) {A};
+\node[v] (B) at (3,2.6) {B};
+\node[v] (C) at (6,2.6) {C};
+\node[v] (F) at (0,0) {F};
+\node[v] (E) at (3,0) {E};
+\node[v] (D) at (6,0) {D};
+\draw (A) -- node[w,above] {36} (B);
+\draw (B) -- node[w,above] {12} (C);
+\draw (A) -- node[w,left] {25} (F);
+\draw (B) -- node[w,above left,pos=0.55] {11} (F);
+\draw (B) -- node[w,right] {6} (E);
+\draw (C) -- node[w,below right,pos=0.55] {3} (E);
+\draw (C) -- node[w,right] {15} (D);
+\draw (F) -- node[w,below] {9} (E);
+\draw (E) -- node[w,below] {20} (D);
+\end{tikzpicture}
+\end{center}
+\end{pastexam}
+
+\begin{pastexam}[label={px:mst-4}]{臺大資工所 107 學年度 第 VI 題（節錄 (a) 小題）}
+(25 points) The network of roads in NTU can be modeled as a graph $G=(V,E)$, where each node
+$v_i\in V$ represents a building and each edge $e_{ij}\in E$ represents a road connecting the
+buildings $v_i$ and $v_j$. Each edge $e_{ij}$ is associated with a positive weight $w_{ij}$,
+i.e., $w_{ij}>0$.
+\begin{enumerate}[label=(\alph*)]
+\item (10 points) Consider all roads are bidirectional. Before an earthquake, it is possible to
+travel between any pair of buildings. However, after the earthquake, all of the roads are
+damaged and closed until repairs are completed. Suppose the weight $w_{ij}$ indicates the time
+required to repair the corresponding road $e_{ij}$. Assume that all roads are fixed at the same
+time.
+
+Given two buildings $v_a$ and $v_b$, please propose an efficient algorithm to determine a path
+starting from $v_a$ to $v_b$ that can be fixed in the smallest amount of time. Analyze the time
+complexity of your algorithm.
+\end{enumerate}
+\end{pastexam}
+
 \section{實作練習}
 \label{sec:mst-practice}
 
@@ -2201,3 +2311,225 @@ $5$--$6$、$7$--$8$。 第二回合 $\{1, 2\}$ 和 $\{3, 4\}$ 都挑 $2$--$3$（
 輕），$\{5, 6\}$ 和 $\{7, 8\}$ 都挑 $6$--$7$（$11$），加入兩條，剩 $\{1, 2, 3, 4\}$、$\{5, 6, 7,
 8\}$。 第三回合兩邊都挑 $4$--$5$。 共 $3$ 回合。
 \end{enumerate}
+
+\addcontentsline{toc}{section}{歷屆試題詳解}
+\section*{歷屆試題詳解}
+
+\pastsol{px:mst-1}{中央資工所 115 學年度 第 13 題}
+答案：(C) 一定對；(B) 要看「二元樹」怎麼解讀（見下面），本書的解讀下也對。 (A)、(D) 錯。
+
+\textbf{先求最小生成樹。} 十一條邊的權重都不同，由定理~\ref{thm:mst-unique}，最小生成樹只有一
+棵，不論用哪個演算法、從哪裡開始，選到的邊集合都一樣，只有\textbf{順序}會不同。 Kruskal 依權重
+由小到大：
+
+\begin{center}
+\small
+\begin{tabular}{rcrl}
+\toprule
+步 & 邊 & 權重 & 結果 \\
+\midrule
+1 & B--C & 5 & 選（第 1 條） \\
+2 & D--G & 6 & 選（第 2 條） \\
+3 & E--G & 7 & 選（第 3 條） \\
+4 & F--G & 8 & 選（第 4 條） \\
+5 & A--C & 9 & 選（第 5 條） \\
+6 & B--D & 10 & 選（第 6 條）；$\{A, B, C\}$ 和 $\{D, E, F, G\}$ 接起來，已滿 $6$ 條 \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+後面的 A--B（$11$）、A--E（$14$）、E--F（$15$）、C--D（$16$）、C--G（$20$）都不用看（它們的兩端
+都已經連通）。 最小生成樹是 $\{BC, DG, EG, FG, AC, BD\}$，總權重 $5 + 6 + 7 + 8 + 9 + 10 = 45$。
+
+\begin{itemize}
+\item \textbf{A. 錯。} E--G 是 Kruskal 加入的第 $3$ 條邊，不是第 $6$ 條；第 $6$ 條是 B--D。
+\item \textbf{B. 看解讀。} 最小生成樹是一棵沒有根的樹，各頂點的度數是 A：$1$、B：$2$、C：$2$、
+D：$2$、E：$1$、F：$1$、G：$3$，形狀是一條 A--C--B--D--G 的鏈，G 再接出 E、F 兩個葉節點。
+「二元樹」要先有根才談得上「每個節點最多兩個子節點」。 如果解讀成「可以選一個頂點當根，讓它
+變成二元樹」：選 A 當根，A、C、B、D 各只有一個子節點，G 有 E、F 兩個子節點，是二元樹，(B)
+對。 如果要求選哪個頂點當根都要是二元樹，選 G 當根時它有 D、E、F 三個子節點，(B) 錯。 本書採
+前一種解讀（最大度數 $3$ 的樹，以葉節點為根就是二元樹），但這一項的敘述本身不嚴謹，作答時最好
+寫出你的解讀。
+\item \textbf{C. 對。} 從 C 開始執行 Prim 演算法（虛擬碼~\ref{alg:mst-prim}），每回合取出
+$\mathit{key}$ 最小的頂點：
+
+\begin{center}
+\small
+\begin{tabular}{cclc}
+\toprule
+回合 & 取出 & 加入的邊 & 取出後改小的 $\mathit{key}$ \\
+\midrule
+1 & C & — & A：$9$，B：$5$，D：$16$，G：$20$ \\
+2 & B & C--B（$5$），第 1 條 & D：$10$（A 的 $11$ 不比 $9$ 小） \\
+3 & A & C--A（$9$），第 2 條 & E：$14$ \\
+4 & D & B--D（$10$），第 3 條 & G：$6$ \\
+5 & G & D--G（$6$），第 4 條 & E：$7$，F：$8$ \\
+6 & E & G--E（$7$），第 5 條 & （F 的 $15$ 不比 $8$ 小） \\
+7 & F & G--F（$8$），第 6 條 & \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+E--G 是第 $5$ 條加入的邊。 這張表裡沒有平手，平手規則不影響結果。
+\item \textbf{D. 錯。} 最小生成樹唯一，Prim 演算法從 D 開始選到的也是上面那六條邊，裡面沒有
+A--B。 A--B 不在任何最小生成樹裡也可以直接看出來：環 A--B--C--A 的三條邊是 $11$、$5$、$9$，
+A--B 是這個環上唯一最重的，由環性質（定理~\ref{thm:mst-cycle}）一定不選。
+\end{itemize}
+
+\pastsol{px:mst-2}{臺大資工所 112 學年度 第 13 題}
+答案：(A)、(B)、(C)、(D)。
+
+\begin{itemize}
+\item \textbf{(A) 對。} 題目的 $C$ 指把 $e$ 加進 $T$ 形成的環。 $T$ 是最小生成樹，由
+定理~\ref{thm:mst-check} 的 $\Rightarrow$，每一條非樹邊 $e = (x, y)$ 都有
+$w(e) \ge \mathit{max}_T(x, y)$，也就是 $e$ 不比環上任何一條樹邊輕：$e$ 是環上最重的。 有平手時
+（例如環上另一條邊和 $e$ 一樣重），$e$ 是「最重的邊之一」，敘述仍成立。 理由再寫一次：如果環上
+有一條樹邊 $f$ 比 $e$ 重，$T - \{f\} \cup \{e\}$ 是更輕的生成樹，和 $T$ 最小矛盾。
+\item \textbf{(B) 對。} 「把 $G$ 分成兩個子集合」是把頂點分成兩個非空的部分，也就是一個切割；
+$e$ 是跨越這個切割的最輕的邊，也就是輕邊。 由系理~\ref{cor:mst-cut-strict}（切割性質取
+$A = \emptyset$），它屬於某一棵最小生成樹。
+\item \textbf{(C) 對。} 權重最小的邊 $e = (u, v)$，取切割 $(\{u\}, V - \{u\})$，$e$ 跨越它，而且
+沒有比 $e$ 更輕的邊，所以 $e$ 是輕邊，同 (B)。 也可以這樣看：Kruskal 演算法第一條看的就是它，
+一定選，而 Kruskal 回傳一棵最小生成樹（定理~\ref{thm:mst-kruskal}）。
+\item \textbf{(D) 對。} 把邊照權重（平手時照任何固定的規則）排序，第二條邊 $e_2$ 和第一條邊
+$e_1$ 合起來不會形成環：簡單圖的環至少有三條邊。 所以 Kruskal 演算法依這個順序執行時，前兩條
+都會選，$e_2$ 屬於 Kruskal 求出的那棵最小生成樹。 注意這裡把「the edge with the second smallest
+weight」讀成「照權重排序後的第二條邊」。 如果讀成「權重是第二小的\textbf{數值}的邊」，就不一定
+對：三角形的邊權重 $1, 1, 2$，第二小的數值是 $2$，那條邊是環上唯一最重的，不在任何最小生成
+樹裡。 題目沒說權重互不相同，所以這一項有歧義；權重互不相同時兩種讀法一樣，(D) 對。
+\item \textbf{(E) 錯。} 反例：三個頂點的三角形，邊權重 $1, 2, 3$。 權重第三小的邊（$3$）是這
+個環上唯一最重的邊，由環性質（定理~\ref{thm:mst-cycle}）不在任何最小生成樹裡；唯一的最小生成
+樹是 $\{1, 2\}$。
+\end{itemize}
+
+\pastsol{px:mst-3}{中正資工所乙組 110 學年度 第 4 題}
+\textbf{(a)} 九條邊依權重由小到大：C--E（$3$）、B--E（$6$）、E--F（$9$）、B--F（$11$）、
+B--C（$12$）、C--D（$15$）、D--E（$20$）、A--F（$25$）、A--B（$36$）。
+
+\begin{center}
+\small
+\begin{tabular}{rcrll}
+\toprule
+步 & 邊 & 權重 & 結果 & 處理完的集合 \\
+\midrule
+1 & C--E & 3 & 選 & $\{C, E\}$ \\
+2 & B--E & 6 & 選 & $\{B, C, E\}$ \\
+3 & E--F & 9 & 選 & $\{B, C, E, F\}$ \\
+4 & B--F & 11 & 略過：B、F 已經經過 E 連通 & $\{B, C, E, F\}$ \\
+5 & B--C & 12 & 略過：B、C 已經經過 E 連通 & $\{B, C, E, F\}$ \\
+6 & C--D & 15 & 選 & $\{B, C, D, E, F\}$ \\
+7 & D--E & 20 & 略過：D、E 已經經過 C 連通 & $\{B, C, D, E, F\}$ \\
+8 & A--F & 25 & 選，已滿 $5$ 條 & $\{A, B, C, D, E, F\}$ \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+Kruskal 選邊的順序是 (C, E)、(B, E)、(E, F)、(C, D)、(A, F)，總權重
+$3 + 6 + 9 + 15 + 25 = 58$。
+
+\textbf{(b)} 從 A 開始執行 Prim 演算法，每回合取出 $\mathit{key}$ 最小的頂點（格子寫
+$\mathit{key}/\pi$，空白表示已在樹裡）：
+
+\begin{center}
+\small
+\begin{tabular}{cccrrrrrr}
+\toprule
+回合 & 取出 & 加入的邊 & A & B & C & D & E & F \\
+\midrule
+1 & A & — & $0$ & $36/A$ & $\infty$ & $\infty$ & $\infty$ & $25/A$ \\
+2 & F & A--F & & $11/F$ & $\infty$ & $\infty$ & $9/F$ & $25/A$ \\
+3 & E & F--E & & $6/E$ & $3/E$ & $20/E$ & $9/F$ & \\
+4 & C & E--C & & $6/E$ & $3/E$ & $15/C$ & & \\
+5 & B & E--B & & $6/E$ & & $15/C$ & & \\
+6 & D & C--D & & & & $15/C$ & & \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+（每一列是取出那個頂點、更新完鄰居之後的值；取出的頂點那一格是它被取出時的值。） 第 4 回合
+C 的 B--C 是 $12$，不比 $\mathit{key}[B] = 6$ 小，不更新。 Prim 選邊的順序是 (A, F)、(F, E)、
+(E, C)、(E, B)、(C, D)，和 (a) 是同一組邊，總權重 $58$；九條邊權重都不同，最小生成樹唯一。
+
+\textbf{(c)} 證明（反證法）。 設 $G$ 是連通的無向圖，$n$ 個頂點，每條邊的權重都不同。 假設 $G$
+有兩棵不同的最小生成樹 $T_1 \ne T_2$。
+
+\begin{enumerate}
+\item 兩棵都是生成樹，都恰好有 $n - 1$ 條邊（定理~\ref{thm:gtr-tree}）。 邊數一樣而集合不同，
+所以 $T_1$ 有不在 $T_2$ 裡的邊，$T_2$ 也有不在 $T_1$ 裡的邊。 令
+$D = (T_1 - T_2) \cup (T_2 - T_1)$，是「恰好屬於其中一棵」的邊，$D \ne \emptyset$。
+\item 權重互不相同，$D$ 裡權重最小的邊 $e$ 是唯一的。 不失一般性，設 $e \in T_1$、$e \notin T_2$
+（否則把 $T_1$、$T_2$ 的名字對調）。
+\item 把 $e = (u, v)$ 加進 $T_2$。 $T_2$ 裡 $u$ 到 $v$ 本來就有一條簡單路徑 $P$，加上 $e$ 形成
+一個環 $C = P \cup \{e\}$。
+\item $P$ 上一定有一條邊 $f$ 不在 $T_1$ 裡。 否則 $P$ 的邊全在 $T_1$ 裡，連同 $e \in T_1$，
+環 $C$ 整個在 $T_1$ 裡，和 $T_1$ 是樹（沒有環）矛盾。
+\item $f \in T_2$、$f \notin T_1$，所以 $f \in D$；$f$ 在 $P$ 上而 $e$ 不在 $T_2$ 裡，所以
+$f \ne e$。 由 $e$ 是 $D$ 裡唯一最輕的邊，$w(f) > w(e)$。
+\item 令 $T' = T_2 - \{f\} \cup \{e\}$。 從 $T_2$ 拿掉 $f$，樹分成兩塊；$f$ 在 $u$ 到 $v$ 的路徑
+$P$ 上，所以 $u$、$v$ 分在不同的兩塊，加上 $e$ 又連成一棵樹。 $T'$ 是生成樹，而且
+\[
+w(T') = w(T_2) - w(f) + w(e) < w(T_2),
+\]
+和 $T_2$ 是最小生成樹矛盾。
+\end{enumerate}
+所以假設不成立，權重互不相同時最小生成樹只有一棵。 這就是定理~\ref{thm:mst-unique}。 注意題
+目說的「positive edge weights」在證明裡沒有用到，權重是負數也成立。
+
+\pastsol{px:mst-4}{臺大資工所 107 學年度 第 VI 題（節錄 (a) 小題）}
+\textbf{題意。} 所有道路同時開始修，道路 $e_{ij}$ 在時間 $w_{ij}$ 修好。 一條從 $v_a$ 到 $v_b$
+的路徑要等它上面\textbf{每一段}都修好才能走，所以它能通行的時間是路徑上最大的 $w_{ij}$，也就是
+路徑的瓶頸（第~\ref{sec:mst-bottleneck}~節）。 題目要的是瓶頸最小的路徑，不是權重總和最小的
+最短路徑。
+
+\textbf{演算法。} 照 Kruskal 演算法由輕到重加邊，$v_a$、$v_b$ 第一次連通時停下來，在選到的邊
+組成的森林上找 $v_a$ 到 $v_b$ 的路徑。
+
+\begin{pseudo}[label=alg:mst-px-repair]{最早修好的路徑}
+\Function{Earliest-Path}{$G, w, a, b$}
+    \State $F \gets \emptyset$
+    \For{每個頂點 $v \in V$}
+        \State \Call{Make-Set}{$v$}
+    \EndFor
+    \State 把 $E$ 的邊依權重由小到大排序
+    \For{依排好的順序，每條邊 $(u, v)$}
+        \If{$\Call{Find-Set}{a} = \Call{Find-Set}{b}$}
+            \State \Break
+        \EndIf
+        \If{$\Call{Find-Set}{u} \ne \Call{Find-Set}{v}$}
+            \State $F \gets F \cup \{(u, v)\}$；\Call{Union}{$u, v$}
+        \EndIf
+    \EndFor
+    \State 在森林 $F$ 上從 $a$ 做 BFS，沿 $\pi$ 從 $b$ 走回 $a$，得到路徑 $P$
+    \State \Return $P$
+\EndFunction
+\end{pseudo}
+
+地震前任兩棟建築都連通，所以 $G$ 連通，迴圈一定會在某條邊之後讓 $a$、$b$ 連通（$a = b$ 時一開
+始就停，路徑只有一個頂點）。 $F$ 是森林，$a$、$b$ 在同一棵樹裡，樹上兩點之間恰好有一條簡單路
+徑，第 11 行找到的就是它。
+
+\textbf{正確性。} 設 $e^{*}$ 是最後一條加進 $F$ 的邊，也就是讓 $a$、$b$ 第一次連通的那一條，
+$w^{*} = w(e^{*})$。
+\begin{itemize}
+\item \emph{$P$ 的瓶頸 $\le w^{*}$。} $P$ 的邊都在 $F$ 裡，$F$ 的邊都不比 $e^{*}$ 晚處理，權重都
+$\le w^{*}$。
+\item \emph{任何路徑的瓶頸 $\ge w^{*}$。} 令 $E^{-}$ 是排序後排在 $e^{*}$ 前面的邊。 處理完 $E^{-}$
+時，互斥集合正好是圖 $(V, E^{-})$ 的連通元件：被略過的邊兩端本來就在同一個集合，加了也不改變
+連通性。 那時 $a$、$b$ 還在不同的集合，所以只用 $E^{-}$ 的邊從 $a$ 走不到 $b$。 任何一條 $a$ 到
+$b$ 的路徑 $Q$ 都至少用到一條不在 $E^{-}$ 的邊，它排在 $e^{*}$ 或它後面，權重 $\ge w^{*}$，所以
+$Q$ 的瓶頸 $\ge w^{*}$。
+\end{itemize}
+兩點合起來，$P$ 的瓶頸是所有路徑裡最小的，它在時間 $w^{*}$ 就能通行，沒有路徑能更早。 換個說
+法：$F$ 是 Kruskal 求最小生成樹的前半段，$P$ 是最小生成樹上 $a$ 到 $b$ 的路徑，由
+定理~\ref{thm:mst-bottleneck}，它的瓶頸最小。
+
+\textbf{時間。} $n = |V|$、$m = |E|$。 排序 $O(m \lg m) = O(m \lg n)$；最多 $m$ 輪迴圈，每輪幾次
+\proc{Find-Set}，用依大小合併加路徑壓縮共 $O(m\,\alpha(n))$（第~13~章）；$F$ 最多 $n - 1$ 條邊，
+BFS 是 $O(n)$。 合計 $O(m \lg n)$，瓶頸在排序。
+
+\textbf{另一種寫法。} 把 Dijkstra 演算法（第~25~章）的「$d[u] + w(u, v)$」改成
+「$\max(d[u], w(u, v))$」，$d[v]$ 代表目前找到的最小瓶頸，取出 $d$ 最小的頂點時它就確定了，證明
+和 Dijkstra 相同（$\max$ 和加非負數一樣，沿路徑不會變小）。 用二元堆積也是 $O(m \lg n)$，而且
+找到 $v_b$ 就能停。 兩種寫法都要說明的關鍵是：題目要的是\textbf{瓶頸}，直接跑一般的最短路徑
+（權重相加）會答錯。 例如 $v_a$ 到 $v_b$ 一條路是一段 $10$，另一條路是三段 $4$：總和最小的是
+$10$ 那條，但三段 $4$ 的那條在時間 $4$ 就修好了。

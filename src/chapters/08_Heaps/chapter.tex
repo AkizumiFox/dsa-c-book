@@ -7,6 +7,7 @@
     hpa/.style={hpn, draw=memStroke, thick, fill=memFill},
     hpb/.style={hpn, draw=optStroke, thick, fill=optFill},
     hpg/.style={hpn, draw=black!30, text=black!40},
+    hpe/.style={hpn, draw=black!40, densely dashed},
     hpedge/.style={draw=black!55},
     hpidx/.style={font=\scriptsize, text=black!50},
     hpcn/.style={cell, minimum width=0.8cm, minimum height=0.75cm},
@@ -15,7 +16,7 @@
     hpcg/.style={hpcn, text=black!35},
 }
 % \hpheap{根的座標}{最底層的寬度}{值/樣式,值/樣式,...}{節點名稱前綴}
-% 依陣列順序（從 1 開始）畫一棵完整二元樹。樣式是 n、a、b、g 之一。
+% 依陣列順序（從 1 開始）畫一棵完整二元樹。樣式是 n、a、b、g、e 之一（e 是空的根）。
 % \hpshowidxtrue 之後畫的樹，每個節點右上角會標出它在陣列裡的位置。
 \newif\ifhpshowidx
 \newcommand{\hpheap}[4]{%
@@ -55,9 +56,10 @@
 
 本章前四節講二元堆積和它的變化：陣列存法與上浮、下沉，由下而上建堆積為什麼是線性
 時間，帶索引的堆積怎麼支援 decrease-key，以及每個節點有 $d$ 個子節點的 $d$ 元堆積。
-第~\ref{sec:hp-mergeable}~節講三種考試常見的變形：同時取最小和最大的最小最大堆積、
-可以快速合併的左傾樹和二項堆積，都以手算追蹤為主。 最後一節用第~3~章的位能法，整理
-費氏堆積各操作的平攤成本。
+第~\ref{sec:hp-mergeable}~節講考試常見的變形：同時取最小和最大的三種結構（最小最大堆積、
+deap、對稱最小最大堆積），以及可以快速合併的左傾樹和二項堆積，都以手算追蹤為主。 接著用
+第~3~章的位能法，整理費氏堆積各操作的平攤成本。 章末收了幾題研究所入學考試的原題，詳解
+在本章最後。
 
 這一章用到第~7~章的樹的名詞（深度、高度、完整二元樹）和第~3~章的平攤分析；C 程式用到
 《C 程式設計基礎》第~14~章的結構指標、第~15~章的遞迴和第~19~章的 \texttt{malloc}、
@@ -898,13 +900,14 @@ $\{17, 12, 28\}$ 中的 $12$ 交換，到了位置 $3$，子節點只剩 $70$、
 實際的執行時間還和快取有關：$d$ 個子節點在陣列裡是相鄰的，一次讀進快取，樹又比較矮，所
 以實務上常用 $d = 4$ 左右。
 
-\section{最小最大堆積、左傾樹與二項堆積}
+\section{雙端優先佇列、左傾樹與二項堆積}
 \label{sec:hp-mergeable}
 
 二元堆積有兩個做不到的地方。 第一，最小堆積找最大值要看所有的葉節點，$\Theta(n)$；想同時
 取最小和最大，就要另外想辦法。 第二，兩個堆積合併成一個，只能把兩個陣列接起來重建，
-$\Theta(n)$。 這一節的三種結構分別處理這兩件事：最小最大堆積處理第一件，左傾樹和二項堆
-積處理第二件。 三種都以手算追蹤為主。
+$\Theta(n)$。 這一節的前三種結構（最小最大堆積、deap、對稱最小最大堆積）處理第一件，後兩
+種（左傾樹、二項堆積）處理第二件。 每一種都以手算追蹤為主，考卷上最常見的題目就是「插入
+（刪除）之後畫出結果」。
 
 \subsection{最小最大堆積}
 
@@ -1046,6 +1049,393 @@ $A[2]$。 到了位置 $5$，它的子節點 $34, 23$ 裡最小的是 $A[11] = 2
 
 最後的陣列是 $\langle 11, 72, 77, 31, 23, 58, 38, 36, 37, 34, 46 \rangle$。 可以逐層檢查：
 最大層的 $72$ 不小於它底下的 $31, 23, 36, 37, 34, 46$，最小層的 $23$ 不大於 $34, 46$。
+
+\subsection{雙端堆積（deap）}
+\label{sec:hp-deap}
+
+最小最大堆積把小的和大的放在交錯的層裡。 \textbf{deap}（double-ended heap，中文常叫雙端
+堆積）改成左右分開：根不放元素，根的左子樹是一個最小堆積，右子樹是一個最大堆積，兩邊再用
+「對應點」互相約束，保證左邊每個元素都不大於右邊對應位置的元素。
+
+仍然用陣列存。 $A[1]$ 是空的根，元素放在 $A[2..\mathit{last}]$，共 $\mathit{last} - 1$ 個。 深度
+$d \ge 1$ 的位置是 $2^d$ 到 $2^{d+1} - 1$，前一半屬於最小堆積，後一半屬於最大堆積：位置 $i$
+在最大堆積，若且唯若 $i \ge 2^d + 2^{d-1}$，其中 $d = \lfloor \lg i \rfloor$。 兩個堆積的根分別是
+$A[2]$ 和 $A[3]$；除了這兩個根，每個位置的父節點仍然是 $\lfloor i/2 \rfloor$，而且和自己在同
+一邊。
+
+\begin{definition}[deap]
+\label{def:hp-deap}
+deap 是存在陣列 $A[1..\mathit{last}]$ 的完整二元樹，根 $A[1]$ 不放元素，而且滿足：
+\begin{enumerate}
+\item 根的左子樹是最小堆積，右子樹是最大堆積（只有一個元素時右子樹是空的）。
+\item 對最小堆積的每個位置 $i$，令 $j = i + 2^{\lfloor \lg i \rfloor - 1}$，這是最大堆積裡同一層、
+同一個相對位置的\textbf{對應點}；如果 $j > \mathit{last}$，改用它的父節點 $\lfloor j/2 \rfloor$。
+那麼 $A[i] \le A[j]$。
+\end{enumerate}
+\end{definition}
+
+改用父節點是因為最後一層從左邊填起，最小堆積那一邊的最後一層可能比右邊多出幾個節點，它們
+在右邊還沒有對應點，就和那個位置的父節點比。 反過來，最大堆積的位置 $j$ 的對應點是
+$i = j - 2^{\lfloor \lg j \rfloor - 1}$，這個 $i$ 一定存在。
+
+最小值在 $A[2]$，最大值在 $A[3]$（只有一個元素時兩者都是 $A[2]$）。 $A[2]$ 是最小堆積的最
+小值；最大堆積的任何位置 $j$，對應點 $i$ 都存在而且 $A[i] \le A[j]$，所以 $A[j]$ 也不小於
+$A[2]$。 $A[3]$ 是最大值的理由對稱。
+
+\textbf{插入}。 新元素 $x$ 先放在新的最後一格 $p$。 如果 $p$ 在最小堆積，看它的對應點 $j$：
+$x > A[j]$ 表示 $x$ 屬於大的那一邊，把 $A[j]$ 搬到 $p$，$x$ 從 $j$ 開始在最大堆積裡上浮；否則
+$x$ 從 $p$ 開始在最小堆積裡上浮。 $p$ 在最大堆積時反過來，和對應點比，$x$ 比較小就換到最小
+堆積那一邊。 上浮用最小最大堆積那種「挖洞」的寫法：\proc{Min-Up}$(A, i, x)$ 從位置 $i$ 沿著父
+節點往上，父節點比 $x$ 大就把父節點往下挪，最多走到最小堆積的根 $A[2]$；\proc{Max-Up} 對稱，
+最多走到 $A[3]$。 新的最後一格 $p$ 在最小堆積時，它的對應點一定超出範圍，改用的
+$\lfloor j/2 \rfloor$ 正好是 $p$ 的父節點的對應點，所以搬到 $p$ 的 $A[j]$ 不小於 $p$ 的父節點，
+最小堆積的性質不會被破壞。
+
+\textbf{取出最小值}。 最小值在 $A[2]$。 把最後一格的元素 $x$ 拿出來，$\mathit{last}$ 減 $1$。
+接著讓 $A[2]$ 這個洞沿著最小堆積往下走：每次把較小的子節點搬上來，直到洞到了沒有子節點的
+位置 $i$。 最後把 $x$ 放進位置 $i$，做法和插入時一樣，先和 $i$ 的對應點比。 和二元堆積的
+下沉不同，洞不在中途停下來，一路走到最底：這樣 $x$ 只需要在最後決定去哪一邊，再往上浮一次。
+
+\textbf{取出最大值}。 對稱：最大值在 $A[3]$（只有一個元素時就是 $A[2]$），洞沿著最大堆積較
+大的子節點走到底，到了位置 $j$ 再放 $x$。 這時有一個細節：如果對應點 $i$ 有子節點，這些子節
+點在最大堆積那邊沒有對應點，依定義都要和 $j$ 比，所以 $x$ 要和「$i$ 的子節點中較大的那個」比，
+不能只和 $A[i]$ 比。
+
+\begin{pseudo}[label=alg:hp-deap]{deap 的插入與取出最小值}
+\Procedure{Deap-Insert}{$A, x$}
+    \State $A.\mathit{last} \gets A.\mathit{last} + 1$
+    \If{$A.\mathit{last}$ 在最大堆積}
+        \State \Call{Deap-Put-Max}{$A, A.\mathit{last}, x$}
+    \Else
+        \State \Call{Deap-Put-Min}{$A, A.\mathit{last}, x$}
+    \EndIf
+\EndProcedure
+\Statex
+\Procedure{Deap-Put-Min}{$A, i, x$} \Comment{位置 $i$ 在最小堆積，目前是空的}
+    \State $j \gets i + 2^{\lfloor \lg i \rfloor - 1}$ \Comment{對應點}
+    \If{$j > A.\mathit{last}$}
+        \State $j \gets \lfloor j/2 \rfloor$ \Comment{最大堆積是空的時 $j = 1$}
+    \EndIf
+    \If{$j \ge 3$ \AND $x > A[j]$}
+        \State $A[i] \gets A[j]$
+        \State \Call{Max-Up}{$A, j, x$}
+    \Else
+        \State \Call{Min-Up}{$A, i, x$}
+    \EndIf
+\EndProcedure
+\Statex
+\Procedure{Deap-Put-Max}{$A, j, x$} \Comment{位置 $j$ 在最大堆積，目前是空的}
+    \State $i \gets j - 2^{\lfloor \lg j \rfloor - 1}$ \Comment{對應點}
+    \If{$2i \le A.\mathit{last}$} \Comment{$i$ 有子節點：改看較大的子節點}
+        \State $i \gets 2i$
+        \If{$i + 1 \le A.\mathit{last}$ \AND $A[i + 1] > A[i]$}
+            \State $i \gets i + 1$
+        \EndIf
+    \EndIf
+    \If{$x < A[i]$}
+        \State $A[j] \gets A[i]$
+        \State \Call{Min-Up}{$A, i, x$}
+    \Else
+        \State \Call{Max-Up}{$A, j, x$}
+    \EndIf
+\EndProcedure
+\Statex
+\Function{Deap-Delete-Min}{$A$} \Comment{假設 $A.\mathit{last} \ge 2$}
+    \State $\mathit{min} \gets A[2]$
+    \State $x \gets A[A.\mathit{last}]$
+    \State $A.\mathit{last} \gets A.\mathit{last} - 1$
+    \If{$A.\mathit{last} \ge 2$}
+        \State $i \gets 2$
+        \While{$2i \le A.\mathit{last}$} \Comment{洞沿著較小的子節點走到底}
+            \State $c \gets 2i$
+            \If{$c + 1 \le A.\mathit{last}$ \AND $A[c + 1] < A[c]$}
+                \State $c \gets c + 1$
+            \EndIf
+            \State $A[i] \gets A[c]$
+            \State $i \gets c$
+        \EndWhile
+        \State \Call{Deap-Put-Min}{$A, i, x$}
+    \EndIf
+    \State \Return $\mathit{min}$
+\EndFunction
+\end{pseudo}
+
+\proc{Deap-Delete-Max} 把 \proc{Deap-Delete-Min} 的 $A[2]$ 換成 $A[3]$（只有一個元素時直接
+取 $A[2]$）、「較小的子節點」換成「較大的子節點」，最後呼叫 \proc{Deap-Put-Max}。 樹高是
+$\lfloor \lg \mathit{last} \rfloor + 1$，洞往下走和上浮都只沿一條路徑，所以三個操作都是
+$O(\lg n)$。
+
+\textbf{手算追蹤}。 把 $35, 69, 29, 33, 65, 52, 96, 61, 24, 14, 55$ 依序插入空的 deap，再取出最
+小值、取出最大值。 下表每一列是操作之後的 $A[2..12]$，粗體的位置屬於最大堆積。
+
+\begin{center}
+\small
+\begin{tabular}{l*{11}{c}}
+\toprule
+操作 & 2 & \textbf{3} & 4 & 5 & \textbf{6} & \textbf{7} & 8 & 9 & 10 & 11 & \textbf{12} \\
+\midrule
+插入 35 & 35 \\
+插入 69 & 35 & 69 \\
+插入 29 & 29 & 69 & 35 \\
+插入 33 & 29 & 69 & 35 & 33 \\
+插入 65 & 29 & 69 & 35 & 33 & 65 \\
+插入 52 & 29 & 69 & 35 & 33 & 65 & 52 \\
+插入 96 & 29 & 96 & 35 & 33 & 69 & 52 & 65 \\
+插入 61 & 29 & 96 & 35 & 33 & 69 & 52 & 65 & 61 \\
+插入 24 & 24 & 96 & 35 & 29 & 69 & 52 & 65 & 61 & 33 \\
+插入 14 & 14 & 96 & 35 & 24 & 69 & 52 & 65 & 61 & 33 & 29 \\
+插入 55 & 14 & 96 & 35 & 24 & 69 & 52 & 55 & 61 & 33 & 29 & 65 \\
+\midrule
+取出最小 14 & 24 & 96 & 35 & 29 & 69 & 65 & 55 & 61 & 33 & 52 \\
+取出最大 96 & 24 & 69 & 35 & 29 & 61 & 65 & 55 & 52 & 33 \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\begin{itemize}
+\item \textbf{插入 $29$}：放在位置 $4$（最小堆積）。 對應點 $4 + 2 = 6$ 超出範圍，改用父節點
+$3$；$29 \le A[3] = 69$，留在最小堆積上浮，$A[2] = 35$ 比它大，$35$ 往下挪，$29$ 到位置 $2$。
+\item \textbf{插入 $96$}：放在位置 $8$（深度 $3$ 的 $8$ 到 $11$ 屬於最小堆積）。 對應點 $12$ 超出
+範圍，改用 $6$；$96 > A[6] = 65$，所以 $65$ 搬到位置 $8$，$96$ 從位置 $6$ 在最大堆積上浮，父節
+點 $A[3] = 69$ 比它小，$69$ 往下挪，$96$ 到位置 $3$。
+\item \textbf{插入 $55$}：放在位置 $12$（最大堆積）。 對應點 $12 - 4 = 8$，它沒有子節點；
+$55 < A[8] = 65$，所以 $65$ 搬到位置 $12$，$55$ 從位置 $8$ 在最小堆積上浮，父節點 $A[4] = 35$
+比它小，停。
+\item \textbf{取出最小值 $14$}：最後一格的 $65$ 拿出來。 洞從位置 $2$ 往下：子節點 $35, 24$ 中
+較小的 $24$ 上來，洞到位置 $5$；子節點 $33, 29$ 中較小的 $29$ 上來，洞到位置 $11$，沒有子
+節點了。 位置 $11$ 的對應點 $15$ 超出範圍，改用 $7$；$65 > A[7] = 52$，所以 $52$ 搬到位置
+$11$，$65$ 從位置 $7$ 上浮，父節點 $96$ 比它大，停在 $7$。
+\item \textbf{取出最大值 $96$}：最後一格的 $52$ 拿出來。 洞從位置 $3$ 往下：子節點 $69, 65$ 中
+較大的 $69$ 上來，洞到位置 $6$，沒有子節點了。 對應點 $6 - 2 = 4$ 有子節點 $55, 61$，取較大的
+$61$（位置 $9$）；$52 < 61$，所以 $61$ 搬到位置 $6$，$52$ 從位置 $9$ 在最小堆積上浮，父節點
+$35$ 比它小，停。
+\end{itemize}
+
+最後一步如果只和 $A[4] = 35$ 比，$52$ 會留在位置 $6$；位置 $9$ 的 $61$ 對應點 $13$ 超出範圍，改
+用 $6$，就違反了 $61 \le 52$。 這就是 \proc{Deap-Put-Max} 要看子節點的原因。
+
+\begin{center}
+\begin{tikzpicture}
+\hpshowidxtrue
+\hpheap{0,0}{6.0}{/e,14/n,96/n,35/n,24/n,69/n,52/n,55/n,61/n,33/n,29/n,65/n}{da}
+\hpshowidxfalse
+\node[hpidx] at (-1.5,-3.35) {最小堆積};
+\node[hpidx] at (1.5,-3.35) {最大堆積};
+\hpheap{7.2,0}{6.0}{/e,24/a,96/n,35/n,29/a,69/n,65/a,55/n,61/n,33/n,52/a}{db}
+\node[font=\small] at (0,-3.9) {(a) 插入 $11$ 個之後};
+\node[font=\small] at (7.2,-3.9) {(b) 取出最小值 $14$};
+\end{tikzpicture}
+
+\begin{tikzpicture}
+\hpheap{0,0}{6.0}{/e,24/n,69/a,35/n,29/n,61/a,65/n,55/n,52/a,33/n}{dc}
+\node[font=\small] at (0,-3.9) {(c) 取出最大值 $96$};
+\end{tikzpicture}
+\diagcaption{deap 的三個狀態。 虛線圓是不放元素的根，左子樹是最小堆積，右子樹是最大堆積；
+(a) 右上角的小字是陣列位置，橘色是上一個狀態之後改變的位置。}
+\label{fig:hp-deap}
+\end{center}
+
+\begin{examnote}
+deap 的題目先確認三件事。 一、根是空的，元素從 $A[2]$ 開始；有的書把 $A[2]$ 叫做「位置 1」，
+對應點的公式要跟著平移，照題目給的圖和編號。 二、對應點超出範圍時改用父節點。 三、取出最
+大值時，要和「對應點的較大子節點」比（對應點沒有子節點才和對應點本身比）。 例如依序插入
+$10, 30, 40, 20$ 得到 $A[2..5] = \langle 10, 40, 30, 20 \rangle$，取出最大值 $40$ 時，$20$ 要和
+$A[4] = 30$ 比，結果是 $\langle 10, 30, 20 \rangle$；只和 $A[2] = 10$ 比會得到
+$\langle 10, 20, 30 \rangle$，位置 $4$ 的 $30$ 比它的對應點 $A[3] = 20$ 大，不是 deap。
+層數照全書約定從根算第 $1$ 層，所以 $A[2]$、$A[3]$ 在第 $2$ 層。
+\end{examnote}
+
+\subsection{對稱最小最大堆積}
+\label{sec:hp-smmh}
+
+\textbf{對稱最小最大堆積}（symmetric min-max heap，簡稱 SMMH）也是根不放元素的完整二元樹，
+但規則只看兄弟和祖父，不用算對應點，所以程式比 deap 短。
+
+\begin{definition}[對稱最小最大堆積]
+\label{def:hp-smmh}
+存在陣列 $A[1..\mathit{last}]$ 的完整二元樹，根 $A[1]$ 不放元素，其他每個節點放一個元素，而且：
+\begin{enumerate}
+\item[P1.] 每個有右兄弟的節點，元素不大於右兄弟：偶數位置 $x$ 有 $A[x] \le A[x + 1]$。
+\item[P2.] 每個有祖父 $g$ 的節點 $x$，$A[2g] \le A[x]$：祖父的左子節點不大於它。
+\item[P3.] 每個有祖父 $g$ 的節點 $x$，$A[2g + 1] \ge A[x]$：祖父的右子節點不小於它。
+\end{enumerate}
+\end{definition}
+
+換個方式讀：任何一個節點 $y$，把 $y$ 的子樹扣掉 $y$ 自己，剩下的元素裡最小的在 $y$ 的左子節
+點，最大的在 $y$ 的右子節點。 （P1 管左右子節點本身，P2、P3 管下面兩層，再往下一層一層套
+用就得到整棵子樹。） 拿根當 $y$，最小值在 $A[2]$，最大值在 $A[3]$。
+
+\textbf{插入}。 新元素 $x$ 放在新的最後一格 $c$。 如果 $c$ 是右子節點而 $x$ 比左兄弟小，會違反
+P1，所以先把左兄弟搬到 $c$，$x$ 改看左兄弟的位置。 接著只要 $c$ 有祖父 $g$（$c \ge 4$），就和
+$A[2g]$、$A[2g + 1]$ 比：比 $A[2g]$ 小就把它搬下來、$x$ 往上到 $2g$；比 $A[2g + 1]$ 大就把它
+搬下來、$x$ 往上到 $2g + 1$；介於兩者之間就停。 每一步往上一層。
+
+\textbf{取出最小值}。 最小值在 $A[2]$。 把最後一格的元素 $y$ 拿出來，替 $y$ 從洞 $e = 2$ 往下
+找位置。 洞 $e$ 一定是左子節點；扣掉它以後，$e$ 和右兄弟 $e + 1$ 底下（不含 $e + 1$ 本身）最
+小的元素，依上面的讀法一定是 $A[2e]$ 或 $A[2e + 2]$，也就是 $e$ 和 $e + 1$ 的左子節點。 取兩者
+中較小的 $k$：$y \le A[k]$ 就把 $y$ 放在 $e$；否則 $A[k]$ 上來，洞移到 $k$。 洞移到新位置之後，
+$y$ 將來會放在這個洞或它底下，要先檢查 P1：$y$ 比新洞的右兄弟大，就和右兄弟的元素對調，
+帶著比較小的那個繼續往下。
+
+\begin{pseudo}[label=alg:hp-smmh]{對稱最小最大堆積的插入與取出最小值}
+\Procedure{SMMH-Insert}{$A, x$}
+    \State $A.\mathit{last} \gets A.\mathit{last} + 1$
+    \State $c \gets A.\mathit{last}$
+    \If{$c$ 是奇數 \AND $x < A[c - 1]$} \Comment{P1：比左兄弟小}
+        \State $A[c] \gets A[c - 1]$
+        \State $c \gets c - 1$
+    \EndIf
+    \While{$c \ge 4$}
+        \State $g \gets \lfloor c/4 \rfloor$ \Comment{祖父}
+        \If{$x < A[2g]$} \Comment{P2}
+            \State $A[c] \gets A[2g]$
+            \State $c \gets 2g$
+        \ElsIf{$x > A[2g + 1]$} \Comment{P3}
+            \State $A[c] \gets A[2g + 1]$
+            \State $c \gets 2g + 1$
+        \Else
+            \State \Break
+        \EndIf
+    \EndWhile
+    \State $A[c] \gets x$
+\EndProcedure
+\Statex
+\Function{SMMH-Delete-Min}{$A$} \Comment{假設 $A.\mathit{last} \ge 2$}
+    \State $\mathit{min} \gets A[2]$
+    \State $y \gets A[A.\mathit{last}]$
+    \State $A.\mathit{last} \gets A.\mathit{last} - 1$
+    \If{$A.\mathit{last} \ge 2$}
+        \State $e \gets 2$ \Comment{洞，一定是左子節點}
+        \While{$2e \le A.\mathit{last}$}
+            \State $k \gets 2e$
+            \If{$2e + 2 \le A.\mathit{last}$ \AND $A[2e + 2] < A[2e]$}
+                \State $k \gets 2e + 2$
+            \EndIf
+            \If{$y \le A[k]$}
+                \State \Break
+            \EndIf
+            \State $A[e] \gets A[k]$
+            \State $e \gets k$
+            \If{$e + 1 \le A.\mathit{last}$ \AND $y > A[e + 1]$} \Comment{P1}
+                \State 交換 $y$ 和 $A[e + 1]$
+            \EndIf
+        \EndWhile
+        \State $A[e] \gets y$
+    \EndIf
+    \State \Return $\mathit{min}$
+\EndFunction
+\end{pseudo}
+
+\proc{SMMH-Delete-Max} 對稱：最大值在 $A[3]$（只有一個元素時是 $A[2]$），洞 $e$ 一定是右子
+節點，候選是 $e - 1$ 和 $e$ 的子節點中最大的（右子節點存在就是右子節點，否則是左子節點），
+洞移下去之後檢查 $y$ 有沒有比新洞的左兄弟小。 插入每層比兩次，取出每層最多比三次（兩個候
+選、$y$、兄弟），都是 $O(\lg n)$。
+
+\textbf{手算追蹤}。 用和 deap 相同的輸入 $35, 69, 29, 33, 65, 52, 96, 61, 24, 14, 55$，再取出最
+小值和最大值。
+
+\begin{center}
+\small
+\begin{tabular}{l*{11}{c}}
+\toprule
+操作 & 2 & 3 & 4 & 5 & 6 & 7 & 8 & 9 & 10 & 11 & 12 \\
+\midrule
+插入 35 & 35 \\
+插入 69 & 35 & 69 \\
+插入 29 & 29 & 69 & 35 \\
+插入 33 & 29 & 69 & 33 & 35 \\
+插入 65 & 29 & 69 & 33 & 35 & 65 \\
+插入 52 & 29 & 69 & 33 & 35 & 52 & 65 \\
+插入 96 & 29 & 96 & 33 & 69 & 52 & 65 & 35 \\
+插入 61 & 29 & 96 & 33 & 69 & 52 & 65 & 35 & 61 \\
+插入 24 & 24 & 96 & 29 & 69 & 52 & 65 & 35 & 61 & 33 \\
+插入 14 & 14 & 96 & 24 & 69 & 52 & 65 & 35 & 61 & 29 & 33 \\
+插入 55 & 14 & 96 & 24 & 69 & 52 & 65 & 35 & 61 & 29 & 33 & 55 \\
+\midrule
+取出最小 14 & 24 & 96 & 29 & 69 & 52 & 65 & 35 & 61 & 33 & 55 \\
+取出最大 96 & 24 & 69 & 29 & 61 & 52 & 65 & 35 & 55 & 33 \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\begin{itemize}
+\item \textbf{插入 $33$}：位置 $5$ 是右子節點，比左兄弟 $35$ 小，$35$ 搬到位置 $5$，$33$ 改看位
+置 $4$。 祖父是根，它的兩個子節點是 $29$ 和 $69$，$29 \le 33 \le 69$，停在位置 $4$。
+\item \textbf{插入 $96$}：位置 $8$ 的祖父是 $2$，看 $A[4] = 33$、$A[5] = 35$；$96 > 35$，$35$ 搬
+下來，$96$ 到位置 $5$。 位置 $5$ 的祖父是根，看 $A[2] = 29$、$A[3] = 69$；$96 > 69$，$69$ 搬下
+來，$96$ 到位置 $3$。
+\item \textbf{插入 $14$}：位置 $11$ 是右子節點，比左兄弟 $33$ 小，先換到位置 $10$。 再往上兩
+步：比 $A[4] = 29$ 小，$29$ 搬到位置 $10$；比 $A[2] = 24$ 小，$24$ 搬到位置 $4$，$14$ 到根的
+左子節點。
+\item \textbf{取出最小值 $14$}：最後一格的 $55$ 拿出來，洞在位置 $2$。 候選 $A[4] = 24$、
+$A[6] = 52$，$24$ 較小而且比 $55$ 小，搬上來，洞到位置 $4$；右兄弟 $A[5] = 69$ 不比 $55$ 小，不
+用對調。 候選 $A[8] = 35$、$A[10] = 29$，$29$ 上來，洞到位置 $10$；右兄弟 $A[11] = 33 < 55$，
+對調，$55$ 放進位置 $11$，手上換成 $33$。 位置 $10$ 沒有子節點，$33$ 放進去。
+\item \textbf{取出最大值 $96$}：最後一格的 $55$ 拿出來，洞在位置 $3$。 候選是位置 $2$ 的右子節
+點 $A[5] = 69$ 和位置 $3$ 的右子節點 $A[7] = 35$，$69$ 上來，洞到位置 $5$；左兄弟 $A[4] = 29$
+不比 $55$ 大，不用對調。 候選是 $A[9] = 61$ 和 $A[10] = 33$（位置 $5$ 只有左子節點），$61$
+上來，洞到位置 $9$，沒有子節點，$55$ 放進去。
+\end{itemize}
+
+\begin{center}
+\begin{tikzpicture}
+\hpshowidxtrue
+\hpheap{0,0}{6.0}{/e,14/n,96/n,24/n,69/n,52/n,65/n,35/n,61/n,29/n,33/n,55/n}{sa}
+\hpshowidxfalse
+\hpheap{7.2,0}{6.0}{/e,24/a,96/n,29/a,69/n,52/n,65/n,35/n,61/n,33/a,55/a}{sb}
+\node[font=\small] at (0,-3.65) {(a) 插入 $11$ 個之後};
+\node[font=\small] at (7.2,-3.65) {(b) 取出最小值 $14$};
+\end{tikzpicture}
+
+\begin{tikzpicture}
+\hpheap{0,0}{6.0}{/e,24/n,69/a,29/n,61/a,52/n,65/n,35/n,55/a,33/n}{sc}
+\node[font=\small] at (0,-3.65) {(c) 取出最大值 $96$};
+\end{tikzpicture}
+\diagcaption{對稱最小最大堆積的三個狀態，輸入和圖~\ref{fig:hp-deap} 相同。 每一對兄弟都是
+左小右大，而且夾住它們底下的所有元素。}
+\label{fig:hp-smmh}
+\end{center}
+
+同樣的輸入，deap 和 SMMH 得到的陣列不一樣，兩個都是對的；考卷問哪一種，就照哪一種的規則
+做。
+
+\begin{examnote}
+SMMH 的根也是空的，「第 $k$ 層」照全書約定從根算第 $1$ 層，最小值、最大值在第 $2$ 層。 插入
+時先處理兄弟（P1），再一層一層和「祖父的兩個子節點」比，不要和根的兩個子節點比：例如
+$A[2..10] = \langle 5, 50, 10, 40, 20, 30, 15, 35, 45 \rangle$ 的 $45$ 雖然不大於 $A[3] = 50$，
+卻大於它祖父的右子節點 $A[5] = 40$，違反 P3。 取出時洞每往下一層，都要檢查一次兄弟。
+\end{examnote}
+
+\subsection{幾種雙端優先佇列的比較}
+\label{sec:hp-depq}
+
+還有一種常見的結構叫\textbf{區間堆積}（interval heap）：每個節點放兩個元素 $a \le b$，看成區間
+$[a, b]$（最後一個節點可以只放一個），每個節點的區間都包含子節點的區間；所以根的 $a$ 是最小
+值，$b$ 是最大值。 把 SMMH 去掉根、每一對兄弟合成一個節點，剛好就是區間堆積：P1 說每一對
+左小右大，P2、P3 說底下的元素都夾在這一對之間。 例如圖~\ref{fig:hp-smmh} (a) 兩兩配對成
+$[14, 96]$；$[24, 69]$、$[52, 65]$；$[35, 61]$、$[29, 33]$、$[55]$（分號隔開各層），每個區間
+都包含它子節點的區間。 它的插入和取出和 SMMH
+幾乎一樣，只是樹高少一層，這裡不再展開。
+
+\begin{center}
+\small
+\begin{tabular}{>{\raggedright\arraybackslash}p{0.16\linewidth}>{\raggedright\arraybackslash}p{0.16\linewidth}>{\raggedright\arraybackslash}p{0.28\linewidth}>{\raggedright\arraybackslash}p{0.29\linewidth}}
+\toprule
+結構 & 最小、最大 & 插入 & 取出最小值 \\
+\midrule
+最小最大堆積 & $A[1]$；$A[2]$ 或 $A[3]$ & 和父節點比一次決定哪一種層，再沿祖父往上 &
+看子節點和孫節點（最多六個），每次下兩層 \\
+deap & $A[2]$；$A[3]$ & 和對應點比一次決定哪一邊，再在那一邊上浮 &
+洞沿最小堆積走到底，再和對應點比 \\
+SMMH & $A[2]$；$A[3]$ & 先和兄弟比，再和祖父的兩個子節點比 &
+洞每層看兩個候選，再和兄弟比 \\
+區間堆積 & 根的兩端 & 和 SMMH 相同，一個節點放兩個元素 & 和 SMMH 相同 \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+四種的插入、取出最小值、取出最大值都是 $O(\lg n)$，找最小值和最大值都是 $\Theta(1)$。 deap 和
+SMMH 多用一格空的根；SMMH 的規則最少，是最好寫的一種。
 
 \subsection{左傾樹}
 
@@ -1458,6 +1848,10 @@ decrease-key 找錯格 & 第~\ref{sec:hp-pq}~節 \\
 $d$ 元堆積公式混用編號 & 從 $1$ 編號卻寫子節點 $di + 1$ & 第~\ref{sec:hp-dary}~節 \\
 最小最大堆積只看父節點 & 插入時和父節點比完以後，繼續和父節點比，而不是和祖父比 &
 第~\ref{sec:hp-mergeable}~節 \\
+deap 取出最大值只看對應點 & 對應點有子節點時沒有改看較大的子節點，那個子節點變得比它的
+對應位置大 & 第~\ref{sec:hp-deap}~節 \\
+SMMH 和根的子節點比 & 插入時應該和「祖父的兩個子節點」比；或是忘了先和左兄弟比 &
+第~\ref{sec:hp-smmh}~節 \\
 左傾樹依鍵對調左右 & 回來時比較的是左右子節點的鍵，應該比較 $s$；忘了更新 $s$ &
 第~\ref{sec:hp-mergeable}~節 \\
 二項堆積連結錯樹 & 把不同階的樹連在一起；連結後子節點的順序放錯 &
@@ -1539,6 +1933,29 @@ $S(n) = \sum_{i=1}^{n} \lfloor \lg i \rfloor$。
 \item 再取出最小值，寫出之後的陣列。
 \end{enumerate}
 
+\item\label{hp-q-deap} （追蹤）下面是一個 deap（根 $A[1]$ 是空的），
+$A[2..10] = \langle 13, 68, 27, 16, 61, 44, 40, 28, 34 \rangle$。
+\begin{enumerate}
+\item 畫出這棵樹。 對最小堆積的位置 $4$ 到 $10$，寫出各自要和哪個位置比（對應點或它的父節點），
+並檢查定義~\ref{def:hp-deap} 成立。
+\item 依序插入 $94$、$21$，寫出每次插入後的陣列。
+\item 接著取出最大值，寫出之後的陣列。 如果取出時只和對應點本身比（不看它的子節點），會得
+到什麼陣列？ 哪裡違反定義？
+\item 從 (c) 正確的結果再取出最小值，寫出之後的陣列。
+\end{enumerate}
+
+\item\label{hp-q-smmh} （選擇、追蹤）對稱最小最大堆積。
+\begin{enumerate}
+\item 下列陣列都是 $A[2..]$（根 $A[1]$ 是空的），哪些是 SMMH？ 不是的，指出違反 P1、P2、P3
+的哪一條。 (A) $\langle 5, 50, 10, 40, 20, 30 \rangle$ \quad (B) $\langle 5, 50, 10, 40, 30, 20
+\rangle$ \quad (C) $\langle 5, 50, 10, 40, 20, 30, 15, 35, 25 \rangle$ \quad (D) $\langle 5, 50,
+10, 40, 20, 30, 15, 35, 45 \rangle$
+\item 把 $47, 18, 83, 60, 25, 91, 12, 70, 35$ 依序插入空的 SMMH，寫出每次插入後的陣列。
+\item 接著取出最大值，再取出最小值，寫出每次之後的陣列。
+\item 把 (b) 的結果每一對兄弟合成一個節點，寫出得到的區間堆積，並檢查每個節點的區間都包
+含子節點的區間。
+\end{enumerate}
+
 \item （追蹤）合併下面兩棵最小左傾樹，畫出合併後的樹並標出每個節點的 $s$；再取出最小
 值，畫出結果。
 
@@ -1584,6 +2001,134 @@ $S(n) = \sum_{i=1}^{n} \lfloor \lg i \rfloor$。
 時間；$m = \Theta(n^2)$ 時兩者各是多少？ $m = \Theta(n)$ 時呢？
 \end{enumerate}
 \end{enumerate}
+
+\section{歷屆試題}
+\label{sec:hp-pastexam}
+
+以下是研究所入學考試的原題，題目照原卷（語言、記號、配分照錄）。 詳解在本章最後。
+
+\begin{pastexam}[label={px:hp-1}]{中正資工所甲組 114 學年度 第 3 題}
+(5\%) (Choose \underline{one} best answer) Consider the integer array \{52, 21, 40, 33, 88, 57, 46, 71\}. What will the array look like after heapifying it to a Max Heap? Note that we use the bottom-up method that runs in $O(n)$ time.
+\begin{enumerate}[label=(\alph*)]
+\item \{88, 71, 57, 52, 21, 40, 46, 33\}
+\item \{88, 71, 57, 52, 46, 40, 33, 21\}
+\item \{21, 33, 40, 46, 52, 57, 71, 88\}
+\item \{88, 71, 57, 52, 33, 40, 46, 21\}
+\item None of the above.
+\end{enumerate}
+\end{pastexam}
+
+\begin{pastexam}[label={px:hp-2}]{臺科大資工所 110 學年度 第 6 題（節錄 (d)(e) 小題）}
+Answer the following questions. (28\%)
+\begin{enumerate}[label=(\alph*), start=4]
+\item Draw the binary min heap that results from inserting 12, 9, 14, 16, 4, 17, 6, 8, 2 in that order into an initially empty binary heap. Draw the final tree. (10\%)
+\item Remove the first two smallest values from the heap created in (d) and reconstruct the min heap. Draw the resulting tree. (5\%)
+\end{enumerate}
+\end{pastexam}
+
+\begin{pastexam}[label={px:hp-3}]{成大資訊聯招 113 學年度 第 2 題}
+\textbf{[1\%, 1\%, 3\%]} Considering the data pairs with keys in the given order: 20, 5, 10, 18, 4, 22, 11, 32, 21, as inputs to create a tree.
+\begin{enumerate}[label=\roman*)]
+\item If you create a \underline{max heap} for them, what is the level of the node containing 5?
+\begin{enumerate}[label=(\Alph*)]
+\item 1
+\item 2
+\item 3
+\item 4
+\item None of the above
+\end{enumerate}
+\item If you create a \underline{min heap} for them, which of the following statements is true?
+\begin{enumerate}[label=(\Alph*)]
+\item The node containing 11 is in the left subtree of the root.
+\item The node containing 18 is in the right subtree of the root.
+\item The node containing 20 is the root.
+\item The node containing 21 is at level 3.
+\item None of the above.
+\end{enumerate}
+\item If you create a \underline{symmetric min-max heap} for them, which of the following statements is true?
+\begin{enumerate}[label=(\Alph*)]
+\item To delete the node containing 5, the node containing 21 is used to replace the deleted node.
+\item There are two nodes at level 4.
+\item The leftmost grandchild of the root is 5.
+\item The keys of the nodes in the right subtree of the root are 32, 10, and 20.
+\item None of the above.
+\end{enumerate}
+\end{enumerate}
+\end{pastexam}
+
+\begin{pastexam}[label={px:hp-4}]{臺大資工所 113 學年度 第 2 題}
+（原卷說明：本題為複選題。）
+
+(5 points) A Maximum Binary Tree (abbreviated as MaxBT) is defined as a binary tree that adheres to the max-heap property without the necessity of following the complete binary tree property. In a MaxBT, each node $p$ consists of a value ($p$.data) and two links ($p$.left and $p$.right) pointing to the left and right children, respectively. A link to nil indicates the absence of further children.
+
+The provided pseudocode, although incomplete, implements a recursive function for merging two MaxBTs into a single MaxBT. This function takes the root nodes of the two MaxBTs (\emph{root1} and \emph{root2}) as input and returns the root node of the merged MaxBT.
+\begin{center}
+\small
+\begin{tabular}{rl}
+1: & function MergeMaxBinaryTrees(\emph{root1}, \emph{root2}) \\
+2: & \quad if \emph{root1} = nil then return \underline{\makebox[1.6cm]{(a)}} end if \\
+3: & \quad if \emph{root2} = nil then return \underline{\makebox[1.6cm]{(b)}} end if \\
+4: & \quad if \emph{root1}.data $>$ \emph{root2}.data then \\
+5: & \quad\quad \underline{\makebox[1.6cm]{(c)}} $\leftarrow$ MergeMaxBinaryTrees(\underline{\makebox[1.6cm]{(d)}}, \underline{\makebox[1.6cm]{(e)}}) \\
+6: & \quad\quad return \underline{\makebox[1.6cm]{(f)}} \\
+7: & \quad else \\
+8: & \quad\quad \underline{\makebox[1.6cm]{(g)}} $\leftarrow$ MergeMaxBinaryTrees(\underline{\makebox[1.6cm]{(h)}}, \underline{\makebox[1.6cm]{(i)}}) \\
+9: & \quad\quad return \underline{\makebox[1.6cm]{(j)}} \\
+10: & \quad end if \\
+11: & end function
+\end{tabular}
+\end{center}
+Assuming all the blanks in the above function have been appropriately filled to ensure its proper functioning, please select the correct description(s) below.
+\begin{enumerate}[label=\Alph*.]
+\item (b) and (f) are the same.
+\item (c), (d), and (e) are all distinct.
+\item In the cases of (c) and (g), each has only one correct answer.
+\item Exchanging the filled content of (h) and (i) leads to a correct implementation.
+\item The function works correctly even when the two arguments passed into it refer to the same tree.
+\end{enumerate}
+\end{pastexam}
+
+\begin{pastexam}[label={px:hp-5}]{成大電通所 110 學年度 第 2 題（節錄 (b)(c) 小題）}
+(\textbf{20 pts}) Heap
+\begin{enumerate}[label=\alph*., start=2]
+\item (4 \textbf{pts}) Describe the properties of a binomial min heap (i.e., four conditions).
+\item (4 \textbf{pts}) Please show the resulting figure after you delete the node 1 in the following binomial min heap
+
+\begin{center}
+\begin{tikzpicture}[x=0.9cm,y=-0.9cm,
+  v/.style={circle,draw,thick,inner sep=0pt,minimum size=6mm,font=\small},
+  a/.style={-{Latex[length=2.2mm]},thick}]
+\node[anchor=east] (hd) at (2.9,0.35) {Head[H]};
+\node[v] (r14) at (4.3,0.35) {14};
+\node[v] (r1) at (6.65,0.35) {1};
+\node[v] (r6) at (11.75,0.35) {6};
+\node[v] (a10) at (5.3,1.35) {10};
+\node[v] (a23) at (6.65,1.35) {23};
+\node[v] (a20) at (5.3,2.45) {20};
+\node[v] (b10) at (9.5,1.35) {10};
+\node[v] (b7) at (10.6,1.35) {7};
+\node[v] (b15) at (11.75,1.35) {15};
+\node[v] (b13) at (8.4,2.45) {13};
+\node[v] (b12) at (9.5,2.45) {12};
+\node[v] (b19) at (10.6,2.45) {19};
+\node[v] (b30) at (8.4,3.45) {30};
+\draw[a] (hd) -- (r14);
+\draw[a] (r14) -- (r1);
+\draw[a] (r1) -- (r6);
+\draw[a] (r1) -- (a10);
+\draw[a] (r1) -- (a23);
+\draw[a] (a10) -- (a20);
+\draw[a] (r6) -- (b10);
+\draw[a] (r6) -- (b7);
+\draw[a] (r6) -- (b15);
+\draw[a] (b10) -- (b13);
+\draw[a] (b10) -- (b12);
+\draw[a] (b7) -- (b19);
+\draw[a] (b13) -- (b30);
+\end{tikzpicture}
+\end{center}
+\end{enumerate}
+\end{pastexam}
 
 \section{實作練習}
 \label{sec:hp-practice}
@@ -1639,8 +2184,10 @@ $d$ 元堆積 & \akiref{ternary-min-heap-with-replace}{三叉最小堆積與替�
 \item 寫出帶索引的堆積，說明 decrease-key 和刪除任意元素為什麼需要位置陣列、刪除時為什麼
 上浮和下沉都要試；知道相同的鍵要靠加入順序來分先後。
 \item 寫出 $d$ 元堆積的位置公式和高度，說明 $d$ 變大時哪些操作變快、哪些變慢。
-\item 在最小最大堆積上做插入、取出最小值和最大值；合併兩棵左傾樹並更新 $s$；在二項堆積
-上做插入（含進位）、合併和取出最小值，每一步都畫得出來。
+\item 在最小最大堆積、deap、對稱最小最大堆積上做插入、取出最小值和最大值，每一步都畫得出
+來；寫出 deap 的對應點公式，說出 SMMH 的 P1--P3，知道區間堆積和 SMMH 的關係。
+\item 合併兩棵左傾樹並更新 $s$；在二項堆積上做插入（含進位）、合併和取出最小值，每一步都
+畫得出來。
 \item 說出費氏堆積各操作的平攤成本，用位能 $t(H) + 2m(H)$ 說明插入、取出最小值、減少鍵
 值的平攤成本從哪裡來，並分清楚平攤和最壞。
 \end{itemize}
@@ -1655,6 +2202,13 @@ $d$ 元堆積 & \akiref{ternary-min-heap-with-replace}{三叉最小堆積與替�
 \item Ellis Horowitz、Sartaj Sahni、Susan Anderson-Freed，\textit{Fundamentals of Data
 Structures in C}，第 9 章：最小最大堆積、左傾樹、二項堆積、費氏堆積都有 C 程式，各版的
 節次稍有不同；二項堆積用的是延遲合併的版本。
+\item Sartaj Sahni，``Double-Ended Priority Queues''，收在 Dinesh P. Mehta、Sartaj Sahni 編，
+\textit{Handbook of Data Structures and Applications}（Chapman \& Hall/CRC，2005）第 8 章：
+對稱最小最大堆積、區間堆積、最小最大堆積和 deap 放在一起比較。 deap 最早見於 Svante
+Carlsson，``The Deap---A Double-Ended Heap to Implement Double-Ended Priority Queues''，
+\textit{Information Processing Letters} 26 (1987)；SMMH 見於 A. Arvind、C. Pandu Rangan，
+``Symmetric Min-Max Heap: A Simpler Data Structure for Double-Ended Priority Queue''，
+\textit{Information Processing Letters} 69 (1999)。
 \item Mark Allen Weiss，\textit{Data Structures and Algorithm Analysis in C}，第 6 章：
 $d$ 元堆積、左傾堆積（用 npl 的定義）、斜堆積和二項佇列，取向偏實作。
 \item 《C 程式設計基礎》第~19~章：用指標和 \texttt{malloc} 建二元樹的基本功，寫左傾樹前
@@ -1788,6 +2342,67 @@ $A[5] = 15$（孫節點），搬到根；它的父節點 $A[2] = 65$ 不比 $50$
 $\langle 15, 65, 60, 20, 50, 30, 40, 25, 45 \rangle$。
 \end{enumerate}
 
+\item
+\begin{enumerate}
+\item 位置 $2$ 到 $10$ 依序是 $13,\allowbreak 68,\allowbreak 27,\allowbreak 16,\allowbreak 61,\allowbreak 44,\allowbreak 40,\allowbreak 28,\allowbreak 34$；最小堆積的根 $13$ 有子節點 $27$、$16$，$27$ 的子節點是 $40$、$28$，$16$ 的子節點是 $34$；
+最大堆積的根 $68$ 有子節點 $61$、$44$。 位置 $4$、$5$ 在深度 $2$，對應點是 $4 + 2 = 6$、
+$5 + 2 = 7$；位置 $8, 9, 10$ 在深度 $3$，對應點 $12, 13, 14$ 都超過 $10$，改用父節點 $6, 6, 7$。
+檢查：$27 \le 61$、$16 \le 44$、$40 \le 61$、$28 \le 61$、$34 \le 44$，兩邊各自也是堆積，所以是
+deap。
+\item 插入 $94$：放在位置 $11$（最小堆積），對應點 $15$ 改用 $7$；$94 > A[7] = 44$，$44$ 搬到位
+置 $11$，$94$ 從位置 $7$ 上浮，比 $A[3] = 68$ 大，$68$ 挪到位置 $7$，$94$ 到位置 $3$：
+$\langle 13, 94, 27, 16, 61, 68, 40, 28, 34, 44 \rangle$。 插入 $21$：放在位置 $12$（最大堆積），
+對應點 $12 - 4 = 8$ 沒有子節點；$21 < A[8] = 40$，$40$ 搬到位置 $12$，$21$ 從位置 $8$ 上浮，
+比 $A[4] = 27$ 小，$27$ 挪到位置 $8$，再和 $A[2] = 13$ 比，停在位置 $4$：
+$\langle 13, 94, 21, 16, 61, 68, 27, 28, 34, 44, 40 \rangle$。
+\item 取出 $94$，最後一格的 $40$ 拿出來。 洞從位置 $3$ 往下，子節點 $61, 68$ 中較大的 $68$ 上
+來，洞到位置 $7$，沒有子節點（$14 > 11$）。 對應點 $7 - 2 = 5$ 有子節點 $34, 44$，取較大的
+$44$（位置 $11$）；$40 < 44$，$44$ 搬到位置 $7$，$40$ 從位置 $11$ 上浮，父節點 $A[5] = 16$ 比它
+小，停：$\langle 13, 68, 21, 16, 61, 44, 27, 28, 34, 40 \rangle$。 只和 $A[5] = 16$ 比的話，
+$40$ 會留在位置 $7$，得到 $\langle 13, 68, 21, 16, 61, 40, 27, 28, 34, 44 \rangle$；位置 $11$ 的
+$44$ 對應點 $15$ 超出範圍，改用 $7$，$44 > 40$，違反定義的第 2 條。
+\item 取出 $13$，最後一格的 $40$ 拿出來。 洞從位置 $2$ 往下：$21, 16$ 中 $16$ 上來，洞到位置
+$5$；它只剩子節點 $34$，$34$ 上來，洞到位置 $10$。 對應點 $14$ 改用 $7$；$40 \le A[7] = 44$，留
+在最小堆積，父節點 $34$ 比它小，停：$\langle 16, 68, 21, 34, 61, 44, 27, 28, 40 \rangle$。
+\end{enumerate}
+
+\item
+\begin{enumerate}
+\item (A)、(C) 是。 (B) 位置 $6$、$7$ 是兄弟，$30 > 20$，違反 P1。 (D) 位置 $10$ 的祖父是 $2$，
+$45 > A[5] = 40$，違反 P3（雖然 $45 \le A[3] = 50$）。
+\item 每列是插入後的 $A[2..]$。
+\begin{center}
+\begin{tabular}{ll}
+\toprule
+插入 & 陣列 \\
+\midrule
+47 & 47 \\
+18 & 18 47 \\
+83 & 18 83 47 \\
+60 & 18 83 47 60 \\
+25 & 18 83 47 60 25 \\
+91 & 18 91 47 60 25 83 \\
+12 & 12 91 18 60 25 83 47 \\
+70 & 12 91 18 70 25 83 47 60 \\
+35 & 12 91 18 70 25 83 47 60 35 \\
+\bottomrule
+\end{tabular}
+\end{center}
+插入 $18$ 時位置 $3$ 是右子節點，比左兄弟 $47$ 小，對調。 插入 $83$、$91$ 時都比祖父（根）的右
+子節點大，換上去。 插入 $12$：位置 $8$ 的祖父是 $2$，$12 < A[4] = 47$，$47$ 下來；再和根的左
+子節點 $18$ 比，$18$ 下來，$12$ 到位置 $2$。 插入 $70$：位置 $9$ 比左兄弟 $47$ 大；祖父 $2$ 的右
+子節點 $A[5] = 60 < 70$，$60$ 下來；再看根的兩個子節點 $12, 91$，停在位置 $5$。
+\item 取出 $91$：最後的 $35$ 拿出來，洞在位置 $3$，候選 $A[5] = 70$、$A[7] = 83$，$83$ 上來，洞到
+位置 $7$，左兄弟 $A[6] = 25$ 不比 $35$ 大，沒有子節點，$35$ 放進去：
+$\langle 12, 83, 18, 70, 25, 35, 47, 60 \rangle$。 取出 $12$：最後的 $60$ 拿出來，洞在位置 $2$，
+候選 $A[4] = 18$、$A[6] = 25$，$18$ 上來，洞到位置 $4$，右兄弟 $A[5] = 70$ 不比 $60$ 小；候選只
+剩 $A[8] = 47$，$47 < 60$，上來，洞到位置 $8$，沒有兄弟也沒有子節點，$60$ 放進去：
+$\langle 18, 83, 47, 70, 25, 35, 60 \rangle$。
+\item 兄弟配對：$(2, 3)$、$(4, 5)$、$(6, 7)$、$(8, 9)$、$(10)$，得到根 $[12, 91]$，它的子節點
+$[18, 70]$、$[25, 83]$，$[18, 70]$ 的子節點 $[47, 60]$ 和 $[35]$。 檢查：$[18, 70]$、$[25, 83]$
+都在 $[12, 91]$ 裡；$[47, 60]$ 和 $35$ 都在 $[18, 70]$ 裡。
+\end{enumerate}
+
 \item 右邊路徑 $A$：$23, 61$；$B$：$24, 39$。 合成 $23 \to 24 \to 39 \to 61$。 由下往上：
 $61$ 的 $s = 1$；$39$ 左邊 $57$（$s = 1$）、右邊 $61$（$s = 1$），不對調，$s = 2$；$24$
 左邊 $27$（$s = 1$）小於右邊 $39$（$s = 2$），對調，$s = 2$；$23$ 左邊 $26$（$s = 1$）
@@ -1838,3 +2453,273 @@ $O(m + n \lg n)$。 $m = \Theta(n^2)$：$O(n^2 \lg n)$ 對 $O(n^2)$，費氏堆�
 $\lg n$。 $m = \Theta(n)$：兩者都是 $O(n \lg n)$。
 \end{enumerate}
 \end{enumerate}
+
+\addcontentsline{toc}{section}{歷屆試題詳解}
+\section*{歷屆試題詳解}
+
+\pastsol{px:hp-1}{中正資工所甲組 114 學年度 第 3 題}
+答案是 (a)。 由下而上建堆積照虛擬碼~\ref{alg:hp-build}：$n = 8$，$i$ 從 $\lfloor 8/2 \rfloor = 4$
+做到 $1$，每次對位置 $i$ 做 \proc{Sift-Down}。
+
+\begin{center}
+\begin{tabular}{lc*{8}{c}}
+\toprule
+& 交換 & 1 & 2 & 3 & 4 & 5 & 6 & 7 & 8 \\
+\midrule
+開始 & & 52 & 21 & 40 & 33 & 88 & 57 & 46 & 71 \\
+$i = 4$ & 1 & 52 & 21 & 40 & 71 & 88 & 57 & 46 & 33 \\
+$i = 3$ & 1 & 52 & 21 & 57 & 71 & 88 & 40 & 46 & 33 \\
+$i = 2$ & 1 & 52 & 88 & 57 & 71 & 21 & 40 & 46 & 33 \\
+$i = 1$ & 2 & 88 & 71 & 57 & 52 & 21 & 40 & 46 & 33 \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+$i = 4$：$33$ 只有左子節點 $A[8] = 71$，交換。 $i = 3$：$40$ 和較大的子節點 $57$ 交換。 $i = 2$：
+$21$ 和較大的子節點 $88$ 交換，到了位置 $5$，沒有子節點。 $i = 1$：$52$ 先和 $88$ 交換，到了位
+置 $2$，子節點 $71, 21$ 中 $71$ 比它大，再交換，到了位置 $4$，子節點 $33$ 比它小，停。 結果
+$\{88, 71, 57, 52, 21, 40, 46, 33\}$，就是 (a)。
+
+其他選項：(b) 是由大到小排好的陣列，它也是最大堆積，但不是這個方法的結果。 (c) 是由小到大
+排好，根是最小值，不是最大堆積。 (d) 也是合法的最大堆積（逐層檢查父子都成立），但位置 $5$
+和 $8$ 的 $33$、$21$ 和由下而上的結果對調了。 (a) 正確，所以 (e) 不對。 題目問的是特定方法
+的結果，「是不是合法的最大堆積」不夠，要真的做一次。
+
+\pastsol{px:hp-2}{臺科大資工所 110 學年度 第 6 題（節錄 (d)(e) 小題）}
+(d) 每次插入放在最後一格再上浮（第~\ref{sec:hp-trace}~節，最小堆積版）。 每列是插入之後的陣
+列，位置從 $1$ 開始。
+
+\begin{center}
+\begin{tabular}{lc*{9}{c}}
+\toprule
+插入 & 交換 & 1 & 2 & 3 & 4 & 5 & 6 & 7 & 8 & 9 \\
+\midrule
+12 & 0 & 12 \\
+9 & 1 & 9 & 12 \\
+14 & 0 & 9 & 12 & 14 \\
+16 & 0 & 9 & 12 & 14 & 16 \\
+4 & 2 & 4 & 9 & 14 & 16 & 12 \\
+17 & 0 & 4 & 9 & 14 & 16 & 12 & 17 \\
+6 & 1 & 4 & 9 & 6 & 16 & 12 & 17 & 14 \\
+8 & 2 & 4 & 8 & 6 & 9 & 12 & 17 & 14 & 16 \\
+2 & 3 & 2 & 4 & 6 & 8 & 12 & 17 & 14 & 16 & 9 \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+插入 $4$：放在位置 $5$，父節點 $A[2] = 12$ 比它大，交換；再和根 $9$ 交換。 插入 $8$：放在位置 $8$，
+和父節點 $16$、再和 $9$ 交換，父節點 $4$ 比它小，停。 插入 $2$：位置 $9$ 往上的父節點依序是
+$A[4] = 9$、$A[2] = 8$、$A[1] = 4$，都比它大，交換三次，$2$ 到根。 最後的樹是下圖 (a)。
+
+(e) 取出 $2$：最後一格的 $9$ 搬到根，和較小的子節點 $4$ 交換，到了位置 $2$，子節點 $8, 12$ 中
+$8$ 比它小，交換，到了位置 $4$，子節點只剩 $16$，停：
+$\langle 4, 8, 6, 9, 12, 17, 14, 16 \rangle$。 取出 $4$：最後一格的 $16$ 搬到根，和較小的子節點
+$6$ 交換，到了位置 $3$，子節點 $17, 14$ 中 $14$ 比它小，交換，到了位置 $7$，停：
+$\langle 6, 8, 14, 9, 12, 17, 16 \rangle$，是下圖 (b)。
+
+\begin{center}
+\begin{tikzpicture}
+\hpheap{0,0}{6.0}{2/n,4/n,6/n,8/n,12/n,17/n,14/n,16/n,9/n}{xa}
+\hpheap{7.4,0}{4.6}{6/n,8/n,14/a,9/n,12/n,17/n,16/a}{xb}
+\node[font=\small] at (0,-3.65) {(a) (d) 的答案};
+\node[font=\small] at (7.4,-3.65) {(b) (e) 的答案};
+\end{tikzpicture}
+\end{center}
+
+\pastsol{px:hp-3}{成大資訊聯招 113 學年度 第 2 題}
+題目說 ``in the given order''，三小題都解讀成依序一個一個插入。 層數照題目的慣例（也是本書的
+約定）從根算第 $1$ 層。 答案：i) (D)；ii) (E)；iii) (A)。
+
+i) 依序插入最大堆積，每次之後的陣列：
+\begin{center}
+\small
+\begin{tabular}{l*{9}{c}}
+\toprule
+插入 & 1 & 2 & 3 & 4 & 5 & 6 & 7 & 8 & 9 \\
+\midrule
+20 & 20 \\
+5 & 20 & 5 \\
+10 & 20 & 5 & 10 \\
+18 & 20 & 18 & 10 & 5 \\
+4 & 20 & 18 & 10 & 5 & 4 \\
+22 & 22 & 18 & 20 & 5 & 4 & 10 \\
+11 & 22 & 18 & 20 & 5 & 4 & 10 & 11 \\
+32 & 32 & 22 & 20 & 18 & 4 & 10 & 11 & 5 \\
+21 & 32 & 22 & 20 & 21 & 4 & 10 & 11 & 5 & 18 \\
+\bottomrule
+\end{tabular}
+\end{center}
+插入 $32$ 時它從位置 $8$ 一路換到根，把 $5$ 帶到位置 $8$。 位置 $8$ 的深度是
+$\lfloor \lg 8 \rfloor = 3$，在第 $4$ 層，選 (D)。 （如果題目的層數從 $0$ 算，答案會變成 (C)；成大
+的考卷沿用從 $1$ 算的定義。）
+
+ii) 依序插入最小堆積：
+\begin{center}
+\small
+\begin{tabular}{l*{9}{c}}
+\toprule
+插入 & 1 & 2 & 3 & 4 & 5 & 6 & 7 & 8 & 9 \\
+\midrule
+20 & 20 \\
+5 & 5 & 20 \\
+10 & 5 & 20 & 10 \\
+18 & 5 & 18 & 10 & 20 \\
+4 & 4 & 5 & 10 & 20 & 18 \\
+22 & 4 & 5 & 10 & 20 & 18 & 22 \\
+11 & 4 & 5 & 10 & 20 & 18 & 22 & 11 \\
+32 & 4 & 5 & 10 & 20 & 18 & 22 & 11 & 32 \\
+21 & 4 & 5 & 10 & 20 & 18 & 22 & 11 & 32 & 21 \\
+\bottomrule
+\end{tabular}
+\end{center}
+結果是 $\langle 4,\allowbreak 5,\allowbreak 10,\allowbreak 20,\allowbreak 18,\allowbreak 22,\allowbreak 11,\allowbreak 32,\allowbreak 21 \rangle$。 根的左子樹是位置 $2,\allowbreak 4,\allowbreak 5,\allowbreak 8,\allowbreak 9$，也就是 $5,\allowbreak 20,\allowbreak 18,\allowbreak 32,\allowbreak 21$；右子樹是位
+置 $3, 6, 7$，也就是 $10, 22, 11$。 (A) $11$ 在右子樹，錯。 (B) $18$ 在左子樹，錯。 (C) 根是
+$4$，錯。 (D) $21$ 在位置 $9$，第 $4$ 層，錯。 所以選 (E)。
+
+iii) 照第~\ref{sec:hp-smmh}~節的 \proc{SMMH-Insert}，下表是每次之後的 $A[2..]$：
+\begin{center}
+\small
+\begin{tabular}{l*{9}{c}}
+\toprule
+插入 & 2 & 3 & 4 & 5 & 6 & 7 & 8 & 9 & 10 \\
+\midrule
+20 & 20 \\
+5 & 5 & 20 \\
+10 & 5 & 20 & 10 \\
+18 & 5 & 20 & 10 & 18 \\
+4 & 4 & 20 & 10 & 18 & 5 \\
+22 & 4 & 22 & 10 & 18 & 5 & 20 \\
+11 & 4 & 22 & 10 & 18 & 5 & 20 & 11 \\
+32 & 4 & 32 & 10 & 22 & 5 & 20 & 11 & 18 \\
+21 & 4 & 32 & 10 & 22 & 5 & 20 & 11 & 18 & 21 \\
+\bottomrule
+\end{tabular}
+\end{center}
+插入 $5$：位置 $3$ 是右子節點，比左兄弟 $20$ 小，對調。 插入 $4$：位置 $6$ 的祖父是根，
+$4 < A[2] = 5$，$5$ 下來。 插入 $22$：比 $A[3] = 20$ 大，$20$ 下來。 插入 $32$：位置 $9$ 的祖父是
+$2$，$32 > A[5] = 18$，$18$ 下來；位置 $5$ 的祖父是根，$32 > A[3] = 22$，$22$ 下來，$32$ 到位置
+$3$。 插入 $21$：位置 $10$ 的祖父是 $2$，$A[4] = 10 \le 21 \le A[5] = 22$，不動。 最後的樹如下
+圖 (c)：空的根，第 $2$ 層 $4, 32$，第 $3$ 層 $10, 22, 5, 20$，第 $4$ 層 $11, 18, 21$。
+
+(B) 第 $4$ 層有三個節點，錯。 (C) 根的孫節點由左到右是 $10, 22, 5, 20$，最左邊是 $10$，錯。
+(D) 根的右子樹是位置 $3, 6, 7$，鍵是 $32, 5, 20$，不是 $32, 10, 20$，錯。 (A)：本書只定義了
+取出最小值和最大值，題目沒有說刪除任意節點怎麼做；照取出最小值的做法類推，刪掉位置 $6$
+的 $5$ 之後，拿最後一個節點的 $21$ 來補這個洞（洞沒有子節點；$21$ 比右兄弟 $A[7] = 20$ 大，
+兩者再對調，最後是 $A[6] = 20$、$A[7] = 21$）。 「用 $21$ 那個節點來補」這件事成立，所以 (A)
+對，選 (A)。 這也是唯一可能的答案：(B)、(C)、(D) 都確定是錯的。
+
+\begin{center}
+\begin{tikzpicture}
+\hpheap{0,0}{5.6}{32/n,22/n,20/n,21/n,4/n,10/n,11/n,5/a,18/n}{ya}
+\hpheap{6.6,0}{5.6}{4/n,5/n,10/n,20/n,18/n,22/n,11/n,32/n,21/n}{yb}
+\node[font=\small] at (0,-3.65) {(a) 最大堆積，$5$ 在第 $4$ 層};
+\node[font=\small] at (6.6,-3.65) {(b) 最小堆積};
+\end{tikzpicture}
+
+\begin{tikzpicture}
+\hpheap{0,0}{6.0}{/e,4/n,32/n,10/n,22/n,5/a,20/n,11/n,18/n,21/n}{yc}
+\node[font=\small] at (0,-3.65) {(c) 對稱最小最大堆積};
+\end{tikzpicture}
+\end{center}
+
+\pastsol{px:hp-4}{臺大資工所 113 學年度 第 2 題}
+答案是 A、D。 先把函式補完。 兩棵樹都不空時，根比較大的那個當新的根（$>$ 不成立時選
+\emph{root2}，相等也可以），把它的某一棵子樹和另一整棵樹遞迴合併，結果接回同一邊。 這和
+虛擬碼~\ref{alg:hp-meld} 左傾樹的 \proc{Meld} 是同一個架構，只是少了比較 $s$、對調左右那兩步。
+一種正確的填法：
+
+\begin{pseudo}[unbreakable]{臺大 113 第 2 題的一種填法}
+\Function{MergeMaxBinaryTrees}{$\mathit{root1}, \mathit{root2}$}
+    \If{$\mathit{root1} = \NIL$} \Return $\mathit{root2}$ \Comment{(a)} \EndIf
+    \If{$\mathit{root2} = \NIL$} \Return $\mathit{root1}$ \Comment{(b)} \EndIf
+    \If{$\mathit{root1}.\mathit{data} > \mathit{root2}.\mathit{data}$}
+        \State $\mathit{root1}.\mathit{right} \gets$ \Call{MergeMaxBinaryTrees}{$\mathit{root1}.\mathit{right}, \mathit{root2}$} \Comment{(c)(d)(e)}
+        \State \Return $\mathit{root1}$ \Comment{(f)}
+    \Else
+        \State $\mathit{root2}.\mathit{right} \gets$ \Call{MergeMaxBinaryTrees}{$\mathit{root1}, \mathit{root2}.\mathit{right}$} \Comment{(g)(h)(i)}
+        \State \Return $\mathit{root2}$ \Comment{(j)}
+    \EndIf
+\EndFunction
+\end{pseudo}
+
+正確性對兩棵樹的節點總數歸納：遞迴呼叫的兩棵樹節點總數少了一個（新的根不在裡面），由歸納假
+設回傳一棵 MaxBT，它的節點都來自原本的兩棵樹，所以都不大於新的根；接回去以後新的根仍然不小
+於兩棵子樹的所有節點，整棵是 MaxBT。
+
+逐個選項：
+\begin{itemize}
+\item[A.] 對。 (b) 是 \emph{root2} 為空時回傳 \emph{root1}；(f) 是 \emph{root1} 當新的根時回傳
+\emph{root1}。 兩格都必須是 \emph{root1}。
+\item[B.] 錯。 (c) 是被改寫的那個欄位，它原本指的子樹必須當作遞迴的一個參數傳進去，否則那棵子
+樹就從樹上掉了。 所以 (c) 一定和 (d)、(e) 其中一個相同（例如上面的 (c) 和 (d) 都是
+\emph{root1}.right）。
+\item[C.] 錯。 MaxBT 不要求形狀，(c) 填 \emph{root1}.left（同時 (d) 或 (e) 改成
+\emph{root1}.left）也一樣正確；(g) 同理。 每一格都至少有兩種正確答案。
+\item[D.] 對。 上面的正確性論證沒有用到兩個參數的順序：交換 (h)、(i) 之後，遞迴呼叫仍然是合併同
+樣兩棵樹，回傳的仍然是一棵包含它們全部節點的 MaxBT。 相等的情況也沒問題，相等時選誰當根都
+滿足最大堆積性質。
+\item[E.] 錯。 兩個參數是同一棵樹時，資料相等，走 else，把 \emph{root2}.right 改成「這棵樹和它
+自己的右子樹合併」的結果，同一批節點被接到兩個地方。 最簡單的例子是只有一個節點 $r$：
+\proc{MergeMaxBinaryTrees}$(r, r)$ 走 else，$r.\mathit{right} \gets$
+\proc{MergeMaxBinaryTrees}$(r, \NIL) = r$，$r$ 的右子節點變成自己，不再是一棵樹。
+\end{itemize}
+
+補充：沒有像左傾樹那樣控制右邊路徑的長度，這個合併最壞要沿著很長的路徑遞迴，時間是
+$\Theta(n)$，而左傾樹保證 $O(\lg n)$（定理~\ref{thm:hp-leftist}）。
+
+\pastsol{px:hp-5}{成大電通所 110 學年度 第 2 題（節錄 (b)(c) 小題）}
+(b) 照第~\ref{sec:hp-mergeable}~節的定義，二項最小堆積是一群樹，滿足：
+\begin{enumerate}
+\item 每棵樹都是二項樹 $B_k$（$B_0$ 是一個節點，$B_k$ 是兩棵 $B_{k-1}$ 把一棵的根接成另一棵根
+的最左邊的子節點）。
+\item 每棵樹都滿足最小堆積性質：每個節點的鍵不小於它的父節點。
+\item 每個階數 $k$ 最多只有一棵 $B_k$；所以 $n$ 個元素時有哪幾棵樹由 $n$ 的二進位決定。
+\item 各棵樹的根用根串列串起來，依階數由小到大排列（\texttt{Head[H]} 指向階數最小的那棵）。
+\end{enumerate}
+
+(c) 圖中的根串列是 $B_0{:}\,14$、$B_2{:}\,1[10[20],\,23]$、$B_3{:}\,6[10[13[30],\,12],\ 7[19],\
+15]$，共 $13 = 1101_2$ 個元素。 照第~\ref{sec:hp-mergeable}~節的取出最小值：
+\begin{enumerate}
+\item 最小的根是 $1$，從根串列拿掉，剩下 $\{B_0{:}\,14,\ B_3{:}\,6[\ldots]\}$。
+\item $1$ 的子樹由左到右是 $B_1{:}\,10[20]$、$B_0{:}\,23$，反過來排，成為另一個二項堆積：
+$B_0{:}\,23$、$B_1{:}\,10[20]$。
+\item 兩個堆積合併。 階數 $0$：$14$、$23$ 兩棵，連成 $14[23]$ 進位。 階數 $1$：$10[20]$ 和進位的
+$14[23]$ 兩棵，根 $10 < 14$，$14$ 那棵掛到 $10$ 的最左邊，得到 $B_2{:}\,10[14[23],\,20]$ 進位。
+階數 $2$：只有進位的那棵，留下。 階數 $3$：$6[\ldots]$，留下。
+\end{enumerate}
+結果有 $12 = 1100_2$ 個元素，兩棵樹：
+
+\begin{center}
+\begin{tikzpicture}[x=0.9cm,y=-0.9cm,
+  v/.style={circle,draw,thick,inner sep=0pt,minimum size=6mm,font=\small},
+  a/.style={-{Latex[length=2.2mm]},thick}]
+\node[anchor=east] (hd) at (2.9,0.35) {Head[H]};
+\node[v] (r10) at (4.6,0.35) {10};
+\node[v] (c14) at (3.8,1.35) {14};
+\node[v] (c20) at (5.4,1.35) {20};
+\node[v] (c23) at (3.8,2.45) {23};
+\node[v] (r6) at (9.9,0.35) {6};
+\node[v] (b10) at (7.7,1.35) {10};
+\node[v] (b7) at (8.8,1.35) {7};
+\node[v] (b15) at (9.9,1.35) {15};
+\node[v] (b13) at (6.6,2.45) {13};
+\node[v] (b12) at (7.7,2.45) {12};
+\node[v] (b19) at (8.8,2.45) {19};
+\node[v] (b30) at (6.6,3.45) {30};
+\draw[a] (hd) -- (r10);
+\draw[a] (r10) -- (r6);
+\draw[a] (r10) -- (c14);
+\draw[a] (r10) -- (c20);
+\draw[a] (c14) -- (c23);
+\draw[a] (r6) -- (b10);
+\draw[a] (r6) -- (b7);
+\draw[a] (r6) -- (b15);
+\draw[a] (b10) -- (b13);
+\draw[a] (b10) -- (b12);
+\draw[a] (b7) -- (b19);
+\draw[a] (b13) -- (b30);
+\end{tikzpicture}
+\end{center}
+
+也就是 $B_2{:}\,10[14[23],\,20]$ 和原本的 $B_3$。 圖中兩棵樹各有一個 $10$，鍵可以重複，不影響
+做法。

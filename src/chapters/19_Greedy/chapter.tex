@@ -30,7 +30,7 @@
 第~\ref{sec:gr-activity}~節用活動選擇示範交換論證，第~\ref{sec:gr-knapsack}~節比較分數背包和
 0/1 背包，第~\ref{sec:gr-huffman}~節講霍夫曼編碼和外部排序的最佳合併樹，
 第~\ref{sec:gr-sched}~節是兩個排程問題（第二個用互斥集合加速），第~\ref{sec:gr-fail}~節
-看貪心什麼時候不對，並介紹擬陣。
+看貪心什麼時候不對。 第~\ref{sec:gr-pastexam}~節收了幾題研究所考試的原題。
 
 這一章用到第~8~章的最小堆積、第~13~章的互斥集合、第~14~章的排序和第~15~章的外部排
 序。 第~18~章的動態規劃和這一章常常互相對照：貪心解不了的問題，很多要改用動態規劃。
@@ -864,8 +864,9 @@ int main(void)
 \label{sec:gr-merge}
 
 第~\ref{sec:lin-external}~節的外部排序先產生一些排好的串，再一次合併 $k$ 個，直到剩一個。 那裡
-假設每個串一樣長，只需要算趟數；用取代選擇產生的串長短不一，「先合併哪幾個」就會影響
-總成本。 第~\ref{sec:lin-replace}~節講取代選擇時留了一句：這和霍夫曼編碼是同一個問題。 這一小節把它說清楚。
+假設每個串一樣長，只需要算趟數。 實際上初始串常常長短不一（例如最後一個串比較短，或資料
+分好幾批、每批大小不同），這時「先合併哪幾個」就會影響總成本。 這一小節說明：這和霍夫曼
+編碼是同一個問題。
 
 先看 $2$ 路合併。 有 $r$ 個排好的串，長度（紀錄筆數）是 $\ell_1, \ldots, \ell_r$。 合
 併兩個長度 $a$、$b$ 的串，每筆紀錄讀一次、寫一次，成本算 $a + b$。 每次挑兩個串合併，
@@ -890,7 +891,7 @@ $r - 1$ 次之後剩一個。 整個合併過程可以畫成一棵\textbf{合併
 所以「怎麼兩兩合併最省」和「怎麼建最佳碼樹」是同一個問題，答案也一樣：\textbf{每次合
 併目前最短的兩個串}。 這樣合併出來的樹叫\textbf{最佳合併樹}（optimal merge tree）。
 
-\textbf{例子。} 取代選擇產生了七個串，長度（單位：千筆）如下：
+\textbf{例子。} 外部排序產生了七個長短不一的串，長度（單位：千筆）如下：
 
 \begin{center}
 \begin{tabular}{c*{7}{c}}
@@ -963,7 +964,7 @@ $(a + b)/B$ 個區塊。 用公式 $\sum \ell_i d_i$ 驗算時，$d_i$ 是邊數
 
 \textbf{$k$ 路合併。} 每次合併 $k$ 個串，合併樹的每個內部節點都有 $k$ 個子節點。 引
 理~\ref{lem:gr-merge-cost} 的證明完全不用改：總成本仍是 $\sum \ell_i d_i$。 直覺上
-應該每次合併最短的 $k$ 個，第~15~章也是這麼說的，但這裡有一個細節。 每次合併讓串的
+應該每次合併最短的 $k$ 個，但這裡有一個細節。 每次合併讓串的
 個數少 $k - 1$，從 $r$ 個變成 $1$ 個，如果每次都恰好合併 $k$ 個，$r - 1$ 必須是
 $k - 1$ 的倍數。 不是倍數的時候，一定有某一次合併的串少於 $k$ 個，而這一次放在哪裡會影
 響成本。
@@ -1397,8 +1398,7 @@ int main(void)
 \section{貪心何時不對}
 \label{sec:gr-fail}
 
-前面每一個貪心都附了證明。 這一節反過來，看幾個「看起來很合理、其實是錯的」貪心，最
-後介紹把貪心整理成一般理論的擬陣。
+前面每一個貪心都附了證明。 這一節反過來，看幾個「看起來很合理、其實是錯的」貪心。
 
 \subsection{找零錢}
 
@@ -1432,7 +1432,7 @@ int main(void)
 
 出錯的原因和 0/1 背包一樣：拿了 $12$ 之後剩下的 $3$ 很難湊，貪心在選 $12$ 的時候看不
 到這件事。 一般的面額要用動態規劃：令 $M[a]$ 是湊出 $a$ 的最少枚數，$M[0] = 0$，
-$M[a] = 1 + \min_{c_i \le a} M[a - c_i]$，時間 $O(mx)$，是擬多項式的（第~18~章）。
+$M[a] = 1 + \min_{c_i \le a} M[a - c_i]$，時間 $O(mx)$，是擬多項式的（第~\ref{sec:dp-coin}~節）。
 
 一組面額是不是標準的，也有辦法判斷。 Kozen 與 Zaks（1994）證明：如果貪心對某個金額
 不是最少枚數，那麼最小的反例一定小於 $c_{m-1} + c_m$。 所以只要用動態規劃算出這個範
@@ -1445,7 +1445,7 @@ $M[a] = 1 + \min_{c_i \le a} M[a - c_i]$，時間 $O(mx)$，是擬多項式的�
 重量，都有反例。
 \item \textbf{加權的活動選擇}：每筆申請有不同的租金，要讓收入最多。 最早結束的先排會
 錯：$[8, 10)$ 租金 $1$、$[9, 12)$ 租金 $10$，它先選了前者，後者就排不進去。 這時要用
-動態規劃：依結束時刻排好，第 $i$ 筆「選或不選」，選的話接上最後一筆和它相容的申請。
+動態規劃：依結束時刻排好，第 $i$ 筆「選或不選」，選的話接上最後一筆和它相容的申請（第~\ref{sec:dp-wis}~節）。
 \item \textbf{期限排程放最早的空時段}：第~\ref{sec:gr-deadline}~節如果把工作放在最早
 的空時段：工作 A（期限 $2$、收費 $10$）先放進時段 $1$，工作 B（期限 $1$、收費 $8$）就
 沒位置了，只收 $10$；放最晚的空時段可以兩件都接，收 $18$。 同一個演算
@@ -1457,44 +1457,6 @@ $M[a] = 1 + \min_{c_i \le a} M[a - c_i]$，時間 $O(mx)$，是擬多項式的�
 到，再試著寫交換論證，寫不下去的地方往往就是反例的方向。 也可以另外寫一個窮舉的版本，
 在大量隨機的小輸入上和貪心比對答案。 比對一萬組都相同也不是證明，但只要有一組不同，貪
 心就是錯的。
-
-\subsection{擬陣：貪心的一般理論（觀念）}
-\label{sec:gr-matroid}
-
-很多貪心都長成同一個樣子：有一群元素，每個有正的權重；有一些子集合叫做「獨立的」
-（可以同時選）；依權重由大到小看每個元素，加進去之後仍然獨立就加。 第~\ref{sec:gr-deadline}~節的期限排程正是這樣：元素是工作，權重是收費，「獨立」是「可行」。 這種貪心什麼時候對？
-擬陣回答了這個問題。
-
-一個有限集合 $S$ 和一群「獨立」的子集合 $\mathcal{I}$，如果滿足下面三條，叫做
-\textbf{擬陣}（matroid）：
-
-\begin{enumerate}
-\item 空集合是獨立的。
-\item \textbf{遺傳性}：獨立集合的子集合也是獨立的。
-\item \textbf{交換性}：$A$、$B$ 都是獨立的，$|A| < |B|$，那麼 $B$ 裡一定有某個不在
-$A$ 裡的元素 $x$，讓 $A \cup \{x\}$ 仍然獨立。
-\end{enumerate}
-
-\textbf{定理}（Rado 1957、Edmonds 1971）：在擬陣上，對任何正的權重，上面的貪心都得到
-權重和最大的獨立集合。 反過來，如果 $(S, \mathcal{I})$ 滿足前兩條，而且對每一種權重
-貪心都對，它一定也滿足第三條，是擬陣。 這裡不證明。
-
-幾個例子：
-
-\begin{itemize}
-\item \textbf{圖的擬陣}：元素是無向圖的邊，「獨立」是「不含環」。 權重由小到大的版本就是
-第~24~章的 Kruskal 最小生成樹演算法。
-\item \textbf{期限排程}：元素是工作，「獨立」是「可行」；交換性可以用
-引理~\ref{lem:gr-feasible} 證明（觀念題第~\ref{q:gr-matroid}~題）。 第~\ref{sec:gr-deadline}~節的演算法就是擬陣上的貪心，「找
-得到空時段」就是檢查加進去之後仍然獨立。
-\item \textbf{不是擬陣的例子}：兩兩相容的區間。 $A = \{[1, 10)\}$、$B = \{[1, 2), [3, 4)\}$，
-$B$ 的兩個都和 $[1, 10)$ 衝突，交換性不成立。 活動選擇的貪心卻是對的，因為它依的是結束
-時刻這個特別的順序，不是權重。 擬陣是貪心成立的充分條件，不是必要條件；霍夫曼編碼也不
-是擬陣上的問題。
-\end{itemize}
-
-CLRS 第 4 版把擬陣的完整內容移到了書的網站，第 3 版的 16.4、16.5 節有證明和用擬陣
-處理期限排程的例子；第 4 版第 15 章的章末附注列了原始文獻。
 
 \section{本章常見錯誤}
 \label{sec:gr-pitfalls}
@@ -1625,15 +1587,72 @@ $g_1, g_2, \ldots, g_k$，$o_1, o_2, \ldots, o_m$ 是任何一組兩兩相容的
 排好。 證明：對每個 $i \le \min(k, m)$，$f(g_i) \le f(o_i)$。 再用這個結果證明
 $k \ge m$。
 
-\item \label{q:gr-matroid}（選擇，可能不只一個答案）下列哪些是擬陣（元素集合／獨立的子集合）？
-\begin{enumerate}
-\item 一個無向圖的邊／不含環的邊集合。
-\item 一群區間／兩兩相容（不重疊）的區間集合。
-\item 一群有期限的單位時間工作／能在期限內全部做完的工作集合。
-\item 一個無向圖的邊／沒有兩條邊共用端點的邊集合（匹配）。
-\item 一個集合 $S$ 的元素／元素個數不超過 $3$ 的子集合。
 \end{enumerate}
+
+\section{歷屆試題}
+\label{sec:gr-pastexam}
+
+以下是研究所入學考試的原題，題目照原卷（語言、記號、配分照錄）。 詳解在本章最後。
+
+\begin{pastexam}[label={px:gr-1}]{中興資工所 114 學年度 第 II-1 題}
+(5\%) You are given the following set of activities, where each activity has a start time and an end time. Your task is to select the maximum number of non-overlapping activities that can be scheduled.\\
+Here are the activities:
+\begin{center}
+\begin{tabular}{|p{4cm}|p{4cm}|p{4cm}|}
+\hline
+Activity & Start Time & End Time \\ \hline
+A & 1 & 3 \\ \hline
+B & 2 & 5 \\ \hline
+C & 4 & 6 \\ \hline
+D & 6 & 8 \\ \hline
+E & 5 & 7 \\ \hline
+F & 8 & 9 \\ \hline
+\end{tabular}
+\end{center}
+Using a \textbf{greedy algorithm}, compute the maximum number of non-overlapping activities that can be selected.
+\end{pastexam}
+
+\begin{pastexam}[label={px:gr-2}]{政大資科所 112 學年度 第 3 題}
+［本題沿用第 2 題的問題敘述，節錄如下。］
+In the knapsack problem, the input contains $n$ items $1,2,3,\dots,n$, where item $i$ has weight $w[i]$ and value $v[i]$. The input also contains a number $W$. All the weights, values, and $W$ are positive integers.
+The output is a set $S\subseteq\{1,2,3,\dots,n\}$ such that the total weight of $S$ is at most $W$ (i.e., $\sum_{i\in S}w[i]\le W$) and the total value of $S$ (i.e., $\sum_{i\in S}v[i]$) is maximized.
+
+\medskip
+(20\%) Consider again the knapsack problem.
+\begin{enumerate}[label=\arabic*),itemsep=2pt,topsep=2pt]
+\item (10\%) Design a greedy heuristic (in pseudocode) for the knapsack problem.\\
+Please explain why your heuristic can be considered to be greedy.
+\item (5\%) Please analyze the time complexity of your heuristic.
+\item (5\%) Does your heuristic always output the optimal solution? If so, please give a proof.\\
+If not, please give a toy example to show that your heuristic may not obtain the optimal solution.
 \end{enumerate}
+\end{pastexam}
+
+\begin{pastexam}[label={px:gr-3}]{臺大資工所 115 學年度 第 18 題}
+(4 points) Which of the following properties is true for \emph{some} optimal prefix-free binary code and directly justifies the greedy choice made in the Huffman algorithm?
+\begin{enumerate}[label=(\Alph*),leftmargin=2.2em,itemsep=1pt]
+\item The two symbols with the lowest frequencies must appear at the same depth in the code tree.
+\item The symbol with the lowest frequency must be assigned the longest codeword, but the symbol with the second smallest frequency need not be.
+\item All leaves at the maximum depth must correspond to symbols with the lowest frequency.
+\item The two symbols with the lowest frequencies must have equal codeword lengths, but they need not share the same parent.
+\item The two symbols with the lowest frequencies must be siblings at the maximum depth of the code tree.
+\end{enumerate}
+\end{pastexam}
+
+\begin{pastexam}[label={px:gr-4}]{中正資工所 111 學年度 第 20 題}
+(4\%) Derive the optimal ternary Huffman code for the following symbols with probabilities
+\begin{center}
+\begin{tabular}{|c|c|c|c|c|c|c|c|}
+\hline
+Symbols & $\alpha$ & $\beta$ & $\gamma$ & $\delta$ & $\varepsilon$ & $\theta$ & $\eta$\\ \hline
+Probabilities & 0.25 & 0.2 & 0.15 & 0.14 & 0.13 & 0.08 & 0.05\\ \hline
+\end{tabular}
+\end{center}
+\end{pastexam}
+
+\begin{pastexam}[label={px:gr-5}]{成大資訊聯招 114 學年度 第 17 題}
+(10\%) Assuming that the available time for the classroom is unlimited, we instead focus on the course completion time. We aim to schedule $n$ courses, where each course $i$ is characterized by its duration $p_i$ and weight $w_i$. In this schedule, the finish time of each course is the total duration of all courses scheduled before it, plus its duration. A schedule can be defined as a function $d(i)$, representing the order of course $i$ in the schedule. That is, if $d(i)<d(j)$, course $i$ is scheduled before course $j$. Therefore, the finish time of course $i$ is denoted as $f_i=\sum_{j\in\{1,\ldots,n\}:d(j)\le d(i)}p_j$. This scheduling problem aims to minimize the total weighted finish time $\sum_{i\in\{1,\ldots,n\}}w_if_i$. Suppose we have 15 courses with corresponding durations [6, 6, 9, 83, 34, 44, 164, 38, 82, 180, 19, 128, 394, 512, 15] and weights [2, 4, 4, 6, 7, 7, 7, 10, 10, 10, 11, 12, 13, 13, 15]. What is the value of the optimal schedule, that is, the minimum total weighted finish time?
+\end{pastexam}
 
 \section{實作練習}
 \label{sec:gr-practice}
@@ -1683,15 +1702,13 @@ $n$ 可以是 $0$。 只要印筆數。
 $\sum \ell_i d_i$ 驗算。
 \item 用最短工作優先排程並證明它最佳；用互斥集合實作有期限的工作排程，手算每一步的父
 節點陣列。
-\item 說出擬陣的定義，判斷一個「獨立集合」的系統是不是擬陣。
 \end{itemize}
 
 \textbf{延伸閱讀}（書末會整理完整的參考資料）
 
 \begin{itemize}
 \item Thomas H. Cormen 等，\textit{Introduction to Algorithms}，第 4 版，第 15 章：活
-動選擇、貪心法的要素、分數與 0/1 背包、霍夫曼碼，證明比本章更形式化。 擬陣和用擬陣
-處理期限排程在第 3 版的 16.4、16.5 節（第 4 版移到書的網站）。
+動選擇、貪心法的要素、分數與 0/1 背包、霍夫曼碼，證明比本章更形式化。
 \item Jon Kleinberg、Éva Tardos，\textit{Algorithm Design}，第 4 章：把貪心的證明分成
 「逐步領先」和「交換論證」兩種寫法，例子多，適合想練習寫證明的人。
 \item Steven S. Skiena，\textit{The Algorithm Design Manual}，第 3 版，第 1 章 1.2、
@@ -1814,14 +1831,207 @@ $g_k$ 後面。 貪心掃到它的時候 $\mathit{last} = f(g_k) \le s(o_{k+1})$
 這種寫法叫\textbf{逐步領先}（greedy stays ahead）：不改動最佳解，直接證明貪心每一步
 都不落後。
 
-\item (a)、(c)、(e)。 (a) 是圖的擬陣（第~\ref{sec:gr-matroid}~節）。 (b)：$A =
-\{[0, 5)\}$、$B = \{[0, 1), [2, 3)\}$，$B$ 的區間都和 $[0, 5)$ 重疊，交換性不成立。
-(c)：遺傳性成立，因為可行集合拿掉工作還是可行。 交換性：設 $|A| < |B|$，令 $t$ 是滿足
-$N_t(A) = t$ 的最大 $t$（$t = 0$ 一定滿足，$t > |A|$ 一定不滿足）。 由
-引理~\ref{lem:gr-feasible}，$N_t(B) \le t = N_t(A)$，所以 $B$ 裡期限大於 $t$ 的工作比
-$A$ 裡的多，其中至少有一件 $x \notin A$。 對 $t' \ge d_x$，$t' > t$，所以
-$N_{t'}(A) < t'$，加上 $x$ 也不超過 $t'$；對 $t' < d_x$，$x$ 不被計入。 所以
-$A \cup \{x\}$ 可行。 (d)：路徑 $a - b - c - d$，$A = \{bc\}$、
-$B = \{ab, cd\}$，交換性不成立。 (e)：$|A| < |B| \le 3$ 時，$B \setminus A$ 的任何元素加進 $A$ 都不超過 $3$
-個，交換性成立；這叫均勻擬陣。
 \end{enumerate}
+
+\addcontentsline{toc}{section}{歷屆試題詳解}
+\section*{歷屆試題詳解}
+
+\pastsol{px:gr-1}{中興資工所 114 學年度 第 II-1 題}
+題目沒有說一個活動結束的時刻、另一個活動剛好開始，算不算重疊。 一般的寫法（也是
+第~\ref{sec:gr-activity}~節的寫法）把時段看成半開區間 $[s_i, f_i)$，首尾相接不算重疊；下
+面先照這個解讀做，最後再補閉區間的答案。
+
+用虛擬碼~\ref{alg:gr-activity}：依結束時刻由小到大排好，是 A、B、C、E、D、F（沒有結束時刻
+相同的）。 逐一檢查，$\mathit{last}$ 是檢查之前最後選進來那一個的結束時刻：
+
+\begin{center}
+\begin{tabular}{cccll}
+\toprule
+活動 & $[s, f)$ & $\mathit{last}$ & $s \ge \mathit{last}$？ & 結果 \\
+\midrule
+A & $[1, 3)$ & -- & -- & 選（第一個），$\mathit{last} \gets 3$ \\
+B & $[2, 5)$ & 3 & $2 < 3$ & 跳過 \\
+C & $[4, 6)$ & 3 & $4 \ge 3$ & 選，$\mathit{last} \gets 6$ \\
+E & $[5, 7)$ & 6 & $5 < 6$ & 跳過 \\
+D & $[6, 8)$ & 6 & $6 \ge 6$ & 選，$\mathit{last} \gets 8$ \\
+F & $[8, 9)$ & 8 & $8 \ge 8$ & 選，$\mathit{last} \gets 9$ \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+選到 A、C、D、F，最多 $\mathbf{4}$ 個。 為什麼最早結束的先選一定能選到最多個，
+見第~\ref{sec:gr-act-proof}~節的證明。
+
+如果把時段看成閉區間（時刻 $6$ 同時屬於 C 和 D，算重疊），相容的條件改成
+$s > \mathit{last}$：選 A（$\mathit{last} = 3$），跳過 B，選 C（$4 > 3$，$\mathit{last} = 6$），
+跳過 E（$5 \le 6$）和 D（$6 \le 6$），選 F（$8 > 6$），答案是 $3$ 個（A、C、F）。 作答時寫
+一句你採用哪一種解讀。
+
+\pastsol{px:gr-2}{政大資科所 112 學年度 第 3 題}
+\textbf{1) 演算法。} 照單位重量價值由大到小，放得下就放：
+
+\begin{pseudo}[unbreakable]{背包的貪心啟發式}
+\Function{Greedy-Knapsack}{$w, v, n, W$}
+    \State 把物品依 $v[i] / w[i]$ 由大到小排序，以下的 $1, \ldots, n$ 是排好的順序
+    \State $S \gets \emptyset$；$\mathit{room} \gets W$
+    \For{$i \gets 1$ \To $n$}
+        \If{$w[i] \le \mathit{room}$}
+            \State $S \gets S \cup \{i\}$；$\mathit{room} \gets \mathit{room} - w[i]$
+        \EndIf
+    \EndFor
+    \State \Return $S$
+\EndFunction
+\end{pseudo}
+
+放不下的物品跳過，但迴圈繼續往下看，後面比較輕的物品可能還放得進去。 它是貪心的，因為
+每一步只看眼前：在還沒看過的物品裡挑每單位重量價值最高的一個，放得下就放，放了就不再拿
+出來，也不考慮這個選擇會不會讓後面的物品放不下（第~\ref{sec:gr-elements}~節）。
+
+\textbf{2) 時間。} 第 2 行排序 $\Theta(n \lg n)$（比較 $v[i] / w[i]$ 和 $v[j] / w[j]$ 時改比
+$v[i] \cdot w[j]$ 和 $v[j] \cdot w[i]$，不必用浮點數）；第 4--8 行的迴圈跑 $n$ 次，每次
+$O(1)$。 總共 $\Theta(n \lg n)$。
+
+\textbf{3) 不一定最佳。} 反例：$W = 8$，三個物品
+\begin{center}
+\begin{tabular}{cccc}
+\toprule
+物品 & 1 & 2 & 3 \\
+\midrule
+$w$ & 5 & 4 & 4 \\
+$v$ & 60 & 44 & 44 \\
+$v / w$ & 12 & 11 & 11 \\
+\bottomrule
+\end{tabular}
+\end{center}
+貪心先放物品 1，剩下容量 $3$，物品 2、3 都放不下，總價值 $60$。 不放物品 1、放物品 2 和
+3，總重 $8$，總價值 $88$。 這是第~\ref{sec:gr-knapsack}~節的例子：同樣的貪心對分數背包是最
+佳的（定理~\ref{thm:gr-frac}），對 0/1 背包就不是，因為物品不能切開，放了物品 1 之後剩下的
+$3$ 單位容量浪費掉了。 這個貪心甚至可以差到任意多倍：$W = 10$，物品（$w = 1$，$v = 2$）和
+（$w = 10$，$v = 10$），貪心先放前者，只得到 $2$，最佳是 $10$。 把貪心的結果和「價值最大的
+單一物品」取比較大的那個，就能保證至少是最佳值的一半（第~29~章觀念
+題第~\ref{q:apx-knap-half}~題）。 要得到最佳解，用第~\ref{sec:dp-knapsack}~節的動態規劃。
+
+\pastsol{px:gr-3}{臺大資工所 115 學年度 第 18 題}
+答案是 \textbf{(E)}。
+
+霍夫曼演算法第一步把頻率最小的兩個符號 $x$、$y$ 接到同一個新節點底下，也就是讓它們成為兄
+弟。 要說明這一步不會錯，需要的正是「存在一棵最佳碼樹，$x$、$y$ 是兄弟，而且都在最深的一
+層」：這就是引理~\ref{lem:gr-huff-choice}。 有了它，把 $x$、$y$ 收成一個符號之後，剩下的問
+題的最佳解展開回去就是原問題的最佳解（引理~\ref{lem:gr-huff-sub}）。 逐項看：
+
+\begin{itemize}
+\item (A)：對某一棵最佳碼樹成立（(E) 成立時 (A) 也成立），但「一樣深」不代表是兄弟。 霍夫曼
+把 $x$、$y$ 合成同一個節點，需要的是兄弟關係，所以 (A) 不足以支持這個選擇。
+\item (B)：前半句對某棵最佳碼樹成立，但它只講頻率最小的那一個；後半句還說第二小的不必在最深
+層。 霍夫曼同時處理最小的兩個，(B) 支持不了。
+\item (C)：錯，連「某一棵最佳碼樹」都找不到。 例如頻率 $1, 2, 2, 2$：$4$ 個葉節點的嚴格二元
+樹只有兩種形狀，碼長 $(2, 2, 2, 2)$ 或 $(1, 2, 3, 3)$ 的某種排列。 前者總位元數
+$(1 + 2 + 2 + 2) \cdot 2 = 14$；後者最好是頻率 $1$ 和一個 $2$ 放在深度 $3$，
+$1 \cdot 3 + 2 \cdot 3 + 2 \cdot 2 + 2 \cdot 1 = 15$。 所以唯一的最佳形狀是四個碼長都是 $2$，
+最深的一層有頻率 $2$ 的符號，它們不是頻率最小的。
+\item (D)：碼長相等對某棵最佳碼樹成立，但它明說「不必有同一個父節點」，正好不是霍夫曼需要的
+性質。
+\item (E)：正確，就是引理~\ref{lem:gr-huff-choice}，證明用交換論證：任取一棵最佳碼樹，把
+$x$、$y$ 和最深的一對兄弟葉節點交換，總位元數不會變大。
+\end{itemize}
+
+\pastsol{px:gr-4}{中正資工所 111 學年度 第 20 題}
+三元（ternary）碼用 $0, 1, 2$ 三個符號，碼樹的每個內部節點有 $3$ 個子節點。 做法是
+第~\ref{sec:gr-merge}~節的 $k$ 路合併，$k = 3$：先補虛擬符號，再每次合併機率最小的三個。
+
+\textbf{要不要補虛擬符號。} $r = 7$ 個符號，$(r - 1) \bmod (k - 1) = 6 \bmod 2 = 0$，
+$d = 0$，不用補。 每次合併讓節點少 $2$ 個，$7 \to 5 \to 3 \to 1$，三次合併剛好剩一個。
+
+\textbf{合併過程。}
+\begin{enumerate}
+\item 最小的三個：$\eta$ $0.05$、$\theta$ $0.08$、$\varepsilon$ $0.13$，合成 $0.26$。 剩下
+$0.14, 0.15, 0.2, 0.25, 0.26$。
+\item 最小的三個：$\delta$ $0.14$、$\gamma$ $0.15$、$\beta$ $0.2$，合成 $0.49$。 剩下
+$0.25, 0.26, 0.49$。
+\item 合併 $\alpha$ $0.25$、$0.26$、$0.49$，得到根 $1.00$。
+\end{enumerate}
+
+每個內部節點的三個子節點，依機率由小到大標 $0, 1, 2$（這是本解答的約定；換一種標法碼不
+同，碼長和平均碼長都一樣）：
+
+\begin{center}
+\begin{tikzpicture}[x=1.2cm,y=1.15cm]
+\node[gr-inner] (r) at (1.0,0) {1.00};
+\node[gr-leaf] (a) at (-2.0,-1.2) {$\alpha$\\.25};
+\node[gr-inner] (m1) at (0.6,-1.2) {.26};
+\node[gr-inner] (m2) at (3.6,-1.2) {.49};
+\node[gr-leaf] (h) at (-0.4,-2.4) {$\eta$\\.05};
+\node[gr-leaf] (t) at (0.6,-2.4) {$\theta$\\.08};
+\node[gr-leaf] (e) at (1.6,-2.4) {$\varepsilon$\\.13};
+\node[gr-leaf] (d) at (2.6,-2.4) {$\delta$\\.14};
+\node[gr-leaf] (g) at (3.6,-2.4) {$\gamma$\\.15};
+\node[gr-leaf] (b) at (4.6,-2.4) {$\beta$\\.20};
+\draw[gr-edge] (r) -- node[gr-bit, above left] {0} (a);
+\draw[gr-edge] (r) -- node[gr-bit, left] {1} (m1);
+\draw[gr-edge] (r) -- node[gr-bit, above right] {2} (m2);
+\draw[gr-edge] (m1) -- node[gr-bit, left] {0} (h);
+\draw[gr-edge] (m1) -- node[gr-bit, left] {1} (t);
+\draw[gr-edge] (m1) -- node[gr-bit, right] {2} (e);
+\draw[gr-edge] (m2) -- node[gr-bit, left] {0} (d);
+\draw[gr-edge] (m2) -- node[gr-bit, left] {1} (g);
+\draw[gr-edge] (m2) -- node[gr-bit, right] {2} (b);
+\end{tikzpicture}
+\end{center}
+
+\begin{center}
+\begin{tabular}{c*{7}{c}}
+\toprule
+符號 & $\alpha$ & $\beta$ & $\gamma$ & $\delta$ & $\varepsilon$ & $\theta$ & $\eta$ \\
+\midrule
+碼 & \texttt{0} & \texttt{22} & \texttt{21} & \texttt{20} & \texttt{12} & \texttt{11} & \texttt{10} \\
+碼長 & 1 & 2 & 2 & 2 & 2 & 2 & 2 \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+平均碼長 $0.25 \cdot 1 + (0.2 + 0.15 + 0.14 + 0.13 + 0.08 + 0.05) \cdot 2 = 0.25 + 1.5 =
+1.75$ 個三元符號，也等於三個內部節點的機率和 $1 + 0.26 + 0.49 = 1.75$（和
+引理~\ref{lem:gr-merge-cost} 同樣的數法）。
+
+也可以直接驗證沒有更好的碼。 碼長 $1$ 的碼最多兩個（三個就把 $0, 1, 2$ 用完，其他符號沒有
+碼可用）。 用了兩個時，其他五個符號共用剩下的一個開頭；那個開頭底下，碼長 $2$ 的碼佔
+$1/9$、碼長 $3$ 的佔 $1/27$，合起來不能超過 $1/3$，所以碼長 $2$ 的最多兩個，至少三個符號碼
+長 $\ge 3$，平均至少 $(0.25 + 0.2) \cdot 1 + (0.15 + 0.14) \cdot 2 + (0.13 + 0.08 + 0.05) \cdot 3 =
+1.81$。 碼長 $1$ 的碼不超過一個時，平均至少 $0.25 \cdot 1 + 0.75 \cdot 2 = 1.75$。 所以
+$1.75$ 是最小值。
+
+\pastsol{px:gr-5}{成大資訊聯招 114 學年度 第 17 題}
+這是第~\ref{sec:gr-spt}~節的加權版本。 觀念題第~\ref{q:gr-wspt}~題證明過：依 $p_i / w_i$ 由
+小到大排的順序讓 $\sum w_i f_i$ 最小（相鄰兩門交換，總和的變化是 $w_j p_i - w_i p_j$）。 這
+組資料的 $15$ 個比值兩兩不同，所以最佳順序只有一種。 依比值排好，逐門算完成時間 $f_i$
+（前面所有課程的長度加上自己的）和 $w_i f_i$：
+
+\begin{center}
+\small
+\begin{tabular}{rrrrrrr}
+\toprule
+課程 $i$ & $p_i$ & $w_i$ & $p_i / w_i$ & $f_i$ & $w_i f_i$ & 累計 \\
+\midrule
+15 & 15 & 15 & 1.00 & 15 & 225 & 225 \\
+2 & 6 & 4 & 1.50 & 21 & 84 & 309 \\
+11 & 19 & 11 & 1.73 & 40 & 440 & 749 \\
+3 & 9 & 4 & 2.25 & 49 & 196 & 945 \\
+1 & 6 & 2 & 3.00 & 55 & 110 & 1055 \\
+8 & 38 & 10 & 3.80 & 93 & 930 & 1985 \\
+5 & 34 & 7 & 4.86 & 127 & 889 & 2874 \\
+6 & 44 & 7 & 6.29 & 171 & 1197 & 4071 \\
+9 & 82 & 10 & 8.20 & 253 & 2530 & 6601 \\
+12 & 128 & 12 & 10.67 & 381 & 4572 & 11173 \\
+4 & 83 & 6 & 13.83 & 464 & 2784 & 13957 \\
+10 & 180 & 10 & 18.00 & 644 & 6440 & 20397 \\
+7 & 164 & 7 & 23.43 & 808 & 5656 & 26053 \\
+13 & 394 & 13 & 30.31 & 1202 & 15626 & 41679 \\
+14 & 512 & 13 & 39.38 & 1714 & 22282 & 63961 \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+最小的總加權完成時間是 $\mathbf{63961}$。 （比值欄是四捨五入到小數兩位，排序時用交叉相乘
+比較才精確，例如 $6/4$ 和 $19/11$ 比的是 $6 \cdot 11 = 66 < 19 \cdot 4 = 76$。） 驗算：最後一門
+的完成時間 $1714$ 應該等於全部長度的和，$6 + 6 + 9 + 83 + 34 + 44 + 164 + 38 + 82 + 180 + 19 +
+128 + 394 + 512 + 15 = 1714$。

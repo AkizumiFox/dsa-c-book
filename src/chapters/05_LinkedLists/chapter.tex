@@ -36,8 +36,9 @@
 
 第二種記法就是\textbf{鏈結串列}（linked list）。 這一章先講單向串列的搜尋、插入和
 刪除，再講幾種變形：帶頭節點的串列、環狀串列、雙向串列。 接著用串列表示多項式和稀
-疏矩陣，說明怎麼自己管理一池節點，最後整理反轉、合併、找中間這三個最常考的操作。
-每個操作都會給虛擬碼、C 程式、手算追蹤和成本。
+疏矩陣，說明怎麼自己管理一池節點，再整理反轉、合併、找中間這三個最常考的操作，最後
+用快慢指標判斷串列有沒有環、找出環從哪裡開始。 每個操作都會給虛擬碼、C 程式、手算
+追蹤和成本。
 
 這一章用到《C 程式設計基礎》第~14~章的結構指標（\texttt{p->next}）、第~19~章的
 \texttt{malloc}、\texttt{free} 和串列入門。 那一章已經寫過頭端插入、指標的指標和
@@ -1227,7 +1228,7 @@ $2 + 0$，合併排序用它的話會一直切不開（觀念題第 11 題）。
 
 快慢指標和「先數長度」的做法都走了大約 $1.5n$ 個指標：$f$ 走 $n$ 步、$s$ 走 $n/2$
 步。 它的好處在不需要先知道長度。 同樣的技巧也能判斷串列有沒有環：有環的話快指標會在環
-上追上慢指標，沒有環的話快指標會先走到 \NIL。
+上追上慢指標，沒有環的話快指標會先走到 \NIL。 第~\ref{sec:ll-cycle}~節會把這件事講完整。
 
 \subsection{例子：兩位助教的成績名單}
 
@@ -1338,6 +1339,347 @@ $m + n = 9$，比較了 $8 = m + n - 1$ 次，是最多的情況：最大的 $12
 有 $\lceil 9/2 \rceil = 5$ 個。 節點都放在 \texttt{main} 的兩個陣列裡，三個操作
 只改 \texttt{next}，沒有配置也沒有釋放任何節點。
 
+\section{判斷串列有沒有環}
+\label{sec:ll-cycle}
+
+前面的串列都假設最後一個節點的 $\mathit{next}$ 是 \NIL。 程式有錯時這件事不一定成
+立：觀念題第 7 題 (b) 拿掉一行之後，$1$ 和 $2$ 互相指著；兩條串列接錯地方，也會讓某
+個節點指回前面。 這時「走到 \NIL 為止」的迴圈永遠停不下來。 這一節的問題是：只給
+$\mathit{head}$，怎麼判斷從它出發會不會走進一個環？ 有環的話，環從哪一個節點開始、
+有幾個節點？ 而且希望只用 $\Theta(1)$ 的額外空間，也不改動串列。
+
+\subsection{$\rho$ 形的串列}
+
+從 $h$ 出發一直沿著 $\mathit{next}$ 走，依序經過的節點記成
+\[
+x_0 = h, \qquad x_{i+1} = x_i.\mathit{next}.
+\]
+沒有環時，有 $n$ 個節點的串列走 $n$ 步就到 \NIL。 有環時永遠走不完，但節點只有有限
+個，總會走到一個之前走過的節點。 令 $\mu$ 是最小的足標，使得 $x_\mu$ 之後還會再出現；
+再令 $\lambda$ 是最小的正整數，使得 $x_{\mu+\lambda} = x_\mu$。 $x_\mu$ 叫\textbf{環的
+起點}，$\lambda$ 叫\textbf{環長}；$x_0, \ldots, x_{\mu-1}$ 是環前面的\textbf{尾巴}，
+$\mu$ 是尾巴的長度（整條串列就是一個環時 $\mu = 0$）。 畫出來像希臘字母 $\rho$：先
+一段直線，再一個圈。 下圖的 $\mu = 3$、$\lambda = 5$。
+
+\begin{center}
+\begin{tikzpicture}
+\node[lname] (hd) at (-1.15,0) {head};
+\foreach \k/\v in {0/12, 1/25, 2/31, 3/47, 4/50, 5/66, 6/73, 7/88} {
+    \lnode{c\k}{\k*1.75,0}{\v}
+    \node[font=\scriptsize, text=black!60] at (\k*1.75+0.2,0.55) {$x_{\k}$};
+}
+\draw[lnk] (hd) -- (c0);
+\foreach \k [evaluate=\k as \j using int(\k+1)] in {0,...,6} {
+    \llink{c\k}{-- (c\j)}
+}
+\fill[black!70] (c7p.center) circle (1.1pt);
+\draw[lnk, rounded corners=6pt] (c7p.center) -- ++(0.5,0) -- ++(0,-0.75) -| (c3.south);
+\draw[decorate, decoration={brace, amplitude=4pt}, black!60]
+    (-0.45,0.85) -- node[above=3pt, font=\small] {尾巴 $\mu = 3$} (3.95,0.85);
+\draw[decorate, decoration={brace, amplitude=4pt}, black!60]
+    (4.8,0.85) -- node[above=3pt, font=\small] {環 $\lambda = 5$} (12.9,0.85);
+\end{tikzpicture}
+\diagcaption{一條有環的串列。 $88$ 的 $\mathit{next}$ 指回 $47$，所以環的起點是
+$x_3 = 47$。 從 head 走下去的節點序列是 $12, 25, 31, 47, 50, 66, 73, 88, 47, 50,
+\ldots$。}
+\label{fig:ll-rho}
+\end{center}
+
+\begin{lemma}
+\label{lem:ll-rho}
+設從 $h$ 出發會走進環。 則 $x_0, \ldots, x_{\mu+\lambda-1}$ 兩兩不同，從 $h$ 走得到
+的節點恰好是這 $n = \mu + \lambda$ 個。 而且對 $0 \le i < j$，
+\[
+x_i = x_j \iff i \ge \mu \text{ 而且 } \lambda \text{ 整除 } j - i .
+\]
+\end{lemma}
+
+\begin{proof}
+先證三件事。
+
+(a) 對所有 $t \ge \mu$，$x_{t+\lambda} = x_t$。 對 $t$ 歸納：$t = \mu$ 是 $\lambda$ 的
+定義；若 $x_{t+\lambda} = x_t$，兩邊各走一步得到 $x_{t+1+\lambda} = x_{t+1}$。 重複
+用 (a) 就得到：$i \ge \mu$ 而且 $\lambda$ 整除 $j - i$ 時，$x_j = x_i$。
+
+(b) 若 $x_i = x_j$、$i < j$，則 $i \ge \mu$：$x_i$ 之後又出現了，由 $\mu$ 的最小性，
+$i \ge \mu$。
+
+(c) 若 $\mu \le i < j$ 而且 $x_i = x_j$，則 $\lambda$ 整除 $j - i$。 寫成 $j - i = q\lambda
++ r$，$0 \le r < \lambda$。 由 (a)，$x_j = x_{i+r}$，所以 $x_i = x_{i+r}$。 取 $t \ge 0$
+使 $i + t = \mu + s\lambda$（$s$ 是某個非負整數），兩邊各再走 $t$ 步，由 (a) 得
+$x_\mu = x_{i+t} = x_{i+r+t} = x_{\mu+r}$。 如果 $r > 0$，這和 $\lambda$ 是最小的矛
+盾，所以 $r = 0$。
+
+(a)、(b)、(c) 合起來就是要證的等價式。 若 $x_0, \ldots, x_{\mu+\lambda-1}$ 裡有兩個
+相同的 $x_i = x_j$（$i < j$），則 $\lambda$ 整除 $j - i$，但 $0 < j - i < \lambda$，
+矛盾，所以它們兩兩不同。 由 (a)，之後的節點都在 $x_\mu, \ldots, x_{\mu+\lambda-1}$
+之中重複，所以走得到的節點恰好是這 $\mu + \lambda$ 個。
+\end{proof}
+
+引理說的是：尾巴上的節點各只出現一次；環上的節點每隔 $\lambda$ 步出現一次。
+
+\subsection{Floyd 的快慢指標}
+
+用一個集合記住走過的節點，就能發現第一個重複的節點，但要 $\Theta(n)$ 的空間。
+\textbf{Floyd 的判環法}（也叫龜兔賽跑）只用兩個指標：慢指標 $s$ 一次走一步，快指標
+$f$ 一次走兩步，兩個都從 $h$ 出發。 沒有環時，$f$ 先走到 \NIL；有環時，兩個都進了環
+之後，$f$ 每一輪比 $s$ 多走一步，一定會在環上追上 $s$。 追上之後，再把一個指標放回
+$h$，兩個都改成一次一步，下一次碰頭的地方就是環的起點。
+
+\begin{pseudo}[label=alg:ll-floyd]{Floyd 判環：相遇點、環的起點、環長}
+\Function{Floyd-Meet}{$h$} \Comment{有環時回傳相遇的節點，沒有環回傳 \NIL}
+    \State $s \gets h$；$f \gets h$
+    \While{$f \ne \NIL$ \AND $f.\mathit{next} \ne \NIL$}
+        \State $s \gets s.\mathit{next}$
+        \State $f \gets f.\mathit{next}.\mathit{next}$
+        \If{$s = f$}
+            \State \Return $s$
+        \EndIf
+    \EndWhile
+    \State \Return \NIL
+\EndFunction
+\Statex
+\Function{Cycle-Start}{$h$}
+    \State $m \gets \Call{Floyd-Meet}{h}$
+    \If{$m = \NIL$}
+        \State \Return \NIL \Comment{沒有環}
+    \EndIf
+    \State $s \gets h$；$f \gets m$ \Comment{一個從頭、一個從相遇點}
+    \While{$s \ne f$}
+        \State $s \gets s.\mathit{next}$；$f \gets f.\mathit{next}$ \Comment{都走一步}
+    \EndWhile
+    \State \Return $s$
+\EndFunction
+\Statex
+\Function{Cycle-Length}{$c$} \Comment{$c$ 是環上的節點}
+    \State $\lambda \gets 1$；$t \gets c.\mathit{next}$
+    \While{$t \ne c$}
+        \State $t \gets t.\mathit{next}$；$\lambda \gets \lambda + 1$
+    \EndWhile
+    \State \Return $\lambda$
+\EndFunction
+\end{pseudo}
+
+\proc{Floyd-Meet} 的迴圈條件和 \proc{Split-Half}（虛擬碼~\ref{alg:ll-split}）一樣：
+$f$ 和 $f.\mathit{next}$ 都存在，才能走兩步。 差別在兩個指標都從 $h$ 出發，而且每走
+完一輪就比一次。
+
+\begin{theorem}
+\label{thm:ll-floyd}
+\begin{enumerate}
+\item 沒有環時（$n$ 個節點），\proc{Floyd-Meet} 的迴圈跑 $\lfloor n/2 \rfloor$ 輪後
+停下，回傳 \NIL。
+\item 有環時，\proc{Floyd-Meet} 一定回傳一個節點。 迴圈跑的輪數 $k^*$ 是
+$\lambda$ 的倍數裡、不小於 $\max(\mu, 1)$ 的最小那一個，而且 $k^* \le n = \mu +
+\lambda$。
+\item 有環時，\proc{Cycle-Start} 的第二個迴圈恰好跑 $\mu$ 輪，回傳環的起點
+$x_\mu$。
+\end{enumerate}
+\end{theorem}
+
+\begin{proof}
+先看 \proc{Floyd-Meet}：做完 $k$ 輪之後 $s = x_k$、$f = x_{2k}$。 $k = 0$ 時成立，每
+一輪 $s$ 前進一格、$f$ 前進兩格，所以一直成立。
+
+(1) 沒有環時，$x_0, \ldots, x_{n-1}$ 兩兩不同，$x_n = \NIL$。 做完 $k$ 輪後還要再
+做一輪，條件是 $x_{2k}$ 和 $x_{2k+1}$ 都存在，也就是 $2k + 2 \le n$。 滿足這個條件
+的 $k \ge 0$ 有 $\lfloor n/2 \rfloor$ 個，所以迴圈跑 $\lfloor n/2 \rfloor$ 輪。 中
+間每次比較的是 $x_k$ 和 $x_{2k}$（$k \ge 1$），足標不同，節點也不同，第 7 行不會執行，
+最後回傳 \NIL。
+
+(2) 有環時串列上沒有 \NIL，迴圈只會從第 7 行離開。 第 $k$ 輪（$k \ge 1$）結束時
+$s = f$，就是 $x_k = x_{2k}$；由引理~\ref{lem:ll-rho}（取 $i = k$、$j = 2k$），這等
+價於 $k \ge \mu$ 而且 $\lambda$ 整除 $k$。 所以迴圈在第一個滿足這兩個條件的 $k \ge 1$
+停下，就是定理說的 $k^*$。 $\mu = 0$ 時 $k^* = \lambda = n$。 $\mu \ge 1$ 時，
+$\mu, \mu + 1, \ldots, \mu + \lambda - 1$ 這 $\lambda$ 個連續整數裡恰好有一個是
+$\lambda$ 的倍數，所以 $k^* \le \mu + \lambda - 1 < n$。
+
+(3) 令 $m = x_{k^*}$。 \proc{Cycle-Start} 的第二個迴圈做完 $i$ 輪後 $s = x_i$、
+$f = x_{k^* + i}$。 $i < \mu$ 時，$x_i$ 在尾巴上，由引理~\ref{lem:ll-rho} 它和其他
+足標的節點都不同，所以 $s \ne f$，迴圈繼續。 $i = \mu$ 時，兩個足標 $\mu$ 和 $k^* +
+\mu$ 都 $\ge \mu$，相差 $k^*$，是 $\lambda$ 的倍數，所以 $s = f = x_\mu$，迴圈停下。
+\end{proof}
+
+證明用的是代數，下面兩段把同樣的事用「追趕」的方式說一次，考試寫說明時比較順手。
+
+\textbf{為什麼一定會相遇，不會跳過去。} 慢指標在第 $\mu$ 輪走到環的起點，這時快指標
+已經在環上。 沿著環的方向看，快指標要再追 $g$ 步才碰到慢指標（$0 \le g < \lambda$）。
+之後每一輪慢指標走 $1$ 步、快指標走 $2$ 步，$g$ 恰好減少 $1$，所以 $g$ 會一路減到
+$0$，中間不會從 $1$ 直接變成負的。 也就是說，再過 $g$ 輪就相遇（$g = 0$ 表示第 $\mu$
+輪就相遇了；$\mu = 0$ 時兩個指標一開始就在一起，要等繞完第一圈）。
+
+\textbf{為什麼從頭和從相遇點一起走，會在起點碰頭。} 相遇點是從 $h$ 走 $k^*$ 步到的，
+$k^*$ 是 $\lambda$ 的倍數。 從相遇點再走 $\mu$ 步，等於從 $h$ 走 $k^* + \mu$ 步：先走
+$\mu$ 步到起點，再繞 $k^* / \lambda$ 整圈，還是停在起點。 從 $h$ 出發的那個指標走
+$\mu$ 步也剛好到起點。 兩個指標同一輪到達起點；在那之前，從頭出發的指標還在尾巴上，
+另一個在環上，不可能碰頭。 注意相遇點本身\textbf{不一定}是起點：下面的例子相遇在
+$66$，起點是 $47$。
+
+\textbf{成本。} \proc{Floyd-Meet} 最多 $\lfloor n/2 \rfloor$ 或 $k^* \le n$ 輪，
+\proc{Cycle-Start} 的第二個迴圈 $\mu$ 輪，\proc{Cycle-Length} 從起點出發繞一圈
+$\lambda$ 輪，每輪 $\Theta(1)$，總時間 $O(n)$。 反過來，沒有環時跑
+$\lfloor n/2 \rfloor$ 輪，有環時 $k^* \ge \max(\mu, \lambda) \ge n/2$，所以也是
+$\Omega(n)$，合起來 $\Theta(n)$。 額外空間只有幾個指標，$\Theta(1)$，而且完全沒有
+改動串列。
+
+\textbf{手算追蹤。} 用圖~\ref{fig:ll-rho} 的串列，第 $k$ 列是 \proc{Floyd-Meet} 做完
+$k$ 輪後兩個指標指著的節點：
+
+\begin{center}
+\begin{tabular}{cccc}
+\toprule
+輪 $k$ & $s = x_k$ & $f = x_{2k}$ & 相等？ \\
+\midrule
+0 & $12$ & $12$ & （還沒開始比）\\
+1 & $25$ & $31$ & 否 \\
+2 & $31$ & $50$ & 否 \\
+3 & $47$ & $73$ & 否 \\
+4 & $50$ & $47$ & 否 \\
+5 & $66$ & $66$ & 相遇 \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+$\mu = 3$、$\lambda = 5$，$5$ 的倍數裡不小於 $3$ 的最小是 $5$，所以第 $5$ 輪相遇，
+和定理一致。 第 $3$ 輪慢指標剛進環時，快指標在 $73$，沿著環再走 $2$ 步才碰到慢指標
+（$73 \to 88 \to 47$），所以再過 $2$ 輪相遇。 接著 \proc{Cycle-Start}：
+
+\begin{center}
+\begin{tabular}{ccc}
+\toprule
+第二個迴圈的輪 & $s$（從 head 出發）& $f$（從相遇點出發）\\
+\midrule
+0 & $12$ & $66$ \\
+1 & $25$ & $73$ \\
+2 & $31$ & $88$ \\
+3 & $47$ & $47$ \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+跑了 $3 = \mu$ 輪，回傳 $47$。 最後從 $47$ 繞一圈 $47 \to 50 \to 66 \to 73 \to 88 \to
+47$，環長 $5$。
+
+\begin{examnote}
+判環的題目，先寫出你用的版本：兩個指標從哪裡出發、每輪先走再比還是先比再走。 有些
+課本讓 $f$ 從 $h.\mathit{next}$ 出發、先比再走，這時第一階段停下時，$s$ 走了 $k$ 步，
+$f$ 走了 $2k + 1$ 步，比兩倍多一步，所以第二階段要讓 $f$ 從相遇點的\textbf{下一個}節點出發，才會在起點碰頭；
+照本書的寫法從相遇點出發，兩個指標會永遠碰不到（環長是 $1$ 時除外）。 追蹤時一輪一列，寫出
+$s$、$f$；最後分開寫「相遇點」「環的起點」「環長」三個答案。
+\end{examnote}
+
+\subsection{和其他做法比較}
+
+\begin{center}
+\begin{tabular}{>{\raggedright\arraybackslash}p{0.34\linewidth}lll}
+\toprule
+做法 & 時間 & 額外空間 & 改動串列 \\
+\midrule
+用集合記住走過的節點（雜湊表，第~12~章）& 期望 $\Theta(n)$ & $\Theta(n)$ & 不會 \\
+每個節點多一個「走過了」旗標 & $\Theta(n)$ & 每個節點一個欄位 & 會，用完要清掉 \\
+Floyd 快慢指標 & $\Theta(n)$ & $\Theta(1)$ & 不會 \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+前兩種做法一走到重複的節點就知道它是環的起點，比較直接；Floyd 的方法用多走幾輪換
+到常數空間，而且串列可以是唯讀的（例如別人的資料結構，或很多程式同時在讀）。
+「先數長度」行不通：有環時數不完。
+
+同一個方法不只能用在串列上。 只要有一個「下一個是誰」的規則，例如陣列
+$\mathit{next}[\,]$ 表示的串列，或亂數產生器 $x_{i+1} = (a x_i + c) \bmod M$，從
+任何起點一直往下走，最後都會進入一個環，Floyd 的方法可以在不記錄整個序列的情況下
+找出尾巴長度和週期。
+
+\subsection{C 程式}
+
+下面的程式把圖~\ref{fig:ll-rho} 的八個節點放在陣列裡，改變最後一個節點的
+\texttt{next}，做出四種串列：沒有環、$\rho$ 形、整條是一個環、最後一個節點指向自
+己。 每一種印出相遇點、第一階段跑了幾輪、環的起點、尾巴長度和環長。
+
+\begin{example}[label=ex:ll-cycle]{c}{(cycle.c) Floyd 判環}
+#include <stdio.h>
+
+typedef struct Node {
+    int key;
+    struct Node *next;
+} Node;
+
+// 第一階段：有環時回傳相遇的節點，沒有環回傳 NULL。*rounds 記錄跑了幾輪。
+Node *floyd_meet(Node *h, int *rounds)
+{
+    Node *slow = h, *fast = h;
+    *rounds = 0;
+    while (fast != NULL && fast->next != NULL) {
+        slow = slow->next;          // 走一步
+        fast = fast->next->next;    // 走兩步
+        (*rounds)++;
+        if (slow == fast)
+            return slow;
+    }
+    return NULL;
+}
+
+// 第二階段：一個從頭、一個從相遇點，每次各走一步，碰頭的地方是環的起點。
+Node *cycle_start(Node *h, Node *meet, int *tail)
+{
+    *tail = 0;
+    while (h != meet) {
+        h = h->next;
+        meet = meet->next;
+        (*tail)++;
+    }
+    return h;
+}
+
+int cycle_length(const Node *c)     // c 在環上：繞一圈數節點
+{
+    int len = 1;
+    for (const Node *t = c->next; t != c; t = t->next)
+        len++;
+    return len;
+}
+
+void report(const char *name, Node *h)
+{
+    int rounds, tail;
+    Node *meet = floyd_meet(h, &rounds);
+    printf("%s: ", name);
+    if (meet == NULL) {
+        printf("no cycle (%d rounds)\n", rounds);
+        return;
+    }
+    Node *start = cycle_start(h, meet, &tail);
+    printf("meet %d after %d rounds, ", meet->key, rounds);
+    printf("start %d, tail %d, length %d\n", start->key, tail,
+           cycle_length(start));
+}
+
+int main(void)
+{
+    int keys[] = {12, 25, 31, 47, 50, 66, 73, 88};
+    Node a[8];
+    for (int i = 0; i < 8; i++) {
+        a[i].key = keys[i];
+        a[i].next = (i + 1 < 8) ? &a[i + 1] : NULL;
+    }
+    report("chain", &a[0]);
+    a[7].next = &a[3];      // 88 指回 47
+    report("rho", &a[0]);
+    a[7].next = &a[0];      // 88 指回 12：整條是一個環
+    report("ring", &a[0]);
+    a[7].next = &a[7];      // 88 指向自己
+    report("self", &a[0]);
+    return 0;
+}
+\end{example}
+\iosample{}{chain: no cycle (4 rounds) \\ rho: meet 66 after 5 rounds, start 47, tail 3, length 5 \\ ring: meet 12 after 8 rounds, start 12, tail 0, length 8 \\ self: meet 88 after 7 rounds, start 88, tail 7, length 1}
+
+四行都和定理~\ref{thm:ll-floyd} 對得上：沒有環的 $8$ 個節點跑 $\lfloor 8/2 \rfloor =
+4$ 輪；整條是環時 $\mu = 0$，要等 $k^* = \lambda = 8$ 輪，兩個指標都回到 $12$ 才相
+遇；$88$ 指向自己時 $\mu = 7$、$\lambda = 1$，第 $7$ 輪慢指標一走到 $88$ 就和早已停
+在那裡打轉的快指標相遇。 第三種情況相遇點就是起點，第二種不是，所以第二階段不能省。
+
 \section{本章常見錯誤}
 \label{sec:ll-pitfalls}
 
@@ -1366,6 +1708,8 @@ $x$ 指向自己，後半段遺失 & 第~\ref{sec:ll-singly}~節 \\
 回到了 $d$ & 第~\ref{sec:ll-ops}~節 \\
 快慢指標的起點選錯 & 偶數長度時切成「全部＋空的」，合併排序無窮遞迴 &
 第~\ref{sec:ll-ops}~節 \\
+把相遇點當成環的起點 & 判環時第一階段停下的節點直接當答案；$f$ 從 $h.\mathit{next}$
+出發，第二階段卻從相遇點出發 & 第~\ref{sec:ll-cycle}~節 \\
 \bottomrule
 \end{tabular}
 \end{center}
@@ -1509,7 +1853,166 @@ $f \gets h.\mathit{next}$ 改成 $f \gets h$，其他不變。
 \item 用改過的版本切半，再拿去做合併排序（切成兩半、各自遞迴排序、再合併），$n = 2$
 時會發生什麼事？
 \end{enumerate}
+
+\item （計算）一條串列有 $10$ 個節點 $x_0, x_1, \ldots, x_9$，$x_0$ 是 head，
+$x_i.\mathit{next} = x_{i+1}$（$i \le 8$），$x_9.\mathit{next} = x_6$。
+\begin{enumerate}
+\item 寫出這條串列的 $\mu$、$\lambda$。 \proc{Floyd-Meet}（虛擬碼~\ref{alg:ll-floyd}）
+跑幾輪、在哪個節點相遇？ 列出每一輪之後的 $s$、$f$。
+\item \proc{Cycle-Start} 的第二個迴圈跑幾輪？
+\item 把 $x_9.\mathit{next}$ 改成 $x_0$，(a)、(b) 的答案變成什麼？
+\item 節點數固定是 $10$，$x_9.\mathit{next}$ 可以指向 $x_0, \ldots, x_9$ 任何一個。
+哪一種讓 \proc{Floyd-Meet} 跑最多輪、哪一種最少？ 各幾輪？
 \end{enumerate}
+
+\item （設計）兩條沒有環的單向串列，開頭分別是 $a$、$b$，長度 $m$、$n$。 它們可能從
+某個節點 $X$ 開始共用後半段（$X$ 以後的節點兩條串列都有，兩條分支在 $X$ 合成一條，像英文字母 Y）。
+寫出一個 $O(m + n)$ 時間、$O(1)$ 額外空間的程序，回傳第一個共用的節點 $X$，沒有共
+用的節點時回傳 \NIL。 可以暫時改動指標，但結束前要改回來。 （提示：用第~\ref{sec:ll-cycle}~節的
+\proc{Cycle-Start}。）
+\end{enumerate}
+
+\section{歷屆試題}
+\label{sec:ll-pastexam}
+
+以下是研究所入學考試的原題，題目照原卷（語言、記號、配分照錄）。 詳解在本章最後。
+
+\begin{pastexam}[label={px:ll-1}]{臺大資工所 110 學年度 第 VII 題}
+（原卷為單選題，每題答對 5 分，答錯倒扣 2.5 分。）
+
+There is a linked-list with $n$ elements, which are $x_1,x_2,\ldots,x_n$. Let $f(n)$ be
+the time complexity of inserting a new element $x_{n+1}$ to the tail of the list, and
+$g(n)$ be that of deleting the last element $x_n$. If there is only one pointer pointed
+to the head of the list, we know to access the list is time-consuming, and functions
+$f(n)$ and $g(n)$ are denoted as $f_1(n)$ and $g_1(n)$ in this case. To improve it, we
+may also add another pointer pointed to the tail of it, so the functions $f(n)$ and
+$g(n)$ become $f_2(n)$ and $g_2(n)$. Which of the following option is false if $n$
+becomes large. \underline{\makebox[5em]{(13)}}
+
+(A) $\frac{f_1(n)}{g_1(n)}=1$ \qquad (B) $\frac{f_2(n)}{g_2(n)}=n$ \qquad
+(C) $\frac{f_1(n)}{f_2(n)}=n$ \qquad (D) $\frac{g_1(n)}{g_2(n)}=1$
+\end{pastexam}
+
+\begin{pastexam}[label={px:ll-2}]{成大資訊聯招 114 學年度 第 2 題}
+{[3\%]} Given a node structure as shown below:
+\begin{minted}[fontsize=\small]{c}
+typedef struct Node {
+    int data;
+    struct Node* next;
+} Node;
+\end{minted}
+What will the following function do when used on a singly linked list?
+\begin{minted}[fontsize=\small]{c}
+void unknownFunction(Node* node) {
+    if (node == NULL || node->next == NULL) {
+        return;
+    }
+    node->data = node->next->data;
+    Node* temp = node->next;
+    node->next = node->next->next;
+    free(temp);
+}
+\end{minted}
+\begin{enumerate}[label=(\Alph*)]
+\item The function will delete the specified node, including the last node in the list.
+\item The function will delete the specified node only if it is a middle node or any node
+except the last one.
+\item The function will produce a segmentation fault when applied to the last node in
+the list because it attempts to access node->next->data.
+\item The function will remove the node but corrupt the list structure if the deleted
+node has duplicate values in the list.
+\item None of the above is correct.
+\end{enumerate}
+\end{pastexam}
+
+\begin{pastexam}[label={px:ll-3}]{中央資工所 113 學年度 第 8 題}
+（原卷為複選題，每題 5 分，全部答對才給分，答錯倒扣一分。）
+
+Consider the following function that takes reference to head of a Doubly Linked List as
+parameter. Assume that a node of doubly linked list has previous pointer as prev and next
+pointer as next.
+\begin{minted}[fontsize=\small]{c}
+void fun(struct node **head_ref)
+{
+    struct node *temp = NULL;
+    struct node *current = *head_ref;
+
+    while (current != NULL)
+    {
+        temp = current->prev;
+        current->prev = current->next;
+        current->next = temp;
+        current = current->prev;
+    }
+
+    if(temp != NULL )
+        *head_ref = temp->prev;
+}
+\end{minted}
+Assume that reference of head of a doubly linked list L is passed to above function. What
+is the resulting linked list after the function call?
+\begin{enumerate}[label=(\Alph*)]
+\item \texttt{2 <--> 1 <--> 4 <--> 3 <--> 6 <-->5} when L is
+\texttt{2 <--> 1 <--> 4 <--> 3 <--> 6 <-->5}
+\item \texttt{5 <--> 4 <--> 3 <--> 2 <--> 1 <-->6} when L is
+\texttt{5 <-->4 <--> 3 <-->2 <--> 6<-->1}
+\item \texttt{6 <--> 5 <--> 4 <--> 3 <--> 2 <--> 1} when L is
+\texttt{1 <--> 2 <--> 3 <--> 4 <--> 5 <-->6}
+\item \texttt{6 <--> 5 <--> 4 <--> 3 <--> 1 <--> 2} when L is
+\texttt{1 <--> 2 <--> 3 <--> 4 <--> 5 <-->6}
+\end{enumerate}
+\end{pastexam}
+
+\begin{pastexam}[label={px:ll-4}]{臺科大資工所 112 學年度 第 2 題}
+(10\%) Consider the function \textbf{func} as shown below, where the two lists list1 and
+list2 are both ordered in ascending order.
+\begin{minted}[fontsize=\small]{c}
+struct item
+{
+   int value;
+   struct item *next;
+};
+
+int func(struct item *list1, struct item *list2)
+{
+   struct item *ptr1, *ptr2;
+   int count = 0;
+   ptr1 = list1;
+   ptr2 = list2;
+   while ((ptr1 != NULL)&&(ptr2 != NULL))
+   {
+      if (ptr1->value < ptr2->value)
+         ptr1 = ptr1 ->next;
+      else if (ptr1->value > ptr2->value)
+         ptr2 = ptr2->next;
+      else
+      {
+         ptr1 = ptr1->next;
+         ptr2 = ptr2->next;
+         count++;
+      }
+   }
+   return count;
+}
+\end{minted}
+If $m$ and $n$ are the number of items in list1 and list2 respectively, what is the
+worst-case time complexity of func(list1, list2)?
+\end{pastexam}
+
+\begin{pastexam}[label={px:ll-5}]{政大資科所 108 學年度 第 9 題}
+(15\%) Design an algorithm for the following task.
+
+\quad Input: a linked list.\\
+\quad Task: determine whether the linked list contains a cycle.\\
+\quad For example, the following linked list contains a cycle.
+\begin{center}
+\begin{tikzpicture}[>={Stealth[length=2.2mm]},thick,b/.style={draw,minimum size=6mm}]
+\foreach \i in {1,...,5} \node[b] (n\i) at (1.2*\i,0) {};
+\foreach \i/\j in {1/2,2/3,3/4,4/5} \draw[->] (n\i) -- (n\j);
+\draw[->] (n5.south) to[out=-130,in=-50] (n1.south);
+\end{tikzpicture}
+\end{center}
+\end{pastexam}
 
 \section{實作練習}
 \label{sec:ll-practice}
@@ -1560,6 +2063,8 @@ $f \gets h.\mathit{next}$ 改成 $f \gets h$，其他不變。
 $\mathit{next}[\,]$。
 \item 能寫出反轉、合併、快慢指標切半，並用迴圈不變量證明反轉的正確性、算出切半時
 前半的長度。
+\item 能用 Floyd 的快慢指標判斷串列有沒有環、找出環的起點和環長，說明快慢指標為什麼一
+定相遇、為什麼從頭和從相遇點一起走會在起點碰頭，並算出每個階段跑幾輪。
 \end{itemize}
 
 \textbf{延伸閱讀}（書末會整理完整的參考資料）
@@ -1570,6 +2075,8 @@ $\mathit{next}[\,]$。
 \item Donald E. Knuth，\textit{The Art of Computer Programming}，第 1 冊，第 2.2.3 到
 2.2.6 節：鏈結配置、環狀串列、雙向串列和正交串列的原始講法，可用空間串列也在這
 裡。 寫法比較老，適合想看這些結構來源的人。
+\item Donald E. Knuth，\textit{The Art of Computer Programming}，第 2 冊，第 3.1 節習題
+6：Floyd 判環法最早的出處，放在「亂數產生器的週期」的脈絡下，正好是第~\ref{sec:ll-cycle}~節最後說的推廣。
 \item Steven S. Skiena，\textit{The Algorithm Design Manual}，第 3 版，第 3.1 節：
 連續存放和鏈結存放的比較，偏重實務上的取捨。
 \item 《C 程式設計基礎》第~19~章：串列的不變式、頭端插入、指標的指標、串接和有序
@@ -1742,4 +2249,253 @@ $s = x_{\lfloor n/2 \rfloor + 1}$。 $n = 1, \ldots, 6$ 依序是第 $1, 2, 2, 3
 疊）。 所以給合併排序用的切法，偶數長度時一定要停在前一個中間節點，也就是原本的
 $f \gets h.\mathit{next}$。
 \end{enumerate}
+
+\item
+\begin{enumerate}
+\item 尾巴是 $x_0, \ldots, x_5$，$\mu = 6$；環是 $x_6 \to x_7 \to x_8 \to x_9 \to x_6$，
+$\lambda = 4$。 做完 $k$ 輪後 $s = x_k$、$f = x_{2k}$；足標 $t \ge 6$ 時，$x_t$ 就是
+$x_{6 + ((t - 6) \bmod 4)}$。
+\begin{center}
+\begin{tabular}{ccccccccc}
+\toprule
+輪 $k$ & 1 & 2 & 3 & 4 & 5 & 6 & 7 & 8 \\
+\midrule
+$s$ & $x_1$ & $x_2$ & $x_3$ & $x_4$ & $x_5$ & $x_6$ & $x_7$ & $x_8$ \\
+$f$ & $x_2$ & $x_4$ & $x_6$ & $x_8$ & $x_6$ & $x_8$ & $x_6$ & $x_8$ \\
+\bottomrule
+\end{tabular}
+\end{center}
+第 $8$ 輪相遇在 $x_8$。 用定理~\ref{thm:ll-floyd}：$4$ 的倍數裡不小於 $6$ 的最小是
+$8$，一致。
+\item $\mu = 6$ 輪：$s$ 從 $x_0$、$f$ 從 $x_8$ 出發，$6$ 輪後 $s = x_6$，$f = x_{14} =
+x_6$。
+\item $\mu = 0$、$\lambda = 10$。 \proc{Floyd-Meet} 要等 $k^* = 10$ 輪，相遇在
+$x_{10} = x_0$；第二個迴圈一開始 $s = f = x_0$，跑 $0$ 輪，起點是 $x_0$。
+\item 指向 $x_\mu$ 時尾巴長 $\mu$、環長 $10 - \mu$，$k^*$ 是 $10 - \mu$ 的倍數裡不小於
+$\max(\mu, 1)$ 的最小那一個：
+\begin{center}
+\begin{tabular}{ccccccccccc}
+\toprule
+$\mu$ & 0 & 1 & 2 & 3 & 4 & 5 & 6 & 7 & 8 & 9 \\
+\midrule
+$k^*$ & 10 & 9 & 8 & 7 & 6 & 5 & 8 & 9 & 8 & 9 \\
+\bottomrule
+\end{tabular}
+\end{center}
+最多 $10$ 輪（指向 $x_0$，整條是一個環），最少 $5$ 輪（指向 $x_5$）。 一般來說
+$k^*$ 是 $\lambda$ 的正倍數，又不小於 $\mu$，所以 $k^* \ge \max(\mu, \lambda) \ge
+\lceil n/2 \rceil$；$\mu = \lfloor n/2 \rfloor$ 時 $\lambda = \lceil n/2 \rceil \ge \mu$，
+$k^* = \lambda$，下界達到。 上界 $k^* \le n$ 只在 $\mu = 0$ 時達到。
 \end{enumerate}
+
+\item 想法：把 $a$ 那條串列接成一個環，再從 $b$ 出發找環的起點。
+\begin{pseudo}{觀念題 13 的解答}
+\Function{First-Common}{$a, b$}
+    \If{$a = \NIL$ \OR $b = \NIL$}
+        \State \Return \NIL
+    \EndIf
+    \State $t \gets a$
+    \While{$t.\mathit{next} \ne \NIL$} \Comment{找 $a$ 的最後一個節點}
+        \State $t \gets t.\mathit{next}$
+    \EndWhile
+    \State $t.\mathit{next} \gets a$ \Comment{暫時接成環}
+    \State $X \gets \Call{Cycle-Start}{b}$
+    \State $t.\mathit{next} \gets \NIL$ \Comment{改回來}
+    \State \Return $X$
+\EndFunction
+\end{pseudo}
+正確性：接成環之後，環上的節點恰好是 $a$ 那條串列的全部節點。 如果兩條串列從 $X$
+開始共用，從 $b$ 出發會先經過 $b$ 自己的節點（不在 $a$ 上，也就不在環上），第一個
+走到的環上節點就是 $X$；之後一直在環上打轉。 所以從 $b$ 看，這是一條尾巴是 $b$ 獨有
+的那一段、環的起點是 $X$ 的 $\rho$ 形串列，由定理~\ref{thm:ll-floyd}，
+\proc{Cycle-Start} 回傳 $X$。 如果沒有共用的節點，從 $b$ 出發永遠碰不到環，走到
+\NIL，\proc{Cycle-Start} 回傳 \NIL。 第 9 行在回傳之前把 $t.\mathit{next}$ 改回
+\NIL，兩條串列恢復原狀。
+
+時間：找 $t$ 走 $m - 1$ 步；從 $b$ 走得到的節點最多 $m + n$ 個，\proc{Cycle-Start}
+是 $O(m + n)$。 合計 $O(m + n)$，額外空間只有幾個指標。
+
+不改動指標的做法：先各走一次求出 $m$、$n$ 和兩條的最後一個節點；最後一個節點不同
+就沒有共用。 相同的話，讓長的那條先走 $|m - n|$ 步，再兩條一起一次一步，第一次指到
+同一個節點就是 $X$（共用的後半段等長，所以兩個指標會同時到 $X$）。 一樣是
+$O(m + n)$ 時間、$O(1)$ 空間。
+\end{enumerate}
+
+\addcontentsline{toc}{section}{歷屆試題詳解}
+\section*{歷屆試題詳解}
+
+\pastsol{px:ll-1}{臺大資工所 110 學年度 第 VII 題}
+答案是 (B)。
+
+題目沒有說是哪一種串列，但它說刪掉最後一個元素要花時間、而且只多一個 tail 指標，
+這裡照單向串列來解（最後說明為什麼不是雙向）。 選項寫的「$= 1$」「$= n$」不能照字面
+當成比值，應該讀成成長的階數：「$= 1$」是分子和分母同階，「$= n$」是分子比分母多一
+個 $n$ 的因子。
+
+四個函數（第~\ref{sec:ll-variants}~節的比較表就是這四格）：
+\begin{itemize}
+\item $f_1(n) = \Theta(n)$：只有 head，要把 $x_{n+1}$ 接到 $x_n$ 後面，得先從 head 走
+$n - 1$ 步找到 $x_n$。
+\item $g_1(n) = \Theta(n)$：刪 $x_n$ 要把 $x_{n-1}.\mathit{next}$ 設成 \NIL，得先從
+head 走到 $x_{n-1}$。
+\item $f_2(n) = \Theta(1)$：$\mathit{tail}.\mathit{next} \gets x_{n+1}$，
+$\mathit{tail} \gets x_{n+1}$。
+\item $g_2(n) = \Theta(n)$：刪掉 $x_n$ 之後 tail 要改成指向 $x_{n-1}$，單向串列不能從
+$x_n$ 往回走，還是得從 head 找 $x_{n-1}$。 多一個 tail 指標對刪除最後一個沒有幫助。
+\end{itemize}
+
+逐項檢查：
+\begin{itemize}
+\item (A) $f_1 / g_1 = \Theta(n) / \Theta(n)$，同階，對。
+\item (B) $f_2 / g_2 = \Theta(1) / \Theta(n) = \Theta(1/n)$，不是 $n$，\textbf{錯}。 加了 tail 之後
+變快的只有插入，刪除沒有變。
+\item (C) $f_1 / f_2 = \Theta(n) / \Theta(1) = \Theta(n)$，對。
+\item (D) $g_1 / g_2 = \Theta(n) / \Theta(n)$，同階，對。
+\end{itemize}
+
+如果是雙向串列，$g_2$ 會變成 $\Theta(1)$（$x_n.\mathit{prev}$ 就是 $x_{n-1}$），這
+時 (D) 的比值是 $n$，也錯了，單選題會有兩個答案。 所以題意是單向串列。
+
+\pastsol{px:ll-2}{成大資訊聯招 114 學年度 第 2 題}
+答案是 (B)。
+
+函式做的事：把下一個節點的資料抄到 \texttt{node} 裡，再把下一個節點從串列上拿掉、
+釋放。 被釋放的其實是下一個節點，但串列上少掉的是 \texttt{node} 原本的那筆資料，看
+起來就像把 \texttt{node} 刪掉了。 觀念題第 1 題 (d) 的解答用同一招在 $p$ 前面插入，
+這裡反過來用在刪除。 例如串列 $3 \to 8 \to 5$：
+\begin{itemize}
+\item 對存 $8$ 的節點呼叫：它的 \texttt{data} 變成 $5$，\texttt{next} 改成原本 $5$
+那個節點的 \texttt{next}（\texttt{NULL}），再釋放原本存 $5$ 的節點。 結果是 $3 \to 5$，
+正是「刪掉 $8$」。
+\item 對最後一個節點（存 $5$）呼叫：\texttt{node->next == NULL}，直接返回，串列不變。
+\end{itemize}
+
+逐項檢查：
+\begin{itemize}
+\item (A) 錯。 對最後一個節點，函式第一個 \texttt{if} 就返回了，什麼都沒刪。 這也不
+是寫法的疏忽：刪掉最後一個節點要把它前一個節點的 \texttt{next} 設成 \texttt{NULL}，
+函式只拿到 \texttt{node}，沒辦法找到前一個。
+\item (B) 對。 只要 \texttt{node} 不是最後一個，串列上就少了它的資料。
+\item (C) 錯。 函式一開始就檢查 \texttt{node->next == NULL}，最後一個節點在這裡就
+返回了，後面的 \texttt{node->next->data} 根本沒有執行，不會 segmentation fault。
+\item (D) 錯。 函式沒有用資料值去找任何東西，串列裡有沒有重複的值都一樣；它改的兩
+個地方（\texttt{node->data}、\texttt{node->next}）都接得好好的，結構沒有壞。
+\item (E) 錯，因為 (B) 對。
+\end{itemize}
+
+補充：這個技巧在考卷上常出現，但實務上要小心。 真正被 \texttt{free} 的是下一個節點，
+如果程式別的地方還留著指向它的指標（例如串列另外記了 tail，而 \texttt{node} 正好是
+倒數第二個），那個指標就指到已經釋放的記憶體；指向 \texttt{node} 的指標也會發現它
+存的資料變了。
+
+\pastsol{px:ll-3}{中央資工所 113 學年度 第 8 題}
+答案是 (C)。
+
+\texttt{fun} 對每個節點把 \texttt{prev}、\texttt{next} 兩個指標對調，然後讓
+\texttt{current} 走到對調後的 \texttt{prev}，也就是原本的下一個節點，所以每個節點都
+會被處理一次。 每個節點兩個方向都反過來，整條串列就反轉了。 迴圈結束時
+\texttt{temp} 是最後處理的節點 $x_n$ 原本的 \texttt{prev}，也就是 $x_{n-1}$；
+$x_{n-1}$ 對調之後 \texttt{prev} 是原本的 \texttt{next}，也就是 $x_n$，所以
+\texttt{*head\_ref = temp->prev} 讓新的開頭是 $x_n$。
+
+用 L $= 1 \leftrightarrow 2 \leftrightarrow 3 \leftrightarrow 4 \leftrightarrow 5
+\leftrightarrow 6$ 追蹤，每一列是迴圈的一輪（「之後」是對調後的值）：
+\begin{center}
+\begin{tabular}{ccccc}
+\toprule
+\texttt{current} & \texttt{temp} & 之後的 \texttt{prev} & 之後的 \texttt{next} & 下一個 \texttt{current} \\
+\midrule
+1 & \NIL & 2 & \NIL & 2 \\
+2 & 1 & 3 & 1 & 3 \\
+3 & 2 & 4 & 2 & 4 \\
+4 & 3 & 5 & 3 & 5 \\
+5 & 4 & 6 & 4 & 6 \\
+6 & 5 & \NIL & 5 & \NIL \\
+\bottomrule
+\end{tabular}
+\end{center}
+迴圈結束時 \texttt{temp} 是節點 $5$，\texttt{temp->prev} 是 $6$，新的開頭是 $6$。
+從 $6$ 沿著 \texttt{next} 走：$6, 5, 4, 3, 2, 1$；沿著 \texttt{prev} 從 $1$ 往回走也
+是同樣的順序，兩個方向都接對了。
+
+逐項檢查：
+\begin{itemize}
+\item (A) 錯。 \texttt{fun} 會把任何串列反轉，$2, 1, 4, 3, 6, 5$ 反轉是
+$5, 6, 3, 4, 1, 2$，不是原樣。
+\item (B) 錯。 $5, 4, 3, 2, 6, 1$ 反轉是 $1, 6, 2, 3, 4, 5$。
+\item (C) 對，上面的追蹤。
+\item (D) 錯。 反轉後 $1$ 在最後，不會是 $\ldots 1, 2$。
+\end{itemize}
+
+邊界情況：只有一個節點時，迴圈跑一輪，\texttt{temp} 是 \texttt{NULL}，開頭不變，正
+確；空串列時迴圈不跑，也正確。 時間 $\Theta(n)$，額外空間 $\Theta(1)$。 和
+第~\ref{sec:ll-ops}~節單向串列的 \proc{List-Reverse} 比較：雙向串列每個節點本來就
+有兩個方向的指標，對調就好，不用另外記「已經反轉好的一段」。
+
+\pastsol{px:ll-4}{臺科大資工所 112 學年度 第 2 題}
+答案：最壞情況 $\Theta(m + n)$（寫成 $O(m + n)$ 也可以）。
+
+\textbf{上界。} 迴圈每一輪做一次（或兩次）比較，每一輪至少讓 \texttt{ptr1}、
+\texttt{ptr2} 其中一個前進一格。 \texttt{ptr1} 最多前進 $m$ 次，\texttt{ptr2} 最多
+$n$ 次。 設只動 \texttt{ptr1} 的有 $a$ 輪、只動 \texttt{ptr2} 的有 $b$ 輪、兩個都動
+的（值相等）有 $c$ 輪，則 $a + c \le m$、$b + c \le n$，輪數是 $a + b + c$。 迴圈在
+其中一個變成 \texttt{NULL} 時停：
+\begin{itemize}
+\item 若最後一輪是值相等、兩個同時變成 \texttt{NULL}，則 $c \ge 1$，輪數
+$a + b + c \le (m - c) + (n - c) + c = m + n - c \le m + n - 1$。
+\item 否則停下時只有一個走完，例如 \texttt{ptr1} 走完、\texttt{ptr2} 還沒，
+$b + c \le n - 1$，輪數 $\le m + n - 1$。 反過來一樣。
+\end{itemize}
+所以最多 $m + n - 1$ 輪，每輪 $\Theta(1)$，時間 $O(m + n)$。
+
+\textbf{達得到。} 讓兩條串列沒有相同的值，而且全部裡最大和第二大的值分在兩條，例如
+list1 是 $1, 2, \ldots, m - 1, m + n$，list2 是 $m, m + 1, \ldots, m + n - 1$。
+\texttt{ptr1} 先走過 $1, \ldots, m - 1$（$m - 1$ 輪），停在 $m + n$；之後
+\texttt{ptr2} 走過 list2 全部 $n$ 個才變成 \texttt{NULL}。 共 $m + n - 1$ 輪，所以最
+壞情況是 $\Theta(m + n)$。 （這和觀念題第 6 題讓 \proc{Merge-Lists} 比較 $m + n - 1$
+次的輸入是同一組。）
+
+函式算的是兩條串列共同的值有幾個（兩條各自沒有重複值時，就是交集的大小），走法和
+第~\ref{sec:ll-ops}~節的 \proc{Merge-Lists} 一樣，只是不接節點。 最好的情況是一條
+串列的值全部比另一條小，$\min(m, n)$ 輪就停，$\Theta(\min(m, n))$。
+
+\pastsol{px:ll-5}{政大資科所 108 學年度 第 9 題}
+約定：輸入是串列第一個節點的指標 $h$，每個節點有 $\mathit{next}$；輸出 \TRUE（有環）
+或 \FALSE。 用 Floyd 的快慢指標（第~\ref{sec:ll-cycle}~節）：
+
+\begin{pseudo}{政大 108 第 9 題的解答}
+\Function{Has-Cycle}{$h$}
+    \State $s \gets h$；$f \gets h$ \Comment{慢指標、快指標}
+    \While{$f \ne \NIL$ \AND $f.\mathit{next} \ne \NIL$}
+        \State $s \gets s.\mathit{next}$ \Comment{走一步}
+        \State $f \gets f.\mathit{next}.\mathit{next}$ \Comment{走兩步}
+        \If{$s = f$}
+            \State \Return \TRUE
+        \EndIf
+    \EndWhile
+    \State \Return \FALSE
+\EndFunction
+\end{pseudo}
+
+\textbf{正確性。} 做完 $k$ 輪後，$s$ 是從 $h$ 走 $k$ 步到的節點，$f$ 是走 $2k$ 步到
+的節點。
+\begin{itemize}
+\item 沒有環：串列有 $n$ 個節點，$f$ 一直在 $s$ 前面（$2k > k$），兩者是不同的節點，
+第 7 行不會執行；$f$ 每輪前進兩格，最多 $\lfloor n/2 \rfloor$ 輪就使 $f$ 或
+$f.\mathit{next}$ 變成 \NIL，迴圈停下，回傳 \FALSE。
+\item 有環：串列上沒有 \NIL，迴圈只會從第 7 行離開。 設尾巴長 $\mu$、環長 $\lambda$。
+第 $\mu$ 輪 $s$ 走到環上，這時 $f$ 早已在環上，沿著環的方向還要追 $g$ 步才碰到 $s$
+（$0 \le g < \lambda$）。 之後每輪 $f$ 比 $s$ 多走一步，$g$ 恰好減 $1$，不會跳過
+$0$，所以再 $g$ 輪內相遇（$\mu = 0$ 時第 $\lambda$ 輪相遇），回傳 \TRUE。 完整的證
+明是定理~\ref{thm:ll-floyd}。
+\end{itemize}
+
+\textbf{複雜度。} 沒有環時跑 $\lfloor n/2 \rfloor$ 輪；有環時跑的輪數不超過
+$\mu + \lambda = n$。 每輪 $\Theta(1)$，時間 $O(n)$；只用兩個指標，額外空間
+$\Theta(1)$，也不改動串列。 題目圖上的串列是整個環（$\mu = 0$、$\lambda = 5$），第
+$5$ 輪兩個指標在第一個節點相遇。
+
+另一種寫法是用雜湊表（第~12~章）記錄走過的節點，走到記錄過的節點就有環，走到 \NIL
+就沒有；時間一樣是期望 $\Theta(n)$，但要 $\Theta(n)$ 的空間。 題目沒有限制空間時這
+也是正確答案，寫 Floyd 的方法比較好。 如果題目還要求環的起點，接著做
+\proc{Cycle-Start}（虛擬碼~\ref{alg:ll-floyd}）。

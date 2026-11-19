@@ -1309,6 +1309,102 @@ $\sum_{i=1}^{n} f_i(n)$ 不是 $\Theta(1)$。 再說明這和第~\ref{sec:ana-fr
 (e) 不能寫成「$\Theta(\lg n)$ 輪，每輪 $O(n)$，所以 $\Theta(n \lg n)$」有什麼關係。
 \end{enumerate}
 
+\section{歷屆試題}
+\label{sec:ana-pastexam}
+
+以下是研究所入學考試的原題，題目照原卷（語言、記號、配分照錄）。 詳解在本章最後。
+
+\begin{pastexam}[label={px:ana-1}]{臺大資工所 115 學年度 第 2 題}
+(4 points) For positive functions $f(n)$ and $g(n)$ on $\mathbb{N}$. If $f(n)=O(g(n))$
+and $f(n)=\Omega(1)$, how many of the following statements are true?
+\begin{itemize}
+\item $g(n)=\Omega(f(n))$
+\item $f(n)\cdot\log(1+f(n))=O(g(n)\cdot\log(1+g(n)))$
+\item $2^{f(n)}=O(2^{g(n)})$
+\item $(f(n))^k=O((g(n))^k)$ for any $0<k<1$
+\end{itemize}
+(A) 0 \qquad (B) 1 \qquad (C) 2 \qquad (D) 3 \qquad (E) 4
+\end{pastexam}
+
+\begin{pastexam}[label={px:ana-2}]{臺科大資工所 113 學年度 第 I-1 題}
+I.\quad (35\%) Multiple choice questions.
+
+(5\%) Order the following functions by growth rate in increasing order.\\
+$N$, $\sqrt{N}$, $N^{1.5}$, $N\log N$, $N^2$, $N\log(\log N)$, $N\log^2 N$,
+$N\log(N^2)$, $2^N$, 2048\\
+Which is the 5th function in the ordered sequence?\\
+(a) $N$,\quad (b) $\sqrt{N}$,\quad (c) $N^{1.5}$,\quad (d) $N\log N$,\quad (e) $N^2$,\\
+(f) $N\log(\log N)$,\quad (g) $N\log^2 N$,\quad (h) $N\log(N^2)$,\quad (i) $2^N$,\quad
+(j) 2048
+\end{pastexam}
+
+\begin{pastexam}[label={px:ana-3}]{臺科大電子所甲組 110 學年度 第 4 題}
+Suppose we have three functions:
+\begin{minted}[fontsize=\small]{text}
+foo(int N)
+    do something in A steps
+    for i equals 1 to N
+        do something in B steps
+        for j equals 1 to N
+            do something in C steps
+
+goo(int N)
+    do something in A steps
+    for i equals 1 to N
+        do something in B step
+        for j equals 1 to i
+            do something in C steps
+
+poo(int N)
+    do something in A steps
+    for i equals 1 to N
+        do something in B steps
+        for j equals 1 to 250
+            do something in C steps
+\end{minted}
+\begin{enumerate}[label=(\alph*)]
+\item (6\%) For each of the three methods above (foo(), goo(), and poo()), what is the
+exact runtime for each method (in steps) in terms of A, B, C, and N? You should not count
+loop related operations.
+\item (4\%) For N = 100, which one is the fastest algorithm? Why?
+\item (6\%) Assuming that A, B, and C are constants, what is the asymptotic runtime of
+each method in terms of N?
+\item (4\%) As N grows infinitely large, which one is the fastest algorithm?
+\end{enumerate}
+\end{pastexam}
+
+\begin{pastexam}[label={px:ana-4}]{中山資工所 112 學年度 第 2 題}
+The pseudo code for the insertion sort is given as follows.
+\begin{minted}[fontsize=\small]{text}
+Read input elements into a[ ]; //stored in a[1], a[2], ..., a[n]
+for i = 2 to n do
+{
+   j = i;
+   while (j >= 2) and  (a[j] < a[j-1]) do
+   {
+      Swap(a[j], a[j-1]); // exchange a[j] and a[j-1]
+      j = j-1;
+   }
+}
+\end{minted}
+\begin{enumerate}[label=(\alph*)]
+\item (5\%) Suppose that the input elements are 3, 9, 6, 5, 8, 2. How many times
+(counts) are needed for the execution of \texttt{Swap( )}?
+\item (5\%) Suppose that the input is a permutation of $\{1,2,3,\ldots,n\}$. What
+permutation will make \texttt{Swap( )} be executed the least times? How many times?
+\item (5\%) Suppose that the input is a permutation of $\{1,2,3,\ldots,n\}$. What
+permutation will make \texttt{Swap( )} be executed the most times? How many times?
+\end{enumerate}
+\end{pastexam}
+
+\begin{pastexam}[label={px:ana-5}]{政大資科所 110 學年度 第 1 題}
+(10\%) Prove or disprove the following statements ($n$ is the size of the input array):
+\begin{enumerate}[label=\alph*.]
+\item (5\%) The time complexity of any sorting algorithm is $O(n^2)$.
+\item (5\%) The best-case time complexity of insertion sort is $\theta(n\log n)$.
+\end{enumerate}
+\end{pastexam}
+
 \section{實作練習}
 \label{sec:ana-practice}
 
@@ -1483,3 +1579,155 @@ $\Theta(1)$。 「加法」性質只對固定個數的函數成立；項數跟�
 $O(n \lg n)$ 是對的上界，但每一輪的實際工作量在減半，把和算出來只有 $\Theta(n)$。
 「輪數乘上每輪的上界」只能得到上界，要得到 $\Theta$ 必須算和。
 \end{enumerate}
+
+\addcontentsline{toc}{section}{歷屆試題詳解}
+\section*{歷屆試題詳解}
+
+\pastsol{px:ana-1}{臺大資工所 115 學年度 第 2 題}
+答案是 (D)：第 1、2、4 句對，第 3 句錯。
+
+先把已知條件照定義~\ref{def:big-o} 寫出來。 存在 $c > 0$、$n_1$，使 $n \ge n_1$ 時
+$f(n) \le c\,g(n)$；存在 $\delta > 0$、$n_2$，使 $n \ge n_2$ 時 $f(n) \ge \delta$。 把
+$c$ 調大不會讓不等式變錯，所以不妨設 $c \ge 1$。 以下都假設 $n \ge \max(n_1, n_2)$，
+$\log$ 的底是任何大於 $1$ 的固定數。
+
+\begin{itemize}
+\item 第 1 句對。 這是第~\ref{sec:ana-notation}~節的轉置性質：$f(n) \le c\,g(n)$ 就是
+$\frac{1}{c} f(n) \le g(n)$，取常數 $1/c$ 得到 $g(n) = \Omega(f(n))$。
+\item 第 2 句對。 先估 $\log(1 + f)$。 因為 $c \ge 1$，
+$1 + f \le 1 + c\,g \le c\,(1 + g)$，所以 $\log(1 + f) \le \log c + \log(1 + g)$。 要
+把常數 $\log c$ 併進 $\log(1 + g)$，需要 $\log(1 + g)$ 不會趨近 $0$。 這裡用到
+$f = \Omega(1)$：$g \ge f / c \ge \delta / c$，所以
+$\log(1 + g) \ge \log(1 + \delta / c) = \lambda$，$\lambda$ 是一個正的常數。 於是
+$\log c \le \frac{\log c}{\lambda} \log(1 + g)$，
+\[
+\log(1 + f) \le \Bigl(1 + \frac{\log c}{\lambda}\Bigr) \log(1 + g).
+\]
+再和 $f \le c\,g$ 相乘（兩邊都是正的），得到
+$f \log(1 + f) \le c\,\bigl(1 + \frac{\log c}{\lambda}\bigr)\, g \log(1 + g)$，括號外
+是常數。
+\item 第 3 句錯。 反例：$f(n) = 2n$、$g(n) = n$。 $f = O(g)$（取 $c = 2$），
+$f = \Omega(1)$，但 $2^{f(n)} / 2^{g(n)} = 2^{n} \to \infty$，由定理~\ref{thm:limit}，
+$2^{2n} \ne O(2^n)$。 第~\ref{sec:ana-functions}~節說過，指數上的常數倍不能丟。
+\item 第 4 句對。 $k > 0$ 時 $x^k$ 在正數上是遞增函數，$f \le c\,g$ 兩邊取 $k$ 次方得
+$f^k \le c^k g^k$，取常數 $c^k$。 這一步其實對任何 $k > 0$ 都成立。
+\end{itemize}
+
+\pastsol{px:ana-2}{臺科大資工所 113 學年度 第 I-1 題}
+答案是 (d) $N \log N$。
+
+先化簡：$N \log(N^2) = 2N \log N$，$N \log^2 N = N (\log N)^2$。 $\log$ 的底不影響比
+較（第~\ref{sec:ana-functions}~節）。 由小到大是
+\[
+2048 < \sqrt{N} < N < N \log(\log N) < N \log N < N \log(N^2) < N \log^2 N < N^{1.5}
+< N^2 < 2^N .
+\]
+相鄰兩個逐一說明（除了第 5、6 個，每一對的比值極限都是 $0$，用定理~\ref{thm:limit}）：
+\begin{itemize}
+\item $2048$ 是常數，$\sqrt{N} \to \infty$；$\sqrt{N} / N = 1/\sqrt{N} \to 0$。
+\item $N / (N \log\log N) = 1 / \log\log N \to 0$。
+\item $N \log\log N / (N \log N) = \log\log N / \log N$：令 $m = \log N$，這是
+$\log m / m \to 0$。
+\item $N \log N$ 和 $N \log(N^2) = 2N \log N$ 只差 $2$ 倍，是同一個 $\Theta$；但
+$N \ge 2$ 時 $N \log N$ 嚴格比較小。
+\item $2N \log N / (N \log^2 N) = 2 / \log N \to 0$。
+\item $N \log^2 N / N^{1.5} = (\log N)^2 / N^{0.5} \to 0$（第~\ref{sec:ana-functions}~節
+第 1 點：任何次方的對數都比任何正次方的多項式慢）。
+\item $N^{1.5} / N^2 \to 0$；$N^2 / 2^N \to 0$（第 2 點）。
+\end{itemize}
+第 5 個是 $N \log N$。 題目要的是「排好的序列裡的第 5 個」，第 5、6 個同一級時，照
+實際大小排，$N \log N$ 在前。 （代 $N = 2^{64}$ 實際算出十個值再排序，順序和上面相
+同。）
+
+\pastsol{px:ana-3}{臺科大電子所甲組 110 學年度 第 4 題}
+題目說不計迴圈本身的操作，所以只數三種 do something 各做幾次，再乘上各自的步數，
+和第~\ref{sec:ana-line-cost}~節的逐行計算一樣。 原題 goo 第 4 行的 ``B step'' 應該是
+``B steps''，不影響答案。
+
+(a)
+\begin{itemize}
+\item foo：A 做 $1$ 次；外層 $i$ 從 $1$ 到 $N$，B 做 $N$ 次；內層每輪跑 $N$ 次，C 做
+$N \cdot N$ 次。 $T_{\mathrm{foo}}(N) = A + NB + N^2 C$。
+\item goo：內層 $j$ 從 $1$ 到 $i$，跑 $i$ 次，C 共做
+$\sum_{i=1}^{N} i = N(N+1)/2$ 次。 $T_{\mathrm{goo}}(N) = A + NB + N(N+1)C/2$。
+\item poo：內層固定跑 $250$ 次，C 共做 $250N$ 次。
+$T_{\mathrm{poo}}(N) = A + NB + 250NC$。
+\end{itemize}
+
+(b) 代 $N = 100$：
+\[
+T_{\mathrm{foo}} = A + 100B + 10000C,\quad
+T_{\mathrm{goo}} = A + 100B + 5050C,\quad
+T_{\mathrm{poo}} = A + 100B + 25000C .
+\]
+三者的 A、B 部分相同，只比 C 的次數：$5050 < 10000 < 25000$，所以 goo 最快（假設
+$C > 0$；$C = 0$ 時三者一樣）。
+
+(c) A、B、C 是正的常數。 foo 的最高次項是 $CN^2$，是 $\Theta(N^2)$（第~\ref{sec:ana-notation}~節
+例 3 的多項式只看最高次）。 goo 是 $\frac{C}{2}N^2 + (B + \frac{C}{2})N + A$，也是
+$\Theta(N^2)$。 poo 是 $(B + 250C)N + A$，是 $\Theta(N)$。
+
+(d) poo。 它是 $\Theta(N)$，另外兩個是 $\Theta(N^2)$，$N$ 夠大以後一定是 poo 最快。
+交叉點也算得出來：poo 的 C 比 foo 少，等於 $250N < N^2$，也就是 $N > 250$；比 goo
+少，等於 $250N < N(N+1)/2$，也就是 $N > 499$。 所以 $N \ge 500$ 時 poo 最快，
+$N = 499$ 時 poo 和 goo 的 C 都做 $124750$ 次。 (b) 和 (d) 的答案不同，因為漸近的
+比較只管 $N$ 夠大的情形，$N = 100$ 時常數 $250$ 還佔上風。 （用小程式實際數過
+$N = 100$、$499$、$500$ 時三段程式裡 C 執行的次數，和公式一致。）
+
+\pastsol{px:ana-4}{中山資工所 112 學年度 第 2 題}
+題目的版本用相鄰交換：每一輪把 $a[j]$ 和左邊比它大的鄰居交換，一路換到左邊不比它
+大為止。 一次交換讓兩個相鄰而且逆序的數變成順序對，其他數對的前後關係不變，所以剛好
+消掉一個逆序對。 這和第~\ref{sec:ana-insertion}~節「挪動次數等於逆序對個數」是同一
+個論證：\texttt{Swap} 執行的次數等於輸入的逆序對個數。
+
+(a) $9$ 次。 每一輪之後的陣列：
+\begin{center}
+\begin{tabular}{cccl}
+\toprule
+$i$ & 這一輪的 $a[i]$ & 交換次數 & 這一輪之後 \\
+\midrule
+2 & 9 & 0 & 3 9 6 5 8 2 \\
+3 & 6 & 1 & 3 6 9 5 8 2 \\
+4 & 5 & 2 & 3 5 6 9 8 2 \\
+5 & 8 & 1 & 3 5 6 8 9 2 \\
+6 & 2 & 5 & 2 3 5 6 8 9 \\
+\midrule
+合計 & & 9 & \\
+\bottomrule
+\end{tabular}
+\end{center}
+用逆序對驗算：$(3,2)$、$(9,6)$、$(9,5)$、$(9,8)$、$(9,2)$、$(6,5)$、$(6,2)$、
+$(5,2)$、$(8,2)$，共 $9$ 個。
+
+(b) $1, 2, \ldots, n$（已經排好），$0$ 次。 交換次數等於逆序對個數，不會是負的；等於
+$0$ 表示沒有任何逆序對，也就是已經由小到大排好，而 $\{1, \ldots, n\}$ 排好的排列只有
+這一個。
+
+(c) $n, n-1, \ldots, 1$（完全相反），$n(n-1)/2$ 次。 $n$ 個位置共有 $\binom{n}{2}$
+對，每一對最多貢獻一個逆序對，所以交換次數最多 $n(n-1)/2$；要每一對都是逆序，排列
+只能是完全相反的那一個。 直接數也一樣：第 $i$ 輪的 $a[i]$ 比左邊每個數都小，要換
+$i - 1$ 次，$\sum_{i=2}^{n} (i - 1) = n(n-1)/2$。 （用程式對 $n \le 7$ 的所有排列檢
+查過，最少和最多都只有這兩個排列達到。）
+
+\pastsol{px:ana-5}{政大資科所 110 學年度 第 1 題}
+兩句都是錯的。 原題 b 的小寫 $\theta$ 指的就是 $\Theta$。
+
+a.\ 錯。 這句話說的是「每一個排序演算法」，要否定它，舉出一個不是 $O(n^2)$ 的排序
+演算法就夠了。 例子：先用遞迴產生 $n$ 個位置的全部 $n!$ 種排列（範例~\ref{ex:avg-shift}
+的 \texttt{gen} 就是這樣產生排列），每一種都花 $n - 1$ 次比較檢查照這個順序讀出來是
+不是由小到大，最後輸出排好的那一種。 排好的順序一定在這 $n!$ 種裡，所以輸出正確；
+不管輸入是什麼，比較次數都是 $n! \cdot (n - 1)$。 而
+\[
+\frac{n! \cdot (n-1)}{n^2} = \frac{(n-1)! \cdot (n-1)}{n} \ge \frac{(n-1)!}{2} \to \infty
+\qquad (n \ge 2),
+\]
+由定理~\ref{thm:limit}，$n!\,(n-1) \ne O(n^2)$。 這個演算法很笨，但它是一個正確的排
+序演算法，所以原句不成立。 如果把原句讀成「排序這個問題可以在 $O(n^2)$ 時間內解決」，
+那是對的（插入排序最壞是 $\Theta(n^2)$，第~\ref{sec:ana-cases}~節）；作答時把這個差
+別寫出來。
+
+b.\ 錯。 插入排序的最好情況是 $\Theta(n)$。 輸入已經排好時，每一輪第一次比較就停，
+共 $n - 1$ 次比較、$0$ 次挪動，第~\ref{sec:ana-line-cost}~節算出執行時間是 $an + b$
+的形式，$a > 0$；任何輸入都至少要把 $n$ 個數各看一次，最好情況也不會更少。 而
+$n / (n \lg n) = 1 / \lg n \to 0$，由定理~\ref{thm:limit}，$n \ne \Omega(n \lg n)$，
+所以最好情況的時間不是 $\Theta(n \log n)$。

@@ -1609,6 +1609,134 @@ $\mathit{ee}[j] = \max_{\langle i, j \rangle} (\mathit{ee}[i] + \mathit{dur})$ �
 $\mathit{ee}[j]$，等於從 $s$ 到 $j$ 的最長路徑長度。 （提示：先說明每個事件都走得到。）
 \end{enumerate}
 
+\tpsneed{11cm}
+\section{歷屆試題}
+\label{sec:tps-pastexam}
+
+以下是研究所入學考試的原題，題目照原卷（語言、記號、配分照錄）。 詳解在本章最後。
+
+\begin{pastexam}[label={px:tps-1}]{中正資工所甲組 113 學年度 第 9 題}
+Given the directed graph below, please answer the following questions from Q8 to Q9.
+\begin{center}
+\begin{tikzpicture}[font=\sffamily\small,>={Stealth[length=2mm]},thick]
+\node[draw,circle,minimum size=8mm,inner sep=0pt,font=\sffamily\bfseries] (A) at (1.24,-3.49) {A};
+\node[draw,circle,minimum size=8mm,inner sep=0pt,font=\sffamily\bfseries] (B) at (2.53,-1.85) {B};
+\node[draw,circle,minimum size=8mm,inner sep=0pt,font=\sffamily\bfseries] (F) at (5.35,-1.12) {F};
+\node[draw,circle,minimum size=8mm,inner sep=0pt,font=\sffamily\bfseries] (D) at (4.29,-3.49) {D};
+\node[draw,circle,minimum size=8mm,inner sep=0pt,font=\sffamily\bfseries] (E) at (7.82,-3.49) {E};
+\node[draw,circle,minimum size=8mm,inner sep=0pt,font=\sffamily\bfseries] (C) at (5.06,-5.47) {C};
+\draw[->] (A)--node[above left,inner sep=1pt]{10}(B);
+\draw[->] (B)--node[above,inner sep=2pt]{15}(F);
+\draw[->] (B)--node[below left,inner sep=1pt]{12}(D);
+\draw[->] (D)--node[right,inner sep=4pt]{1}(F);
+\draw[->] (D)--node[above,inner sep=2pt]{2}(E);
+\draw[->] (F)--node[above right,inner sep=1pt]{5}(E);
+\draw[->] (A)--node[below left,inner sep=1pt]{15}(C);
+\draw[->] (C)--node[below right,inner sep=1pt]{10}(E);
+\end{tikzpicture}
+\end{center}
+(2\%) What is the topological ordering of the graph? You must choose the node with the label that has the smallest alphabetical order first, when finding the topological order.
+\begin{enumerate}[label=\Alph*.]
+\item A$\to$B$\to$D$\to$F$\to$E$\to$C
+\item A$\to$C$\to$E$\to$B$\to$D$\to$F
+\item A$\to$B$\to$D$\to$E$\to$C$\to$F
+\item A$\to$B$\to$C$\to$D$\to$F$\to$E
+\item None of the above
+\end{enumerate}
+\end{pastexam}
+
+\begin{pastexam}[label={px:tps-2}]{北科大資工所 107 學年度 第 4 題}
+(6 pts) Consider the \emph{directed acyclic graph} (DAG) G in Figure 1. Suppose we use the DFS-based approach to find a \emph{topological order} starting with node $B$. Since we use DFS on the DAG, we can have a DFS-tree $T$ rooted at $B$. Mark by \textbf{True} or \textbf{False} each of the following statements:
+
+\begin{center}
+\begin{tikzpicture}[x=0.0125cm,y=-0.0125cm,v/.style={circle,draw,thick,minimum size=6.5mm,inner sep=0pt},e/.style={thick,-{Latex[length=2.2mm]}}]
+\node[v] (A) at (122,92) {$\boldsymbol{A}$};
+\node[v] (C) at (322,92) {$\boldsymbol{C}$};
+\node[v] (E) at (512,92) {$\boldsymbol{E}$};
+\node[v] (B) at (122,348) {$\boldsymbol{B}$};
+\node[v] (D) at (322,348) {$\boldsymbol{D}$};
+\node[v] (F) at (512,348) {$\boldsymbol{F}$};
+\draw[e] (A)--(C); \draw[e] (C)--(E); \draw[e] (B)--(A); \draw[e] (B)--(D); \draw[e] (D)--(C); \draw[e] (C)--(F);
+\end{tikzpicture}\\[2pt]
+Figure 1. Directed acyclic graph (DAG) $G$ in problem 4\end{center}
+\begin{enumerate}[label=(\arabic*)]
+\item (2 pts) There are five possible resulting topological sorts.
+\item (2 pts) There is no forward edge in $T$ by observation. So, a DAG cannot have forward edges.
+\item (2 pts) There is only one cross edge in $T$.
+\end{enumerate}
+\end{pastexam}
+
+\begin{pastexam}[label={px:tps-3}]{中央資工所 112 學年度 問答題第 1 題（節錄 (a)(b) 小題）}
+Given a directed graph $G=(V,E)$, and two vertices $u$ and $v$ in $V$, we call vertex $v$ is reachable from $u$, if there exists a directed path from $u$ to $v$. A vertex $s$ in $V$ is called a source vertex if every vertex in $V$ is reachable from $s$.
+
+(a) (8\%) Given a directed graph $G=(V,E)$, and a specified vertex $v$ in $V$, design a linear time algorithm (i.e. your algorithm should run in $O(|V|+|E|)$ time) to determine if $v$ is a source vertex. You need to describe the data structure used in your algorithm.
+
+(b) (8\%) Given a directed acyclic graph (DAG; a directed graph is acyclic if it contains no directed cycles) $G=(V,E)$, you are asked to determine if $G$ contains a source vertex. If you apply the algorithm of subproblem (a) on every vertex of $G$, you will get an algorithm runs in $O(|V|^2+|V||E|)$ time. It is not desirable. Design a more efficient algorithm for this problem. Analyze the time complexity of your algorithm.
+\end{pastexam}
+
+\begin{pastexam}[label={px:tps-4}]{成大資訊聯招 108 學年度 第 2 題}
+Consider the following AOE network: (18\%)
+\begin{center}
+\begin{tikzpicture}[x=0.0145cm,y=-0.0145cm,>={Latex[length=2.2mm,width=1.6mm]},
+  v/.style={circle,draw,fill=black!18,inner sep=0pt,minimum size=7mm,font=\itshape},
+  l/.style={inner sep=1.5pt}]
+\node[v] (v0) at (133,172) {$v_0$};
+\node[v] (v1) at (302,70) {$v_1$};
+\node[v] (v2) at (302,230) {$v_2$};
+\node[v] (v3) at (213,340) {$v_3$};
+\node[v] (v4) at (455,160) {$v_4$};
+\node[v] (v5) at (455,340) {$v_5$};
+\node[v] (v6) at (640,70) {$v_6$};
+\node[v] (v7) at (587,215) {$v_7$};
+\node[v] (v8) at (750,240) {$v_8$};
+\node[left=2pt of v0] {start};
+\node[right=5pt of v8] {finish};
+\draw[->] (v0) -- (v1);
+\draw[->] (v0) -- (v2);
+\draw[->] (v0) -- (v3);
+\draw[->] (v1) -- (v4);
+\draw[->] (v2) -- (v4);
+\draw[->] (v3) -- (v5);
+\draw[->] (v4) -- (v6);
+\draw[->] (v4) -- (v7);
+\draw[->] (v5) -- (v7);
+\draw[->] (v6) -- (v8);
+\draw[->] (v7) -- (v8);
+\draw[->] (v5) -- (v8);
+\node[l] at (203,97) {$a_1=9$};
+\node[l] at (236,170) {$a_2=4$};
+\node[l] at (128,272) {$a_3=7$};
+\node[l] at (405,75) {$a_4=2$};
+\node[l] at (362,176) {$a_5=2$};
+\node[l] at (333,320) {$a_6=4$};
+\node[l] at (527,78) {$a_7=5$};
+\node[l] at (555,145) {$a_8=7$};
+\node[l] at (474,264) {$a_9=7$};
+\node[l] at (753,112) {$a_{10}=1$};
+\node[l] at (660,181) {$a_{11}=1$};
+\node[l] at (650,325) {$a_{12}=3$};
+\end{tikzpicture}
+\end{center}
+\begin{enumerate}[label=(\arabic*)]
+\item Obtain $e(i)$ and $l(i)$ for all activity $i$. (7\%)
+\item List all critical activities. (7\%)
+\item List all critical paths. (4\%)
+\end{enumerate}
+\end{pastexam}
+
+\begin{pastexam}[label={px:tps-5}]{臺大資工所 113 學年度 第 12 題}
+(5 points) Consider a directed acylic graph $G=(V,E)$ of $n$ tasks where every node is a task and every edge is a dependency. If there is an edge from a task $v$ to another task $w$, that means we need to finish $v$ before starting $w$. We have $p$ processors of the same capability and every processor can finish any task in one unit of time.
+
+We define a schedule function $s$ to map a task $v$ to a positive integer time step $s(v)$. Since we have only $p$ processors, so the system can only process at most $p$ tasks in one time step. Also, a schedule needs to respect the dependency of edges.
+\begin{enumerate}[label=\Alph*.]
+\item For every positive integer $i$, $|\{v\mid s(v)\le i\}|\le p$.
+\item If there is a path $(v_{i_1},\ldots,v_{i_k})$ in $G$, then $s(v_{i_j})<s(v_{i_k})$ for $1\le j\le k$.
+\item The number of time steps required is at least $\min(\lceil n/p\rceil,L)$, where $L$ is the number of tasks along the longest path in $G$.
+\item Without loss of generality, we can always assume $s(v)=1$ for all $v$'s without incoming edges.
+\item If the number of processors is infinite, then we can finish all tasks in $L$ time steps, where $L$ is the number of tasks along the longest path in $G$.
+\end{enumerate}
+\end{pastexam}
+
 \section{實作練習}
 \label{sec:tps-practice}
 
@@ -1860,3 +1988,208 @@ $\langle i, j \rangle$，前面那段是 $s$ 到 $i$ 的路徑，長度不超過
 $s$ 到 $i$ 的最長路徑接上 $\langle i, j \rangle$，是一條長度 $\mathit{ee}[j]$ 的路徑（有向
 無環圖上不會重複經過 $j$），所以 $L(j) \ge \mathit{ee}[j]$。
 \end{enumerate}
+
+\addcontentsline{toc}{section}{歷屆試題詳解}
+\section*{歷屆試題詳解}
+
+\pastsol{px:tps-1}{中正資工所甲組 113 學年度 第 9 題}
+答案是 D（$A \to B \to C \to D \to F \to E$）。 邊上的數字是第 8 題 Dijkstra 用的成本，拓樸排序用不到。
+「每次挑字母最小的」就是第~\ref{sec:tps-kahn-trace}~節的最小優先佇列版 Kahn 演算法。 一開始的入度是
+$A\colon 0$、$B\colon 1$、$C\colon 1$、$D\colon 1$、$E\colon 3$、$F\colon 2$。
+
+\begin{center}
+\small
+\begin{tabular}{cc*{6}{c}l}
+\toprule
+步驟 & 取出 & $A$ & $B$ & $C$ & $D$ & $E$ & $F$ & 可取的頂點 \\
+\midrule
+開始 & & 0 & 1 & 1 & 1 & 3 & 2 & $\{A\}$ \\
+1 & $A$ & \tpsgone & 0 & 0 & 1 & 3 & 2 & $\{B, C\}$ \\
+2 & $B$ & \tpsgone & \tpsgone & 0 & 0 & 3 & 1 & $\{C, D\}$ \\
+3 & $C$ & \tpsgone & \tpsgone & \tpsgone & 0 & 2 & 1 & $\{D\}$ \\
+4 & $D$ & \tpsgone & \tpsgone & \tpsgone & \tpsgone & 1 & 0 & $\{F\}$ \\
+5 & $F$ & \tpsgone & \tpsgone & \tpsgone & \tpsgone & 0 & \tpsgone & $\{E\}$ \\
+6 & $E$ & \tpsgone & \tpsgone & \tpsgone & \tpsgone & \tpsgone & \tpsgone & （空） \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+其他選項：
+\begin{itemize}
+\item A：$A, B, D, F, E, C$ 違反邊 $C \to E$（$E$ 排在 $C$ 前面），根本不是拓樸順序。 第 3 步時 $C$、$D$
+都可以取，照規則也該先取 $C$。
+\item B：$E$ 排在 $B$、$D$、$F$ 前面，違反 $D \to E$、$F \to E$。
+\item C：$E$ 排在 $C$、$F$ 前面，違反 $C \to E$、$F \to E$。
+\item E：D 是對的，所以不選。
+\end{itemize}
+
+\pastsol{px:tps-2}{北科大資工所 107 學年度 第 4 題}
+答案：(1) False，(2) False，(3) True。
+
+圖的邊是 $A \to C$、$B \to A$、$B \to D$、$C \to E$、$C \to F$、$D \to C$。 題目沒有指定鄰接串列的順序，
+先照字母順序做一次 DFS（虛擬碼~\ref{alg:tps-dfs}，從 $B$ 開始）：
+$B$（$d = 1$）$\to A$（$2$）$\to C$（$3$）$\to E$（$4$，完成 $5$）；$C \to F$（$6$，完成 $7$）；$C$ 完成
+$8$、$A$ 完成 $9$；回到 $B$，$B \to D$（$10$），$D \to C$ 時 $C$ 是黑的、$d[D] > d[C]$，是交叉邊；$D$ 完成
+$11$、$B$ 完成 $12$。 依 $f$ 由大到小得到 $B, D, A, C, F, E$。
+
+\textbf{(1) False。} 拓樸順序共有 $4$ 個，不是 $5$ 個。 $B$ 是唯一入度 $0$ 的頂點，一定排第一；$C$ 要等
+$A$、$D$，所以第二、三個位置是 $A$、$D$ 的兩種排法；接著是 $C$；最後 $E$、$F$ 兩種排法。 共
+$2 \times 2 = 4$ 個：
+\[
+BADCEF,\quad BADCFE,\quad BDACEF,\quad BDACFE.
+\]
+如果把題目理解成「DFS 法在不同的鄰接串列順序下能產生幾種結果」，答案也是 $4$：$\mathit{Adj}[B]$ 先
+$A$ 或先 $D$、$\mathit{Adj}[C]$ 先 $E$ 或先 $F$，四種組合正好得到上面四個順序。 不管哪一種讀法都不是
+$5$。
+
+\textbf{(2) False。} 前半句對：這一次 DFS 確實沒有前向邊。 但「所以 DAG 不會有前向邊」不成立，一個例
+子不能推出一般的結論。 反例：三個頂點，邊 $x \to y$、$y \to z$、$x \to z$，$\mathit{Adj}[x] = y, z$。
+從 $x$ 做 DFS，$x \to y \to z$ 都是樹邊；回到 $x$ 看 $x \to z$ 時，$z$ 是黑的、$d[x] < d[z]$，是前向邊。 這
+張圖沒有環。 第~\ref{sec:tps-dfs}~節說過，DAG 上不會出現的只有後向邊。
+
+\textbf{(3) True。} 從 $B$ 走得到全部 $6$ 個頂點，DFS 森林只有一棵樹，樹邊 $6 - 1 = 5$ 條；全部 $6$ 條邊，
+剩下 $1$ 條不是樹邊。 DAG 沒有後向邊（定理~\ref{thm:gtr-cycle}）。 照字母順序時剩下的是 $D \to C$，上面已經
+看到是交叉邊。 換成別的鄰接串列順序結論也一樣：$C$ 的兩個前驅 $A$、$D$ 先被走到的那一個發現 $C$（樹
+邊），另一個看到 $C$ 時 $C$ 已經是黑的，而且 $C$ 不是它的子孫（$A$、$D$ 都是 $B$ 的子節點，互不為祖先
+子孫），所以是交叉邊，不是前向邊。
+
+\pastsol{px:tps-3}{中央資工所 112 學年度 問答題第 1 題（節錄 (a)(b) 小題）}
+先注意用詞：題目的 source vertex 是「走得到所有頂點的頂點」，和本書的\textbf{源點}（入度 $0$ 的頂點）
+不是同一個意思。 下面照題目稱它為 source vertex。 $n = |V|$、$m = |E|$。
+
+\textbf{(a)} 資料結構：鄰接串列（$\mathit{Adj}[u]$ 存 $u$ 的出邊另一端，第~\ref{sec:gtr-repr}~節）、顏色陣
+列 $\mathit{color}[1..n]$，以及 BFS 用的佇列（長度 $n$ 的陣列就夠，第~\ref{sec:gtr-bfs}~節）。 演算法：從
+$v$ 做一次 BFS（虛擬碼~\ref{alg:gtr-bfs}），數被發現的頂點個數；等於 $n$ 就回答「是」，否則「不是」。 BFS
+發現的頂點恰好是從 $v$ 可到達的頂點（定理~\ref{thm:gtr-bfs}：可到達的頂點 $d$ 有限，到不了的仍是
+$\infty$），所以數到 $n$ 個若且唯若每個頂點都可從 $v$ 到達。 時間 $\Theta(n + m)$。 用 DFS 也可以。
+
+\textbf{(b)} 結論：DAG 有 source vertex，若且唯若\textbf{恰好有一個}入度 $0$ 的頂點；這時那個頂點就是
+source vertex。
+
+\begin{proof}
+由引理~\ref{lem:tps-source}，至少一個頂點的 DAG 一定有入度 $0$ 的頂點。
+
+（只有一個入度 $0$ 的頂點 $z$ $\Rightarrow$ $z$ 是 source vertex。）任取頂點 $v$，從 $v$ 沿著\textbf{進來}的
+邊往回走：入度不是 $0$ 就一定能再退一步。 圖沒有環，退的路上不會重複頂點，最多 $n - 1$ 步就停在一個入
+度 $0$ 的頂點，也就是 $z$。 把這條退回去的路倒過來，就是從 $z$ 到 $v$ 的路徑。
+
+（有兩個以上入度 $0$ 的頂點 $\Rightarrow$ 沒有 source vertex。）設 $z_1 \ne z_2$ 入度都是 $0$。 沒有邊指向
+$z_1$，所以除了 $z_1$ 自己，誰都到不了 $z_1$；同理只有 $z_2$ 到得了 $z_2$。 一個 source vertex 要同時到得了
+$z_1$ 和 $z_2$，只能既是 $z_1$ 又是 $z_2$，不可能。
+\end{proof}
+
+\begin{pseudo}[label=alg:tps-px-source]{DAG 有沒有 source vertex}
+\Function{DAG-Source}{$G$}
+    \For{$v \gets 1$ \To $n$}
+        \State $\mathit{in}[v] \gets 0$
+    \EndFor
+    \For{$u \gets 1$ \To $n$}
+        \For{每個 $v \in \mathit{Adj}[u]$}
+            \State $\mathit{in}[v] \gets \mathit{in}[v] + 1$
+        \EndFor
+    \EndFor
+    \State $c \gets 0$
+    \For{$v \gets 1$ \To $n$}
+        \If{$\mathit{in}[v] = 0$}
+            \State $c \gets c + 1$；$z \gets v$
+        \EndIf
+    \EndFor
+    \If{$c = 1$}
+        \State \Return $z$ \Comment{$z$ 是 source vertex}
+    \EndIf
+    \State \Return \NIL \Comment{沒有 source vertex}
+\EndFunction
+\end{pseudo}
+
+第 2--6 行和 Kahn 演算法（虛擬碼~\ref{alg:tps-kahn}）算入度的部分一樣，$\Theta(n + m)$；第 7--13 行
+$\Theta(n)$。 總時間 $\Theta(n + m)$，比對每個頂點做一次 (a) 的 $O(n^2 + nm)$ 好。 題目保證是 DAG，所以不必
+檢查環；如果不確定，可以把第 2--6 行換成整個 Kahn 演算法，順便檢查有沒有排完。 另一種做法是先做拓樸
+排序，再從排第一的頂點做一次 (a)：有 source vertex 時它一定排第一（別人都得排在它後面），只要檢查這
+一個，總時間也是 $\Theta(n + m)$。
+
+\pastsol{px:tps-4}{成大資訊聯招 108 學年度 第 2 題}
+記號照第~\ref{sec:tps-aoe}~節：事件的最早、最晚時間 $\mathit{ee}$、$\mathit{le}$，活動 $a_i = \langle j, k
+\rangle$ 的 $e(i) = \mathit{ee}[j]$、$l(i) = \mathit{le}[k] - \mathit{dur}(a_i)$。 每條邊都從編號小的事件指向編
+號大的，$v_0, v_1, \ldots, v_8$ 就是一個拓樸順序。
+
+\textbf{往前算 $\mathit{ee}$、往回算 $\mathit{le}$：}
+
+\begin{center}
+\small
+\begin{tabular}{cll}
+\toprule
+事件 & $\mathit{ee}$ & $\mathit{le}$ \\
+\midrule
+$v_0$ & $0$ & $\min(9 - 9,\ 9 - 4,\ 7 - 7) = 0$ \\
+$v_1$ & $0 + 9 = 9$ & $11 - 2 = 9$ \\
+$v_2$ & $0 + 4 = 4$ & $11 - 2 = 9$ \\
+$v_3$ & $0 + 7 = 7$ & $11 - 4 = 7$ \\
+$v_4$ & $\max(9 + 2,\ 4 + 2) = 11$ & $\min(18 - 5,\ 18 - 7) = 11$ \\
+$v_5$ & $7 + 4 = 11$ & $\min(18 - 7,\ 19 - 3) = 11$ \\
+$v_6$ & $11 + 5 = 16$ & $19 - 1 = 18$ \\
+$v_7$ & $\max(11 + 7,\ 11 + 7) = 18$ & $19 - 1 = 18$ \\
+$v_8$ & $\max(16 + 1,\ 18 + 1,\ 11 + 3) = 19$ & $19$（結束事件，$= \mathit{ee}[v_8]$） \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+最短工期 $T = 19$。 開始事件的 $\mathit{le}$ 算回 $0$，驗算通過。
+
+\textbf{(1) 每項活動的 $e$、$l$：}
+
+\begin{center}
+\small
+\begin{tabular}{cccccc}
+\toprule
+活動 & 邊 & 工期 & $e$ & $l$ & $l - e$ \\
+\midrule
+$a_1$ & $\langle v_0, v_1 \rangle$ & 9 & 0 & $9 - 9 = 0$ & 0 \\
+$a_2$ & $\langle v_0, v_2 \rangle$ & 4 & 0 & $9 - 4 = 5$ & 5 \\
+$a_3$ & $\langle v_0, v_3 \rangle$ & 7 & 0 & $7 - 7 = 0$ & 0 \\
+$a_4$ & $\langle v_1, v_4 \rangle$ & 2 & 9 & $11 - 2 = 9$ & 0 \\
+$a_5$ & $\langle v_2, v_4 \rangle$ & 2 & 4 & $11 - 2 = 9$ & 5 \\
+$a_6$ & $\langle v_3, v_5 \rangle$ & 4 & 7 & $11 - 4 = 7$ & 0 \\
+$a_7$ & $\langle v_4, v_6 \rangle$ & 5 & 11 & $18 - 5 = 13$ & 2 \\
+$a_8$ & $\langle v_4, v_7 \rangle$ & 7 & 11 & $18 - 7 = 11$ & 0 \\
+$a_9$ & $\langle v_5, v_7 \rangle$ & 7 & 11 & $18 - 7 = 11$ & 0 \\
+$a_{10}$ & $\langle v_6, v_8 \rangle$ & 1 & 16 & $19 - 1 = 18$ & 2 \\
+$a_{11}$ & $\langle v_7, v_8 \rangle$ & 1 & 18 & $19 - 1 = 18$ & 0 \\
+$a_{12}$ & $\langle v_5, v_8 \rangle$ & 3 & 11 & $19 - 3 = 16$ & 5 \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\textbf{(2)} 關鍵活動是 $l = e$ 的：$a_1, a_3, a_4, a_6, a_8, a_9, a_{11}$。
+
+\textbf{(3)} 從 $v_0$ 出發只沿著關鍵活動走到 $v_8$（定理~\ref{thm:tps-critical}：關鍵路徑就是長度 $T$ 的路
+徑），有兩條：
+\begin{align*}
+&v_0 \xrightarrow{a_1} v_1 \xrightarrow{a_4} v_4 \xrightarrow{a_8} v_7 \xrightarrow{a_{11}} v_8
+&& 9 + 2 + 7 + 1 = 19, \\
+&v_0 \xrightarrow{a_3} v_3 \xrightarrow{a_6} v_5 \xrightarrow{a_9} v_7 \xrightarrow{a_{11}} v_8
+&& 7 + 4 + 7 + 1 = 19.
+\end{align*}
+注意 $v_4$、$v_5$、$v_8$ 都是關鍵事件（$\mathit{ee} = \mathit{le}$），但 $a_{12} = \langle v_5, v_8 \rangle$ 有
+$5$ 單位的寬裕，不在關鍵路徑上：兩端都是關鍵事件的活動不一定關鍵（第~\ref{sec:tps-aoe}~節的第 (1) 點）。
+把這張圖輸入範例~\ref{ex:tps-aoe}（事件改編成 $1..9$），印出的表和上面相同。
+
+\pastsol{px:tps-5}{臺大資工所 113 學年度 第 12 題}
+照字面作答，答案是 C、E。 B 有一個看起來是筆誤的地方，下面說明。 記 $T$ 為排程用的時間步數（最大的
+$s(v)$），$L$ 為最長路徑上的工作數。 合法的排程要滿足兩件事：每個時間步最多 $p$ 個工作，也就是
+$|\{v \mid s(v) = i\}| \le p$；每條邊 $v \to w$ 有 $s(v) < s(w)$。
+\begin{itemize}
+\item A 錯。 限制的是「同一個時間步」的工作數，不是「到時間 $i$ 為止」的累計數。 反例：$p = 1$，兩個沒
+有邊的工作排在 $s = 1, 2$，合法，但 $|\{v \mid s(v) \le 2\}| = 2 > 1$。
+\item B 照字面錯。 $j = k$ 時要求 $s(v_{i_k}) < s(v_{i_k})$，不可能成立。 如果原意是 $1 \le j < k$，那就是
+對的：沿著路徑每走一條邊 $s$ 至少加一，所以路徑前面的工作都比最後一個早。 本題照字面判 B 錯；作答時遇到
+這種情形，可以在答案旁寫一句你採用的讀法。
+\item C 對。 $n$ 個工作、每步最多 $p$ 個，$T \ge \lceil n/p \rceil$；最長路徑上的 $L$ 個工作兩兩有先後，時間步
+都不同，$T \ge L$。 所以 $T \ge \max(\lceil n/p \rceil, L) \ge \min(\lceil n/p \rceil, L)$。 這個下界寫成
+$\min$ 比較弱，但敘述本身成立。
+\item D 錯。 沒有前置工作的工作超過 $p$ 個時，它們不可能全部擠在時間 $1$。 反例：$p = 1$，兩個沒有邊的工作。
+（沒有前置工作的工作不超過 $p$ 個時，把它們都提前到時間 $1$ 確實不會出問題，但敘述說的是「總是可以」。）
+\item E 對。 處理器無限多時，令 $s(v)$ 為「以 $v$ 結尾的最長路徑上的工作數」，依拓樸順序用
+$s(v) = 1 + \max_{u \to v} s(u)$ 算（沒有前置工作時是 $1$），就是第~\ref{sec:tps-aov}~節 $\mathit{EF}$ 的算法，
+每個工作的工期都是 $1$。 每條邊 $u \to v$ 有 $s(v) \ge s(u) + 1$，排程合法，而最大的 $s(v)$ 正好是 $L$。 再加上
+C 裡的 $T \ge L$，$L$ 步做得完，也不能更少。
+\end{itemize}

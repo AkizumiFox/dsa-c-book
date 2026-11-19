@@ -1613,6 +1613,98 @@ $40$ 個非零項。
 \end{enumerate}
 \end{enumerate}
 
+\section{歷屆試題}
+\label{sec:arr-pastexam}
+
+以下是研究所入學考試的原題，題目照原卷（語言、記號、配分照錄）。 詳解在本章最後。
+
+\begin{pastexam}[label={px:arr-1}]{臺科大資工所 112 學年度 第 1 題}
+(15\%) \textbf{A} is a two dimensional array, where the element \textbf{A}(3,2) is
+located at address 1110, and \textbf{A}(2,3) is located at 1115. Assume that each element
+is identified by one unique address, and A is declared as \textbf{A}($m$,$n$). Is this
+array stored in row-major order or in column-major order? What is the value of $m$? What
+is the location of \textbf{A}(5,4)?
+\end{pastexam}
+
+\begin{pastexam}[label={px:arr-2}]{中央資工所 111 學年度 第 6 題}
+一、複選題(50 分)，每題 5 分，全對才給分，答錯倒扣 1 分，倒扣至複選題 0 分為止
+
+We have a 2-dimension integer array arr[5][5],\\
+Which of the followings are equal to arr[2][3]?\\
+(A) \texttt{*(*arr+13)} \quad (B) \texttt{(*(arr+2))[3]} \quad
+(C) \texttt{*((*(arr+2))+3)} \quad (D) \texttt{(*arr+2)[3]}
+\end{pastexam}
+
+\begin{pastexam}[label={px:arr-3}]{成大電通所 107 學年度 問答題第 2 題}
+\textbf{2. Matrix} (10 pts)
+\begin{enumerate}[label=\alph*.]
+\item (\textbf{5 pts}) A matrix is said to be \textbf{lower triangular} when all elements
+below the main diagonal of square matrix is zero. Given a lower triangle \textbf{A}, each
+non-zero element is stored by rows in a one-dimensional array \textbf{B} with $a$[0][0]
+being stored in $b$[0] (see Fig. (a)). Give a single expression for $k$ in terms of $i$
+and $j$ if an element $a_{i,j}$ is stored at $b[k]$.
+\item (\textbf{5 pts}) A matrix is said to be a \textbf{symmetric matrix} if it is a
+square matrix and its transpose is equal to itself. Similarly, each element of a
+symmetric matrix is stored by rows in a one-dimensional array \textbf{B} with $a$[0][0]
+being stored in $b$[0]. EX: a$_{10}$ =a$_{01}$ is stored in b(1); a$_{11}$ is stored in
+b(2); a$_{21}$ =a$_{12}$ is stored in b(3) and so on (see Fig. (b)). Write a single
+expression for $k$ in terms of $i$ and $j$ if an element $a_{i,j}$ is stored at $b[k]$
+(\textbf{hint:} the functions Max($i$,$j$) and Min($i$,$j$) could be used in the
+expression).
+\end{enumerate}
+\begin{center}
+\begin{tikzpicture}[font=\small, >={Stealth[length=1.8mm]}]
+\foreach \dx/\plab/\vals in {0/(a)/{b$_{0}$,0,0,0,b$_{1}$,b$_{2}$,0,0,b$_{3}$,b$_{4}$,b$_{5}$,0,b$_{6}$,b$_{7}$,b$_{8}$,b$_{9}$},
+    5/(b)/{b$_{0}$,b$_{1}$,b$_{3}$,b$_{6}$,b$_{1}$,b$_{2}$,b$_{4}$,b$_{7}$,b$_{3}$,b$_{4}$,b$_{5}$,b$_{8}$,b$_{6}$,b$_{7}$,b$_{8}$,b$_{9}$}} {
+\begin{scope}[xshift=\dx cm]
+\draw (0,0) grid[step=0.6] (2.4,-2.4);
+\foreach \v [count=\c from 0] in \vals {
+    \pgfmathtruncatemacro{\r}{\c / 4}
+    \pgfmathtruncatemacro{\q}{mod(\c, 4)}
+    \node at (0.3 + 0.6*\q, -0.3 - 0.6*\r) {\v};
+}
+\foreach \t in {0,1,2,3} {
+    \node at (-0.4, -0.3 - 0.6*\t) {\t};
+    \node at (0.3 + 0.6*\t, 0.35) {\t};
+}
+\draw[<-] (2.55,0.35) -- ++(0.45,0) node[right] {$j$};
+\draw[<-] (-0.4,-2.55) -- ++(0,-0.4) node[below] {$i$};
+\node at (1.2,-3.30) {\plab};
+\end{scope}
+}
+\end{tikzpicture}
+\end{center}
+\end{pastexam}
+
+\begin{pastexam}[label={px:arr-4}]{中山資工所 113 學年度 第 2 題}
+(10\%) A two-dimensional array $N$ stores the nonnegative integers with the style shown in
+the following table. For example, $N$[0][0]=0, then $N$[0][1] = 3, $N$[0][2] = 4,
+$N$[1][0]=2, and so on. Please present a formula for the value stored in $N[i][j]$,
+expressed in terms of $i$ and $j$.
+\begin{center}
+\begin{tabular}{|c|c|c|c|c|c|}\hline
+0 & 3 & 4 & 15 & 16 & $\cdots$\\\hline
+1 & 2 & 5 & 14 & 17 & $\cdots$\\\hline
+8 & 7 & 6 & 13 & 18 & $\cdots$\\\hline
+9 & 10 & 11 & 12 & 19 & $\cdots$\\\hline
+24 & 23 & 22 & 21 & 20 & $\cdots$\\\hline
+$\cdots$ & $\cdots$ & $\cdots$ & $\cdots$ & $\cdots$ & $\cdots$\\\hline
+\end{tabular}
+\end{center}
+\end{pastexam}
+
+\begin{pastexam}[label={px:arr-5}]{政大資科所 106 學年度 第 1 題}
+(10\%) Design an algorithm of running time $O(n)$ for the following task.
+
+\hspace*{1.5em}Input: $a_0,a_1,a_2,\ldots,a_n$, and $x$\\
+\hspace*{1.5em}Output: the value of $a_0+a_1x+a_2x^2+\cdots+a_nx^n$\\
+\hspace*{1.5em}Note:
+\begin{enumerate}[label=\Alph*.,leftmargin=4em]
+\item Each addition takes constant time.
+\item Each multiplication takes constant time.
+\end{enumerate}
+\end{pastexam}
+
 \section{實作練習}
 \label{sec:arr-practice}
 
@@ -1818,3 +1910,119 @@ $s_i - a\,s_{i+1} = c_i$（由 $s_i$ 的定義）；常數項是 $-a\,s_1$，再
 的總步數不超過 $40 + 80 + 120$ 的量級，全部在幾百步以內。 (c) 係數陣列 $31$ 格，非零
 項陣列要 $62$ 格，用係數陣列。
 \end{enumerate}
+
+\addcontentsline{toc}{section}{歷屆試題詳解}
+\section*{歷屆試題詳解}
+
+\pastsol{px:arr-1}{臺科大資工所 112 學年度 第 1 題}
+答案：行優先（column-major），$m = 6$，$\mathbf{A}(5,4)$ 的位址是 $1124$。
+
+題目說每個元素占一個位址，所以 $w = 1$。 $\mathbf{A}(m, n)$ 是下標從 $1$ 開始的寫法；
+下標從 $0$ 開始，下面的答案也一樣，因為只用到兩個位址的差。 做法和
+第~\ref{sec:arr-address}~節的例 2 相同：兩個位址相減，消掉起始位址 $\alpha$。
+
+\begin{itemize}
+\item 假設列優先：$\mathrm{loc}(i, j) = \alpha + (i - 1)\,n + (j - 1)$。
+$\mathrm{loc}(2,3) - \mathrm{loc}(3,2) = -n + 1 = 1115 - 1110 = 5$，得 $n = -4$，不可
+能。
+\item 假設行優先：$\mathrm{loc}(i, j) = \alpha + (j - 1)\,m + (i - 1)$。
+$\mathrm{loc}(2,3) - \mathrm{loc}(3,2) = m - 1 = 5$，得 $m = 6$。
+\end{itemize}
+所以是行優先，$m = 6$。 代回：$1110 = \alpha + (2 - 1) \times 6 + (3 - 1)$，
+$\alpha = 1102$。
+\[
+\mathrm{loc}(5,4) = 1102 + (4 - 1) \times 6 + (5 - 1) = 1124 .
+\]
+驗算 $\mathbf{A}(2,3)$：$1102 + 2 \times 6 + 1 = 1115$，相符。 行數 $n$ 從題目的條件
+算不出來，只知道 $n \ge 4$（否則沒有 $\mathbf{A}(5,4)$）。
+
+\pastsol{px:arr-2}{中央資工所 111 學年度 第 6 題}
+答案：(A)、(B)、(C)。
+
+先複習兩件事（第~\ref{sec:arr-address}~節「C 的陣列」）：\texttt{a[i]} 就是
+\texttt{*(a + i)}；\texttt{arr} 在運算式裡變成指向第 $0$ 列的指標，加 $1$ 跳過一整
+列（$5$ 個 \texttt{int}），\texttt{*arr} 是第 $0$ 列，再變成指向 \texttt{arr[0][0]}
+的 \texttt{int *}，加 $1$ 只跳一個 \texttt{int}。 \texttt{arr[2][3]} 在列優先排列裡
+前面有 $2 \times 5 + 3 = 13$ 個元素。
+\begin{itemize}
+\item (A) 對。 \texttt{*arr + 13} 從 \texttt{arr[0][0]} 往後數 $13$ 個 \texttt{int}，
+正是 \texttt{arr[2][3]} 的位置。 嚴格照 C 標準，\texttt{*arr} 只是一個 $5$ 格的陣列，
+指標加 $13$ 超出了它的範圍，屬於未定義行為；考卷問的是位址怎麼算，實際的編譯器也都得
+到 \texttt{arr[2][3]}，所以算對。 自己寫程式時不要這樣用。
+\item (B) 對。 \texttt{*(arr + 2)} 是第 $2$ 列 \texttt{arr[2]}，再取 \texttt{[3]}。
+\item (C) 對。 \texttt{*(arr + 2)} 變成指向 \texttt{arr[2][0]} 的指標，加 $3$ 指到
+\texttt{arr[2][3]}，再取值。 這就是 \texttt{arr[2][3]} 展開後的樣子。
+\item (D) 錯。 \texttt{(*arr + 2)[3]} $=$ \texttt{*(*arr + 2 + 3)} $=$
+\texttt{*(*arr + 5)}，位移 $5 = 1 \times 5 + 0$，是 \texttt{arr[1][0]}。
+\end{itemize}
+（把 \texttt{arr[i][j]} 設成 $10i + j$ 實際執行，四個式子印出 $23$、$23$、$23$、$10$。）
+
+\pastsol{px:arr-3}{成大電通所 107 學年度 問答題第 2 題}
+原題 a 小題的定義寫反了：「主對角線\textbf{以下}全是 $0$」說的是上三角矩陣。 題目的名
+稱 lower triangular 和圖 (a)（$i \ge j$ 的格子有值）都表示要的是「主對角線\textbf{以
+上}全是 $0$」，也就是定義~\ref{def:arr-special} 的下三角矩陣。 下面照圖的意思作答。
+下標和 $b$ 都從 $0$ 開始。
+
+a.\ $k = \dfrac{i(i+1)}{2} + j$（$i \ge j$；$i < j$ 的元素是 $0$，不存）。
+
+推導和第~\ref{sec:arr-special}~節「下標從 $0$ 開始」那一段相同：$a_{i,j}$ 前面有第
+$0$ 到第 $i - 1$ 列，各有 $1, 2, \ldots, i$ 個，共 $i(i+1)/2$ 個；同一列裡排在它前面
+的是 $a_{i,0}, \ldots, a_{i,j-1}$，共 $j$ 個。 對照圖 (a)：$a_{2,1}$ 是
+$3 + 1 = 4$，$a_{3,3}$ 是 $6 + 3 = 9$，都相符。
+
+b.\ $k = \dfrac{\mathrm{Max}(i,j)\,\bigl(\mathrm{Max}(i,j) + 1\bigr)}{2} + \mathrm{Min}(i,j)$。
+
+對稱矩陣只存下三角（含對角線），存法和 a 一樣。 $i \ge j$ 時直接用 a 的公式；
+$i < j$ 時 $a_{i,j} = a_{j,i}$，改用 $(j, i)$ 代進公式。 兩種情形合起來，就是把較大的
+下標放在 $i$ 的位置、較小的放在 $j$ 的位置。 對照圖 (b)：$a_{0,3}$ 是 $6 + 0 = 6$，
+$a_{1,2}$ 是 $3 + 1 = 4$，$a_{2,3}$ 是 $6 + 2 = 8$，都相符。 （用程式對 $10 \times 10$
+的所有 $(i, j)$ 比對過兩個公式和逐列編號的結果。）
+
+\pastsol{px:arr-4}{中山資工所 113 學年度 第 2 題}
+答案：令 $k = \max(i, j)$，
+\[
+N[i][j] = k^2 + k + (-1)^k\,(i - j) .
+\]
+
+推導的步驟和第~\ref{sec:arr-special}~節一樣：先數「前面有幾個」，再加上自己這一段裡
+的位置。
+\begin{itemize}
+\item 把 $\max(i, j) = k$ 的格子叫第 $k$ 圈，是一個 L 形：第 $k$ 行的
+$(0,k), \ldots, (k,k)$ 加上第 $k$ 列的 $(k,0), \ldots, (k,k-1)$，共 $2k + 1$ 格。
+\item 第 $0$ 到第 $k - 1$ 圈共有 $1 + 3 + \cdots + (2k - 1) = k^2$ 格，所以第 $k$ 圈放的
+是 $k^2, k^2 + 1, \ldots, k^2 + 2k$，轉角 $(k, k)$ 在正中間，是 $k^2 + k$。
+\item 從表看方向。 $k$ 是偶數時（例如 $k = 2$：$4, 5, 6, 7, 8$），從 $(0, k)$ 沿第 $k$
+行往下走到轉角，再沿第 $k$ 列往左走到 $(k, 0)$。 行上的格子 $N[i][k] = k^2 + i$；列上
+的格子 $N[k][j] = k^2 + k + (k - j)$。 兩者都等於 $k^2 + k + (i - j)$（行上 $j = k$，
+列上 $i = k$）。
+\item $k$ 是奇數時（例如 $k = 3$：$9, \ldots, 15$），從 $(k, 0)$ 沿第 $k$ 列往右走到
+轉角，再沿第 $k$ 行往上。 同樣整理得 $k^2 + k + (j - i)$。
+\end{itemize}
+兩種情形合起來就是上面的公式。 驗算表上的幾格：$N[4][1]$：$k = 4$，$16 + 4 + 3 = 23$；
+$N[1][3]$：$k = 3$，$9 + 3 - (1 - 3) = 14$；$N[3][4]$：$k = 4$，$20 + (3 - 4) = 19$，
+都相符。 （用程式照這個走法填一個 $8 \times 8$ 的表，每一格都和公式相同。）
+
+\pastsol{px:arr-5}{政大資科所 106 學年度 第 1 題}
+用 Horner 法（第~\ref{sec:arr-poly}~節）。 把多項式寫成
+$(\cdots((a_n x + a_{n-1})x + a_{n-2})x + \cdots + a_1)x + a_0$，從最裡面往外算。
+\begin{pseudo}[unbreakable]{多項式求值，$a[0..n]$ 是係數}
+\Function{Poly-Value}{$a, n, x$}
+    \State $s \gets a[n]$
+    \For{$i \gets n - 1$ \DownTo $0$}
+        \State $s \gets s \cdot x + a[i]$
+    \EndFor
+    \State \Return $s$
+\EndFunction
+\end{pseudo}
+這就是虛擬碼~\ref{alg:arr-horner}，只是把係數陣列改叫 $a$、次數改叫 $n$。
+
+\textbf{正確性}。 定理~\ref{thm:arr-horner} 已經用迴圈不變量證明過，作答時把它寫出來：
+每一輪開始時 $s = \sum_{k=i+1}^{n} a_k x^{k-i-1}$，也就是只用 $a_{i+1}, \ldots, a_n$
+的那個多項式在 $x$ 的值。 初始 $i = n - 1$ 時 $s = a_n$；每一輪乘 $x$ 再加 $a_i$，
+得到 $\sum_{k=i}^{n} a_k x^{k-i}$，是下一輪的不變量；迴圈在 $i = -1$ 停下，代進去得
+$s = \sum_{k=0}^{n} a_k x^{k}$。 $n = 0$ 時迴圈一次都不跑，回傳 $a_0$，也對。
+
+\textbf{時間}。 迴圈跑 $n$ 次，每次一次乘法、一次加法，共 $n$ 次乘法和 $n$ 次加法，加
+上迴圈本身的常數成本，是 $\Theta(n)$，符合 $O(n)$ 的要求。 對照：每一項的 $x^k$ 都重新
+連乘要 $\Theta(n^2)$ 次乘法；一邊加一邊維護 $p \gets p \cdot x$ 也是 $O(n)$，但要大約
+$2n$ 次乘法。

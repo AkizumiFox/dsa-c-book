@@ -13,6 +13,11 @@
     dc-edge/.style={draw=black!55},
     dc-pt/.style={circle, fill=black!80, inner sep=0pt, minimum size=4.2pt},
     dc-ptlab/.style={font=\scriptsize, inner sep=1.5pt},
+    dc-ray/.style={draw=black!35, dashed},
+    dc-rayq/.style={-{Stealth[length=1.8mm]}, dashed, draw=optStroke},
+    dc-vec/.style={-{Stealth[length=2mm]}, thick, draw=black!75},
+    dc-seg/.style={thick, draw=black!80},
+    dc-seg2/.style={thick, draw=coreStroke},
 }
 
 夜市一個飲料攤把開張以來每天的盈虧記在本子上，賺錢記正數，賠錢記負數。 老闆想找
@@ -33,7 +38,7 @@
 切成 $a$ 個規模 $n/b$ 的子問題、分和合一共花 $f(n)$ 時，執行時間是
 $T(n) = aT(n/b) + f(n)$，用第~2~章的遞迴樹或主定理（定理~\ref{thm:rec-master}）就能解。 這個式子
 也告訴我們，想讓分治法變快，有兩個方向：讓 $f(n)$ 變小（合得更省），或讓 $a$ 變
-小（少解幾個子問題）。 這一章的五節分別示範幾種情形。
+小（少解幾個子問題）。 這一章的前五節分別示範幾種情形，第六節是計算幾何入門。
 
 \begin{itemize}
 \item 第~\ref{sec:dc-bsearch}~節的二分搜尋和快速冪只需要解\textbf{一個}子問題，
@@ -45,12 +50,16 @@ $a = 1$。
 \item 第~\ref{sec:dc-closest}~節的平面最近點對，「合」的步驟要靠一個幾何的論證，
 才能在線性時間內完成。
 \item 第~\ref{sec:dc-inv}~節的逆序數計數，把計數藏在合併排序的合併步驟裡。
+\item 第~\ref{sec:dc-geom}~節是計算幾何入門：用外積判斷轉向、線段相交、點在多邊形內，
+以及凸包。 凸包的分治做法和最近點對同一個結構；它的 $\Omega(n \lg n)$ 下界則是把排序
+歸約到凸包得到的。
 \end{itemize}
 
 子問題如果彼此重疊，同一個子問題會被解很多次，分治法就不划算了，這時要改用第~18~
 章的動態規劃。
 
-這一章用到第~1~章的迴圈不變量和逆序對、第~2~章的遞迴式和主定理、第~14~章的合併。
+這一章用到第~1~章的迴圈不變量和逆序對、第~2~章的遞迴式和主定理、第~14~章的合併；
+最後一節還用到第~3~章的聚合法、第~6~章的堆疊和第~15~章的排序下界。
 C 程式用到《C 程式設計基礎》第~9~章的指標參數、第~14~章的結構、第~15~章的遞迴、第~18~章
 的 \texttt{qsort} 和第~19~章的 \texttt{malloc}；遞迴在第~2~章複習過，其他的用到時先在框
 裡複習。
@@ -1147,7 +1156,8 @@ $\binom{n}{2}$ 次距離，$\Theta(n^2)$。 這一節用分治做到 $\Theta(n \
 好。 用分治的眼光看，把排好的點切成左右兩半，跨兩半的點對裡最近的一定是左半最右
 邊和右半最左邊那一對。 二維沒有這種「相鄰」，依 $x$ 排好之後，最近的兩點在 $x$ 的順
 序上可以相隔很遠。 二維的分治法一樣是切兩半、遞迴、再處理跨兩半的點對，難在最後
-一步怎麼不必把左右所有的點兩兩比較。
+一步怎麼不必把左右所有的點兩兩比較。 平面上其他常考的問題（轉向、線段相交、凸包、
+最遠點對）在第~\ref{sec:dc-geom}~節。
 
 \subsection{演算法}
 
@@ -1604,14 +1614,832 @@ C 程式只要在第~14~章範例 \texttt{merge\_sort.c} 的 \texttt{merge} 裡�
 數要用 \texttt{long long}。
 
 
+\section{計算幾何入門}
+\label{sec:dc-geom}
+
+第~\ref{sec:dc-closest}~節的最近點對是本章第一個平面上的問題。 研究所舊卷還常考另外幾
+個平面問題：三個點是左轉還是右轉、兩條線段有沒有相交、一個點在不在多邊形裡面，以
+及把一群點用最小的凸多邊形圍起來的\textbf{凸包}。 這一節依序講這幾個問題。 凸包有
+兩種 $\Theta(n \lg n)$ 的做法，一種靠排序加堆疊，一種靠分治；最後用第~15~章的排序
+下界說明 $n \lg n$ 已經不能再少。
+
+這一節的點都用整數座標，點 $p$ 的座標寫成 $p.x$、$p.y$。 所有判斷都只用加、減、乘，
+不用除法、斜率或角度，所以整數座標算出來的答案是精確的。
+
+\subsection{外積與轉向}
+\label{sec:dc-orient}
+
+從 $p$ 走到 $q$，接著要走到 $r$，在 $q$ 要左轉還是右轉？ 後面每一個演算法都要問這
+個問題。 令 $q - p = (u_x, u_y)$、$r - p = (v_x, v_y)$，定義
+\[
+\proc{Orient}(p, q, r) = u_x v_y - u_y v_x
+= (q.x - p.x)(r.y - p.y) - (q.y - p.y)(r.x - p.x).
+\]
+它就是二階行列式 $\left|\begin{smallmatrix} u_x & v_x \\ u_y & v_y
+\end{smallmatrix}\right|$，也叫兩個向量的\textbf{外積}（cross product；嚴格說是三維
+外積的 $z$ 分量）。 高中數學說過，它的絕對值是兩個向量張成的平行四邊形面積，也就是
+三角形 $pqr$ 面積的兩倍。 正負號表示方向：
+
+\begin{itemize}
+\item $\proc{Orient}(p, q, r) > 0$：$r$ 在有向直線 $p \to q$ 的左邊，$p \to q \to r$
+是\textbf{左轉}（逆時針）。
+\item $\proc{Orient}(p, q, r) < 0$：$r$ 在右邊，是\textbf{右轉}（順時針）。
+\item $\proc{Orient}(p, q, r) = 0$：三點\textbf{共線}。
+\end{itemize}
+
+哪個符號是左轉，代最簡單的例子就記得住：$p = (0, 0)$、$q = (1, 0)$、$r = (0, 1)$，
+$r$ 在 $x$ 軸正方向的左邊，$\proc{Orient} = 1 \cdot 1 - 0 \cdot 0 = 1 > 0$。
+
+\begin{pseudo}[label=alg:dc-orient]{三點的轉向（外積）}
+\Function{Orient}{$p, q, r$}
+    \State \Return $(q.x - p.x)(r.y - p.y) - (q.y - p.y)(r.x - p.x)$
+\EndFunction
+\end{pseudo}
+
+例如 $p = (1, 1)$、$q = (5, 2)$，$q - p = (4, 1)$：
+
+\begin{itemize}
+\item $r = (3, 6)$：$4 \cdot 5 - 1 \cdot 2 = 18 > 0$，左轉。
+\item $r = (6, 0)$：$4 \cdot (-1) - 1 \cdot 5 = -9 < 0$，右轉。
+\item $r = (9, 3)$：$4 \cdot 2 - 1 \cdot 8 = 0$，共線；$r - p = (8, 2)$ 正好是
+$q - p$ 的兩倍。
+\end{itemize}
+
+\begin{center}
+\begin{minipage}{\linewidth}
+\centering
+\begin{tikzpicture}[x=0.44cm, y=0.44cm]
+\begin{scope}
+\draw[dc-ray] (1,1) -- (10.2,3.3);
+\draw[dc-vec] (1,1) -- (5,2);
+\draw[dc-vec] (5,2) -- (3,6);
+\node[dc-pt, label={[dc-ptlab]below:$p$}] at (1,1) {};
+\node[dc-pt, label={[dc-ptlab]below right:$q$}] at (5,2) {};
+\node[dc-pt, label={[dc-ptlab]above:$r$}] at (3,6) {};
+\node[font=\scriptsize] at (5,-0.6) {$\proc{Orient} = 18$，左轉};
+\end{scope}
+\begin{scope}[xshift=5.3cm]
+\draw[dc-ray] (1,1) -- (10.2,3.3);
+\draw[dc-vec] (1,1) -- (5,2);
+\draw[dc-vec] (5,2) -- (6,0);
+\node[dc-pt, label={[dc-ptlab]above left:$p$}] at (1,1) {};
+\node[dc-pt, label={[dc-ptlab]above:$q$}] at (5,2) {};
+\node[dc-pt, label={[dc-ptlab]right:$r$}] at (6,0) {};
+\node[font=\scriptsize] at (5,-0.6) {$\proc{Orient} = -9$，右轉};
+\end{scope}
+\begin{scope}[xshift=10.6cm]
+\draw[dc-ray] (1,1) -- (10.2,3.3);
+\draw[dc-vec] (1,1) -- (5,2);
+\draw[dc-vec] (5,2) -- (9,3);
+\node[dc-pt, label={[dc-ptlab]above left:$p$}] at (1,1) {};
+\node[dc-pt, label={[dc-ptlab]above:$q$}] at (5,2) {};
+\node[dc-pt, label={[dc-ptlab]above:$r$}] at (9,3) {};
+\node[font=\scriptsize] at (5,-0.6) {$\proc{Orient} = 0$，共線};
+\end{scope}
+\end{tikzpicture}
+\diagcaption{同一個 $p \to q$，三種 $r$。 灰色虛線是直線 $pq$。}
+\label{fig:dc-orient}
+\end{minipage}
+\end{center}
+
+後面會用到兩個性質，都可以直接展開驗證：把 $q$、$r$ 對調，外積變號；把三個點輪換，
+外積不變：
+\[
+\proc{Orient}(p, q, r) = \proc{Orient}(q, r, p) = \proc{Orient}(r, p, q)
+= -\proc{Orient}(p, r, q).
+\]
+上面的例子 $\proc{Orient}(q, r, p) = (-2)(-1) - 4 \cdot (-4) = 18$，和
+$\proc{Orient}(p, q, r)$ 相同。
+
+\textbf{為什麼不用斜率}。 比較斜率要做除法；鉛直線的斜率不存在，要另外處理；浮點數
+還有捨入誤差，三點幾乎共線時可能判斷錯。 外積只有乘法和減法，整數座標算出來是精確
+的。 C 程式只要注意溢位：座標在 $\pm 10^9$ 以內時，座標差在 $2 \times 10^9$ 以內，
+乘積在 $4 \times 10^{18}$ 以內，兩個乘積相減不超過 $8 \times 10^{18}$，放得進
+\texttt{long long}（上限約 $9.22 \times 10^{18}$），放不進 \texttt{int}。 座標差要
+先轉成 \texttt{long long} 再乘。
+
+\textbf{凸多邊形的判斷}。 一個\textbf{簡單多邊形}是邊和邊除了相鄰兩邊在頂點相接以外
+都不相交的多邊形。 把它的頂點依序列成 $v_1, v_2, \ldots, v_n$，它是凸多邊形若且唯若
+每三個連續頂點 $v_i, v_{i+1}, v_{i+2}$（下標超過 $n$ 就繞回 $1$）的 \proc{Orient}
+全部同號：逆時針列出時全部為正，順時針時全部為負。 掃一次 $\Theta(n)$。 「簡單」這
+個條件不能少：把正五邊形的頂點每隔一個連起來，得到五角星，每個轉彎都同一個方向，
+但它和自己相交，不是凸多邊形。 有某個外積是 $0$ 表示有三個連續頂點共線，算不算凸照題
+目的定義。
+
+\subsection{線段相交}
+\label{sec:dc-segint}
+
+給兩條線段 $\overline{p_1 p_2}$、$\overline{p_3 p_4}$，判斷它們有沒有共同點，端點碰到
+也算。 先算四個外積：
+\[
+\begin{aligned}
+d_1 &= \proc{Orient}(p_3, p_4, p_1), & d_2 &= \proc{Orient}(p_3, p_4, p_2), \\
+d_3 &= \proc{Orient}(p_1, p_2, p_3), & d_4 &= \proc{Orient}(p_1, p_2, p_4).
+\end{aligned}
+\]
+$d_1$、$d_2$ 說明 $p_1$、$p_2$ 各在直線 $p_3 p_4$ 的哪一邊。 $d_1 d_2 < 0$ 表示
+$p_1$、$p_2$ 在直線 $p_3 p_4$ 的兩側，這時說線段 $\overline{p_1 p_2}$ \textbf{跨過}
+直線 $p_3 p_4$。 $d_3$、$d_4$ 同理。 兩條線段互相跨過對方所在的直線，就一定相交；麻
+煩的是有某個 $d$ 等於 $0$ 的情形，要另外檢查那個端點是不是真的落在另一條線段上，而
+不只是落在它的延長線上。
+
+\begin{pseudo}[label=alg:dc-onseg]{已知 $r$ 在直線 $pq$ 上，判斷 $r$ 是否在線段 $\overline{pq}$ 上}
+\Function{On-Segment}{$p, q, r$}
+    \State $a \gets (\min(p.x, q.x) \le r.x \le \max(p.x, q.x))$
+    \State $b \gets (\min(p.y, q.y) \le r.y \le \max(p.y, q.y))$
+    \State \Return $a$ \AND $b$
+\EndFunction
+\end{pseudo}
+
+\begin{pseudo}[label=alg:dc-segint]{兩條線段是否相交}
+\Function{Segments-Intersect}{$p_1, p_2, p_3, p_4$}
+    \State $d_1 \gets$ \Call{Orient}{$p_3, p_4, p_1$}；$d_2 \gets$ \Call{Orient}{$p_3, p_4, p_2$}
+    \State $d_3 \gets$ \Call{Orient}{$p_1, p_2, p_3$}；$d_4 \gets$ \Call{Orient}{$p_1, p_2, p_4$}
+    \If{$d_1 d_2 < 0$ \AND $d_3 d_4 < 0$}
+        \State \Return \TRUE \Comment{互相跨過}
+    \EndIf
+    \If{$d_1 = 0$ \AND \Call{On-Segment}{$p_3, p_4, p_1$}}
+        \State \Return \TRUE
+    \EndIf
+    \If{$d_2 = 0$ \AND \Call{On-Segment}{$p_3, p_4, p_2$}}
+        \State \Return \TRUE
+    \EndIf
+    \If{$d_3 = 0$ \AND \Call{On-Segment}{$p_1, p_2, p_3$}}
+        \State \Return \TRUE
+    \EndIf
+    \If{$d_4 = 0$ \AND \Call{On-Segment}{$p_1, p_2, p_4$}}
+        \State \Return \TRUE
+    \EndIf
+    \State \Return \FALSE
+\EndFunction
+\end{pseudo}
+
+\proc{On-Segment} 只檢查 $r$ 在不在以 $p$、$q$ 為對角的長方形裡。 這只在已知 $r$ 在
+直線 $pq$ 上時才夠：直線和這個長方形的交集正好是線段 $\overline{pq}$。 所以第 6--13
+行每一個都先確認 $d = 0$。
+
+\begin{lemma}
+\label{lem:dc-segint}
+\proc{Segments-Intersect} 回傳 \TRUE{} 若且唯若兩條線段至少有一個共同點。
+\end{lemma}
+
+\begin{proof}
+\textbf{回傳 \TRUE{} 時真的相交}。 如果是第 6--13 行回傳，某個端點在另一條線段上，
+它就是共同點。 如果是第 5 行回傳，$d_1 d_2 < 0$，$p_1$、$p_2$ 在直線 $p_3 p_4$ 的兩
+側，線段 $\overline{p_1 p_2}$ 和直線 $p_3 p_4$ 交於一點 $X$。 同理 $d_3 d_4 < 0$，線
+段 $\overline{p_3 p_4}$ 和直線 $p_1 p_2$ 交於一點 $Y$。 兩條直線不重合（$d_1 \ne
+0$），也不平行（平行時 $p_1$、$p_2$ 會在直線 $p_3 p_4$ 的同一側），所以只交於一
+點，$X$ 和 $Y$ 都是這一點，$X = Y$ 同時在兩條線段上。
+
+\textbf{相交時一定回傳 \TRUE}。 設兩條線段有共同點 $X$。 如果第 6--13 行的四個條件有
+一個成立就回傳 \TRUE 了，所以只要證明：四個都不成立時，第 4 行的條件成立。
+\begin{itemize}
+\item 先證 $d_1 \ne 0$。 假設 $d_1 = 0$，$p_1$ 在直線 $p_3 p_4$ 上，但（第 6 行不成
+立）不在線段 $\overline{p_3 p_4}$ 上。 如果 $d_2 \ne 0$，兩條直線不同，只交於 $p_1$；
+$X$ 在兩條直線上，所以 $X = p_1$，$p_1$ 在線段 $\overline{p_3 p_4}$ 上，矛盾。 如果
+$d_2 = 0$，四個點共線，兩條線段是同一條直線上的兩段，有共同點 $X$。 同一條直線上的兩
+段重疊時，起點比較後面的那一段，它的起點一定也在另一段裡，所以某個端點在另一條線段
+上，第 6--13 行有一個條件成立，矛盾。 同理 $d_2, d_3, d_4$ 都不是 $0$。
+\item 再證 $d_1 d_2 < 0$。 如果 $d_1$、$d_2$ 同號，$p_1$、$p_2$ 在直線 $p_3 p_4$ 的同
+一側（嚴格），整條線段 $\overline{p_1 p_2}$ 都在那一側，碰不到直線 $p_3 p_4$ 上的
+$X$，矛盾。 同理 $d_3 d_4 < 0$。 \qedhere
+\end{itemize}
+\end{proof}
+
+圖~\ref{fig:dc-segcases} 是四種情形，每一種的四個外積都在下面的表裡（程式算過）。
+
+\begin{center}
+\begin{minipage}{\linewidth}
+\centering
+\begin{tikzpicture}[x=0.36cm, y=0.36cm]
+\begin{scope}
+\draw[dc-seg] (1,1) -- (7,5);
+\draw[dc-seg2] (1,5) -- (6,1);
+\foreach \x/\y/\n/\pos in {1/1/1/below, 7/5/2/above, 1/5/3/above, 6/1/4/below} {
+    \node[dc-pt, label={[dc-ptlab]\pos:$p_\n$}] at (\x,\y) {};
+}
+\node[font=\scriptsize] at (4,-1.6) {(a) 互相跨過};
+\end{scope}
+\begin{scope}[xshift=3.4cm]
+\draw[dc-seg] (1,1) -- (4,3);
+\draw[dc-seg2] (5,1) -- (7,6);
+\draw[dc-ray] (4,3) -- (6.45,4.64);
+\foreach \x/\y/\n/\pos in {1/1/1/below, 4/3/2/above, 5/1/3/below, 7/6/4/above} {
+    \node[dc-pt, label={[dc-ptlab]\pos:$p_\n$}] at (\x,\y) {};
+}
+\node[font=\scriptsize] at (4,-1.6) {(b) 只有一邊跨過};
+\end{scope}
+\begin{scope}[xshift=6.8cm]
+\draw[dc-seg] (0,0) -- (6,3);
+\draw[dc-seg2] (4,2) -- (5,6);
+\foreach \x/\y/\n/\pos in {0/0/1/below, 6/3/2/below, 4/2/3/below, 5/6/4/above} {
+    \node[dc-pt, label={[dc-ptlab]\pos:$p_\n$}] at (\x,\y) {};
+}
+\node[font=\scriptsize] at (3.5,-1.6) {(c) 端點在另一段上};
+\end{scope}
+\begin{scope}[xshift=10.2cm]
+\draw[dc-seg] (0,0) -- (2,1);
+\draw[dc-seg2] (4,2) -- (6,3);
+\draw[dc-ray] (-0.6,-0.3) -- (6.8,3.4);
+\foreach \x/\y/\n/\pos in {0/0/1/below, 2/1/2/below, 4/2/3/below, 6/3/4/below} {
+    \node[dc-pt, label={[dc-ptlab]\pos:$p_\n$}] at (\x,\y) {};
+}
+\node[font=\scriptsize] at (3,-1.6) {(d) 共線但分開};
+\end{scope}
+\end{tikzpicture}
+\diagcaption{線段相交的四種情形。 黑色是 $\overline{p_1 p_2}$，藍色是
+$\overline{p_3 p_4}$，灰色虛線是需要看的延長線。}
+\label{fig:dc-segcases}
+\end{minipage}
+\end{center}
+
+\begin{center}
+\small
+\begin{tabular}{lcccccl}
+\toprule
+& 座標 & $d_1$ & $d_2$ & $d_3$ & $d_4$ & 結果 \\
+\midrule
+(a) & $(1,1)$、$(7,5)$、$(1,5)$、$(6,1)$ & $-20$ & $24$ & $24$ & $-20$ & 第 5 行，\TRUE \\
+(b) & $(1,1)$、$(4,3)$、$(5,1)$、$(7,6)$ & $20$ & $9$ & $-8$ & $3$ & 第 14 行，\FALSE \\
+(c) & $(0,0)$、$(6,3)$、$(4,2)$、$(5,6)$ & $14$ & $-7$ & $0$ & $21$ & 第 11 行，\TRUE \\
+(d) & $(0,0)$、$(2,1)$、$(4,2)$、$(6,3)$ & $0$ & $0$ & $0$ & $0$ & 第 14 行，\FALSE \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+(b) 的 $d_3 d_4 < 0$，$\overline{p_3 p_4}$ 跨過直線 $p_1 p_2$；但 $d_1 d_2 > 0$，
+$\overline{p_1 p_2}$ 整條在直線 $p_3 p_4$ 的同一側，兩條直線的交點落在
+$\overline{p_1 p_2}$ 的延長線上。 (c) 的 $d_3 = 0$，$p_3 = (4, 2)$ 在直線 $p_1 p_2$
+上，而且 $0 \le 4 \le 6$、$0 \le 2 \le 3$，在線段上。 (d) 四個外積都是 $0$，四點共線；
+四次 \proc{On-Segment} 都不成立（例如 $p_3$ 的 $x = 4$ 不在 $[0, 2]$ 裡），所以不相
+交。 如果只看「有某個 $d = 0$ 就算相交」，(d) 就會答錯。
+
+\proc{Segments-Intersect} 只做常數次乘法和比較，$\Theta(1)$。 C 程式裡不要真的算
+$d_1 d_2$：兩個外積都可能接近 $8 \times 10^{18}$，相乘一定溢位。 改成比正負號：
+\texttt{(d1 > 0 \&\& d2 < 0) || (d1 < 0 \&\& d2 > 0)}。
+
+$n$ 條線段裡有沒有任兩條相交，兩兩檢查要 $\Theta(n^2)$。 用一條鉛直的\textbf{掃描線}
+從左往右掃，同時用平衡二元搜尋樹（第~10~章）記住掃描線碰到的線段由下到上的順序，可以
+在 $O(n \lg n)$ 內回答（Shamos 和 Hoey，1976）。 本書不展開，延伸閱讀列了參考資料。
+
+\subsection{點在多邊形內：射線法}
+\label{sec:dc-pip}
+
+給一個簡單多邊形，頂點依序是 $V[1..n]$（順時針、逆時針都可以），和一個不在邊界上的點
+$q$，判斷 $q$ 在多邊形裡面還是外面。
+
+\textbf{射線法}（ray casting）：從 $q$ 往右畫一條水平射線，數它穿過幾條邊。 奇數在裡
+面，偶數在外面。 理由是射線走到夠遠的地方一定在多邊形外面，而每穿過邊界一次，裡外就
+交換一次；從外面往回數，穿過奇數次才會回到裡面。
+
+麻煩的是射線剛好通過頂點，或沿著一條水平邊走。 下面的規則一次解決：
+
+\begin{quote}
+把高度剛好等於 $q.y$ 的頂點都當成在射線\textbf{下方}。 一條邊 $(a, b)$ 只有在
+「$a.y > q.y$」和「$b.y > q.y$」恰好一個成立時，才算和射線所在的水平線相交。
+\end{quote}
+
+照這個規則，射線通過頂點 $v$ 時有三種情形：
+
+\begin{itemize}
+\item $v$ 的兩個相鄰頂點一上一下（射線真的穿過邊界）：$v$ 算在下方，連到上方鄰居的
+那條邊算一次，連到下方鄰居的那條邊不算，合計一次。
+\item 兩個鄰居都在上方（射線只是從下面碰到 $v$）：兩條邊都算，合計兩次，奇偶不變。
+\item 兩個鄰居都在下方（從上面碰到 $v$）：兩條邊都不算，奇偶也不變。
+\end{itemize}
+
+水平邊的兩端都算在下方，不會被計算；它兩端連出去的邊照上面三種情形處理。
+
+接著判斷交點是不是在 $q$ 的右邊。 設邊 $(a, b)$ 和水平線 $y = q.y$ 交於 $X$。 把
+$\proc{Orient}(a, b, q)$ 減去 $\proc{Orient}(a, b, X)$：因為 $X.y = q.y$，兩式的第一項
+都是 $(b.x - a.x)(q.y - a.y)$，相減消掉；又 $X$ 在直線 $ab$ 上，$\proc{Orient}(a, b, X) = 0$。
+所以
+\[
+\proc{Orient}(a, b, q) = (b.y - a.y)(X.x - q.x).
+\]
+所以交點在 $q$ 右邊（$X.x > q.x$）若且唯若 $\proc{Orient}(a, b, q)$ 和 $b.y - a.y$
+同號。 這兩個數都不會是 $0$：邊跨過水平線，$b.y \ne a.y$；$q$ 不在邊界上，
+$X \ne q$。 不必算出 $X$，也不必做除法。
+
+\begin{pseudo}[label=alg:dc-pip]{射線法：$q$ 是否在多邊形 $V[1..n]$ 內（$q$ 不在邊界上）}
+\Function{Point-In-Polygon}{$V, n, q$}
+    \State $c \gets 0$
+    \For{$i \gets 1$ \To $n$}
+        \State $a \gets V[i]$；$b \gets V[i \bmod n + 1]$
+        \If{$a.y > q.y$ 和 $b.y > q.y$ 恰好一個成立}
+            \If{\Call{Orient}{$a, b, q$} $\cdot (b.y - a.y) > 0$} \Comment{交點在 $q$ 的右邊}
+                \State $c \gets c + 1$
+            \EndIf
+        \EndIf
+    \EndFor
+    \State \Return $c$ 是不是奇數
+\EndFunction
+\end{pseudo}
+
+每條邊看一次，$\Theta(n)$。 多邊形是凸的時候可以更快：從 $V[1]$ 連到其他頂點，把多
+邊形切成 $n - 2$ 個扇形，用二分搜尋找 $q$ 落在哪一個扇形，再用一次外積判斷，
+$O(\lg n)$。
+
+\textbf{手算}。 多邊形的八個頂點依逆時針是
+\[
+v_1(2, 1),\ v_2(10, 2),\ v_3(8, 5),\ v_4(12, 9),\ v_5(6, 10),\ v_6(5, 5),\ v_7(3, 8),\ v_8(1, 4).
+\]
+它在 $v_3$、$v_6$ 各凹進去一塊。 要判斷的點是 $A(3, 5)$、$B(5, 7)$、$C(2, 8)$。
+
+\begin{center}
+\begin{minipage}{\linewidth}
+\centering
+\begin{tikzpicture}[x=0.55cm, y=0.48cm]
+\fill[coreFill] (2,1) -- (10,2) -- (8,5) -- (12,9) -- (6,10) -- (5,5) -- (3,8) -- (1,4) -- cycle;
+\draw[thick, black!70] (2,1) -- (10,2) -- (8,5) -- (12,9) -- (6,10) -- (5,5) -- (3,8) -- (1,4) -- cycle;
+\draw[dc-rayq] (3,5) -- (13.5,5);
+\draw[dc-rayq] (5,7) -- (13.5,7);
+\draw[dc-rayq] (2,8) -- (13.5,8);
+\foreach \n/\x/\y/\pos in {1/2/1/below, 2/10/2/below right, 3/8/5/left, 4/12/9/right, 5/6/10/above, 6/5/5/below, 7/3/8/above, 8/1/4/left} {
+    \node[dc-pt, label={[dc-ptlab]\pos:$v_\n$}] at (\x,\y) {};
+}
+\foreach \n/\x/\y in {A/3/5, B/5/7, C/2/8} {
+    \node[circle, draw=optStroke, fill=white, thick, inner sep=0pt, minimum size=5pt,
+          label={[dc-ptlab, text=optStroke]left:$\n$}] at (\x,\y) {};
+}
+\end{tikzpicture}
+\diagcaption{射線法。 藍底是多邊形，紅色空心點是要判斷的點，紅色虛線是往右的射線。
+$A$ 的射線通過 $v_6$（從下面碰到）和 $v_3$（穿過），$C$ 的射線從上面碰到 $v_7$。}
+\label{fig:dc-pip}
+\end{minipage}
+\end{center}
+
+$A(3, 5)$ 的射線高度是 $5$，$v_3$、$v_6$ 剛好在這個高度，照規則都算在下方。 只列出
+跨過 $y = 5$ 的邊：
+
+\begin{center}
+\begin{tabular}{lccccl}
+\toprule
+邊 & $\proc{Orient}(a, b, A)$ & $b.y - a.y$ & 乘積 & 交點 $X.x$ & 計數 \\
+\midrule
+$v_3 v_4$ & $20$ & $4$ & $80$ & $8$（$v_3$） & $1$ \\
+$v_5 v_6$ & $-10$ & $-5$ & $50$ & $5$（$v_6$） & $2$ \\
+$v_6 v_7$ & $6$ & $3$ & $18$ & $5$（$v_6$） & $3$ \\
+$v_7 v_8$ & $6$ & $-4$ & $-24$ & $1.5$ & 不算，在左邊 \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+$c = 3$ 是奇數，$A$ 在裡面。 $v_6$ 的兩個鄰居 $v_5$、$v_7$ 都在上方，射線只是從下面碰到
+$v_6$，兩條邊各算一次；$v_3$ 的鄰居 $v_2$ 在下方、$v_4$ 在上方，射線真的穿過去，只
+有 $v_3 v_4$ 算一次。 交點那一欄只是幫忙看圖，程序本身只看乘積的正負號。
+
+$B(5, 7)$ 在 $v_6$ 那個凹口裡。 跨過 $y = 7$ 的四條邊交點在 $x = 10$、$5.4$、$11/3$、
+$2.5$，右邊兩個，$c = 2$，在外面。 $C(2, 8)$ 的射線從上面碰到 $v_7$：$v_6 v_7$、
+$v_7 v_8$ 的兩端都不在 $y = 8$ 的上方，都不算；只有 $v_3 v_4$（交點 $x = 11$）和
+$v_5 v_6$（交點 $x = 5.6$）算，$c = 2$，在外面。
+
+\begin{examnote}
+射線法的答案要寫出三件事：射線的方向、怎麼數（奇數在內），以及射線通過頂點或水平邊
+時怎麼處理。 最後一件最常被扣分。 本書的寫法是「高度等於 $q.y$ 的頂點算在下方」；
+有的課本算在上方，或把射線稍微往上平移一點點，效果相同，選一種寫清楚就好。 題目如果
+允許 $q$ 在邊界上，要先用 \proc{Orient} 和 \proc{On-Segment} 逐邊檢查。
+\end{examnote}
+
+\subsection{凸包與 Graham 掃描法}
+\label{sec:dc-graham}
+
+平面上有限個點的集合 $Q$，它的\textbf{凸包}（convex hull）$\mathrm{CH}(Q)$ 是包含 $Q$ 的
+最小凸多邊形。 想像在每個點釘一根釘子，拿一條橡皮筋撐開套住所有釘子再放手，橡皮筋圍
+出來的就是凸包。 凸包的頂點一定是 $Q$ 裡的點；凸包演算法要依\textbf{逆時針}順序輸出
+這些頂點。 落在凸包的邊上、但不是轉角的點不算頂點，本書不輸出。
+
+\textbf{Graham 掃描法}（Graham scan，Graham 1972）的步驟：
+
+\begin{enumerate}
+\item 找 $y$ 座標最小的點（有好幾個時取 $x$ 最小的），叫它 $p_0$。 它一定是凸包的頂
+點。
+\item 其他點依「繞 $p_0$ 的極角」由小到大排序。 極角是從 $p_0$ 往右的水平方向逆時
+針轉到 $p_0 \to p$ 的角度；極角相同時，離 $p_0$ 近的排前面。
+\item 依這個順序逐點處理，用一個堆疊記住目前的凸包。 新的點進來時，只要堆疊頂端兩個
+點和新的點不是左轉，就把頂端彈掉；然後把新的點推進去。
+\end{enumerate}
+
+\textbf{排序不必算角度}。 $p_0$ 是最低的點（同高時是最左的），其他點都在它上方，或
+在它右邊的水平線上，所以極角都在 $[0^\circ, 180^\circ)$ 裡。 兩個極角 $\theta_a$、
+$\theta_b$ 都在這個範圍時，$\theta_a < \theta_b$ 若且唯若從 $p_0 \to a$ 轉到
+$p_0 \to b$ 是逆時針，也就是 $\proc{Orient}(p_0, a, b) > 0$。 所以比較函式寫成：
+$\proc{Orient}(p_0, a, b) > 0$ 時 $a$ 在前；等於 $0$（同一個方向）時近的在前。 距離
+比平方就好，不必開根號。
+
+\begin{pseudo}[label=alg:dc-graham]{Graham 掃描法，$Q[1..n]$ 至少兩個不同的點}
+\Function{Graham-Scan}{$Q, n$}
+    \State 把 $y$ 最小的點（$y$ 相同時取 $x$ 最小的）和 $Q[1]$ 交換
+    \State $Q[2..n]$ 依繞 $Q[1]$ 的極角由小到大排序，極角相同時離 $Q[1]$ 近的在前
+    \State $S[1] \gets Q[1]$；$S[2] \gets Q[2]$；$t \gets 2$ \Comment{$S[1..t]$ 是堆疊}
+    \For{$i \gets 3$ \To $n$}
+        \While{$t \ge 2$ \AND \Call{Orient}{$S[t-1], S[t], Q[i]$} $\le 0$}
+            \State $t \gets t - 1$ \Comment{彈出頂端}
+        \EndWhile
+        \State $t \gets t + 1$；$S[t] \gets Q[i]$ \Comment{推入}
+    \EndFor
+    \State \Return $S[1..t]$
+\EndFunction
+\end{pseudo}
+
+堆疊用陣列 $S[1..t]$ 表示，$S[t]$ 是頂端，$S[t-1]$ 是頂端下面那一個（第~6~章的陣列堆疊）。
+第 6 行的條件用 $\le 0$：共線也要彈掉，這樣落在凸包邊上的點不會留在輸出裡。
+
+\textbf{手算}。 十三個點：
+\[
+\begin{gathered}
+A(6, 1),\ B(11, 3),\ C(9, 5),\ D(13, 8),\ E(10, 6),\ F(7, 11),\ G(4, 7), \\
+H(2, 9),\ I(3, 4),\ J(1, 2),\ K(8, 7),\ L(11, 9),\ M(4, 3).
+\end{gathered}
+\]
+$y$ 最小的是 $A$，所以 $p_0 = A$。 依繞 $A$ 的極角排序得到
+\[
+B,\ D,\ E,\ C,\ L,\ K,\ F,\ G,\ H,\ M,\ I,\ J.
+\]
+例如 $D - A = (7, 7)$、$E - A = (4, 5)$，$\proc{Orient}(A, D, E) = 7 \cdot 5 - 7 \cdot 4
+= 7 > 0$，$D$ 在 $E$ 前面。 $M - A = (-2, 2)$ 和 $I - A = (-3, 3)$ 方向相同，外積是
+$0$，$M$ 比較近，排在前面。
+
+\begin{center}
+\begin{minipage}{\linewidth}
+\centering
+\begin{tikzpicture}[x=0.6cm, y=0.5cm]
+\foreach \x/\y in {11/3, 9/5, 13/8, 10/6, 7/11, 4/7, 2/9, 3/4, 1/2, 8/7, 11/9, 4/3} {
+    \draw[black!18] (6,1) -- (\x,\y);
+}
+\fill[coreFill, fill opacity=0.6] (6,1) -- (11,3) -- (13,8) -- (7,11) -- (2,9) -- (1,2) -- cycle;
+\draw[thick, coreStroke] (6,1) -- (11,3) -- (13,8) -- (7,11) -- (2,9) -- (1,2) -- cycle;
+\foreach \n/\x/\y/\pos in {A/6/1/below, B/11/3/right, C/9/5/below right, D/13/8/right,
+    E/10/6/right, F/7/11/above, G/4/7/above, H/2/9/above left, I/3/4/left, J/1/2/left,
+    K/8/7/above, L/11/9/above right, M/4/3/below} {
+    \node[dc-pt, label={[dc-ptlab]\pos:\n}] at (\x,\y) {};
+}
+\end{tikzpicture}
+\diagcaption{Graham 掃描法的例子。 灰線從 $p_0 = A$ 連到其他點，排序就是依這些線的方
+向逆時針排。 藍色多邊形是凸包 $A, B, D, F, H, J$；$L$ 落在邊 $DF$ 上，$M$ 和 $I$ 在
+同一條灰線上。}
+\label{fig:dc-graham}
+\end{minipage}
+\end{center}
+
+掃描的過程如下。 「彈出」欄括號裡是第 6 行判斷時算的外積，「說明」欄是推入之前最後一
+次判斷的外積（大於 $0$，所以停止彈出）。
+
+\begin{center}
+\begin{tabular}{clll}
+\toprule
+處理 & 彈出（外積） & 推入後的堆疊（底 $\to$ 頂） & 說明 \\
+\midrule
+（開始） & & $A, B$ & \\
+$D$ & & $A, B, D$ & $\proc{Orient}(A, B, D) = 21 > 0$ \\
+$E$ & & $A, B, D, E$ & $\proc{Orient}(B, D, E) = 11$ \\
+$C$ & & $A, B, D, E, C$ & $\proc{Orient}(D, E, C) = 1$ \\
+$L$ & $C$（$-2$）、$E$（$-7$） & $A, B, D, L$ & $\proc{Orient}(B, D, L) = 12$ \\
+$K$ & & $A, B, D, L, K$ & $\proc{Orient}(D, L, K) = 7$ \\
+$F$ & $K$（$-14$）、$L$（$0$） & $A, B, D, F$ & $L$ 在 $DF$ 上，共線也彈 \\
+$G$ & & $A, B, D, F, G$ & $\proc{Orient}(D, F, G) = 33$ \\
+$H$ & $G$（$-14$） & $A, B, D, F, H$ & $\proc{Orient}(D, F, H) = 27$ \\
+$M$ & & $A, B, D, F, H, M$ & $\proc{Orient}(F, H, M) = 34$ \\
+$I$ & $M$（$-4$） & $A, B, D, F, H, I$ & $\proc{Orient}(F, H, I) = 27$ \\
+$J$ & $I$（$-12$） & $A, B, D, F, H, J$ & $\proc{Orient}(F, H, J) = 33$ \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+凸包是 $A, B, D, F, H, J$（逆時針）。 共推入 $13$ 次（含一開始的兩個），彈出 $7$ 次。
+處理 $L$ 時連續彈了兩個點：$E \to C \to L$ 右轉，$C$ 不可能是頂點；彈掉之後
+$D \to E \to L$ 還是右轉，$E$ 也彈掉；$B \to D \to L$ 左轉，停。
+
+\begin{whybox}[彈掉的點一定不是頂點]
+設處理 $p = Q[i]$ 時，頂端 $s = S[t]$、下面是 $r = S[t-1]$，而 $\proc{Orient}(r, s, p)
+\le 0$。 堆疊裡的點是依極角的順序推進去的，所以 $s$ 的極角介於 $r$ 和 $p$ 之間，$s$ 在
+以 $p_0$ 為頂點、兩邊是射線 $p_0 r$ 和 $p_0 p$ 的角形區域裡。 另一方面，由輪換和對調
+的性質，$\proc{Orient}(r, p, s) = -\proc{Orient}(r, s, p) \ge 0$，$s$ 在有向直線
+$r \to p$ 的左邊或線上；$\proc{Orient}(r, p, p_0) = \proc{Orient}(p_0, r, p) > 0$（$r$
+的極角比 $p$ 小），$p_0$ 也在左邊。 所以 $s$ 落在三角形 $p_0 r p$ 裡面或邊上。 三角形
+的三個頂點都是點集裡的點，$s$ 在它裡面，就不可能是凸包的轉角。 （$r$、$p$ 極角相同時，三點都在從
+$p_0$ 出發的同一條射線上，排序讓 $s$ 夾在 $r$、$p$ 之間，同樣不是轉角。）
+\end{whybox}
+
+\textbf{正確性}。 不變量：第 5 行每一輪開始時，$S[1..t]$ 依逆時針順序正是
+$Q[1..i-1]$ 的凸包頂點。 一開始只有 $Q[1]$、$Q[2]$ 兩點，成立。 處理 $p = Q[i]$ 時，
+$p$ 的極角是目前最大的（同方向時是最遠的），所以 $p$ 一定是 $Q[1..i]$ 凸包的頂點；被
+彈掉的點由上面的方框都不是頂點；停下來時 $S[t-1] \to S[t] \to p$ 是左轉，堆疊裡原
+本的轉彎都還是左轉，$p \to p_0$ 和 $p_0 \to S[2]$ 兩處也是左轉（極角的順序保證），
+所以推入 $p$ 後的堆疊圍成一個每個轉角都左轉的凸多邊形。 它包含原來的凸包和 $p$，被彈
+掉的點也都在它裡面，頂點又全部是點集裡的點，所以它就是 $Q[1..i]$ 的凸包。 迴圈結束時
+$i = n + 1$，回傳的就是全部的凸包。 完整的證明見延伸閱讀。
+
+\textbf{時間}。 第 2 行找最低點 $\Theta(n)$，第 3 行排序 $\Theta(n \lg n)$（用合併排
+序或堆積排序，比較函式每次 $\Theta(1)$）。 第 6--7 行的 \textbf{while} 迴圈看起來可能
+一次彈很多個，但每個點只推入一次，被彈出最多一次，所以整個 \textbf{for} 迴圈裡第 7 行
+合計最多執行 $n$ 次，第 6 行的檢查最多 $(n - 2) + n$ 次（每輪最後一次不成立的檢查加上
+成立的次數）。 這就是第~3~章的聚合法：單獨一輪可能很貴，總和是 $O(n)$。 全部合起來
+\[
+T(n) = \Theta(n) + \Theta(n \lg n) + \Theta(n) = \Theta(n \lg n),
+\]
+時間花在排序上；掃描那一段不管輸入長什麼樣都是 $O(n)$。 如果點已經依極角排好（例如
+直接給一個凸多邊形的頂點順序），整個只要 $\Theta(n)$。
+
+\begin{examnote}
+寫 Graham 掃描法的追蹤，先寫出 $p_0$ 和排序後的順序，再一列一列寫「處理哪一點、彈出
+哪些點、堆疊變成什麼」。 有三個細節各書不同，作答時先寫你用哪一種：$p_0$ 同高時取最
+左還是最右；極角相同時近的在前還是遠的在前（有的書只留最遠的那一個）；共線的點要不要
+輸出（本書第 6 行用 $\le 0$，不輸出）。 題目問複雜度時，答 $O(n \lg n)$，並說明排序
+是瓶頸、掃描是 $O(n)$（每點最多進出堆疊各一次）。
+\end{examnote}
+
+\subsection{C 程式}
+
+程式照虛擬碼~\ref{alg:dc-graham} 寫，點的名字用一個字元。 \texttt{qsort} 的比較函式只
+收兩個指標，拿不到 $p_0$，所以把 $p_0$ 放在一個檔案範圍的變數裡，排序前設好。 堆疊直接
+用輸出陣列 \texttt{hull}，\texttt{h} 是堆疊裡的點數。 點以打亂的順序給，每處理一個點印
+出彈掉的點（括號裡是外積）和堆疊。
+
+\begin{example}[label=ex:dc-graham]{c}{(graham\_scan.c) Graham 掃描法}
+#include <stdio.h>
+#include <stdlib.h>
+
+typedef struct {
+    int x, y;
+    char name;
+} Point;
+
+// 外積 (q - p) x (r - p)：正是左轉，負是右轉，0 是共線。座標的差先轉成 long long。
+long long orient(Point p, Point q, Point r)
+{
+    return ((long long)q.x - p.x) * ((long long)r.y - p.y)
+         - ((long long)q.y - p.y) * ((long long)r.x - p.x);
+}
+
+long long dist2(Point p, Point q)
+{
+    long long dx = (long long)p.x - q.x, dy = (long long)p.y - q.y;
+    return dx * dx + dy * dy;
+}
+
+Point p0;                               // qsort 的比較函式拿不到參數，基準點放在這裡
+
+// 繞 p0 的極角由小到大；極角相同時近的在前。
+int cmp_angle(const void *pa, const void *pb)
+{
+    const Point *a = pa, *b = pb;
+    long long o = orient(p0, *a, *b);
+    if (o != 0) {
+        return o > 0 ? -1 : 1;          // p0->a 轉到 p0->b 是左轉：a 的極角比較小
+    }
+    long long da = dist2(p0, *a), db = dist2(p0, *b);
+    return (da > db) - (da < db);
+}
+
+// 回傳凸包的頂點數，頂點依逆時針順序放在 hull[0..h-1]。要求 n >= 2。
+int graham_scan(Point *p, int n, Point *hull)
+{
+    int low = 0;
+    for (int i = 1; i < n; i++) {       // y 最小的點，y 相同取 x 最小
+        if (p[i].y < p[low].y || (p[i].y == p[low].y && p[i].x < p[low].x)) {
+            low = i;
+        }
+    }
+    Point t = p[0];
+    p[0] = p[low];
+    p[low] = t;
+    p0 = p[0];
+    qsort(p + 1, n - 1, sizeof *p, cmp_angle);
+    printf("sorted:");
+    for (int i = 0; i < n; i++) {
+        printf(" %c", p[i].name);
+    }
+    printf("\n");
+    int h = 0;                          // hull[0..h-1] 當堆疊用，hull[h-1] 是頂端
+    hull[h++] = p[0];
+    hull[h++] = p[1];
+    for (int i = 2; i < n; i++) {
+        printf("%c:", p[i].name);
+        while (h >= 2 && orient(hull[h - 2], hull[h - 1], p[i]) <= 0) {
+            printf(" pop %c(%lld)", hull[h - 1].name,
+                   orient(hull[h - 2], hull[h - 1], p[i]));
+            h--;
+        }
+        hull[h++] = p[i];
+        printf(" ->");
+        for (int k = 0; k < h; k++) {
+            printf(" %c", hull[k].name);
+        }
+        printf("\n");
+    }
+    return h;
+}
+
+int main(void)
+{
+    Point p[] = {{9, 5, 'C'}, {2, 9, 'H'}, {11, 3, 'B'}, {4, 3, 'M'}, {10, 6, 'E'},
+                 {6, 1, 'A'}, {8, 7, 'K'}, {1, 2, 'J'}, {13, 8, 'D'}, {4, 7, 'G'},
+                 {11, 9, 'L'}, {3, 4, 'I'}, {7, 11, 'F'}};
+    int n = 13;
+    Point *hull = malloc(n * sizeof *hull);
+    if (hull == NULL) {
+        return 1;
+    }
+    int h = graham_scan(p, n, hull);
+    printf("hull (%d):", h);
+    for (int k = 0; k < h; k++) {
+        printf(" %c(%d,%d)", hull[k].name, hull[k].x, hull[k].y);
+    }
+    printf("\n");
+    free(hull);
+    return 0;
+}
+\end{example}
+\iosample{}{sorted: A B D E C L K F G H M I J \\ D: -> A B D \\ E: -> A B D E \\ C: -> A B D E C \\ L: pop C(-2) pop E(-7) -> A B D L \\ K: -> A B D L K \\ F: pop K(-14) pop L(0) -> A B D F \\ G: -> A B D F G \\ H: pop G(-14) -> A B D F H \\ M: -> A B D F H M \\ I: pop M(-4) -> A B D F H I \\ J: pop I(-12) -> A B D F H J \\ hull (6): A(6,1) B(11,3) D(13,8) F(7,11) H(2,9) J(1,2)}
+
+輸出和上面的表逐列一致。 \texttt{qsort} 不保證相同的鍵維持原順序，但這裡排序的鍵（極
+角，同方向再比距離）不會有兩個點完全相同，所以結果是唯一的。
+
+\subsection{分治的凸包}
+\label{sec:dc-hull-dc}
+
+凸包也可以照本章的分治樣板做（Preparata 和 Hong，1977）。 先把點依 $x$ 排序（$x$ 相
+同時依 $y$），然後：
+
+\begin{enumerate}
+\item \textbf{分}：依排好的順序切成左右兩半 $L$、$R$，各有一半的點，$L$ 的點都在
+$R$ 的左邊。
+\item \textbf{治}：遞迴求出 $\mathrm{CH}(L)$、$\mathrm{CH}(R)$，各自是逆時針的頂點序
+列。 三個點以內直接做。
+\item \textbf{合}：找兩條\textbf{橋}（bridge）：上橋是連接 $\mathrm{CH}(L)$ 和
+$\mathrm{CH}(R)$ 的線段裡，讓所有點都在它下方（或線上）的那一條；下橋讓所有點都在它
+上方。 新的凸包就是：沿 $\mathrm{CH}(L)$ 的外側從上橋的左端走到下橋的左端，走過下
+橋，沿 $\mathrm{CH}(R)$ 的外側走到上橋的右端，再走過上橋回來。 兩個小凸包夾在兩條
+橋之間、朝內的那幾條邊丟掉。
+\end{enumerate}
+
+\begin{center}
+\begin{minipage}{\linewidth}
+\centering
+\begin{tikzpicture}[x=0.55cm, y=0.5cm]
+\draw[very thick, dashed, memStroke] (7,0) -- (7,10);
+\fill[coreFill, fill opacity=0.6] (3,1) -- (6,3) -- (5,6) -- (2,8) -- (1,4) -- cycle;
+\fill[coreFill, fill opacity=0.6] (9,1) -- (13,2) -- (12,5) -- (10,9) -- (8,7) -- cycle;
+\draw[thick, coreStroke] (3,1) -- (6,3) -- (5,6) -- (2,8) -- (1,4) -- cycle;
+\draw[thick, coreStroke] (9,1) -- (13,2) -- (12,5) -- (10,9) -- (8,7) -- cycle;
+\draw[very thick, optStroke] (2,8) -- (10,9) node[midway, above, font=\scriptsize] {上橋};
+\draw[very thick, optStroke] (3,1) -- (9,1) node[midway, below, font=\scriptsize] {下橋};
+\foreach \x/\y in {3/1, 6/3, 5/6, 2/8, 1/4, 4/4, 9/1, 13/2, 12/5, 10/9, 8/7, 10/4} {
+    \node[dc-pt] at (\x,\y) {};
+}
+\node[font=\small] at (3.5,10.4) {$L$};
+\node[font=\small] at (10.5,10.4) {$R$};
+\end{tikzpicture}
+\diagcaption{分治凸包的「合」。 兩個藍色多邊形是左右兩半各自的凸包，紅色是上橋和下
+橋。 合併後的凸包沿左邊凸包的左側、下橋、右邊凸包的右側、上橋繞一圈；兩個凸包朝
+內的邊（虛線兩側的那幾條）丟掉。}
+\label{fig:dc-hull-merge}
+\end{minipage}
+\end{center}
+
+找上橋的方法像兩個人往上爬：一開始 $a$ 是 $\mathrm{CH}(L)$ 最右邊的點，$b$ 是
+$\mathrm{CH}(R)$ 最左邊的點。 只要 $b$ 在 $\mathrm{CH}(R)$ 上往上走一步（順時針方
+向的下一個頂點）會落在有向直線 $a \to b$ 的左邊（上方），就讓 $b$ 走過去；同樣，只要
+$a$ 在 $\mathrm{CH}(L)$ 上往上走一步（逆時針方向的下一個頂點）在直線 $a \to b$ 的
+上方，就讓 $a$ 走過去。 兩邊都走不動時，$ab$ 就是上橋。 每一步都是一次
+\proc{Orient}，$a$、$b$ 各自只往一個方向走，最多走過各自凸包的所有頂點，所以找橋是
+$O(n)$；下橋對稱。 圖~\ref{fig:dc-hull-merge} 裡，上橋從 $a = (6, 3)$、$b = (8, 7)$
+開始，$a$ 往上走到 $(5, 6)$、$(2, 8)$，$b$ 走到 $(10, 9)$ 停下。 合併時把兩個頂點序
+列接起來也是 $O(n)$。 所以
+\[
+T(n) = 2T(n/2) + \Theta(n) = \Theta(n \lg n),
+\]
+加上一開始排序的 $\Theta(n \lg n)$，合計 $\Theta(n \lg n)$，和 Graham 掃描法同一級。
+它的遞迴結構和第~\ref{sec:dc-closest}~節的最近點對一樣：先依 $x$ 排好，切一半，難處都
+在「合」。
+
+\subsection{凸包的下界}
+\label{sec:dc-hull-lower}
+
+兩種做法都是 $\Theta(n \lg n)$，而且時間都花在排序。 能不能不排序、做得更快？ 下面用
+\textbf{歸約}（reduction）說明不行：如果凸包能做得比 $n \lg n$ 快，排序也就能做得比
+$n \lg n$ 快，和第~15~章的下界矛盾。
+
+做法是把要排序的數放到拋物線 $y = x^2$ 上。 給 $n$ 個不同的正數 $a_1, \ldots, a_n$，
+做出點 $P_i = (a_i, a_i^2)$。 對三個數 $a < b < c$，
+\[
+\proc{Orient}\bigl((a, a^2), (b, b^2), (c, c^2)\bigr)
+= (b - a)(c^2 - a^2) - (b^2 - a^2)(c - a) = (b - a)(c - a)(c - b) > 0 .
+\]
+所以依 $x$ 由小到大走，每個轉彎都是左轉；從最右點走回最左點，再走向第二個點，也是左
+轉（代進同一個式子可以驗證）。 也就是說，依 $x$ 排好的順序圍成一個凸多邊形，每個點都
+是轉角：\textbf{$n$ 個點全部是凸包頂點，而且逆時針順序就是 $x$ 由小到大的順序}（從最
+左點開始讀）。
+
+\begin{center}
+\begin{minipage}{\linewidth}
+\centering
+\begin{tikzpicture}[x=0.9cm, y=0.13cm]
+\draw[-{Stealth[length=2mm]}, black!60] (0,0) -- (5.8,0) node[right, font=\small] {$x$};
+\draw[-{Stealth[length=2mm]}, black!60] (0,0) -- (0,27) node[above, font=\small] {$y$};
+\draw[black!30, domain=0:5.15, samples=60] plot (\x, {\x*\x});
+\fill[coreFill, fill opacity=0.6] (1,1) -- (2,4) -- (3,9) -- (4,16) -- (5,25) -- cycle;
+\draw[thick, coreStroke] (1,1) -- (2,4) -- (3,9) -- (4,16) -- (5,25) -- cycle;
+\foreach \a in {1,...,5} {
+    \draw[black!60] (\a,0) -- (\a,-0.8) node[below, font=\scriptsize] {\a};
+}
+\foreach \a/\k in {4/1, 1/2, 3/3, 5/4, 2/5} {
+    \node[dc-pt, label={[dc-ptlab]right:$P_{\k}$}] at (\a,\a*\a) {};
+}
+\end{tikzpicture}
+\diagcaption{排序 $\langle 4, 1, 3, 5, 2 \rangle$：做出 $P_i = (a_i, a_i^2)$，五個點都
+是凸包頂點。 從最左的 $P_2$ 逆時針讀 $P_2, P_5, P_3, P_1, P_4$，就是 $1, 2, 3, 4, 5$。}
+\label{fig:dc-parabola}
+\end{minipage}
+\end{center}
+
+\begin{theorem}
+\label{thm:dc-hull-lower}
+設一個凸包演算法對座標只做兩種測試：比較兩個座標的大小，以及判斷 \proc{Orient} 的正
+負號（本節的演算法都可以只用這兩種測試寫成）。 那麼它要輸出依逆時針排好的凸包頂點，最壞情況至少要
+$\Omega(n \lg n)$ 次測試。
+\end{theorem}
+
+\begin{proof}
+設這個演算法對 $n$ 個點最多做 $T(n)$ 次測試。 用它做一個排序演算法：輸入 $n$ 個不同
+的正數 $a_1, \ldots, a_n$，做出 $P_i = (a_i, a_i^2)$，呼叫凸包演算法，在輸出裡找 $x$
+最小的頂點（$n - 1$ 次比較），從它開始依序讀出 $x$ 座標。 由上面的計算，讀出來的就是
+由小到大的順序。
+
+這個排序演算法只靠比較鍵就能執行：
+\begin{itemize}
+\item 比較 $x$ 座標就是比較 $a_i$、$a_j$。
+\item 比較 $y$ 座標是比較 $a_i^2$、$a_j^2$；鍵都是正數，和比較 $a_i$、$a_j$ 的結果相同。
+\item $\proc{Orient}(P_i, P_j, P_k) = (a_j - a_i)(a_k - a_i)(a_k - a_j)$，它的正負號由
+$a_i$、$a_j$、$a_k$ 兩兩比較的三個結果決定。
+\end{itemize}
+所以它是一個比較排序，最多做 $3T(n) + (n - 1)$ 次比較。 第~15~章的定理~\ref{thm:lin-lower}
+說，比較排序排 $n$ 個不同的鍵（限制成正數也一樣，$n!$ 種順序都還在），最壞至少要
+$\lceil \lg(n!) \rceil$ 次比較。 因此
+\[
+3T(n) + n - 1 \ge \lg(n!) = \Omega(n \lg n), \qquad T(n) = \Omega(n \lg n). \qedhere
+\]
+\end{proof}
+
+定理的前提是一個計算模型，就像第~15~章的下界只管比較排序。 允許更多種運算時（例如可
+以判斷任何固定次數多項式的正負號），Ben-Or 在 1983 年證明排序仍然要 $\Omega(n \lg n)$，同
+樣的歸約就給出凸包的 $\Omega(n \lg n)$。 只要求找出「哪些點是頂點」、不要求順序時，
+下界也還是 $\Omega(n \lg n)$（Yao，1981），證明比較難，本書不談。
+
+\begin{examnote}
+「證明凸包至少要 $\Omega(n \lg n)$」的標準寫法：（1）給排序的輸入 $a_1, \ldots, a_n$，
+在 $O(n)$ 時間內轉成點 $(a_i, a_i^2)$；（2）說明這些點全部在凸包上，而且凸包的逆時針
+順序從最左點開始就是排好的順序，輸出轉回答案也是 $O(n)$；（3）所以凸包如果是
+$o(n \lg n)$，排序就是 $o(n \lg n)$，和排序的下界矛盾。 歸約的方向不要寫反：是把\textbf{排
+序}變成\textbf{凸包}，證明凸包不比排序容易。 有時間的話補一句計算模型（比較和外積），
+並說明轉換本身只花 $O(n)$。
+\end{examnote}
+
+各種凸包做法的比較（$h$ 是凸包的頂點數）：
+
+\begin{center}
+\begin{tabular}{lll}
+\toprule
+做法 & 時間 & 想法 \\
+\midrule
+Graham 掃描法 & $\Theta(n \lg n)$ & 依極角排序，用堆疊掃一次 \\
+分治 & $\Theta(n \lg n)$ & 依 $x$ 切兩半，找上下兩條橋 \\
+禮物包裝法（Jarvis march） & $\Theta(nh)$ & 每一步掃過所有點，找下一個頂點 \\
+任何做法的下界 & $\Omega(n \lg n)$ & 排序可以歸約到凸包 \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+禮物包裝法每找一個頂點要看過所有點，$h$ 很小時比 $n \lg n$ 快；但 $h$ 可以到 $n$（例
+如點都在一個圓上），最壞是 $\Theta(n^2)$。 這和下界不衝突：下界用的輸入正是 $h = n$
+的情形。
+
+\subsection{最遠點對}
+\label{sec:dc-farthest}
+
+和最近點對相對的問題是\textbf{最遠點對}：$n$ 個點裡距離最遠的兩點，也就是點集的直徑。
+兩兩比較是 $\Theta(n^2)$。 關鍵的觀察是：\textbf{最遠點對的兩點一定都是凸包的頂點}
+（觀念題第~\ref{dc-q-far}~題證明）。 所以先花 $O(n \lg n)$ 求凸包，再只在 $h$ 個頂點
+之間找。
+
+$h$ 個頂點兩兩比較要 $\Theta(h^2)$，$h = n$ 時沒有省到。 \textbf{旋轉卡尺}
+（rotating calipers）的想法是：沿著凸包逆時針走一圈，對每一條邊，找離這
+條邊所在直線最遠的頂點（叫它的\textbf{對踵點}）；邊往前走一條時，對踵點也只會往前走，
+不會回頭。 所以用兩個指標一起繞一圈，$O(h)$ 就能看完所有對踵的點對，最遠點對一定是其
+中一對。 合計 $O(n \lg n)$。
+
+最近點對不能這樣做：最近的兩點通常在點集的內部，和凸包沒有關係，所以第~\ref{sec:dc-closest}~節
+要用分治和帶狀區域的論證。 兩個問題的答案都是 $\Theta(n \lg n)$，但理由完全不同。
+
 \section{本章常見錯誤}
 \label{sec:dc-pitfalls}
 
-\begin{center}
-\begin{tabular}{p{0.22\linewidth}p{0.57\linewidth}p{0.13\linewidth}}
+\begin{longtable}{p{0.22\linewidth}p{0.57\linewidth}p{0.13\linewidth}}
 \toprule
 錯誤 & 例子 & 見 \\
 \midrule
+\endhead
 區間寫法混用 & 條件寫 $\mathit{lo} \le \mathit{hi}$，卻用 $\mathit{hi} \gets
 \mathit{mid}$，只剩一格時停不下來 & 第~\ref{sec:dc-traps}~節 \\
 $\mathit{lo} \gets \mathit{mid}$ 配地板 & 剩兩格時 $\mathit{mid} = \mathit{lo}$，
@@ -1631,9 +2459,19 @@ Karatsuba 還是四次乘法 & 分別算出 $ad$、$bc$ 再相加，沒有用 $(
 相等時先拿右邊 & 把相等的數對算成逆序 & 第~\ref{sec:dc-inv}~節 \\
 逆序數用 \texttt{int} & $n = 10^5$ 時逆序數可達約 $5 \times 10^9$ &
 第~\ref{sec:dc-inv}~節 \\
+用斜率判斷轉向 & 鉛直線沒有斜率、浮點數有誤差；改用外積，只有乘法和減法 &
+第~\ref{sec:dc-orient}~節 \\
+外積用 \texttt{int} & 座標到 $10^9$ 時兩個乘積各約 $4 \times 10^{18}$；$d_1 d_2$ 更不能真的乘 &
+第~\ref{sec:dc-orient}~節 \\
+有 $d = 0$ 就說相交 & 四點共線但分開時四個外積都是 $0$，要再檢查 \proc{On-Segment} &
+第~\ref{sec:dc-segint}~節 \\
+射線通過頂點算錯次數 & 高度等於 $q.y$ 的頂點要一律歸到同一邊（本書算下方） &
+第~\ref{sec:dc-pip}~節 \\
+Graham 留下共線的點 & 彈出的條件寫成 $< 0$，邊上的點留在輸出裡 & 第~\ref{sec:dc-graham}~節 \\
+下界的歸約方向寫反 & 要把排序變成凸包，才能說凸包至少和排序一樣難 &
+第~\ref{sec:dc-hull-lower}~節 \\
 \bottomrule
-\end{tabular}
-\end{center}
+\end{longtable}
 
 \section{觀念題}
 \label{sec:dc-exercises}
@@ -1734,7 +2572,158 @@ $\delta_L^2$、$\delta_R^2$（兩半的最近距離可以直接兩兩比較求�
 總數是多少？ 多算了哪一對？
 \end{enumerate}
 
+\item \label{dc-q-seg}（計算）$P(2, 3)$、$Q(7, 5)$、$R(4, 8)$、$S(12, 7)$、$T(9, 1)$。
+\begin{enumerate}
+\item 算出 $\proc{Orient}(P, Q, R)$ 和 $\proc{Orient}(P, Q, S)$，說明各是左轉、右轉還是
+共線。
+\item 用 \proc{Segments-Intersect} 判斷三組線段：$\overline{PS}$ 和 $\overline{QR}$；
+$\overline{PR}$ 和 $\overline{QS}$；$\overline{RT}$ 和 $\overline{PS}$（每一組前一條
+當 $\overline{p_1 p_2}$）。 寫出 $d_1$ 到 $d_4$，以及程序在第幾行回傳什麼。
+\item 如果把 \proc{On-Segment} 拿掉，改成「有某個 $d$ 等於 $0$ 就回傳 \TRUE」，(b) 的
+哪一組會答錯？
 \end{enumerate}
+
+\item \label{dc-q-pip}（追蹤）多邊形的頂點依序是 $v_1(1, 1)$、$v_2(9, 1)$、$v_3(9, 4)$、
+$v_4(6, 4)$、$v_5(5, 7)$、$v_6(3, 4)$，要判斷的點是 $q_1(2, 4)$ 和 $q_2(4, 4)$。 兩條射
+線都沿著水平邊 $v_3 v_4$ 走，也都通過 $v_4$、$v_6$。
+\begin{enumerate}
+\item 對兩個點分別執行 \proc{Point-In-Polygon}，列出跨過 $y = 4$ 的邊、
+$\proc{Orient}(a, b, q) \cdot (b.y - a.y)$ 的值和最後的計數，並說明答案。
+\item 如果把第 5 行改成「$a.y \ge q.y$ 和 $b.y \ge q.y$ 恰好一個成立」（高度等於
+$q.y$ 的頂點改算在上方），兩個點的計數各是多少？ 答案還對嗎？
+\end{enumerate}
+
+\item \label{dc-q-graham}（追蹤與分析）
+\begin{enumerate}
+\item 八個點 $A(7, 0)$、$B(3, 0)$、$C(9, 4)$、$D(6, 3)$、$E(5, 8)$、$F(1, 6)$、
+$G(0, 2)$、$H(4, 4)$。 用 \proc{Graham-Scan} 求凸包：寫出 $p_0$、排序後的順序、每處理
+一個點時彈出哪些點（附外積）和堆疊，以及最後的凸包。
+\item 處理一個點時，第 6--7 行可能連續彈出很多個點。 給一組 $8$ 個點的例子，讓最後
+一個點進來時彈出 $5$ 個點，並說明為什麼即使如此，整個掃描仍是 $O(n)$。
+\end{enumerate}
+
+\item \label{dc-q-far}（證明）$|u|$ 表示向量 $u$ 的長度。
+\begin{enumerate}
+\item 設 $p = t a + (1 - t) b$，$0 \le t \le 1$（$p$ 在線段 $\overline{ab}$ 上）。 證明
+對任何點 $q$，
+\[
+|p - q|^2 = t\,|a - q|^2 + (1 - t)\,|b - q|^2 - t(1 - t)\,|a - b|^2 .
+\]
+\item 由 (a) 證明：$a \ne b$、$0 < t < 1$ 時，$|p - q| < \max(|a - q|, |b - q|)$。
+\item 證明：點集裡任何一組最遠點對，兩點都是凸包的頂點。
+\item 求凸包之後，在 $h$ 個頂點之間兩兩比較，總時間是多少？ $h$ 最多多大時，這仍是
+$O(n \lg n)$？
+\end{enumerate}
+
+\end{enumerate}
+
+\section{歷屆試題}
+\label{sec:dc-pastexam}
+
+以下是研究所入學考試的原題，題目照原卷（語言、記號、配分照錄）。 詳解在本章最後。
+
+\begin{pastexam}[label={px:dc-1}]{臺大資工所 111 學年度 第 10 題}
+(5 points) Consider an integer array $A$ of size $n>0$ with elements $A[1],\ldots,A[n]$,
+where the first $p$ elements are positive and the other $(n-p)$ elements are negative. The
+following algorithm calculates $p$ correctly by calling \textsc{Compute-P}$(A,n)$. What loop
+invariant is maintained for the \textbf{while} loop of the algorithm?
+
+\begin{quote}
+\textsc{Compute-P}$(A, len)$\\
+1\quad \textbf{if} $A[1]<0$ \textbf{return} 0\\
+2\quad $left=1, right=len$\\
+3\quad \textbf{while} $left<right$\\
+4\quad\quad $m=\text{ceiling}(\frac{left+right}{2})$\\
+5\quad\quad \textbf{if} $A[m]>0$\\
+6\quad\quad\quad $left=m$\\
+7\quad\quad \textbf{else}\\
+8\quad\quad\quad $right=m-1$\\
+9\quad \textbf{return} $left$
+\end{quote}
+\begin{enumerate}[label=(\Alph*)]
+\item $left+1\le p\le right$
+\item $left+1\le p\le right-1$
+\item $left\le p\le right$
+\item $left\le p\le right-1$
+\item none of the other choices
+\end{enumerate}
+\end{pastexam}
+
+\begin{pastexam}[label={px:dc-2}]{中正資工所 111 學年度 第 1 題}
+(2\%) The maximum number of comparisons needed for the binary search of a 2,000 element
+array is
+
+(a) 1,999 \qquad (b) 9 \qquad (c) 11 \qquad (d) 13
+\end{pastexam}
+
+\begin{pastexam}[label={px:dc-3}]{成大資訊聯招 113 學年度 第 11 題}
+(10\%) Consider three $n\times n$ matrices, denoted as $A$, $B$, and $C$. Each of these
+matrices is partitioned into four $n/2\times n/2$ submatrices. Assuming that $n$ is an exact
+power of 2, we can guarantee that, for $n\ge 2$, the dimension $n/2$ is an integer. The
+subdivisions for matrix $A$ yield $A_{11}$, $A_{12}$, $A_{21}$, and $A_{22}$. Similarly,
+matrix $B$ is decomposed into $B_{11}$, $B_{12}$, $B_{21}$, and $B_{22}$, while matrix $C$
+undergoes division into $C_{11}$, $C_{12}$, $C_{21}$, and $C_{22}$. We have the following
+procedure:
+\par\vspace{1ex}
+{\centering
+\begin{tabular}{|l|}
+\hline
+F($A$, $B$)\\
+\hspace*{2em}$n=A$.rows\\
+\hspace*{2em}if $n==1$\\
+\hspace*{4em}$c_{11}=a_{11}\cdot b_{11}$\\
+\hspace*{2em}else\\
+\hspace*{4em}$C_{11}=\mathrm{F}(A_{11},B_{11})+\mathrm{F}(A_{12},B_{21})$\\
+\hspace*{4em}$C_{12}=\mathrm{F}(A_{11},B_{12})+\mathrm{F}(A_{12},B_{22})$\\
+\hspace*{4em}$C_{21}=\mathrm{F}(A_{21},B_{11})+\mathrm{F}(A_{22},B_{21})$\\
+\hspace*{4em}$C_{22}=\mathrm{F}(A_{21},B_{12})$\\
+\hspace*{2em}return $C$\\
+\hline
+\end{tabular}\par}
+\vspace{1ex}
+It is important to note that the procedure for $C_{22}$ is invoked only once and '+' is
+matrix addition. Let $T(n)$ represent the time required to process two $n\times n$ matrices
+using this particular procedure. Provide an asymptotic tight bound ($\Theta$) for $T(n)$,
+assuming that $T(n)$ is a constant for sufficiently small $n$.
+\end{pastexam}
+
+\begin{pastexam}[label={px:dc-4}]{政大資科所 107 學年度 第 7 題}
+(15\%) A contiguous subsequence of a list $S$ is a subsequence made up of consecutive
+elements of $S$. For instance, if $S$ is 5, 15, $-30$, 10, $-5$, 40, 10, then 15, $-30$, 10
+is a contiguous subsequence but 5, 15, 40 is not. Design a polynomial-time algorithm for the
+following task:\\
+Input: A list $S$ of numbers $a_1,a_2,\ldots,a_n$.\\
+Output: The contiguous subsequence of $S$ of maximum sum.\\
+Note that a subsequence of length zero has sum zero.\\
+For the preceding example, the answer would be 10, $-5$, 40, 10, with a sum of 55.
+\end{pastexam}
+
+\begin{pastexam}[label={px:dc-5}]{臺大資工所 103 學年度 第 5 題（節錄 (a)(c) 小題）}
+(30 points) Computational geometry has applications in a number of fields such as computer
+graphics, computer vision, robotics, molecular modeling and statistics. We consider the
+following problems of computational geometry in 2D space where the points are specified by
+their $x$ and $y$ coordinates, $p_i=(x_i,y_i)$.
+\begin{enumerate}[label=(\alph*)]
+\item (5 points) Give an algorithm to determine whether two line segments intersect. The
+inputs are segments $\overline{p_1p_2}$ and $\overline{p_3p_4}$, and the algorithm returns
+TRUE if the two segments intersect and FALSE if they do not.
+\item[(c)] (15 points) Give an \textit{efficient} algorithm to determine whether a given
+point is inside a given polygon. The vertices of the polygon are in counterclockwise order.
+We assume that the boundary of the polygon has no self-intersections, and that the given
+point is not on the polygon's boundary. Please describe the key ideas and discuss its time
+complexity.
+
+Figure 3 illustrates a polygon. Point A is within the polygon and point B is outside of the
+polygon.
+\end{enumerate}
+
+\begin{center}
+\begin{tikzpicture}[font=\sffamily]
+\draw[thick] (3.30,-1.18)--(1.70,-1.90)--(2.48,-3.15)--(2.08,-4.35)--(4.90,-4.78)--(6.52,-2.38)--(3.70,-2.73)--cycle;
+\fill (1.73,-3.58) circle (1.3pt) node[above=1pt] {B};
+\fill (3.52,-3.70) circle (1.3pt) node[above=1pt] {A};
+\end{tikzpicture}\\ Figure 3: A Polygon and two points\end{center}
+\end{pastexam}
 
 \section{實作練習}
 \label{sec:dc-practice}
@@ -1788,6 +2777,11 @@ $E[i]$ 遞迴為什麼對。
 \item 說明最近點對的帶狀區域為什麼寬 $2\delta$、每個點為什麼最多往後看 $7$ 個點，
 並能手算每一層的 $x_m$、帶狀區域和比較的點對。
 \item 用合併排序在 $\Theta(n \lg n)$ 內數逆序數，說明相等時為什麼要先拿左邊。
+\item 用外積判斷左轉、右轉、共線；寫出線段相交的四個外積，說明 \proc{On-Segment} 為什
+麼需要；用射線法判斷點在不在多邊形裡，處理射線通過頂點和水平邊的情形。
+\item 手算 Graham 掃描法的排序和堆疊的每一步，說明它是 $\Theta(n \lg n)$ 而掃描只要
+$O(n)$；說出分治凸包怎麼用兩條橋合併；用排序歸約證明凸包的 $\Omega(n \lg n)$ 下界；
+知道最遠點對的兩點都在凸包上。
 \end{itemize}
 
 \textbf{延伸閱讀}（書末會整理完整的參考資料）
@@ -1805,6 +2799,14 @@ $E[i]$ 遞迴為什麼對。
 \item Donald E. Knuth，\textit{The Art of Computer Programming, Vol.~2: Seminumerical
 Algorithms}，第 3 版，4.3.3 節（快速乘法）與 4.6.3 節（冪的計算）：後者討論算 $x^n$
 最少要幾次乘法，二進位法不一定最少（觀念題第~\ref{dc-q-pow}~題）。
+\item Thomas H. Cormen 等，\textit{Introduction to Algorithms}，第 3 版，第 33 章：外積、
+線段相交（含掃描線判斷 $n$ 條線段）、Graham 掃描法和禮物包裝法。 第 4 版刪掉了這一章。
+\item Franco P. Preparata、Michael Ian Shamos，\textit{Computational Geometry: An
+Introduction}，Springer，1985：凸包的各種做法與下界、點集的直徑（最遠點對）、線段相交
+的掃描線演算法，舊卷的計算幾何題大多出自這本書的範圍。
+\item Mark de Berg、Otfried Cheong、Marc van Kreveld、Mark Overmars，\textit{Computational
+Geometry: Algorithms and Applications}，第 3 版，Springer，2008，第 1、2 章：凸包（包括
+共線點和數值誤差怎麼處理）和線段相交的掃描線演算法。
 \end{itemize}
 
 \addcontentsline{toc}{section}{觀念題解答}
@@ -1986,4 +2988,333 @@ $6$。
 $3$ 這一對，它們相等，不是逆序。
 \end{enumerate}
 
+\item
+\begin{enumerate}
+\item $Q - P = (5, 2)$。 $R - P = (2, 5)$：$5 \cdot 5 - 2 \cdot 2 = 21 > 0$，左轉。
+$S - P = (10, 4)$：$5 \cdot 4 - 2 \cdot 10 = 0$，共線（$S - P$ 正好是 $Q - P$ 的兩倍，
+$Q$ 在 $P$、$S$ 之間）。
+\item 三組的結果：
+\begin{center}
+\begin{tabular}{lccccl}
+\toprule
+線段 & $d_1$ & $d_2$ & $d_3$ & $d_4$ & 結果 \\
+\midrule
+$\overline{PS}$、$\overline{QR}$ & $21$ & $-21$ & $0$ & $42$ & 第 11 行，\TRUE \\
+$\overline{PR}$、$\overline{QS}$ & $0$ & $21$ & $-21$ & $-42$ & 第 14 行，\FALSE \\
+$\overline{RT}$、$\overline{PS}$ & $42$ & $-48$ & $-39$ & $51$ & 第 5 行，\TRUE \\
+\bottomrule
+\end{tabular}
+\end{center}
+第一組：$d_1 d_2 < 0$ 但 $d_3 = 0$，第 4 行不成立；$d_1$、$d_2$ 不是 $0$；$d_3 = 0$ 且
+$Q = (7, 5)$ 在以 $P$、$S$ 為對角的長方形裡（$2 \le 7 \le 12$、$3 \le 5 \le 7$），第 11
+行回傳 \TRUE：$\overline{QR}$ 的端點 $Q$ 碰到 $\overline{PS}$。 第二組：$d_1 = 0$，
+$P$ 在直線 $QS$ 上，但 $P.x = 2$ 不在 $[7, 12]$ 裡，不在線段上；其他三個 $d$ 都不是
+$0$，第 4 行也不成立（$d_1 d_2 = 0$），所以第 14 行回傳 \FALSE。 第三組四個外積都不
+是 $0$，$d_1 d_2 < 0$、$d_3 d_4 < 0$，互相跨過。
+\item 第二組。 $d_1 = 0$ 只表示 $P$ 在直線 $QS$ 上；$P$ 在 $Q$ 的另一側、線段
+$\overline{QS}$ 外面，兩條線段其實沒有碰到。
 \end{enumerate}
+
+\item
+\begin{enumerate}
+\item 高度等於 $4$ 的頂點 $v_3, v_4, v_6$ 都算在下方，所以只有 $v_4 v_5$、$v_5 v_6$ 兩條
+邊跨過（它們的上端是 $v_5$），水平邊 $v_3 v_4$ 和 $v_2 v_3$、$v_6 v_1$ 都不算。
+\begin{center}
+\begin{tabular}{lcccc}
+\toprule
+& 邊 & $\proc{Orient}(a, b, q)$ & $b.y - a.y$ & 乘積 \\
+\midrule
+$q_1(2, 4)$ & $v_4 v_5$ & $12$ & $3$ & $36$ \\
+& $v_5 v_6$ & $-3$ & $-3$ & $9$ \\
+\midrule
+$q_2(4, 4)$ & $v_4 v_5$ & $6$ & $3$ & $18$ \\
+& $v_5 v_6$ & $3$ & $-3$ & $-9$ \\
+\bottomrule
+\end{tabular}
+\end{center}
+$q_1$ 兩個乘積都是正的，$c = 2$，在外面：射線在 $v_6$ 穿進多邊形，在 $v_4$ 穿出去，
+之後沿著水平邊 $v_3 v_4$ 走，沒有再穿過邊界。 $q_2$ 只有 $v_4 v_5$ 算，$c = 1$，在裡
+面（$v_5 v_6$ 和射線的交點是 $v_6$，在 $q_2$ 左邊）。
+\item 改成 $\ge$ 之後，$v_3, v_4, v_6$ 都算在上方，跨過的邊變成 $v_2 v_3$ 和 $v_6 v_1$。
+$q_1$：$v_2 v_3$ 的乘積 $21 \cdot 3 = 63 > 0$，$v_6 v_1$ 的乘積 $(-3)(-3) = 9 > 0$，
+$c = 2$，在外面。 $q_2$：$v_2 v_3$ 的乘積 $15 \cdot 3 = 45 > 0$，$v_6 v_1$ 的乘積
+$3 \cdot (-3) = -9$，不算，$c = 1$，在裡面。 數到的邊不一樣，但奇偶相同，答案仍然正
+確。 原因是規則只要求「每個剛好在射線高度的頂點，一律歸到同一邊」，歸到上方或下方都
+可以。
+\end{enumerate}
+
+\item
+\begin{enumerate}
+\item $A$、$B$ 的 $y$ 都是 $0$，取 $x$ 小的，$p_0 = B$。 排序：$A$（極角 $0^\circ$）、$C$、
+$D$、$H$、$E$、$F$、$G$。 $H - B = (1, 4)$ 和 $E - B = (2, 8)$ 方向相同，$H$ 比較近，排在
+前面。
+\begin{center}
+\begin{tabular}{clll}
+\toprule
+處理 & 彈出（外積） & 堆疊（底 $\to$ 頂） & 說明 \\
+\midrule
+（開始） & & $B, A$ & \\
+$C$ & & $B, A, C$ & $\proc{Orient}(B, A, C) = 16$ \\
+$D$ & & $B, A, C, D$ & $\proc{Orient}(A, C, D) = 10$ \\
+$H$ & $D$（$-5$） & $B, A, C, H$ & $\proc{Orient}(A, C, H) = 20$ \\
+$E$ & $H$（$-20$） & $B, A, C, E$ & $\proc{Orient}(A, C, E) = 24$ \\
+$F$ & & $B, A, C, E, F$ & $\proc{Orient}(C, E, F) = 24$ \\
+$G$ & & $B, A, C, E, F, G$ & $\proc{Orient}(E, F, G) = 14$ \\
+\bottomrule
+\end{tabular}
+\end{center}
+凸包是 $B, A, C, E, F, G$（逆時針）。 $H$ 在線段 $\overline{BE}$ 上，處理 $E$ 時被彈掉；
+$D$ 在凸包內部。
+\item 例子：$p_0 = (0, 0)$、$(10, 0)$，再把五個點放在一段向外凸的弧
+上：$(9, 4)$、$(8, 6)$、$(6, 8)$、$(4, 9)$、$(1, 10)$，最後一點 $(0, 100)$ 放在很高的地
+方。 前七個點依極角處理時每一步都是左轉，堆疊長到七個點；$(0, 100)$ 進來時，那五個點
+都在三角形 $(0, 0)$、$(10, 0)$、$(0, 100)$ 裡面，依序被彈出（外積分別是 $-269$、
+$-178$、$-172$、$-78$、$-60$），凸包只剩三個點。 即使如此，每個點只推入一次、最多彈
+出一次，整個掃描的彈出總數不超過 $n$，第 6 行的檢查總數不超過 $2n$。 某一步很貴，是
+因為前面幾步很便宜、累積了很多點在堆疊裡，這正是聚合法的論證。
+\end{enumerate}
+
+\item
+\begin{enumerate}
+\item 令 $u = a - q$、$v = b - q$，則 $p - q = t u + (1 - t) v$。 用內積展開：
+\[
+|p - q|^2 = t^2 |u|^2 + (1 - t)^2 |v|^2 + 2t(1 - t)\, u \cdot v .
+\]
+右邊的式子是
+\[
+t|u|^2 + (1 - t)|v|^2 - t(1 - t)\bigl(|u|^2 + |v|^2 - 2 u \cdot v\bigr),
+\]
+其中 $|a - b|^2 = |u - v|^2 = |u|^2 + |v|^2 - 2u \cdot v$。 $|u|^2$ 的係數是
+$t - t(1 - t) = t^2$，$|v|^2$ 的係數是 $(1 - t) - t(1 - t) = (1 - t)^2$，$u \cdot v$
+的係數是 $2t(1 - t)$，兩邊相同。
+\item $a \ne b$、$0 < t < 1$ 時最後一項 $t(1 - t)|a - b|^2 > 0$，所以
+$|p - q|^2 < t|a - q|^2 + (1 - t)|b - q|^2 \le \max(|a - q|, |b - q|)^2$（兩個數的加權平
+均不超過較大的那個），開根號即得。
+\item 設 $(p, q)$ 是一組最遠點對，假設 $p$ 不是凸包的頂點。 $p$ 在凸包（含內部）裡，
+分兩種情形找一條線段 $\overline{cd}$，讓 $p$ 嚴格在 $c$、$d$ 之間，而 $c$、$d$ 都在凸
+包的邊界上：$p$ 在某條邊上（不是端點）時，取那條邊；$p$ 在內部時，過 $p$ 任畫一條直
+線，它和凸包的交集是一條線段，兩端在邊界上。 由 (b)，$c$、$d$ 中有一個（設為 $c$）
+滿足 $|c - q| > |p - q|$。 如果 $c$ 是頂點，令 $w = c$；否則 $c$ 在某條邊
+$\overline{uv}$ 的內部，再用一次 (b)，$u$、$v$ 中有一個（設為 $w$）滿足
+$|w - q| > |c - q|$。 不論哪一種，$w$ 都是凸包的頂點，也是點集裡的點，而
+$|w - q| > |p - q|$，和 $(p, q)$ 最遠矛盾。 所以 $p$ 是頂點；$q$ 同理。
+\item $O(n \lg n + h^2)$。 $h^2 = O(n \lg n)$，也就是 $h = O(\sqrt{n \lg n})$ 時，總時間
+仍是 $O(n \lg n)$。 $h$ 可以大到 $n$（點都在一個圓上），這時是 $\Theta(n^2)$，所以需要
+旋轉卡尺。
+\end{enumerate}
+
+\end{enumerate}
+
+\addcontentsline{toc}{section}{歷屆試題詳解}
+\section*{歷屆試題詳解}
+
+\pastsol{px:dc-1}{臺大資工所 111 學年度 第 10 題}
+答案是 (C)。
+
+第 1 行保證進入迴圈時 $A[1] > 0$，所以 $p \ge 1$。 正數恰好是前 $p$ 個，因此
+$A[m] > 0$ 等價於 $m \le p$，$A[m] < 0$ 等價於 $m \ge p + 1$（題目說每個元素不是正就
+是負，沒有 $0$）。 照第~\ref{sec:ana-invariant}~節的三步驗證 (C)：
+
+\begin{itemize}
+\item \textbf{初始}：$left = 1 \le p$，$p \le n = right$。
+\item \textbf{維持}：迴圈裡 $left < right$，$m = \lceil (left + right)/2 \rceil$ 滿足
+$left < m \le right$。 若 $A[m] > 0$，則 $m \le p$，新的 $left = m \le p$，$right$ 不變；
+若 $A[m] < 0$，則 $m \ge p + 1$，新的 $right = m - 1 \ge p$，$left$ 不變。 兩種情形
+$left \le p \le right$ 都仍成立。
+\item \textbf{結束}：每一輪 $left$ 嚴格變大（$m > left$）或 $right$ 嚴格變小，迴圈一定會
+停，停在 $left = right$，代入不變量得 $p = left$，第 9 行回傳正確。
+\end{itemize}
+
+其他選項：
+
+\begin{itemize}
+\item (A) $left + 1 \le p$：$p = 1$ 時（例如 $A = \langle 5, -2 \rangle$），一開始
+$left = 1$，$left + 1 = 2 > p$，第一次檢查就不成立。 而且迴圈結束時 $left = p$，這個不
+等式一定不成立。
+\item (B) 比 (A) 多要求 $p \le right - 1$，同樣在 $p = 1$ 時一開始就不成立；結束時
+$left = right$，$left + 1 \le right - 1$ 不可能成立。
+\item (D) $p \le right - 1$：全部都是正數時（例如 $A = \langle 3, 1 \rangle$，$p = n = 2$），
+一開始 $right = 2$，$p \le 1$ 不成立。 結束時 $left = right$，$left \le p \le left - 1$ 也
+不可能成立。
+\item (E)：(C) 成立，所以不選。
+\end{itemize}
+
+用程式把 $n \le 8$ 的所有情形（每個 $n$、每個 $p$）跑過，每一輪檢查四個不等式，只
+有 (C) 每次都成立。 這個程序就是觀念題第~\ref{dc-q-fix}~題改好的「最後一個滿足條件的位
+置」：往右縮寫成 $left = m$，所以中點一定要取天花板（第~\ref{sec:dc-traps}~節）。 如果第
+4 行改成地板，$left = 1$、$right = 2$、$A[1] > 0$ 時 $m = 1$，$left$ 不動，迴圈不會停。
+
+\pastsol{px:dc-2}{中正資工所 111 學年度 第 1 題}
+答案是 (c)。
+
+照考卷的慣例，二分搜尋每一輪把 $x$ 和中間那一格比一次（相等、較小、較大三種結果算一
+次比較）。 第~\ref{sec:dc-bsearch}~節證明了：還要找的格數 $k$ 每一輪之後最多剩
+$\lfloor k/2 \rfloor$，所以迴圈最多跑 $\lfloor \lg n \rfloor + 1$ 輪。
+$2^{10} = 1024 \le 2000 < 2048 = 2^{11}$，$\lfloor \lg 2000 \rfloor = 10$，最多 $11$ 次。
+
+這個上界達得到：$x$ 比全部都大時每一輪都往右，格數依序是
+$2000 \to 1000 \to 500 \to 250 \to 125 \to 62 \to 31 \to 15 \to 7 \to 3 \to 1 \to 0$，
+每個箭頭是一次比較，共 $11$ 次（用程式對 $2000$ 格的陣列試過所有位置和所有落在兩格之間
+的值，最多正好 $11$ 次）。
+
+\begin{itemize}
+\item (a) $1999$：這是循序搜尋那一級的次數，二分搜尋不需要。
+\item (b) $9$：上面的例子做完 $9$ 次比較後還剩 $3$ 格沒找，無法確定答案。
+\item (d) $13$：比最壞情況還多。
+\end{itemize}
+
+如果把「是否相等」和「是否較小」算成兩次比較，最壞是 $22$ 次，不在選項裡，所以題目
+用的是一輪算一次的算法。
+
+\pastsol{px:dc-3}{成大資訊聯招 113 學年度 第 11 題}
+$T(n) = \Theta(n^{\lg 7})$，$\lg 7 \approx 2.807$。
+
+\textbf{寫出遞迴式}。 $n = 1$ 時做一次乘法，$\Theta(1)$。 $n \ge 2$ 時：
+\begin{itemize}
+\item 遞迴呼叫：$C_{11}$、$C_{12}$、$C_{21}$ 各兩次，$C_{22}$ 一次，共 $7$ 次，每次的
+矩陣是 $\frac{n}{2} \times \frac{n}{2}$，合計 $7T(n/2)$。
+\item 矩陣加法：$C_{11}$、$C_{12}$、$C_{21}$ 各一次，每次是 $\frac{n}{2} \times \frac{n}{2}$
+的 $(n/2)^2$ 次加法，合計 $3n^2/4 = \Theta(n^2)$。
+\item 切塊和組合 $C$：用下標計算切塊是 $\Theta(1)$，把子矩陣複製出來是 $\Theta(n^2)$；
+組合 $C$ 最多 $\Theta(n^2)$。 不論哪一種實作都是 $O(n^2)$，和加法合起來仍是
+$\Theta(n^2)$。
+\end{itemize}
+所以
+\[
+T(n) = 7T(n/2) + \Theta(n^2).
+\]
+
+\textbf{解遞迴式}。 $a = 7$、$b = 2$，$n^{\log_b a} = n^{\lg 7}$。 $\lg 7 \approx 2.807$，取
+$\varepsilon = 0.8$，$n^2 = O(n^{\lg 7 - 0.8})$（$\lg 7 - 0.8 \approx 2.007 > 2$），主定理
+情況 1（定理~\ref{thm:rec-master}）給出 $T(n) = \Theta(n^{\lg 7})$。
+
+用遞迴樹檢查：第 $i$ 層有 $7^i$ 個子問題，每個的加法成本是 $c(n/2^i)^2$，整層是
+$cn^2 (7/4)^i$，是公比 $7/4 > 1$ 的等比數列，總和由最後一層決定；最後一層有
+$7^{\lg n} = n^{\lg 7}$ 個葉節點，每個 $\Theta(1)$。 兩種方法一致。
+
+\textbf{說明}。 這個程序其實算錯了：正確的 $C_{22} = A_{21}B_{12} + A_{22}B_{22}$，它少了
+$A_{22}B_{22}$。 但題目只問時間。 它的遞迴式和 Strassen 演算法（第~\ref{sec:dc-strassen}~節）
+一樣，都是 $7$ 次半大的乘法加上 $\Theta(n^2)$ 的加減，所以時間也一樣；差別是 Strassen
+用 $7$ 次乘法算出\textbf{正確}的四塊。 常見的錯誤是看到 $C_{11}$ 到 $C_{21}$ 各兩次就寫
+$8T(n/2)$，要數清楚題目特別提醒的 $C_{22}$ 只呼叫一次。
+
+\pastsol{px:dc-4}{政大資科所 107 學年度 第 7 題}
+\textbf{解讀}。 題目允許長度 $0$ 的子序列，和是 $0$。 所以全部都是負數時，答案是空的子
+序列（和 $0$），這和第~\ref{sec:dc-maxsub}~節「至少一個數」的約定不同。 輸出用位置
+$i..j$ 表示 $a_i, \ldots, a_j$，空的子序列寫成 $j = i - 1$。 多段一樣大時，回傳最先達到
+最大和的那一段。
+
+\textbf{想法}。 改寫第~\ref{sec:dc-kadane}~節的線性做法。 令
+\[
+F[j] = \text{結尾在 } j \text{ 的子序列（可以是空的）的最大和},
+\]
+$F[0] = 0$。 結尾在 $j$ 的非空子序列，是「結尾在 $j - 1$ 的子序列（可以是空的）」再接上
+$a_j$，最大是 $F[j-1] + a_j$；再和空的比，$F[j] = \max(0,\ F[j-1] + a_j)$。 答案是所有
+「結尾在 $j$ 的非空最佳和」$F[j-1] + a_j$ 和空序列的 $0$ 之中最大的。
+
+\begin{pseudo}[label=alg:dc-px-maxsub]{最大和的連續子序列（允許空的）}
+\Function{Max-Contiguous}{$a, n$}
+    \State $\mathit{best} \gets 0$；$\mathit{bi} \gets 1$；$\mathit{bj} \gets 0$ \Comment{先記空的子序列}
+    \State $\mathit{cur} \gets 0$；$\mathit{start} \gets 1$
+    \For{$j \gets 1$ \To $n$}
+        \State $\mathit{cur} \gets \mathit{cur} + a_j$
+        \If{$\mathit{cur} > \mathit{best}$}
+            \State $\mathit{best} \gets \mathit{cur}$；$\mathit{bi} \gets \mathit{start}$；$\mathit{bj} \gets j$
+        \EndIf
+        \If{$\mathit{cur} < 0$}
+            \State $\mathit{cur} \gets 0$；$\mathit{start} \gets j + 1$ \Comment{接上前面只會更差}
+        \EndIf
+    \EndFor
+    \State \Return $(\mathit{bi}, \mathit{bj}, \mathit{best})$
+\EndFunction
+\end{pseudo}
+
+\textbf{正確性}。 不變量：第 4 行每一輪開始時，(i) $\mathit{cur} = F[j-1] =
+a_{\mathit{start}} + \cdots + a_{j-1}$（$\mathit{start} = j$ 時是空的、和為 $0$）；
+(ii) $(\mathit{bi}, \mathit{bj}, \mathit{best})$ 是 $a_1, \ldots, a_{j-1}$ 裡（可以是空
+的）和最大的連續子序列。
+\begin{itemize}
+\item \textbf{初始}：$j = 1$，$\mathit{cur} = 0 = F[0]$，只有空的子序列，(i)(ii) 都成立。
+\item \textbf{維持}：第 5 行之後 $\mathit{cur} = F[j-1] + a_j = a_{\mathit{start}} +
+\cdots + a_j$，是結尾在 $j$ 的非空子序列的最大和。 $a_1..a_j$ 裡的子序列，不是在
+$a_1..a_{j-1}$ 裡，就是結尾在 $j$ 的非空子序列，所以第 6--7 行之後 (ii) 對 $j$ 成立。
+第 8--9 行把 $\mathit{cur}$ 變成 $\max(0, \mathit{cur}) = F[j]$：小於 $0$ 時換成空的子
+序列，從 $j + 1$ 重新開始。 (i) 對下一輪成立。
+\item \textbf{結束}：$j = n + 1$，由 (ii)，回傳的是整個 $S$ 裡和最大的連續子序列。
+\end{itemize}
+
+\textbf{時間}。 迴圈 $n$ 輪，每輪常數個動作，$\Theta(n)$；額外空間 $\Theta(1)$。 題目只要
+求多項式時間，兩兩枚舉所有 $i \le j$ 邊走邊加的 $\Theta(n^2)$ 或第~\ref{sec:dc-maxsub}~節的
+分治 $\Theta(n \lg n)$ 也都符合，但線性做法最好，而且不可能更快：每個數都可能是答案的一
+部分，至少要讀過一次。
+
+\textbf{追蹤題目的例子}。 $S = 5, 15, -30, 10, -5, 40, 10$。 表中「第 5 行後」是加上
+$a_j$ 之後的 $\mathit{cur}$，「本輪結束」是第 8--9 行之後的值。
+\begin{center}
+\begin{tabular}{ccccl}
+\toprule
+$j$ & $a_j$ & 第 5 行後 & 本輪結束 & $(\mathit{bi}, \mathit{bj}, \mathit{best})$ \\
+\midrule
+1 & $5$ & $5$ & $5$ & $(1, 1, 5)$ \\
+2 & $15$ & $20$ & $20$ & $(1, 2, 20)$ \\
+3 & $-30$ & $-10$ & $0$，$\mathit{start} = 4$ & $(1, 2, 20)$ \\
+4 & $10$ & $10$ & $10$ & $(1, 2, 20)$ \\
+5 & $-5$ & $5$ & $5$ & $(1, 2, 20)$ \\
+6 & $40$ & $45$ & $45$ & $(4, 6, 45)$ \\
+7 & $10$ & $55$ & $55$ & $(4, 7, 55)$ \\
+\bottomrule
+\end{tabular}
+\end{center}
+回傳 $(4, 7, 55)$，也就是 $10, -5, 40, 10$，和 $55$，和題目給的答案相同。 也用程式把這個程序和兩兩枚舉在兩萬組隨機的小輸入上比對過，最大和都相同。 全部是負數時，例如
+$-3, -1$，$\mathit{best}$ 一直是 $0$，回傳 $(1, 0, 0)$，即空的子序列。
+
+\pastsol{px:dc-5}{臺大資工所 103 學年度 第 5 題（節錄 (a)(c) 小題）}
+\textbf{(a)} 用外積判斷轉向，演算法就是第~\ref{sec:dc-segint}~節的
+\proc{Segments-Intersect}（虛擬碼~\ref{alg:dc-segint}）：
+\begin{enumerate}[label=\arabic*.]
+\item 令 $\proc{Orient}(p, q, r) = (q.x - p.x)(r.y - p.y) - (q.y - p.y)(r.x - p.x)$，正、
+負、零分別表示 $p \to q \to r$ 左轉、右轉、共線（第~\ref{sec:dc-orient}~節）。
+\item 算 $d_1 = \proc{Orient}(p_3, p_4, p_1)$、$d_2 = \proc{Orient}(p_3, p_4, p_2)$、
+$d_3 = \proc{Orient}(p_1, p_2, p_3)$、$d_4 = \proc{Orient}(p_1, p_2, p_4)$。
+\item 如果 $d_1$、$d_2$ 異號而且 $d_3$、$d_4$ 異號，兩條線段互相跨過對方所在的直線，
+回傳 TRUE。
+\item 否則，如果某個 $d_k = 0$，而對應的端點落在另一條線段上（座標在另一條線段兩端點
+圍成的長方形裡，即 \proc{On-Segment}），回傳 TRUE。 這涵蓋端點碰到另一條線段、以及四
+點共線而且有重疊的情形。
+\item 其他情形回傳 FALSE。
+\end{enumerate}
+正確性就是引理~\ref{lem:dc-segint}：第 3 步成立時兩條直線交於一點，而這一點同時在兩
+條線段上；反過來，兩條線段有共同點而且沒有端點落在另一條線段上時，四個外積都不是 $0$，
+而且兩兩異號。 第 4 步不能省：四點共線但分開時（圖~\ref{fig:dc-segcases} (d)），四個外積
+都是 $0$，只有座標範圍的檢查能分辨。 只做 $4$ 次外積和常數次比較，$O(1)$；全部用整數
+的乘法和減法，沒有除法，不會遇到斜率不存在或浮點誤差。
+
+\textbf{(c)} 用射線法（第~\ref{sec:dc-pip}~節，虛擬碼~\ref{alg:dc-pip}）。
+
+\textbf{想法}。 從點 $q$ 往右畫一條水平射線，數它和多邊形的邊相交幾次；奇數次在裡面，
+偶數次在外面。 射線往右走到夠遠的地方一定在多邊形外面，每穿過一次邊界裡外就交換一次，
+而多邊形沒有自我相交，邊界把平面分成裡外兩塊，所以奇偶決定答案。
+
+\textbf{細節}。 逐一檢查每條邊 $(v_i, v_{i+1})$（最後一條是 $(v_n, v_1)$）：
+\begin{itemize}
+\item 只有兩端點一個嚴格在 $q.y$ 上方、另一個不在上方時才算這條邊跨過水平線
+$y = q.y$。 高度剛好等於 $q.y$ 的頂點一律當成在下方，所以射線通過頂點時，穿過去的頂點
+只算一次，只碰一下的頂點算 $0$ 次或 $2$ 次，水平邊不算，奇偶都正確。
+\item 跨過的邊再判斷交點是否在 $q$ 的右邊：交點 $X$ 和 $q$ 同高，
+$\proc{Orient}(v_i, v_{i+1}, q) = (v_{i+1}.y - v_i.y)(X.x - q.x)$，所以只要看
+$\proc{Orient}(v_i, v_{i+1}, q)$ 和 $v_{i+1}.y - v_i.y$ 是否同號，不必做除法。 $q$ 不在
+邊界上，所以這個乘積不會是 $0$。
+\end{itemize}
+題目說頂點依逆時針排列，射線法用不到這個條件，順時針也一樣。
+
+\textbf{圖 3 的例子}。 依圖上的位置，從 $A$ 往右的射線只穿過右下方那條往右上的邊
+（交點約在 $x = 5.6$），$1$ 次，奇數，$A$ 在裡面。 從 $B$ 往右的射線先穿過左邊往左下的
+那條邊（交點約在 $x = 2.3$，在 $B$ 的右邊），再穿過同一條右下方的邊，$2$ 次，偶數，$B$
+在外面。 這個多邊形不是凸的（左邊和上方各有一個凹進去的頂點），所以不能用下面凸多邊形
+的二分搜尋。
+
+\textbf{時間}。 每條邊做常數次運算，$n$ 個頂點的多邊形是 $\Theta(n)$，額外空間
+$\Theta(1)$。 對一般的簡單多邊形，沒有事先處理時這已經是最好的：任何一條沒看過的邊都可
+能改變答案，至少要讀過所有的邊。 如果多邊形是凸的，可以從 $v_1$ 把多邊形切成扇形，用二
+分搜尋找 $q$ 落在哪個扇形，再做一次外積，$O(\lg n)$；同一個多邊形要回答很多次查詢時，
+也可以先花時間建資料結構，讓每次查詢變快，這已經超出題目的範圍。

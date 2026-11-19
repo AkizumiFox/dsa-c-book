@@ -54,4 +54,22 @@
     before skip=\medskipamount, after skip=\medskipamount,
 }
 
+% 歷屆試題：研究所入學考試原題，題目照原卷（語言、記號、配分都不改），標題寫出處。
+% 依法令舉行之考試試題依著作權法第 9 條不得為著作權之標的。詳解放在章末「歷屆試題詳解」。
+%   \begin{pastexam}[label={px:mst-1}]{臺大資工所 113 學年度 第 5 題}
+%   ...
+%   \end{pastexam}
+% 詳解用 \pastsol{px:mst-1}{臺大資工所 113 學年度 第 5 題} 開頭。
+\newtcolorbox[auto counter, number within=chapter]{pastexam}[2][]{%
+    enhanced jigsaw, breakable,
+    sharp corners, boxrule=0.4mm,
+    colback=white, colframe=examStroke!70!black, coltext=black,
+    colbacktitle=examStroke!10, coltitle=black, fonttitle=\bfseries,
+    title={歷屆試題~\thetcbcounter\quad{\normalfont #2}},
+    left=3mm, right=3mm, top=2mm, bottom=2mm,
+    before skip=\medskipamount, after skip=\medskipamount,
+    #1
+}
+\newcommand{\pastsol}[2]{\par\medskip\noindent\textbf{歷屆試題~\ref{#1}}\quad{\small #2}\par\nopagebreak\smallskip}
+
 \endinput
