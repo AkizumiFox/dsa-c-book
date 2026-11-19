@@ -38,6 +38,8 @@
 
 % 章節標題中文化：「第 N 章」
 \usepackage{titlesec}
+\usepackage{pgfplots}   % 書前「出題分析」的圖表
+\pgfplotsset{compat=1.18}
 \usepackage{longtable}  % 可以跨頁的長表（附錄 B 的作答提醒總表）
 \titleformat{\chapter}{\normalfont\huge\bfseries}{第~\thechapter~章}{1em}{}
 \titlespacing*{\chapter}{0pt}{-20pt}{20pt}
@@ -62,6 +64,7 @@
 
 \maketitle
 \romantableofcontents
+\input{chapters/00_Guide/chapter}  % 書前：出題分析與學習路徑（不編章號）
 
 % ---------------------------------------------------------------
 % 各章內容放在 "chapters/<單元>/chapter.tex"。章號一開始就定好，
