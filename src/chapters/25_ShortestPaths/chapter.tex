@@ -1,0 +1,2603 @@
+\chapter{最短路徑}
+\label{ch:spt}
+
+% 本章的圖共用的樣式（前綴 spt-）。 追蹤表、快照圖和矩陣序列都由模擬程式照虛擬碼
+% 逐步執行後產生，再和本章的 C 程式輸出對過。
+\tikzset{
+    spt-v/.style={circle, draw=black!70, fill=white, minimum size=0.62cm, inner sep=0pt, font=\small},
+    spt-vs/.style={spt-v, minimum size=0.5cm, font=\scriptsize},
+    spt-vsdone/.style={spt-vs, draw=coreStroke, fill=coreFill},
+    spt-vsnew/.style={spt-vs, draw=memStroke, fill=memFill, very thick},
+    spt-a/.style={-{Stealth[length=2.2mm]}, draw=black!60, thick},
+    spt-neg/.style={spt-a, draw=optStroke},
+    spt-sa/.style={-{Stealth[length=1.6mm]}, draw=black!35},
+    spt-ta/.style={-{Stealth[length=2mm]}, draw=coreStroke, very thick},
+    spt-tree/.style={-{Stealth[length=2.4mm]}, draw=coreStroke, line width=1.5pt},
+    spt-w/.style={font=\scriptsize, inner sep=1pt, fill=white, text=black!85},
+    spt-wn/.style={spt-w, text=optStroke},
+    spt-d/.style={font=\scriptsize, inner sep=1.5pt, text=coreStroke},
+    spt-h/.style={font=\scriptsize, inner sep=1.5pt, text=memStroke},
+}
+% 追蹤表裡的記號：這一輪取出的頂點、這一輪變小的值、已經確定的值
+\newcommand{\sptpick}[1]{\textbf{#1}}
+\newcommand{\sptnew}[1]{\underline{#1}}
+\newcommand{\sptold}[1]{\textcolor{black!45}{#1}}
+
+外送員從店裡出發，要把餐點送到城裡好幾個地方。 地圖上每一段路都標了騎車要幾分鐘，
+有些路是單行道。 從店裡到每個地方，最快要幾分鐘？ 一條一條路線列出來比較顯然不行，
+路口一多，路線的數目會多到列不完。 換個角度想：離店裡最近的那個地方，它的最快走法
+一定很短，很容易確定；確定了近的地方，能不能一步一步推到遠的地方？ 如果有些路段
+走了反而能領到補貼，可以把它想成「負的分鐘數」，剛才的想法還成立嗎？ 往下讀之前，先
+想一想。
+
+這一章處理邊上有權重的圖。 第~21~章的 BFS 求的是邊數最少的路徑，相當於每條邊的權重都
+是 $1$；權重不一樣時，要找的是權重總和最小的路徑。 先定下問題和一個所有演算法共用的
+動作「鬆弛」，證明幾個鬆弛的性質，之後的每個演算法都用這些性質證明。 接著是三個單一
+起點的演算法：權重不是負數時用 \textbf{Dijkstra 演算法}，它是第~19~章的貪心法，搭配
+第~8~章的優先佇列；有負的權重時用 \textbf{Bellman--Ford 演算法}，它還能發現負環；圖沒有
+環時，依第~22~章的拓樸順序鬆弛一遍就好。 最後是所有點對的最短路徑：第~18~章已經用動
+態規劃推出 Floyd--Warshall 演算法的遞迴式，這一章補上路徑還原、負環偵測和手算的矩陣序
+列，再講同一個架構求的遞移閉包，以及在稀疏圖上比較快的 Johnson 演算法。
+
+這一章用到的前面內容：第~21~章的圖的名詞、鄰接串列和 \proc{Print-Path}，第~22~章的拓
+樸排序，第~18~章 18.1 節的最佳子結構與 18.7 節的 Floyd--Warshall 遞迴式，第~8~章 8.3 節
+的 \proc{Decrease-Key}。 程式方面用到《C 程式設計基礎》第~13~章的 \texttt{long long}、
+第~19~章的 \texttt{malloc} 和鏈結串列。
+
+本章的約定和第~21~章相同：圖有 $n$ 個頂點、$m$ 條邊，頂點在手算時編號 $1$ 到 $n$，鄰
+接串列裡的鄰居由小到大排；C 程式裡的頂點從 $0$ 編號，讀入時減一、印出時加一。
+
+\section{最短路徑問題與鬆弛}
+\label{sec:spt-relax}
+
+\subsection{路徑的權重與最短距離}
+
+\textbf{加權有向圖}是一張有向圖 $G = (V, E)$，加上一個\textbf{權重函數} $w$，每條邊
+$(u, v)$ 有一個實數權重 $w(u, v)$。 一條路徑 $p = \langle v_0, v_1, \ldots, v_k
+\rangle$ 的\textbf{權重}是它經過的邊的權重總和：
+\[
+w(p) = \sum_{i=1}^{k} w(v_{i-1}, v_i).
+\]
+長度 $0$ 的路徑 $\langle u \rangle$ 權重是 $0$。 權重可以代表時間、距離、費用，名稱不重
+要；這一章說「最短」都是指權重總和最小，不是邊數最少。
+
+\begin{definition}[最短距離]
+\label{def:spt-delta}
+從 $u$ 到 $v$ 的\textbf{最短距離}是
+\[
+\delta(u, v) = \begin{cases}
+\min\{\, w(p) : p \text{ 是從 } u \text{ 到 } v \text{ 的路徑} \,\}, & u \leadsto v, \\
+\infty, & \text{從 } u \text{ 到不了 } v.
+\end{cases}
+\]
+權重等於 $\delta(u, v)$ 的路徑叫從 $u$ 到 $v$ 的一條\textbf{最短路徑}。
+\end{definition}
+
+這和第~21~章的 $\delta(u, v)$ 是同一個符號：每條邊的權重都是 $1$ 時，路徑的權重就是邊數，
+兩個定義一致，BFS（定理~\ref{thm:gtr-bfs}）就是這個特例的解法。 上面的 $\min$ 有一個
+問題：路徑可以重複經過頂點，條數可能有無限多，最小值不一定存在。 下一小節處理這件事。
+
+常見的問題有四種：
+\begin{itemize}
+\item \textbf{單一起點}（single-source）：給定起點 $s$，求 $s$ 到每個頂點的最短距離和路
+徑。 本章第~\ref{sec:spt-dijkstra}～\ref{sec:spt-dag}~節都是這一種。
+\item \textbf{單一終點}：求每個頂點到 $t$ 的最短距離。 把每條邊反向，就變成從 $t$ 出發的單
+一起點問題。
+\item \textbf{單一點對}：只要 $s$ 到 $t$。 目前還沒有已知的方法在最壞情況下比單一起點更快，
+通常就跑單一起點的演算法，算到 $t$ 確定時提早停下。
+\item \textbf{所有點對}（all-pairs）：每一對 $(u, v)$ 都要。 第~\ref{sec:spt-fw}、
+\ref{sec:spt-johnson}~節。
+\end{itemize}
+
+無向圖的一條邊 $\{u, v\}$，看成兩條方向相反、權重相同的有向邊 $(u, v)$ 和 $(v, u)$，本章
+的演算法就都能用。 但要小心：權重是負的無向邊，換成兩條有向邊後，$u \to v \to u$ 本身就
+是一個權重為負的環，下一小節會看到這代表最短距離沒有意義。 所以本章說的「負邊」都是在
+有向圖上。
+
+\subsection{負邊與負環}
+
+權重可以是負的。 外送平台在某些路段發補貼，或者財務上的「這一步會收到錢」，都可以寫成
+負的權重。 負邊本身沒有問題，有問題的是負環。
+
+\begin{definition}[負環]
+\label{def:spt-negcycle}
+權重總和小於 $0$ 的環叫\textbf{負環}（negative-weight cycle）。
+\end{definition}
+
+如果從 $s$ 走得到一個負環，而且從這個負環走得到 $v$，那麼到 $v$ 的路徑可以在負環上多繞
+一圈，權重就再小一些，沒有最小值。 這時規定 $\delta(s, v) = -\infty$。
+圖~\ref{fig:spt-negcycle} 是一個例子：從 $1$ 出發，$2 \to 3 \to 2$ 是權重 $-3 + 1 = -2$
+的負環，$2$、$3$ 和從它們走得到的 $4$ 都是 $-\infty$；$5$ 從 $1$ 到不了，是 $\infty$；$1$
+自己是 $0$。
+
+\begin{center}
+\begin{tikzpicture}[x=1cm, y=1cm]
+\node[spt-v] (n5) at (0, 0) {5};
+\node[spt-v] (n1) at (2, 0) {1};
+\node[spt-v] (n2) at (4, 0) {2};
+\node[spt-v] (n3) at (6, 0) {3};
+\node[spt-v] (n4) at (8, 0) {4};
+\draw[spt-a] (n5) -- node[spt-w, above] {$1$} (n1);
+\draw[spt-a] (n1) -- node[spt-w, above] {$4$} (n2);
+\draw[spt-neg] (n2) to[bend left=25] node[spt-wn, above] {$-3$} (n3);
+\draw[spt-a] (n3) to[bend left=25] node[spt-w, below] {$1$} (n2);
+\draw[spt-a] (n3) -- node[spt-w, above] {$2$} (n4);
+\node[spt-d, below=2pt of n5] {$\infty$};
+\node[spt-d, below=2pt of n1] {$0$};
+\node[spt-d, below=6pt of n2] {$-\infty$};
+\node[spt-d, below=6pt of n3] {$-\infty$};
+\node[spt-d, below=2pt of n4] {$-\infty$};
+\end{tikzpicture}
+\diagcaption{從 $1$ 出發的最短距離（藍字）。 $2 \to 3 \to 2$ 是負環，負的邊畫成紅色。}
+\label{fig:spt-negcycle}
+\end{center}
+
+\begin{lemma}
+\label{lem:spt-simple}
+如果從 $s$ 走得到的地方沒有負環，那麼對每個 $s$ 走得到的 $v$，$\delta(s, v)$ 是一個有限的
+數，而且有一條從 $s$ 到 $v$ 的最短路徑是簡單路徑，最多 $n - 1$ 條邊。
+\end{lemma}
+
+\begin{proof}
+任取一條從 $s$ 到 $v$ 的路徑 $p$。 如果 $p$ 經過某個頂點 $x$ 兩次，兩次之間繞的那一段是
+一個環，這個環上的頂點都從 $s$ 走得到，依假設它的權重 $\ge 0$。 把這一段剪掉，還是一條從
+$s$ 到 $v$ 的路徑，權重不會變大。 一直剪到沒有重複頂點為止，得到一條簡單路徑 $p'$，
+$w(p') \le w(p)$。 所以只要在簡單路徑裡找最小值就好；簡單路徑最多 $n - 1$ 條邊，條數有限，
+最小值存在。
+\end{proof}
+
+權重剛好是 $0$ 的環沒有關係：剪不剪掉權重都一樣，引理照樣成立。 本章的單一起點演算法都
+只保證在「從 $s$ 走得到的地方沒有負環」時算出正確的 $\delta$；Bellman--Ford 演算法另外會
+回報負環。
+
+\subsection{最短路徑的子路徑還是最短路徑}
+
+\begin{lemma}
+\label{lem:spt-subpath}
+設 $p = \langle v_0, v_1, \ldots, v_k \rangle$ 是從 $v_0$ 到 $v_k$ 的最短路徑。 對任何
+$0 \le i \le j \le k$，$p$ 從 $v_i$ 到 $v_j$ 的那一段 $p_{ij}$ 是從 $v_i$ 到 $v_j$ 的最短
+路徑。
+\end{lemma}
+
+\begin{proof}
+這是第~18~章 18.1 節的剪下貼上。 把 $p$ 拆成 $v_0 \leadsto v_i$、$p_{ij}$、$v_j \leadsto
+v_k$ 三段，$w(p)$ 是三段的和。 如果有一條從 $v_i$ 到 $v_j$ 的路徑 $p'$ 比 $p_{ij}$ 輕，把
+$p_{ij}$ 換成 $p'$，得到一條從 $v_0$ 到 $v_k$、比 $p$ 輕的路徑，和 $p$ 是最短路徑矛盾。
+\end{proof}
+
+第~18~章用邊數證過同一件事，那時候要把重複的頂點剪掉；這裡換來的路徑可以重複頂點，不必
+剪，因為 $\delta$ 的定義本來就允許重複。 這個引理是本章所有演算法能「一段一段算」的原因。
+另一個天天用到的事實是三角不等式：
+
+\begin{lemma}[三角不等式]
+\label{lem:spt-triangle}
+對每條邊 $(u, v)$，$\delta(s, v) \le \delta(s, u) + w(u, v)$。
+\end{lemma}
+
+\begin{proof}
+$s$ 到不了 $u$ 時右邊是 $\infty$。 否則任取一條從 $s$ 到 $u$ 的路徑，接上邊 $(u, v)$ 就是到
+$v$ 的路徑，權重是那條路徑的權重加 $w(u, v)$；對所有到 $u$ 的路徑取最小值，就得到不等式
+（$\delta(s, u) = -\infty$ 時兩邊都是 $-\infty$）。
+\end{proof}
+
+\subsection{鬆弛}
+
+本章的單一起點演算法都替每個頂點 $v$ 記兩個值，和第~21~章 BFS 的 $d$、$\pi$ 用法一樣：
+\begin{itemize}
+\item $d[v]$：目前找到的、從 $s$ 到 $v$ 的最短路徑的權重，叫做\textbf{距離估計}。 它永遠是
+$\delta(s, v)$ 的上界，演算法結束時等於 $\delta(s, v)$。
+\item $\pi[v]$：目前那條路徑上 $v$ 的前一個頂點（\textbf{前驅}），沒有時是 \NIL。
+\end{itemize}
+
+\begin{pseudo}[label=alg:spt-init]{初始化單一起點}
+\Procedure{Initialize-Single-Source}{$G, s$}
+    \For{每個頂點 $v \in V$}
+        \State $d[v] \gets \infty$；$\pi[v] \gets \NIL$
+    \EndFor
+    \State $d[s] \gets 0$
+\EndProcedure
+\end{pseudo}
+
+\textbf{鬆弛}（relax）一條邊 $(u, v)$，是問：先走到 $u$ 再走這條邊，會不會比目前到 $v$ 的走
+法更好？ 會的話就更新 $d[v]$ 和 $\pi[v]$。
+
+\begin{pseudo}[label=alg:spt-relax]{鬆弛一條邊}
+\Procedure{Relax}{$u, v, w$}
+    \If{$d[u] + w(u, v) < d[v]$}
+        \State $d[v] \gets d[u] + w(u, v)$
+        \State $\pi[v] \gets u$
+    \EndIf
+\EndProcedure
+\end{pseudo}
+
+例如 $d[u] = 5$、$d[v] = 9$、$w(u, v) = 3$，因為 $5 + 3 < 9$，鬆弛之後 $d[v] = 8$、
+$\pi[v] = u$。 若 $w(u, v) = 4$，$5 + 4 = 9$ 不小於 $9$，什麼都不改；比較用的是嚴格的
+$<$，相等不更新，這會影響 $\pi$ 記下哪一條路徑（第~\ref{sec:spt-dijkstra}~節的追蹤會遇到）。
+
+$\infty$ 的算法約定成：$\infty + x = \infty$（$x$ 是任何有限數），$\infty < \infty$ 不成立。
+所以 $d[u] = \infty$ 時鬆弛什麼都不做。 這在 C 程式裡要明寫：用一個很大的數代表 $\infty$
+時，$w(u, v)$ 若是負的，「很大的數加上負數」會比「很大的數」小，程式就會從一個根本還沒走
+到的 $u$ 去更新 $v$。 本章的程式都先檢查 $d[u]$ 是不是 $\infty$。
+
+鬆弛只會讓 $d[v]$ 變小或不變，不會變大。 本章每一個單一起點演算法都是先呼叫一次
+\proc{Initialize-Single-Source}，之後只用鬆弛修改 $d$ 和 $\pi$；它們的差別只在\textbf{鬆
+弛哪些邊、照什麼順序、鬆弛幾次}。 Dijkstra 演算法和 DAG 的演算法每條邊各鬆弛一次，
+Bellman--Ford 演算法每條邊鬆弛 $n - 1$ 次。
+
+\subsection{鬆弛的性質}
+
+下面的性質只假設「先初始化，之後只做鬆弛」，不管鬆弛的順序。 證明 Dijkstra 和
+Bellman--Ford 正確時，只需要這幾條。
+
+\begin{theorem}[鬆弛的性質]
+\label{thm:spt-props}
+對 $G$ 和起點 $s$ 呼叫 \proc{Initialize-Single-Source}，之後做任意一串 \proc{Relax}。
+\begin{enumerate}
+\item \textbf{上界性質}：任何時候都有 $d[v] \ge \delta(s, v)$；而且一旦 $d[v] = \delta(s,
+v)$，之後就不再改變。
+\item \textbf{無路徑性質}：如果 $s$ 到不了 $v$，$d[v]$ 一直是 $\infty$。
+\item \textbf{收斂性質}：如果 $s \leadsto u \to v$ 是到 $v$ 的一條最短路徑，而在鬆弛
+$(u, v)$ 之前的某個時候已經有 $d[u] = \delta(s, u)$，那麼鬆弛 $(u, v)$ 之後
+$d[v] = \delta(s, v)$，以後也一直如此。
+\item \textbf{路徑鬆弛性質}：設 $p = \langle v_0, v_1, \ldots, v_k \rangle$ 是從
+$s = v_0$ 到 $v_k$ 的最短路徑。 如果邊 $(v_0, v_1), (v_1, v_2), \ldots, (v_{k-1}, v_k)$
+依這個先後順序都被鬆弛過（中間可以夾著任何其他的鬆弛，同一條邊也可以多鬆弛幾次），那麼
+從此 $d[v_k] = \delta(s, v_k)$。
+\end{enumerate}
+\end{theorem}
+
+\begin{whybox}[鬆弛的性質]
+\textbf{上界性質。} 對鬆弛的次數做歸納。 初始化之後 $d[s] = 0 \ge \delta(s, s)$（$\delta(s,
+s)$ 不是 $0$ 就是 $-\infty$，長度 $0$ 的路徑權重是 $0$），其他頂點是 $\infty$，成立。 鬆弛
+$(u, v)$ 時若改了 $d[v]$，新的值是
+\[
+d[u] + w(u, v) \ge \delta(s, u) + w(u, v) \ge \delta(s, v),
+\]
+第一個 $\ge$ 是歸納假設，第二個是三角不等式（引理~\ref{lem:spt-triangle}）。 只有 $d[v]$
+被改過，其他頂點不變，所以成立。 $d[v]$ 達到 $\delta(s, v)$ 以後，鬆弛不會讓它變大，也不
+可能讓它變小（會比 $\delta(s, v)$ 還小），所以不再改變。
+
+\textbf{無路徑性質。} $\infty \ge d[v] \ge \delta(s, v) = \infty$。
+
+\textbf{收斂性質。} 由上界性質，$d[u]$ 一旦等於 $\delta(s, u)$ 就不再變，所以鬆弛 $(u, v)$
+的時候 $d[u] = \delta(s, u)$。 鬆弛之後
+\[
+d[v] \le d[u] + w(u, v) = \delta(s, u) + w(u, v) = \delta(s, v).
+\]
+最後一個等號：$s \leadsto u \to v$ 是最短路徑，由引理~\ref{lem:spt-subpath} 它到 $u$ 的那一
+段是到 $u$ 的最短路徑，權重 $\delta(s, u)$，整條的權重就是 $\delta(s, u) + w(u, v)$。 再和
+上界性質合起來，$d[v] = \delta(s, v)$，之後不再變。
+
+\textbf{路徑鬆弛性質。} 對 $i$ 歸納：鬆弛完 $(v_{i-1}, v_i)$ 之後 $d[v_i] = \delta(s,
+v_i)$。 $i = 0$：$p$ 是最短路徑，$\delta(s, s) = 0$（否則 $s$ 在負環上，到 $v_k$ 就沒有最
+短路徑），初始化後 $d[s] = 0$，由上界性質不再改。 $i \ge 1$：由引理~\ref{lem:spt-subpath}，
+$\langle v_0, \ldots, v_i \rangle$ 是到 $v_i$ 的最短路徑；鬆弛 $(v_{i-1}, v_i)$ 之前已經
+有 $d[v_{i-1}] = \delta(s, v_{i-1})$（歸納假設），由收斂性質成立。
+\end{whybox}
+
+路徑鬆弛性質是本章的核心：只要能保證「最短路徑上的邊依序被鬆弛過」，演算法就對。 三個
+單一起點演算法各用一種辦法做到這件事。 DAG 的演算法依拓樸順序鬆弛，最短路徑上的邊一定
+照順序出現；Bellman--Ford 演算法把所有邊鬆弛 $n - 1$ 輪，第 $i$ 輪一定輪到最短路徑上的第
+$i$ 條邊；Dijkstra 演算法的保證最微妙，要用到權重不是負的。
+
+\subsection{最短路徑樹}
+
+演算法結束時，除了 $d$，還要能印出路徑。 和 BFS 樹一樣，沿著 $\pi$ 往回走就是路徑。
+
+\begin{theorem}
+\label{thm:spt-tree}
+設從 $s$ 走得到的地方沒有負環。 在任意一串鬆弛之後，如果每個頂點都有 $d[v] = \delta(s,
+v)$，那麼對每個 $s$ 走得到的 $v \ne s$，$\pi[v] \ne \NIL$；從 $v$ 沿著 $\pi$ 往回走會走到
+$s$，走過的路徑倒過來就是一條從 $s$ 到 $v$ 的最短路徑。
+\end{theorem}
+
+這些邊 $(\pi[v], v)$ 和 $s$ 走得到的頂點構成一棵以 $s$ 為根的樹，叫\textbf{最短路徑樹}
+（shortest-paths tree）。 印出路徑用第~21~章的 \proc{Print-Path}（虛擬碼~\ref{alg:gtr-path}）
+就好，不必另寫。 最短路徑可能不只一條，最短路徑樹也就不唯一；演算法記下的是哪一棵，取決
+於鬆弛的順序和「相等不更新」的規則。
+
+\begin{whybox}[定理~\ref{thm:spt-tree}]
+\textbf{(i) $\pi$ 邊的一個不等式。} 任何時候，只要 $\pi[v] = u \ne \NIL$，就有 $d[v] \ge d[u]
++ w(u, v)$。 設定 $\pi[v] \gets u$ 的那一刻等號成立；之後 $d[u]$ 只會變小，$d[v]$ 要變就
+連 $\pi[v]$ 一起改。
+
+\textbf{(ii) $\pi$ 不會形成環。} 假設某一次鬆弛把 $\pi[v_k]$ 設成 $v_{k-1}$，讓
+$\langle v_0, v_1, \ldots, v_k = v_0 \rangle$ 第一次成為由 $\pi$ 邊組成的環。 這一刻之前，
+這條邊被鬆弛成功，所以 $d[v_k] > d[v_{k-1}] + w(v_{k-1}, v_k)$（這裡用的是更新前的
+$d[v_k]$）；環上其他的邊由 (i) 有 $d[v_i] \ge d[v_{i-1}] + w(v_{i-1}, v_i)$。 把這 $k$ 個
+不等式加起來，兩邊的 $d$ 剛好各出現一次而消掉，得到 $0 > \sum_{i=1}^{k} w(v_{i-1}, v_i)$：
+這是一個負環。 環上的頂點都有 $\pi \ne \NIL$，$d$ 是有限的，都從 $s$ 走得到，和假設矛盾。
+
+\textbf{(iii) 沿著 $\pi$ 走是最短路徑。} 設 $v \ne s$ 走得到，$d[v] = \delta(s, v) < \infty$，
+所以 $d[v]$ 被鬆弛改過，$\pi[v] \ne \NIL$。 沒有負環時 $d[s] = 0$ 從沒被改過，$\pi[s] = \NIL$。
+從 $v$ 沿著 $\pi$ 往回走，由 (ii) 不會繞圈，只能停在 $\pi = \NIL$ 的頂點，而走過的頂點 $d$
+都有限，所以停在 $s$。 對路上每條邊 $(u, x)$（$u = \pi[x]$），由 (i) 和三角不等式，
+\[
+\delta(s, x) = d[x] \ge d[u] + w(u, x) = \delta(s, u) + w(u, x) \ge \delta(s, x),
+\]
+所以 $\delta(s, x) = \delta(s, u) + w(u, x)$。 從 $s$ 一路加到 $v$，這條路徑的權重剛好是
+$\delta(s, v)$。
+\end{whybox}
+
+\section{Dijkstra 演算法}
+\label{sec:spt-dijkstra}
+
+\subsection{想法}
+
+先看所有權重都不是負數的情形。 BFS 的佇列有一個性質：頂點出佇列的順序，距離不會變小
+（第~\ref{sec:gtr-bfs-proof}~節）。 也就是說，BFS 是\textbf{由近到遠}一個一個確定頂點的距離。 權重
+不一樣時，「下一個最近的」不一定是佇列前端的那個，但想法可以照搬：
+
+\begin{itemize}
+\item 維護一個集合 $S$，裡面的頂點距離已經確定，$d[v] = \delta(s, v)$。
+\item 每一步從 $S$ 外面挑 $d$ 最小的頂點 $u$，宣布它的距離確定了，放進 $S$。
+\item 鬆弛 $u$ 的每條出邊，讓 $u$ 的鄰居有機會經過 $u$ 得到更小的 $d$。
+\end{itemize}
+
+為什麼 $S$ 外面 $d$ 最小的頂點可以直接確定？ 直覺是這樣：任何一條到 $u$ 的其他走法，
+一定在某個地方第一次離開 $S$，走到 $S$ 外的某個頂點 $y$；到 $y$ 的花費已經不小於
+$d[u]$，後面再走的邊權重都不是負的，只會更大。 這是第~19~章的貪心法：每一步做眼前
+最好的選擇，而且永遠不回頭修改。 權重不是負數這個條件在這個論證裡是必要的，
+第~\ref{sec:spt-dijkstra-neg}~節會看到少了它會怎樣。
+
+\subsection{演算法}
+
+$S$ 外面的頂點放在一個最小優先佇列 $Q$ 裡，鍵是 $d$。 用到第~8~章 8.3 節的三個操作：
+\proc{Insert}、\proc{Extract-Min}、\proc{Decrease-Key}。 鬆弛讓 $d[v]$ 變小時，用
+\proc{Decrease-Key} 通知佇列。
+
+\begin{pseudo}[label=alg:spt-dijkstra]{Dijkstra 演算法}
+\Procedure{Dijkstra}{$G, w, s$}
+    \State \Call{Initialize-Single-Source}{$G, s$}
+    \State $S \gets \emptyset$
+    \State $Q \gets$ 空的最小優先佇列
+    \For{每個頂點 $u \in V$}
+        \State \Call{Insert}{$Q, u, d[u]$}
+    \EndFor
+    \While{$Q$ 不是空的}
+        \State $u \gets$ \Call{Extract-Min}{$Q$} \Comment{$d$ 最小；平手取編號小的}
+        \State $S \gets S \cup \{u\}$
+        \For{每個 $v \in \mathit{Adj}[u]$} \Comment{依串列的順序}
+            \If{$v \notin S$ \AND $d[u] + w(u, v) < d[v]$}
+                \State $d[v] \gets d[u] + w(u, v)$
+                \State $\pi[v] \gets u$
+                \State \Call{Decrease-Key}{$Q, v, d[v]$}
+            \EndIf
+        \EndFor
+    \EndWhile
+\EndProcedure
+\end{pseudo}
+
+第 2--6 行初始化，所有頂點都放進 $Q$。 第 8 行取出 $d$ 最小的頂點 $u$，第 9 行把它放
+進 $S$。 第 11--14 行就是 \proc{Relax}$(u, v, w)$，只多了「$v$ 還不在 $S$ 裡」這個條件，
+外加通知佇列。 權重不是負數時，這個多出來的條件其實不會擋掉任何一次真的會成功的鬆弛
+（下面的定理證完就知道：$v \in S$ 時 $d[v] = \delta(s, v) \le d[u] + w(u, v)$），寫出來
+是為了讓 \proc{Decrease-Key} 只作用在佇列裡的元素上，很多資料結構課本的寫法也是這樣。
+
+\textbf{本書的約定}：第 8 行如果有好幾個頂點的 $d$ 一樣小，取\textbf{編號最小}的；第 10
+行照鄰接串列的順序，也就是鄰居編號由小到大。 這兩條規則不影響最後的 $d$，但會影響取出
+的順序和 $\pi$，手算時要照著做。
+
+\subsection{手算追蹤}
+\label{sec:spt-dijkstra-trace}
+
+圖~\ref{fig:spt-g1}~(a) 是外送的路網 $G_1$：$7$ 個路口、$14$ 條單行道，權重是騎車的分鐘
+數，店在路口 $1$。
+
+\begin{center}
+\begin{tikzpicture}[x=1cm, y=1cm]
+\begin{scope}
+\node[spt-v] (a1) at (0, 0) {1};
+\node[spt-v] (a2) at (2.4, 1.5) {2};
+\node[spt-v] (a3) at (2.4, 0) {3};
+\node[spt-v] (a4) at (2.4, -1.5) {4};
+\node[spt-v] (a5) at (4.8, 0) {5};
+\node[spt-v] (a6) at (4.8, 1.5) {6};
+\node[spt-v] (a7) at (7.2, 0) {7};
+\draw[spt-a] (a1) -- node[spt-w, above left] {$7$} (a2);
+\draw[spt-a] (a1) -- node[spt-w, above] {$2$} (a3);
+\draw[spt-a] (a1) -- node[spt-w, below left] {$6$} (a4);
+\draw[spt-a] (a3) -- node[spt-w, right] {$4$} (a2);
+\draw[spt-a] (a3) -- node[spt-w, right] {$4$} (a4);
+\draw[spt-a] (a3) -- node[spt-w, above, pos=0.4] {$8$} (a5);
+\draw[spt-a] (a2) -- node[spt-w, pos=0.4] {$2$} (a5);
+\draw[spt-a] (a2) -- node[spt-w, below, pos=0.5] {$9$} (a6);
+\draw[spt-a] (a6) to[bend right=30] node[spt-w, above] {$1$} (a2);
+\draw[spt-a] (a4) -- node[spt-w, pos=0.45] {$4$} (a5);
+\draw[spt-a] (a4) to[bend right=18] node[spt-w, below] {$10$} (a7);
+\draw[spt-a] (a5) -- node[spt-w, right] {$3$} (a6);
+\draw[spt-a] (a5) -- node[spt-w, above] {$6$} (a7);
+\draw[spt-a] (a6) -- node[spt-w, above right] {$1$} (a7);
+\node[font=\small] at (3.6, -2.8) {(a) $G_1$};
+\end{scope}
+\begin{scope}[xshift=8.6cm]
+\node[spt-v] (b1) at (0, 0) {1};
+\node[spt-v] (b2) at (2.4, 1.5) {2};
+\node[spt-v] (b3) at (2.4, 0) {3};
+\node[spt-v] (b4) at (2.4, -1.5) {4};
+\node[spt-v] (b5) at (4.8, 0) {5};
+\node[spt-v] (b6) at (4.8, 1.5) {6};
+\node[spt-v] (b7) at (6.6, 0) {7};
+\draw[spt-tree] (b1) -- (b3);
+\draw[spt-tree] (b3) -- (b2);
+\draw[spt-tree] (b1) -- (b4);
+\draw[spt-tree] (b2) -- (b5);
+\draw[spt-tree] (b5) -- (b6);
+\draw[spt-tree] (b6) -- (b7);
+\node[spt-d, left=1pt of b1] {$0$};
+\node[spt-d, above=1pt of b2] {$6$};
+\node[spt-d, right=1pt of b3] {$2$};
+\node[spt-d, below=1pt of b4] {$6$};
+\node[spt-d, below=1pt of b5] {$8$};
+\node[spt-d, above=1pt of b6] {$11$};
+\node[spt-d, below=1pt of b7] {$12$};
+\node[font=\small] at (3.3, -2.8) {(b) 最短路徑樹，藍字是 $\delta(1, v)$};
+\end{scope}
+\end{tikzpicture}
+\diagcaption{外送路網 $G_1$ 和 Dijkstra 演算法從 $1$ 出發得到的最短路徑樹。}
+\label{fig:spt-g1}
+\end{center}
+
+鄰接串列依鄰居編號排好是
+\begin{gather*}
+\mathit{Adj}[1] = 2, 3, 4;\quad \mathit{Adj}[2] = 5, 6;\quad \mathit{Adj}[3] = 2, 4, 5;\quad \mathit{Adj}[4] = 5, 7; \\
+\mathit{Adj}[5] = 6, 7;\quad \mathit{Adj}[6] = 2, 7;\quad \mathit{Adj}[7] = \text{空}.
+\end{gather*}
+下表每一列是一輪主迴圈：取出 $u$、鬆弛完它的出邊之後的 $d$。 \sptpick{粗體}是這一輪取出
+的頂點，\sptnew{底線}是這一輪變小的值，\sptold{灰色}是之前已經取出、不會再變的值。 到這
+一列為止取出過的頂點就是 $S$。
+
+\begin{center}
+\begin{tabular}{cc*{7}{c}}
+\toprule
+輪 & 取出 $u$ & $d[1]$ & $d[2]$ & $d[3]$ & $d[4]$ & $d[5]$ & $d[6]$ & $d[7]$ \\
+\midrule
+初始 & & $0$ & $\infty$ & $\infty$ & $\infty$ & $\infty$ & $\infty$ & $\infty$ \\
+1 & $1$ & \sptpick{0} & \sptnew{7} & \sptnew{2} & \sptnew{6} & $\infty$ & $\infty$ & $\infty$ \\
+2 & $3$ & \sptold{0} & \sptnew{6} & \sptpick{2} & $6$ & \sptnew{10} & $\infty$ & $\infty$ \\
+3 & $2$ & \sptold{0} & \sptpick{6} & \sptold{2} & $6$ & \sptnew{8} & \sptnew{15} & $\infty$ \\
+4 & $4$ & \sptold{0} & \sptold{6} & \sptold{2} & \sptpick{6} & $8$ & $15$ & \sptnew{16} \\
+5 & $5$ & \sptold{0} & \sptold{6} & \sptold{2} & \sptold{6} & \sptpick{8} & \sptnew{11} & \sptnew{14} \\
+6 & $6$ & \sptold{0} & \sptold{6} & \sptold{2} & \sptold{6} & \sptold{8} & \sptpick{11} & \sptnew{12} \\
+7 & $7$ & \sptold{0} & \sptold{6} & \sptold{2} & \sptold{6} & \sptold{8} & \sptold{11} & \sptpick{12} \\
+\midrule
+$\pi$ & & \NIL & $3$ & $1$ & $1$ & $2$ & $5$ & $6$ \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+幾個要注意的地方：
+\begin{itemize}
+\item 第 2 輪取出 $3$（$d = 2$），鬆弛 $3 \to 2$ 得到 $2 + 4 = 6 < 7$，$d[2]$ 變小，
+$\pi[2] = 3$。 鬆弛 $3 \to 4$ 得到 $2 + 4 = 6$，和原本的 $d[4] = 6$ 一樣，\textbf{相等不
+更新}，$\pi[4]$ 仍然是 $1$。 到 $4$ 其實有兩條最短路徑，$1 \to 4$ 和 $1 \to 3 \to 4$，
+記下哪一條由這條規則決定。
+\item 第 3 輪，$2$ 和 $4$ 的 $d$ 都是 $6$，平手取編號小的 $2$。 取 $4$ 也對，只是後面的列
+順序不同。
+\item 第 4 輪取出 $4$，$4 \to 5$ 得到 $6 + 4 = 10$，不比 $8$ 小，不更新。 $d[7]$ 先是 $16$，
+第 5 輪變成 $14$，第 6 輪再變成 $12$：同一個頂點的 $d$ 可以被改好幾次，每次都是一次
+\proc{Decrease-Key}。
+\item 第 6 輪取出 $6$，邊 $6 \to 2$ 的 $2$ 已經在 $S$ 裡，第 11 行直接跳過（就算去比，
+$11 + 1 = 12$ 也不比 $6$ 小）。
+\end{itemize}
+
+最後 $d = (0, 6, 2, 6, 8, 11, 12)$，$\pi$ 構成圖~\ref{fig:spt-g1}~(b) 的最短路徑樹。 到 $7$
+的路徑沿著 $\pi$ 往回是 $7, 6, 5, 2, 3, 1$，倒過來是 $1 \to 3 \to 2 \to 5 \to 6 \to 7$，
+權重 $2 + 4 + 2 + 3 + 1 = 12$。 圖~\ref{fig:spt-snap} 畫出前六輪結束時的樣子：橘色是這一輪
+取出的頂點，藍色是之前取出的，藍色粗箭頭是目前的 $\pi$ 邊。
+
+\begin{center}
+\begin{tikzpicture}
+\begin{scope}[xshift=0.0cm, yshift=0.0cm, x=0.55cm, y=0.6cm]
+\node[spt-vsnew] (p1) at (0, 0) {1};
+\node[spt-d, left=0pt of p1] {$0$};
+\node[spt-vs] (p2) at (2.4, 1.5) {2};
+\node[spt-d, above left=0pt of p2] {$7$};
+\node[spt-vs] (p3) at (2.4, 0) {3};
+\node[spt-d, below left=0pt of p3] {$2$};
+\node[spt-vs] (p4) at (2.4, -1.5) {4};
+\node[spt-d, below=0pt of p4] {$6$};
+\node[spt-vs] (p5) at (4.8, 0) {5};
+\node[spt-d, below right=0pt of p5] {$\infty$};
+\node[spt-vs] (p6) at (4.8, 1.5) {6};
+\node[spt-d, above right=0pt of p6] {$\infty$};
+\node[spt-vs] (p7) at (7.2, 0) {7};
+\node[spt-d, right=0pt of p7] {$\infty$};
+\draw[spt-ta] (p1) -- (p2);
+\draw[spt-ta] (p1) -- (p3);
+\draw[spt-ta] (p1) -- (p4);
+\draw[spt-sa] (p3) -- (p2);
+\draw[spt-sa] (p3) -- (p4);
+\draw[spt-sa] (p3) -- (p5);
+\draw[spt-sa] (p2) -- (p5);
+\draw[spt-sa] (p2) -- (p6);
+\draw[spt-sa] (p4) -- (p5);
+\draw[spt-sa] (p4) to[bend right=18] (p7);
+\draw[spt-sa] (p5) -- (p6);
+\draw[spt-sa] (p5) -- (p7);
+\draw[spt-sa] (p6) -- (p7);
+\draw[spt-sa] (p6) to[bend right=30] (p2);
+\node[font=\small] at (3.6, -3.1) {第 1 輪：取出 $1$};
+\end{scope}
+\begin{scope}[xshift=5.45cm, yshift=0.0cm, x=0.55cm, y=0.6cm]
+\node[spt-vsdone] (p1) at (0, 0) {1};
+\node[spt-d, left=0pt of p1] {$0$};
+\node[spt-vs] (p2) at (2.4, 1.5) {2};
+\node[spt-d, above left=0pt of p2] {$6$};
+\node[spt-vsnew] (p3) at (2.4, 0) {3};
+\node[spt-d, below left=0pt of p3] {$2$};
+\node[spt-vs] (p4) at (2.4, -1.5) {4};
+\node[spt-d, below=0pt of p4] {$6$};
+\node[spt-vs] (p5) at (4.8, 0) {5};
+\node[spt-d, below right=0pt of p5] {$10$};
+\node[spt-vs] (p6) at (4.8, 1.5) {6};
+\node[spt-d, above right=0pt of p6] {$\infty$};
+\node[spt-vs] (p7) at (7.2, 0) {7};
+\node[spt-d, right=0pt of p7] {$\infty$};
+\draw[spt-sa] (p1) -- (p2);
+\draw[spt-ta] (p1) -- (p3);
+\draw[spt-ta] (p1) -- (p4);
+\draw[spt-ta] (p3) -- (p2);
+\draw[spt-sa] (p3) -- (p4);
+\draw[spt-ta] (p3) -- (p5);
+\draw[spt-sa] (p2) -- (p5);
+\draw[spt-sa] (p2) -- (p6);
+\draw[spt-sa] (p4) -- (p5);
+\draw[spt-sa] (p4) to[bend right=18] (p7);
+\draw[spt-sa] (p5) -- (p6);
+\draw[spt-sa] (p5) -- (p7);
+\draw[spt-sa] (p6) -- (p7);
+\draw[spt-sa] (p6) to[bend right=30] (p2);
+\node[font=\small] at (3.6, -3.1) {第 2 輪：取出 $3$};
+\end{scope}
+\begin{scope}[xshift=10.9cm, yshift=0.0cm, x=0.55cm, y=0.6cm]
+\node[spt-vsdone] (p1) at (0, 0) {1};
+\node[spt-d, left=0pt of p1] {$0$};
+\node[spt-vsnew] (p2) at (2.4, 1.5) {2};
+\node[spt-d, above left=0pt of p2] {$6$};
+\node[spt-vsdone] (p3) at (2.4, 0) {3};
+\node[spt-d, below left=0pt of p3] {$2$};
+\node[spt-vs] (p4) at (2.4, -1.5) {4};
+\node[spt-d, below=0pt of p4] {$6$};
+\node[spt-vs] (p5) at (4.8, 0) {5};
+\node[spt-d, below right=0pt of p5] {$8$};
+\node[spt-vs] (p6) at (4.8, 1.5) {6};
+\node[spt-d, above right=0pt of p6] {$15$};
+\node[spt-vs] (p7) at (7.2, 0) {7};
+\node[spt-d, right=0pt of p7] {$\infty$};
+\draw[spt-sa] (p1) -- (p2);
+\draw[spt-ta] (p1) -- (p3);
+\draw[spt-ta] (p1) -- (p4);
+\draw[spt-ta] (p3) -- (p2);
+\draw[spt-sa] (p3) -- (p4);
+\draw[spt-sa] (p3) -- (p5);
+\draw[spt-ta] (p2) -- (p5);
+\draw[spt-ta] (p2) -- (p6);
+\draw[spt-sa] (p4) -- (p5);
+\draw[spt-sa] (p4) to[bend right=18] (p7);
+\draw[spt-sa] (p5) -- (p6);
+\draw[spt-sa] (p5) -- (p7);
+\draw[spt-sa] (p6) -- (p7);
+\draw[spt-sa] (p6) to[bend right=30] (p2);
+\node[font=\small] at (3.6, -3.1) {第 3 輪：取出 $2$};
+\end{scope}
+\begin{scope}[xshift=0.0cm, yshift=-3.7cm, x=0.55cm, y=0.6cm]
+\node[spt-vsdone] (p1) at (0, 0) {1};
+\node[spt-d, left=0pt of p1] {$0$};
+\node[spt-vsdone] (p2) at (2.4, 1.5) {2};
+\node[spt-d, above left=0pt of p2] {$6$};
+\node[spt-vsdone] (p3) at (2.4, 0) {3};
+\node[spt-d, below left=0pt of p3] {$2$};
+\node[spt-vsnew] (p4) at (2.4, -1.5) {4};
+\node[spt-d, below=0pt of p4] {$6$};
+\node[spt-vs] (p5) at (4.8, 0) {5};
+\node[spt-d, below right=0pt of p5] {$8$};
+\node[spt-vs] (p6) at (4.8, 1.5) {6};
+\node[spt-d, above right=0pt of p6] {$15$};
+\node[spt-vs] (p7) at (7.2, 0) {7};
+\node[spt-d, right=0pt of p7] {$16$};
+\draw[spt-sa] (p1) -- (p2);
+\draw[spt-ta] (p1) -- (p3);
+\draw[spt-ta] (p1) -- (p4);
+\draw[spt-ta] (p3) -- (p2);
+\draw[spt-sa] (p3) -- (p4);
+\draw[spt-sa] (p3) -- (p5);
+\draw[spt-ta] (p2) -- (p5);
+\draw[spt-ta] (p2) -- (p6);
+\draw[spt-sa] (p4) -- (p5);
+\draw[spt-ta] (p4) to[bend right=18] (p7);
+\draw[spt-sa] (p5) -- (p6);
+\draw[spt-sa] (p5) -- (p7);
+\draw[spt-sa] (p6) -- (p7);
+\draw[spt-sa] (p6) to[bend right=30] (p2);
+\node[font=\small] at (3.6, -3.1) {第 4 輪：取出 $4$};
+\end{scope}
+\begin{scope}[xshift=5.45cm, yshift=-3.7cm, x=0.55cm, y=0.6cm]
+\node[spt-vsdone] (p1) at (0, 0) {1};
+\node[spt-d, left=0pt of p1] {$0$};
+\node[spt-vsdone] (p2) at (2.4, 1.5) {2};
+\node[spt-d, above left=0pt of p2] {$6$};
+\node[spt-vsdone] (p3) at (2.4, 0) {3};
+\node[spt-d, below left=0pt of p3] {$2$};
+\node[spt-vsdone] (p4) at (2.4, -1.5) {4};
+\node[spt-d, below=0pt of p4] {$6$};
+\node[spt-vsnew] (p5) at (4.8, 0) {5};
+\node[spt-d, below right=0pt of p5] {$8$};
+\node[spt-vs] (p6) at (4.8, 1.5) {6};
+\node[spt-d, above right=0pt of p6] {$11$};
+\node[spt-vs] (p7) at (7.2, 0) {7};
+\node[spt-d, right=0pt of p7] {$14$};
+\draw[spt-sa] (p1) -- (p2);
+\draw[spt-ta] (p1) -- (p3);
+\draw[spt-ta] (p1) -- (p4);
+\draw[spt-ta] (p3) -- (p2);
+\draw[spt-sa] (p3) -- (p4);
+\draw[spt-sa] (p3) -- (p5);
+\draw[spt-ta] (p2) -- (p5);
+\draw[spt-sa] (p2) -- (p6);
+\draw[spt-sa] (p4) -- (p5);
+\draw[spt-sa] (p4) to[bend right=18] (p7);
+\draw[spt-ta] (p5) -- (p6);
+\draw[spt-ta] (p5) -- (p7);
+\draw[spt-sa] (p6) -- (p7);
+\draw[spt-sa] (p6) to[bend right=30] (p2);
+\node[font=\small] at (3.6, -3.1) {第 5 輪：取出 $5$};
+\end{scope}
+\begin{scope}[xshift=10.9cm, yshift=-3.7cm, x=0.55cm, y=0.6cm]
+\node[spt-vsdone] (p1) at (0, 0) {1};
+\node[spt-d, left=0pt of p1] {$0$};
+\node[spt-vsdone] (p2) at (2.4, 1.5) {2};
+\node[spt-d, above left=0pt of p2] {$6$};
+\node[spt-vsdone] (p3) at (2.4, 0) {3};
+\node[spt-d, below left=0pt of p3] {$2$};
+\node[spt-vsdone] (p4) at (2.4, -1.5) {4};
+\node[spt-d, below=0pt of p4] {$6$};
+\node[spt-vsdone] (p5) at (4.8, 0) {5};
+\node[spt-d, below right=0pt of p5] {$8$};
+\node[spt-vsnew] (p6) at (4.8, 1.5) {6};
+\node[spt-d, above right=0pt of p6] {$11$};
+\node[spt-vs] (p7) at (7.2, 0) {7};
+\node[spt-d, right=0pt of p7] {$12$};
+\draw[spt-sa] (p1) -- (p2);
+\draw[spt-ta] (p1) -- (p3);
+\draw[spt-ta] (p1) -- (p4);
+\draw[spt-ta] (p3) -- (p2);
+\draw[spt-sa] (p3) -- (p4);
+\draw[spt-sa] (p3) -- (p5);
+\draw[spt-ta] (p2) -- (p5);
+\draw[spt-sa] (p2) -- (p6);
+\draw[spt-sa] (p4) -- (p5);
+\draw[spt-sa] (p4) to[bend right=18] (p7);
+\draw[spt-ta] (p5) -- (p6);
+\draw[spt-sa] (p5) -- (p7);
+\draw[spt-ta] (p6) -- (p7);
+\draw[spt-sa] (p6) to[bend right=30] (p2);
+\node[font=\small] at (3.6, -3.1) {第 6 輪：取出 $6$};
+\end{scope}
+\end{tikzpicture}
+\diagcaption{Dijkstra 演算法在 $G_1$ 上前六輪結束時的 $d$ 和 $\pi$。 第 7 輪取出 $7$，
+不再改變任何值。}
+\label{fig:spt-snap}
+\end{center}
+
+\begin{examnote}
+Dijkstra 的追蹤題，答案會被三個約定影響：(1) 好幾個頂點的 $d$ 一樣小時取哪一個；(2) 鬆弛
+時「相等」要不要更新 $\pi$；(3) 表格的格式。 本書取編號最小的、相等不更新，表格每一列寫
+取出的頂點和全部的 $d$。 有的課本每一列只寫集合 $S$ 和距離陣列，有的每格寫成
+「$d/\pi$」，也有的題目只問「第幾個被確定的頂點是誰」。 題目有規定就照題目；沒有規定
+時，在答案開頭寫一句你用的平手規則，表格裡每一輪都把取出的頂點標出來。 無向圖的題目，
+每條邊兩個方向都要鬆弛。
+\end{examnote}
+
+\subsection{為什麼一定對}
+
+\begin{theorem}
+\label{thm:spt-dijkstra}
+設 $G$ 每條邊的權重都 $\ge 0$。 對 $G$ 和起點 $s$ 執行 \proc{Dijkstra}，每個頂點 $u$ 在第
+8 行被取出時都有 $d[u] = \delta(s, u)$；所以演算法結束時，每個頂點都有 $d[v] = \delta(s,
+v)$，而 $\pi$ 構成一棵最短路徑樹。
+\end{theorem}
+
+\begin{proof}
+權重不是負數，沒有負環，所以 $\delta(s, s) = 0$。 第 11--13 行只是在 $v \notin S$ 時做
+\proc{Relax}，少做幾次鬆弛不影響定理~\ref{thm:spt-props}，那幾條性質都可以用。
+
+假設定理不對，設 $u$ 是\textbf{第一個}被取出時 $d[u] \ne \delta(s, u)$ 的頂點。 第一個取出
+的是 $s$，$d[s] = 0 = \delta(s, s)$，所以 $u \ne s$。 由上界性質 $d[u] > \delta(s, u)$，所以
+$\delta(s, u) < \infty$，$s$ 走得到 $u$；取一條從 $s$ 到 $u$ 的最短路徑 $p$。 看 $u$ 被取出
+的那一刻（第 9 行之前）：$s$ 在 $S$ 裡，$u$ 不在。 沿著 $p$ 從 $s$ 往前走，設 $y$ 是第一個
+不在 $S$ 裡的頂點，$x$ 是 $p$ 上 $y$ 的前一個頂點，$x \in S$。 （$y$ 可能就是 $u$。）
+
+$x$ 比 $u$ 早取出，依 $u$ 的選法，$x$ 取出時 $d[x] = \delta(s, x)$。 取出 $x$ 之後第 10
+行看過邊 $(x, y)$，那時 $y$ 不在 $S$ 裡，所以這條邊被鬆弛過。 由引理~\ref{lem:spt-subpath}，
+$p$ 到 $y$ 的那一段 $s \leadsto x \to y$ 是到 $y$ 的最短路徑，由收斂性質
+$d[y] = \delta(s, y)$。
+
+$y$ 在 $p$ 上排在 $u$ 前面（或者就是 $u$），從 $y$ 走到 $u$ 的那一段權重 $\ge 0$，所以
+\[
+d[y] = \delta(s, y) \le \delta(s, u) < d[u].
+\]
+可是 $y$ 和 $u$ 都在 $Q$ 裡，第 8 行選了 $u$，表示 $d[u] \le d[y]$，矛盾。 （$y = u$ 時，上式
+直接寫成 $d[u] = \delta(s, u)$，一樣矛盾。）
+
+所以每個頂點取出時 $d = \delta$，由上界性質之後不再改變；$s$ 到不了的頂點由無路徑性質一
+直是 $\infty$。 最後所有 $d[v] = \delta(s, v)$，由定理~\ref{thm:spt-tree}，$\pi$ 構成最短路
+徑樹。
+\end{proof}
+
+證明裡唯一用到「權重 $\ge 0$」的地方是 $\delta(s, y) \le \delta(s, u)$：最短路徑上後面的
+頂點距離不會比前面的小。 順便得到一個常用的事實：權重 $\ge 0$ 時，Dijkstra 演算法取出頂點
+的順序，$d$ 值不會變小（觀念題第~\ref{spt-q-mono}~題），和 BFS 的佇列一樣是由近到遠。
+
+\subsection{有負邊時會錯}
+\label{sec:spt-dijkstra-neg}
+
+圖~\ref{fig:spt-neg} 的 $N_1$ 只有一條負邊 $3 \to 2$，沒有負環。 真正的最短距離是
+$\delta(1, 2) = 5 - 4 = 1$（$1 \to 3 \to 2$）、$\delta(1, 4) = 1 + 2 = 3$（$1 \to 3 \to 2
+\to 4$）。
+
+\begin{center}
+\begin{tikzpicture}[x=1cm, y=1cm]
+\node[spt-v] (m1) at (0, 0) {1};
+\node[spt-v] (m2) at (2.4, 1) {2};
+\node[spt-v] (m3) at (2.4, -1) {3};
+\node[spt-v] (m4) at (4.8, 1) {4};
+\draw[spt-a] (m1) -- node[spt-w, above left] {$3$} (m2);
+\draw[spt-a] (m1) -- node[spt-w, below left] {$5$} (m3);
+\draw[spt-neg] (m3) -- node[spt-wn, right] {$-4$} (m2);
+\draw[spt-a] (m2) -- node[spt-w, above] {$2$} (m4);
+\end{tikzpicture}
+\diagcaption{$N_1$：一條負邊就足以讓 Dijkstra 演算法出錯。}
+\label{fig:spt-neg}
+\end{center}
+
+照虛擬碼~\ref{alg:spt-dijkstra} 做：
+
+\begin{center}
+\begin{tabular}{cc*{4}{c}l}
+\toprule
+輪 & 取出 $u$ & $d[1]$ & $d[2]$ & $d[3]$ & $d[4]$ & 說明 \\
+\midrule
+初始 & & $0$ & $\infty$ & $\infty$ & $\infty$ & \\
+1 & $1$ & \sptpick{0} & \sptnew{3} & \sptnew{5} & $\infty$ & \\
+2 & $2$ & \sptold{0} & \sptpick{3} & $5$ & \sptnew{5} & $2$ 被宣布確定，$d[2] = 3$ \\
+3 & $3$ & \sptold{0} & \sptold{3} & \sptpick{5} & $5$ & $3 \to 2$：$2 \in S$，跳過 \\
+4 & $4$ & \sptold{0} & \sptold{3} & \sptold{5} & \sptpick{5} & \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+第 3 輪 $d[3] = d[4] = 5$ 平手，取編號小的 $3$。 結果 $d[2] = 3$、$d[4] = 5$，都錯了。 問
+題出在第 2 輪：$2$ 的 $d = 3$ 是當時 $Q$ 裡最小的，演算法就宣布它確定了；證明裡的
+「$\delta(s, y) \le \delta(s, u)$」在這裡不成立，因為經過 $3$ 再走一條負邊，可以比 $3$ 本身
+還近。 就算第 3 輪不管 $2 \in S$、硬把 $d[2]$ 改成 $1$，$2$ 的出邊已經在第 2 輪處理過，不
+會再處理一次，$d[4]$ 還是錯的 $5$。 這正是第~19~章 19.5 節說的「貪心何時不對」：一旦選了
+就不回頭。
+
+\begin{itemize}
+\item 有負邊不代表一定算錯，例如把 $N_1$ 的 $1 \to 2$ 改成 $0$，結果剛好全對。 重點是\textbf{不
+保證}對，所以有負邊就不能用。
+\item 有些程式不維護 $S$，只要某個頂點的 $d$ 變小就再把它放進佇列，連已經取出過的也一樣。
+這樣在有負邊、沒有負環的圖上答案會對，但最壞情況下同一個頂點會被取出非常多次，時間
+可以是指數級，已經不是 Dijkstra 演算法了。 有負邊時應該用下一節的 Bellman--Ford。
+\item 「把每條邊都加上同一個數，讓權重全變成非負」也不行：邊數不同的路徑加的量不同，最
+短路徑會跟著變（觀念題第~\ref{spt-q-const}~題）。 第~\ref{sec:spt-johnson}~節有正確的改
+權重方法。
+\end{itemize}
+
+\subsection{執行時間}
+
+每個頂點進出 $Q$ 各一次，每條邊在第 10 行被看一次，所以 \proc{Insert} 和
+\proc{Extract-Min} 各做 $n$ 次，\proc{Decrease-Key} 最多做 $m$ 次。 總時間取決於優先佇列
+怎麼做：
+
+\begin{center}
+\begin{tabular}{lccc}
+\toprule
+$Q$ 的實作 & \proc{Extract-Min} & \proc{Decrease-Key} & 總時間 \\
+\midrule
+陣列（以頂點編號為索引） & $\Theta(n)$ & $\Theta(1)$ & $\Theta(n^2 + m) = \Theta(n^2)$ \\
+二元堆積（第~8~章 8.3 節） & $O(\lg n)$ & $O(\lg n)$ & $O((n + m) \lg n)$ \\
+$d$ 元堆積（第~8~章 8.4 節） & $O(d \log_d n)$ & $O(\log_d n)$ & $O((nd + m) \log_d n)$ \\
+費氏堆積（第~8~章 8.6 節，平攤） & $O(\lg n)$ & $O(1)$ & $O(n \lg n + m)$ \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+陣列版是最直接的寫法：$d$ 本身就是陣列，再用一個布林陣列標記誰在 $S$ 裡；
+\proc{Extract-Min} 掃過所有不在 $S$ 裡的頂點找最小的，\proc{Decrease-Key} 就是直接改
+$d[v]$。 圖用鄰接矩陣存時，第 10 行掃一整列也是 $\Theta(n)$，總時間一樣是 $\Theta(n^2)$。
+
+哪一種比較好看圖的疏密。 稠密圖 $m = \Theta(n^2)$：陣列版 $\Theta(n^2)$，二元堆積是
+$\Theta(n^2 \lg n)$，陣列版反而快。 稀疏圖 $m = O(n)$：陣列版還是 $\Theta(n^2)$，二元堆積
+是 $O(n \lg n)$，快很多。 實際的道路圖、網路圖大多稀疏，所以程式裡最常見的是堆積版。
+費氏堆積兩邊都不輸，但常數大，主要用在理論上的時間界（第~8~章 8.6 節）。
+
+\subsection{C 程式}
+
+下面的程式用二元堆積，但不做 \proc{Decrease-Key}：$d[v]$ 變小時，直接把新的一筆
+$(d[v], v)$ 放進堆積，舊的那筆留在裡面；取出時發現頂點已經處理過，就丟掉。 這是第~8~章
+8.3 節最後提到的寫法，不必記錄每個頂點在堆積的哪一格。 每次成功的鬆弛放進一筆，堆積最
+多 $m + 1$ 筆，時間 $O(m \lg m) = O(m \lg n)$（因為 $m \le n^2$，$\lg m \le 2 \lg n$）。
+
+堆積比較的是 $(d, v)$ 這一對：先比 $d$，平手比頂點編號。 這樣取出的順序和虛擬碼的平手規
+則完全一樣。 理由：頂點 $v$ 還沒處理時，堆積裡一定有 $(d[v], v)$ 這一筆（最後一次變小時放
+進去的），舊的幾筆 $(k, v)$ 都有 $k > d[v]$。 所以堆積裡最小的一筆如果屬於還沒處理的頂點，
+它就是所有還沒處理的頂點裡 $(d, \text{編號})$ 最小的；過期的筆數不影響誰先出來。
+
+\begin{cbookrecap}[第~13~章 13.1 節、第~19~章 19.3 節]
+距離用 \texttt{long long}，邊數多、權重大時總和才不會溢位。 $\infty$ 用
+\texttt{LLONG\_MAX / 4}：比任何真實的距離都大，再加上一條邊的權重也不會超出
+\texttt{long long} 的範圍。 \texttt{Node **p = \&head[u];} 讓 \texttt{p} 指向「要改的那個
+指標」，插入新節點時串列頭和中間不必分開寫，和第~22~章的程式一樣。
+\end{cbookrecap}
+
+輸入有好幾張圖，每張圖第一行是 $n$、$m$、起點 $s$ 和要印出路徑的終點 $t$，接著是 $m$ 條邊
+$u$、$v$、$w$。 程式印出取出的順序（括號是當時的 $d$）、最後的 $d$ 和 $\pi$，以及到 $t$ 的
+路徑。
+
+\begin{example}[label=ex:spt-dijkstra]{c}{(dijkstra.c) Dijkstra 演算法：二元堆積、不做 decrease-key}
+#include <stdio.h>
+#include <stdlib.h>
+#include <limits.h>
+
+#define INF (LLONG_MAX / 4)     // 代表 ∞，加上一條邊也不會溢位
+
+typedef struct node {           // 邊 u -> to，權重 w
+    int to;
+    long long w;
+    struct node *next;
+} Node;
+
+typedef struct {                // 堆積的一筆：頂點 v，放進去時的 d 值
+    long long key;
+    int v;
+} Item;
+
+// 加入邊 u -> v，插在串列裡讓終點保持由小到大
+int add_edge(Node **head, int u, int v, long long w)
+{
+    Node *x = malloc(sizeof *x);
+    if (x == NULL) {
+        return 0;
+    }
+    Node **p = &head[u];
+    while (*p != NULL && (*p)->to < v) {
+        p = &(*p)->next;
+    }
+    x->to = v;
+    x->w = w;
+    x->next = *p;
+    *p = x;
+    return 1;
+}
+
+int less(Item x, Item y)        // 先比 key，平手比頂點編號
+{
+    return x.key < y.key || (x.key == y.key && x.v < y.v);
+}
+
+void push(Item *a, int *size, long long key, int v)
+{
+    int i = (*size)++;
+    Item x = { key, v };
+    while (i > 0 && less(x, a[(i - 1) / 2])) {          // 上浮
+        a[i] = a[(i - 1) / 2];
+        i = (i - 1) / 2;
+    }
+    a[i] = x;
+}
+
+Item pop(Item *a, int *size)
+{
+    Item top = a[0], x = a[--*size];
+    int i = 0, c;
+    while ((c = 2 * i + 1) < *size) {                   // 下沉
+        if (c + 1 < *size && less(a[c + 1], a[c])) {
+            c++;
+        }
+        if (!less(a[c], x)) {
+            break;
+        }
+        a[i] = a[c];
+        i = c;
+    }
+    a[i] = x;
+    return top;
+}
+
+// Dijkstra：頂點 0..n-1，起點 s；順便印出取出的順序
+void dijkstra(Node **head, int n, int m, int s, long long *d, int *pi)
+{
+    char *done = calloc(n, 1);
+    Item *heap = malloc((m + 1) * sizeof *heap);
+    int size = 0;
+    if (done != NULL && heap != NULL) {
+        for (int v = 0; v < n; v++) {
+            d[v] = INF;
+            pi[v] = -1;
+        }
+        d[s] = 0;
+        push(heap, &size, 0, s);
+        printf("order:");
+        while (size > 0) {
+            int u = pop(heap, &size).v;
+            if (done[u]) {                      // 過期的一筆
+                continue;
+            }
+            done[u] = 1;
+            printf(" %d(%lld)", u + 1, d[u]);
+            for (Node *x = head[u]; x != NULL; x = x->next) {
+                if (!done[x->to] && d[u] + x->w < d[x->to]) {
+                    d[x->to] = d[u] + x->w;
+                    pi[x->to] = u;
+                    push(heap, &size, d[x->to], x->to);
+                }
+            }
+        }
+        printf("\n");
+    }
+    free(done);
+    free(heap);
+}
+
+void print_path(const int *pi, int v)
+{
+    if (pi[v] != -1) {
+        print_path(pi, pi[v]);
+        printf(" ");
+    }
+    printf("%d", v + 1);
+}
+
+int main(void)
+{
+    int n, m, s, t;
+    while (scanf("%d %d %d %d", &n, &m, &s, &t) == 4) {
+        Node **head = calloc(n, sizeof *head);
+        long long *d = malloc(n * sizeof *d);
+        int *pi = malloc(n * sizeof *pi), u, v;
+        long long w;
+        if (head == NULL || d == NULL || pi == NULL) {
+            return 1;
+        }
+        for (int i = 0; i < m; i++) {
+            if (scanf("%d %d %lld", &u, &v, &w) != 3 || !add_edge(head, u - 1, v - 1, w)) {
+                return 1;
+            }
+        }
+        dijkstra(head, n, m, s - 1, d, pi);
+        printf("d:");
+        for (v = 0; v < n; v++) {
+            if (d[v] == INF) {
+                printf(" inf");
+            } else {
+                printf(" %lld", d[v]);
+            }
+        }
+        printf("\npi:");
+        for (v = 0; v < n; v++) {
+            if (pi[v] == -1) {
+                printf(" -");
+            } else {
+                printf(" %d", pi[v] + 1);
+            }
+        }
+        if (d[t - 1] == INF) {
+            printf("\n%d cannot reach %d\n", s, t);
+        } else {
+            printf("\npath to %d: ", t);
+            print_path(pi, t - 1);
+            printf(" (length %lld)\n", d[t - 1]);
+        }
+        for (u = 0; u < n; u++) {
+            while (head[u] != NULL) {
+                Node *nx = head[u]->next;
+                free(head[u]);
+                head[u] = nx;
+            }
+        }
+        free(head);
+        free(d);
+        free(pi);
+    }
+    return 0;
+}
+\end{example}
+\iosample{7 14 1 7 \\ 1 2 7 1 3 2 1 4 6 3 2 4 3 4 4 \\ 3 5 8 2 5 2 2 6 9 4 5 4 4 7 10 \\ 5 6 3 5 7 6 6 7 1 6 2 1 \\ 4 4 1 4 \\ 1 2 3 1 3 5 3 2 -4 2 4 2 \\ 3 1 1 3 \\ 1 2 4}{order: 1(0) 3(2) 2(6) 4(6) 5(8) 6(11) 7(12) \\ d: 0 6 2 6 8 11 12 \\ pi: - 3 1 1 2 5 6 \\ path to 7: 1 3 2 5 6 7 (length 12) \\ order: 1(0) 2(3) 3(5) 4(5) \\ d: 0 3 5 5 \\ pi: - 1 1 2 \\ path to 4: 1 2 4 (length 5) \\ order: 1(0) 2(4) \\ d: 0 4 inf \\ pi: - 1 - \\ 1 cannot reach 3}
+
+第一張圖是 $G_1$，取出順序 $1, 3, 2, 4, 5, 6, 7$ 和每個頂點的 $d$、$\pi$ 都和手算的表相同。
+第二張圖是 $N_1$，程式忠實地重現了錯誤的答案 $d[2] = 3$、$d[4] = 5$。 第三張圖頂點 $3$ 沒
+有任何邊連進來，$d[3]$ 保持 $\infty$，$\pi[3]$ 保持 \NIL。 印路徑的 \texttt{print\_path} 和
+\proc{Print-Path} 一樣用遞迴，先印前面的部分再印自己。
+
+\section{Bellman--Ford 演算法與負環}
+\label{sec:spt-bf}
+
+\subsection{演算法}
+
+有負邊時，沒辦法像 Dijkstra 那樣一個一個「確定」頂點。 Bellman--Ford 演算法換一個保守
+的做法：每一輪把\textbf{所有的邊}都鬆弛一次，做 $n - 1$ 輪。 最後再掃一次所有的邊，如果還
+有邊能鬆弛，就表示從 $s$ 走得到一個負環。
+
+\begin{pseudo}[label=alg:spt-bf]{Bellman--Ford 演算法}
+\Function{Bellman-Ford}{$G, w, s$}
+    \State \Call{Initialize-Single-Source}{$G, s$}
+    \For{$i \gets 1$ \To $n - 1$}
+        \For{每條邊 $(u, v) \in E$} \Comment{依固定的邊順序}
+            \State \Call{Relax}{$u, v, w$}
+        \EndFor
+    \EndFor
+    \For{每條邊 $(u, v) \in E$}
+        \If{$d[u] + w(u, v) < d[v]$}
+            \State \Return \FALSE \Comment{從 $s$ 走得到負環}
+        \EndIf
+    \EndFor
+    \State \Return \TRUE
+\EndFunction
+\end{pseudo}
+
+第 3--5 行是 $n - 1$ 輪鬆弛，第 6--8 行是檢查。 邊用什麼順序掃，最後的答案都一樣（下面的
+定理不管順序），但\textbf{每一輪結束時的 $d$ 會不一樣}，所以手算時一定要照指定的順序。
+\textbf{本書的約定}：每一輪都照同一個順序掃邊，題目或輸入給了邊的順序就照它；沒有給時，
+照起點編號由小到大、同一個起點再照終點由小到大，也就是依序掃 $\mathit{Adj}[1]$、
+$\mathit{Adj}[2]$、\ldots。
+
+\subsection{手算追蹤}
+\label{sec:spt-bf-trace}
+
+圖~\ref{fig:spt-bf} 的 $B$ 有兩條負邊 $3 \to 2$、$4 \to 5$，沒有負環（唯一的環
+$3 \to 2 \to 4 \to 5 \to 3$ 權重 $-3 + 2 - 1 + 3 = 1$）。 起點是 $1$，邊依約定的順序是
+\[
+(1, 2),\ (1, 3),\ (2, 4),\ (2, 5),\ (3, 2),\ (3, 4),\ (4, 5),\ (5, 3).
+\]
+
+\begin{center}
+\begin{tikzpicture}[x=1cm, y=1cm]
+\node[spt-v] (c1) at (0, 0) {1};
+\node[spt-v] (c2) at (2.4, 1.2) {2};
+\node[spt-v] (c3) at (2.4, -1.2) {3};
+\node[spt-v] (c4) at (4.8, -1.2) {4};
+\node[spt-v] (c5) at (7.2, 0) {5};
+\draw[spt-a] (c1) -- node[spt-w, above left] {$5$} (c2);
+\draw[spt-a] (c1) -- node[spt-w, below left] {$3$} (c3);
+\draw[spt-neg] (c3) -- node[spt-wn, left] {$-3$} (c2);
+\draw[spt-a] (c2) -- node[spt-w, pos=0.4, above right] {$2$} (c4);
+\draw[spt-a] (c2) -- node[spt-w, above] {$6$} (c5);
+\draw[spt-a] (c3) -- node[spt-w, above] {$4$} (c4);
+\draw[spt-neg] (c4) -- node[spt-wn, below right] {$-1$} (c5);
+\draw[spt-a] (c5) to[out=-100, in=-60, looseness=1.15] node[spt-w, below] {$3$} (c3);
+\end{tikzpicture}
+\diagcaption{圖 $B$。 紅色是負邊。 把 $5 \to 3$ 的權重從 $3$ 改成 $1$ 就得到第~\ref{sec:spt-negcycle}~節的 $B'$。}
+\label{fig:spt-bf}
+\end{center}
+
+先把第 1 輪一條邊一條邊寫出來：
+
+\begin{center}
+\begin{tabular}{clcl}
+\toprule
+邊 & 計算 & 成功？ & 之後的 $d[1..5]$ \\
+\midrule
+$(1, 2)$ & $0 + 5 = 5 < \infty$ & 是 & $0, 5, \infty, \infty, \infty$ \\
+$(1, 3)$ & $0 + 3 = 3 < \infty$ & 是 & $0, 5, 3, \infty, \infty$ \\
+$(2, 4)$ & $5 + 2 = 7 < \infty$ & 是 & $0, 5, 3, 7, \infty$ \\
+$(2, 5)$ & $5 + 6 = 11 < \infty$ & 是 & $0, 5, 3, 7, 11$ \\
+$(3, 2)$ & $3 - 3 = 0 < 5$ & 是 & $0, 0, 3, 7, 11$ \\
+$(3, 4)$ & $3 + 4 = 7 \not< 7$ & 否 & \\
+$(4, 5)$ & $7 - 1 = 6 < 11$ & 是 & $0, 0, 3, 7, 6$ \\
+$(5, 3)$ & $6 + 3 = 9 \not< 3$ & 否 & \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+注意同一輪裡，前面剛改過的 $d$ 馬上就被後面的邊用到：$(2, 4)$ 用的是這一輪剛算出的
+$d[2] = 5$，$(4, 5)$ 又用了剛算出的 $d[4] = 7$。 第 1 輪結束時 $d[5] = 6$，對應的是
+$1 \to 2 \to 4 \to 5$，已經用了三條邊。 之後每一輪只寫結果：
+
+\begin{center}
+\begin{tabular}{c*{5}{c}l}
+\toprule
+輪 & $d[1]$ & $d[2]$ & $d[3]$ & $d[4]$ & $d[5]$ & 這一輪成功鬆弛的邊 \\
+\midrule
+初始 & $0$ & $\infty$ & $\infty$ & $\infty$ & $\infty$ & \\
+1 & $0$ & $0$ & $3$ & $7$ & $6$ & $(1,2)$ $(1,3)$ $(2,4)$ $(2,5)$ $(3,2)$ $(4,5)$ \\
+2 & $0$ & $0$ & $3$ & \sptnew{2} & \sptnew{1} & $(2,4)$ $(4,5)$ \\
+3 & $0$ & $0$ & $3$ & $2$ & $1$ & 沒有 \\
+4 & $0$ & $0$ & $3$ & $2$ & $1$ & 沒有 \\
+\midrule
+$\pi$ & \NIL & $3$ & $1$ & $2$ & $4$ & 檢查：沒有邊能鬆弛，回傳 \TRUE \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+第 2 輪 $(2, 4)$ 用到第 1 輪最後才改好的 $d[2] = 0$，得到 $d[4] = 2$；同一輪的 $(4, 5)$ 再
+得到 $d[5] = 1$。 最短路徑樹是 $1 \to 3 \to 2 \to 4 \to 5$ 這一條鏈，到 $5$ 的最短路徑用了
+四條邊、兩條負邊，權重 $3 - 3 + 2 - 1 = 1$。
+
+\textbf{換一個順序。} 如果邊的順序剛好倒過來，$(5,3), (4,5), (3,4), (3,2), (2,5), (2,4),
+(1,3), (1,2)$，每一輪的結果是：
+
+\begin{center}
+\begin{tabular}{c*{5}{c}}
+\toprule
+輪 & $d[1]$ & $d[2]$ & $d[3]$ & $d[4]$ & $d[5]$ \\
+\midrule
+1 & $0$ & $5$ & $3$ & $\infty$ & $\infty$ \\
+2 & $0$ & $0$ & $3$ & $2$ & $6$ \\
+3 & $0$ & $0$ & $3$ & $2$ & $1$ \\
+4 & $0$ & $0$ & $3$ & $2$ & $1$ \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+第 1 輪只有從 $1$ 出發的兩條邊有用，因為其他邊在 $d[2]$、$d[3]$ 還是 $\infty$ 的時候就掃過
+了；要到第 3 輪才收斂。 最後的 $d$ 和 $\pi$ 一樣，過程不一樣。
+
+\begin{examnote}
+Bellman--Ford 的追蹤題，先看題目要的是哪一種表。 (1) 本書（以及 CLRS）的寫法是\textbf{就
+地更新}：每一輪照固定的邊順序鬆弛，同一輪裡改過的 $d$ 立刻被後面的邊用到，表格寫每一輪
+結束時的 $d$。 (2) 有的資料結構課本寫成 $\mathit{dist}^{k}[v]$，意思是「最多用 $k$ 條邊」的
+最短距離，第 $k$ 欄只用第 $k - 1$ 欄的值算，同一輪不互相影響。 圖 $B$ 照 (2) 算出來是
+$\mathit{dist}^1 = (0, 5, 3, \infty, \infty)$、$\mathit{dist}^2 = (0, 0, 3, 7, 11)$、
+$\mathit{dist}^3 = (0, 0, 3, 2, 6)$、$\mathit{dist}^4 = (0, 0, 3, 2, 1)$，和上面的表不同，
+但最後一欄相同。 題目給了邊的順序或指定了寫法就照題目；都沒有時，寫明你用哪一種、邊照
+什麼順序。
+\end{examnote}
+
+\subsection{為什麼一定對}
+
+\begin{theorem}
+\label{thm:spt-bf}
+對 $G$ 和起點 $s$ 執行 \proc{Bellman-Ford}。
+\begin{enumerate}
+\item 如果從 $s$ 走得到的地方沒有負環，它回傳 \TRUE，而且每個頂點都有 $d[v] = \delta(s,
+v)$，$\pi$ 構成最短路徑樹。
+\item 如果從 $s$ 走得到一個負環，它回傳 \FALSE。
+\end{enumerate}
+\end{theorem}
+
+\begin{proof}
+(1) 設 $v$ 從 $s$ 走得到。 由引理~\ref{lem:spt-simple}，有一條從 $s$ 到 $v$ 的最短路徑
+$p = \langle v_0, v_1, \ldots, v_k \rangle$ 是簡單路徑，$k \le n - 1$。 每一輪都會鬆弛所有
+的邊，所以第 $i$ 輪一定鬆弛過 $(v_{i-1}, v_i)$，這 $k$ 條邊在第 $1, 2, \ldots, k$ 輪依序被
+鬆弛過。 由路徑鬆弛性質，第 $k$ 輪結束後 $d[v] = \delta(s, v)$，之後不變。 走不到的頂點由
+無路徑性質是 $\infty = \delta$。 第 6--8 行檢查時，對每條邊由三角不等式，
+\[
+d[v] = \delta(s, v) \le \delta(s, u) + w(u, v) = d[u] + w(u, v),
+\]
+所以第 7 行的條件都不成立，回傳 \TRUE。 $\pi$ 由定理~\ref{thm:spt-tree} 構成最短路徑樹。
+
+(2) 設負環 $c = \langle v_0, v_1, \ldots, v_k = v_0 \rangle$ 從 $s$ 走得到，$w(c) < 0$。 先看
+環上的 $d$ 都是有限的：對 $i$ 歸納可知第 $i$ 輪結束後，凡是能用 $\le i$ 條邊從 $s$ 走到的頂
+點，$d$ 都有限；環上每個頂點都能用一條 $\le n - 1$ 條邊的簡單路徑走到。 假設演算法回傳
+\TRUE，那麼第 7 行對環上每條邊都不成立：
+\[
+d[v_i] \le d[v_{i-1}] + w(v_{i-1}, v_i), \qquad i = 1, 2, \ldots, k.
+\]
+把 $k$ 個不等式加起來。 因為 $v_0 = v_k$，左邊的 $\sum d[v_i]$ 和右邊的 $\sum d[v_{i-1}]$
+是同一群數的和，又都有限，消掉之後得到 $0 \le w(c)$，矛盾。
+\end{proof}
+
+注意 (2) 只管「從 $s$ 走得到」的負環。 走不到的負環，上面的 $d$ 都是 $\infty$，第 7 行永
+遠不成立，演算法照樣回傳 \TRUE；這時從 $s$ 出發的答案本來就不受影響，回傳 \TRUE 沒有錯。
+要偵測\textbf{整張圖}有沒有負環，常見的做法是加一個新頂點 $q$，從 $q$ 連一條權重 $0$ 的
+邊到每個頂點，再從 $q$ 跑 Bellman--Ford；等價的寫法是一開始把所有頂點的 $d$ 都設成 $0$。
+
+\textbf{執行時間。} 初始化 $\Theta(n)$，第 3--5 行 $(n - 1) \cdot m$ 次鬆弛，檢查 $m$ 次，共
+$\Theta(nm)$。 圖用鄰接矩陣存時，「掃所有的邊」要看 $n^2$ 格，變成 $\Theta(n^3)$。 和
+Dijkstra 演算法的 $O(m \lg n)$ 比，慢了大約 $n / \lg n$ 倍，這是處理負邊的代價。
+
+\textbf{提早結束。} 每一輪做什麼只由當時的 $d$ 決定。 如果某一輪沒有任何 $d$ 改變，下一輪
+看到的 $d$ 一模一樣，也不會有任何改變，以後都是這樣；所以可以直接停。 停下來的那一輪本身就
+是「沒有邊能鬆弛」，等於第 6--8 行的檢查已經通過，回傳 \TRUE。 圖 $B$ 照本書的順序在第 3 輪
+就能停。 另一種常見的加速只鬆弛「上一輪 $d$ 有變過的頂點」的出邊，用一個佇列記這些頂點；
+實務上常快很多，但最壞情況仍是 $O(nm)$。
+
+\textbf{和第~18~章的關係。} 第~18~章 18.7 節的「最多用 $m$ 條邊」的 DP，限制成單一起點，
+就是作答提醒框裡的 $\mathit{dist}^{k}$。 Bellman--Ford 是它就地更新的版本：第 $i$ 輪結束後，
+$d[v]$ \textbf{不大於}任何一條最多 $i$ 條邊、從 $s$ 到 $v$ 的路徑的權重（同一輪用到新的值，
+只會更小），所以收斂得一樣快或更快。
+
+\subsection{找出負環}
+\label{sec:spt-negcycle}
+
+把圖 $B$ 的 $5 \to 3$ 的權重改成 $1$，叫它 $B'$。 環 $3 \to 2 \to 4 \to 5 \to 3$ 的權重變成
+$-3 + 2 - 1 + 1 = -1$，是負環。 照同樣的邊順序：
+
+\begin{center}
+\begin{tabular}{c*{5}{c}l}
+\toprule
+輪 & $d[1]$ & $d[2]$ & $d[3]$ & $d[4]$ & $d[5]$ & 這一輪成功鬆弛的邊 \\
+\midrule
+1 & $0$ & $0$ & $3$ & $7$ & $6$ & $(1,2)$ $(1,3)$ $(2,4)$ $(2,5)$ $(3,2)$ $(4,5)$ \\
+2 & $0$ & $0$ & \sptnew{2} & \sptnew{2} & \sptnew{1} & $(2,4)$ $(4,5)$ $(5,3)$ \\
+3 & $0$ & \sptnew{$-1$} & $2$ & $2$ & $1$ & $(3,2)$ \\
+4 & $0$ & $-1$ & \sptnew{1} & \sptnew{1} & \sptnew{0} & $(2,4)$ $(4,5)$ $(5,3)$ \\
+\midrule
+檢查 & \multicolumn{5}{c}{$(3, 2)$：$1 - 3 = -2 < -1$} & 回傳 \FALSE \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+環上的 $d$ 每繞一圈就少 $1$，永遠停不下來；做完 $n - 1 = 4$ 輪，檢查時 $(3, 2)$ 還能鬆弛。
+
+只知道「有負環」常常不夠，還要把它找出來。 方法是把檢查那一輪也照樣鬆弛，記下最後一個 $d$
+變小的頂點 $x$，然後從 $x$ 沿著 $\pi$ 往回走 $n$ 步。 走完之後所在的頂點一定在一個由 $\pi$
+邊組成的環上，再沿著 $\pi$ 繞一圈回到自己，就是負環（倒過來就是邊的方向）。 $B'$ 的檢查
+那一輪把 $d[2]$ 改成 $-2$，$x = 2$；$\pi$ 是 $\pi[2] = 3$、$\pi[3] = 5$、$\pi[5] = 4$、
+$\pi[4] = 2$，從 $2$ 往回走 $5$ 步是 $2, 3, 5, 4, 2, 3$，停在 $3$；從 $3$ 繞一圈是 $3, 5, 4,
+2, 3$，倒過來得到負環 $2 \to 4 \to 5 \to 3 \to 2$。
+
+\begin{whybox}[為什麼往回走 $n$ 步會落在負環上]
+先證明一個不變量：第 $i$ 輪結束後，$d[v]$ 不大於任何一條最多 $i$ 條邊、從 $s$ 到 $v$ 的路
+徑的權重。 對 $i$ 歸納，最後一條邊在第 $i$ 輪被鬆弛過即可。
+
+設第 $n$ 輪（檢查那一輪）把 $d[x]$ 變小。 從 $x$ 沿著 $\pi$ 往回走，假設會走到 \NIL。
+$d$ 有限而 $\pi = \NIL$ 的頂點只有 $s$，而且這時 $d[s]$ 從沒被改過，還是 $0$。 這條
+$\pi$ 鏈如果有重複頂點就已經是環了，所以它是一條簡單路徑 $q$，最多 $n - 1$ 條邊。 由定理
+~\ref{thm:spt-tree} 證明裡的 (i)，鏈上每條邊都有 $d[\text{頭}] \ge d[\text{尾}] + w$，加起來
+得到 $d[x] \ge d[s] + w(q) = w(q)$。 可是第 $n - 1$ 輪結束時已經有 $d[x] \le w(q)$（不變量，
+$q$ 最多 $n - 1$ 條邊），第 $n$ 輪又讓 $d[x]$ 嚴格變小，所以現在 $d[x] < w(q)$，矛盾。
+
+所以從 $x$ 往回走永遠不會碰到 \NIL，在 $n$ 個頂點裡一直走，$n$ 步之內一定進入一個環，走
+滿 $n$ 步時已經在環上。 由定理~\ref{thm:spt-tree} 證明裡的 (ii)，由 $\pi$ 邊組成的環一定
+是負環。
+\end{whybox}
+
+\textbf{哪些頂點是 $-\infty$。} 從 $s$ 走得到的負環，以及從這些負環走得到的頂點，$\delta$ 都
+是 $-\infty$。 做法：在檢查那一輪，把每條還能鬆弛的邊 $(u, v)$ 的 $v$ 記下來，再從這些頂點做
+一次 BFS 或 DFS，走到的都是 $-\infty$；其他頂點的 $d$ 就是正確的 $\delta$。 理由有兩半：
+從 $s$ 走得到的每個負環上，至少有一條邊在檢查時還能鬆弛（定理~\ref{thm:spt-bf} (2) 的證
+明），所以每個負環都會被找到；反過來，如果 $v$ 不能從任何這種負環走到，到 $v$ 的路徑上沒有
+負環，引理~\ref{lem:spt-simple} 的論證對 $v$ 照樣成立，做完 $n - 1$ 輪時 $d[v] = \delta(s, v)$，
+指向 $v$ 的邊都鬆弛不動。 $B'$ 裡 $2, 3, 4, 5$ 都是 $-\infty$，只有 $d[1] = 0$ 是對的。
+
+\subsection{C 程式}
+
+圖存成邊的陣列，照輸入的順序掃，這樣「邊的順序」就是輸入的順序，和手算一致。 程式每一輪
+都印出 $d$；檢查那一輪也照樣鬆弛，記下最後一個變小的頂點，有的話就照上面的方法印出負環，
+沒有的話印出 $\pi$。 \texttt{relax\_all} 在 \texttt{d[u]} 是 $\infty$ 時跳過，原因在
+第~\ref{sec:spt-relax}~節說過：負的權重加上代表 $\infty$ 的大數，會比那個大數小。
+
+\begin{example}[label=ex:spt-bf]{c}{(bellman\_ford.c) Bellman--Ford 演算法與找出負環}
+#include <stdio.h>
+#include <stdlib.h>
+#include <limits.h>
+
+#define INF (LLONG_MAX / 4)
+
+typedef struct {                // 一條邊 u -> v，權重 w
+    int u, v;
+    long long w;
+} Edge;
+
+// 照 e[0..m-1] 的順序把每條邊鬆弛一次；回傳最後一個 d 變小的頂點，沒有就回傳 -1
+int relax_all(const Edge *e, int m, long long *d, int *pi)
+{
+    int last = -1;
+    for (int i = 0; i < m; i++) {
+        if (d[e[i].u] != INF && d[e[i].u] + e[i].w < d[e[i].v]) {
+            d[e[i].v] = d[e[i].u] + e[i].w;
+            pi[e[i].v] = e[i].u;
+            last = e[i].v;
+        }
+    }
+    return last;
+}
+
+void print_row(const char *label, const long long *d, int n)
+{
+    printf("%s", label);
+    for (int v = 0; v < n; v++) {
+        if (d[v] == INF) {
+            printf(" inf");
+        } else {
+            printf(" %lld", d[v]);
+        }
+    }
+    printf("\n");
+}
+
+// 從 x 沿著 pi 往回走 n 步，一定落在負環上；再繞一圈，倒過來印出環
+void print_cycle(const int *pi, int n, int x)
+{
+    int *cyc = malloc((n + 1) * sizeof *cyc), len = 0;
+    if (cyc == NULL) {
+        return;
+    }
+    for (int i = 0; i < n; i++) {
+        x = pi[x];
+    }
+    int y = x;
+    do {
+        cyc[len++] = y;
+        y = pi[y];
+    } while (y != x);
+    printf("negative cycle:");
+    for (int i = len - 1; i >= 0; i--) {
+        printf(" %d", cyc[i] + 1);
+    }
+    printf(" %d\n", cyc[len - 1] + 1);
+    free(cyc);
+}
+
+int main(void)
+{
+    int n, m, s;
+    while (scanf("%d %d %d", &n, &m, &s) == 3) {
+        Edge *e = malloc(m * sizeof *e);
+        long long *d = malloc(n * sizeof *d);
+        int *pi = malloc(n * sizeof *pi);
+        if (e == NULL || d == NULL || pi == NULL) {
+            return 1;
+        }
+        for (int i = 0; i < m; i++) {
+            if (scanf("%d %d %lld", &e[i].u, &e[i].v, &e[i].w) != 3) {
+                return 1;
+            }
+            e[i].u--;
+            e[i].v--;
+        }
+        for (int v = 0; v < n; v++) {
+            d[v] = INF;
+            pi[v] = -1;
+        }
+        d[s - 1] = 0;
+        for (int r = 1; r <= n - 1; r++) {
+            char label[32];
+            relax_all(e, m, d, pi);
+            snprintf(label, sizeof label, "round %d:", r);
+            print_row(label, d, n);
+        }
+        int x = relax_all(e, m, d, pi);         // 第 n 輪：還有邊能鬆弛就是有負環
+        if (x == -1) {
+            printf("pi:");
+            for (int v = 0; v < n; v++) {
+                if (pi[v] == -1) {
+                    printf(" -");
+                } else {
+                    printf(" %d", pi[v] + 1);
+                }
+            }
+            printf("\n");
+        } else {
+            print_cycle(pi, n, x);
+        }
+        free(e);
+        free(d);
+        free(pi);
+    }
+    return 0;
+}
+\end{example}
+\iosample{5 8 1 \\ 1 2 5 1 3 3 2 4 2 2 5 6 \\ 3 2 -3 3 4 4 4 5 -1 5 3 3 \\ 5 8 1 \\ 5 3 3 4 5 -1 3 4 4 3 2 -3 \\ 2 5 6 2 4 2 1 3 3 1 2 5 \\ 5 8 1 \\ 1 2 5 1 3 3 2 4 2 2 5 6 \\ 3 2 -3 3 4 4 4 5 -1 5 3 1}{round 1: 0 0 3 7 6 \\ round 2: 0 0 3 2 1 \\ round 3: 0 0 3 2 1 \\ round 4: 0 0 3 2 1 \\ pi: - 3 1 2 4 \\ round 1: 0 5 3 inf inf \\ round 2: 0 0 3 2 6 \\ round 3: 0 0 3 2 1 \\ round 4: 0 0 3 2 1 \\ pi: - 3 1 2 4 \\ round 1: 0 0 3 7 6 \\ round 2: 0 0 2 2 1 \\ round 3: 0 -1 2 2 1 \\ round 4: 0 -1 1 1 0 \\ negative cycle: 2 4 5 3 2}
+
+三張圖依序是照本書順序的 $B$、邊倒過來的 $B$、以及 $B'$，每一輪的 $d$ 都和上面三張表相
+同。 程式沒有做提早結束，為的是把 $n - 1$ 輪都印出來和表對照；實際使用時，某一輪
+\texttt{relax\_all} 回傳 $-1$ 就可以停了。
+
+\section{有向無環圖上的最短路徑}
+\label{sec:spt-dag}
+
+\subsection{依拓樸順序鬆弛}
+
+圖沒有環時，有一個比 Bellman--Ford 快得多、又允許負邊的做法。 第~22~章的拓樸順序有一個
+性質：每條邊都從前面的頂點指向後面的頂點。 所以任何一條路徑上的頂點，在拓樸順序裡也是
+從前到後排的。 只要依拓樸順序處理頂點，每處理一個頂點就鬆弛它所有的出邊，任何一條路徑
+的邊都會照路徑上的先後被鬆弛到，路徑鬆弛性質直接給出答案。
+
+\begin{pseudo}[label=alg:spt-dag]{有向無環圖上的單一起點最短路徑}
+\Procedure{DAG-Shortest-Paths}{$G, w, s$}
+    \State 把 $G$ 的頂點依拓樸順序排好 \Comment{虛擬碼~\ref{alg:tps-kahn} 或 \ref{alg:tps-dfs}}
+    \State \Call{Initialize-Single-Source}{$G, s$}
+    \For{依拓樸順序的每個頂點 $u$}
+        \For{每個 $v \in \mathit{Adj}[u]$}
+            \State \Call{Relax}{$u, v, w$}
+        \EndFor
+    \EndFor
+\EndProcedure
+\end{pseudo}
+
+\begin{theorem}
+\label{thm:spt-dag}
+$G$ 是有向無環圖（權重可以是負的）。 \proc{DAG-Shortest-Paths} 結束時每個頂點都有
+$d[v] = \delta(s, v)$，$\pi$ 構成最短路徑樹。 時間是 $\Theta(n + m)$。
+\end{theorem}
+
+\begin{proof}
+沒有環就沒有負環，引理~\ref{lem:spt-simple} 成立。 $s$ 走得到 $v$ 時，取一條最短路徑
+$\langle v_0 = s, v_1, \ldots, v_k = v \rangle$。 拓樸順序裡 $v_0, v_1, \ldots, v_k$ 依序出現，
+第 4 行依序處理它們，處理 $v_{i-1}$ 時鬆弛了 $(v_{i-1}, v_i)$；這 $k$ 條邊依路徑的順序被鬆弛
+過，由路徑鬆弛性質 $d[v] = \delta(s, v)$。 走不到的由無路徑性質是 $\infty$。 $\pi$ 由
+定理~\ref{thm:spt-tree}。 拓樸排序 $\Theta(n + m)$，第 4--6 行每個頂點一次、每條邊一次，也是
+$\Theta(n + m)$。
+\end{proof}
+
+注意拓樸順序裡排在 $s$ 前面的頂點，$s$ 一定走不到（走得到就要排在 $s$ 後面），處理它們時
+$d[u] = \infty$，鬆弛什麼都不做。 所以也可以從 $s$ 在順序裡的位置才開始處理。
+
+\subsection{手算追蹤}
+
+圖~\ref{fig:spt-dag} 的 $D$ 是一張有向無環圖，頂點已經照一個拓樸順序 $1, 2, \ldots, 6$ 從左
+排到右（用第~22~章的 Kahn 演算法排出來也是這個順序）。 起點是 $s = 2$。
+
+\begin{center}
+\begin{tikzpicture}[x=1cm, y=1cm]
+\foreach \i in {1, ..., 6}
+    \node[spt-v] (g\i) at ({(\i - 1) * 2.2}, 0) {\i};
+\draw[spt-a] (g1) -- node[spt-w, above] {$3$} (g2);
+\draw[spt-a] (g2) -- node[spt-w, above] {$2$} (g3);
+\draw[spt-neg] (g3) -- node[spt-wn, above] {$-3$} (g4);
+\draw[spt-a] (g4) -- node[spt-w, above] {$1$} (g5);
+\draw[spt-neg] (g5) -- node[spt-wn, above] {$-2$} (g6);
+\draw[spt-a] (g1) to[bend left=40] node[spt-w, above] {$2$} (g3);
+\draw[spt-a] (g3) to[bend left=40] node[spt-w, above] {$4$} (g5);
+\draw[spt-a] (g2) to[bend right=40] node[spt-w, below] {$6$} (g4);
+\draw[spt-a] (g4) to[bend right=40] node[spt-w, below] {$5$} (g6);
+\end{tikzpicture}
+\diagcaption{有向無環圖 $D$，頂點依拓樸順序由左到右。}
+\label{fig:spt-dag}
+\end{center}
+
+每一列是處理完一個頂點（鬆弛完它所有的出邊）之後的 $d$：
+
+\begin{center}
+\begin{tabular}{c*{6}{c}l}
+\toprule
+處理 $u$ & $d[1]$ & $d[2]$ & $d[3]$ & $d[4]$ & $d[5]$ & $d[6]$ & 說明 \\
+\midrule
+初始 & $\infty$ & $0$ & $\infty$ & $\infty$ & $\infty$ & $\infty$ & \\
+$1$ & $\infty$ & $0$ & $\infty$ & $\infty$ & $\infty$ & $\infty$ & $d[1] = \infty$，不鬆弛 \\
+$2$ & $\infty$ & $0$ & \sptnew{2} & \sptnew{6} & $\infty$ & $\infty$ & \\
+$3$ & $\infty$ & $0$ & $2$ & \sptnew{$-1$} & \sptnew{6} & $\infty$ & $2 - 3 < 6$ \\
+$4$ & $\infty$ & $0$ & $2$ & $-1$ & \sptnew{0} & \sptnew{4} & \\
+$5$ & $\infty$ & $0$ & $2$ & $-1$ & $0$ & \sptnew{$-2$} & \\
+$6$ & $\infty$ & $0$ & $2$ & $-1$ & $0$ & $-2$ & 沒有出邊 \\
+\midrule
+$\pi$ & \NIL & \NIL & $2$ & $3$ & $4$ & $5$ & \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+最短路徑樹是 $2 \to 3 \to 4 \to 5 \to 6$ 這條鏈。 和 Bellman--Ford 不同，這裡每條邊只鬆弛一
+次，處理到 $u$ 時 $d[u]$ 已經是最後的答案（$u$ 的前驅都在它前面處理完了）。
+
+\subsection{最長路徑與關鍵路徑}
+
+一般的圖上，最長簡單路徑沒有已知的多項式時間演算法（第~18~章 18.1 節）。 有向無環圖沒有
+環，路徑一定是簡單的，最長路徑就容易了：把每條邊的權重變號，求最短路徑，答案再變號回來；
+或者直接把 \proc{Relax} 的 $<$ 改成 $>$、初值的 $\infty$ 改成 $-\infty$。 第~22~章
+第~\ref{sec:tps-aoe}~節 AOE 網路的最早時間 $\mathit{ee}[j]$，正是從開始事件出發的最長路徑，
+當時依拓樸順序取 $\max$ 的做法，就是這一節的演算法把 $\min$ 換成 $\max$。 $D$ 從 $2$ 出發
+的最長距離是 $d[3..6] = 2, 6, 7, 11$，路徑是 $2 \to 4 \to 6$（$6 + 5 = 11$）。
+
+同一個架構還能算很多東西，只要答案能「依拓樸順序從前驅推過來」。 例如從 $s$ 到每個頂點的
+路徑條數：$c[s] = 1$，其他先設成 $0$，依拓樸順序處理 $u$ 時，對每條出邊 $(u, v)$ 做
+$c[v] \gets c[v] + c[u]$。 只數最短路徑的條數，就只在 $d[u] + w(u, v) = d[v]$ 的邊上累加
+（先把 $d$ 算完，再掃一遍）。
+
+\textbf{C 程式。} 這一節不另外寫完整的程式：把第~22~章範例~\ref{ex:tps-topo} 的 Kahn 演算法排出
+的順序 \texttt{q[0..n-1]} 依序走一遍，對每個 $d$ 不是 $\infty$ 的頂點，照範例~\ref{ex:spt-bf} 的
+\texttt{relax\_all} 那樣鬆弛它的出邊就好。 要求最長路徑，把比較的 \texttt{<} 改成 \texttt{>}、
+初值改成代表 $-\infty$ 的 \texttt{-INF}，記得一樣要先跳過 $d$ 是 $-\infty$ 的頂點。
+
+\section{所有點對最短路徑：Floyd--Warshall 與遞移閉包}
+\label{sec:spt-fw}
+
+\subsection{輸入與輸出}
+
+所有點對的問題通常用矩陣表示（第~21~章 21.2 節的加權鄰接矩陣）。 頂點編號 $1..n$，輸入是
+$n \times n$ 的\textbf{權重矩陣} $W = (w_{ij})$：
+\[
+w_{ij} = \begin{cases}
+0, & i = j, \\
+w(i, j), & i \ne j \text{ 而且 } (i, j) \in E, \\
+\infty, & i \ne j \text{ 而且 } (i, j) \notin E.
+\end{cases}
+\]
+輸出是距離矩陣 $D = (d_{ij})$，$d_{ij} = \delta(i, j)$，以及\textbf{前驅矩陣} $\Pi =
+(\pi_{ij})$：$\pi_{ij}$ 是某一條從 $i$ 到 $j$ 的最短路徑上 $j$ 的前一個頂點；$i = j$ 或到不了
+時是 \NIL。 $\Pi$ 的第 $i$ 列，就是從 $i$ 出發的最短路徑樹的 $\pi$。 這一節先假設圖沒有負環，
+最後再看有負環時會怎樣。
+
+最直接的做法是對每個頂點各跑一次單一起點的演算法。 權重不是負數時跑 $n$ 次 Dijkstra：陣
+列版共 $\Theta(n^3)$，二元堆積版 $O(nm \lg n)$。 有負邊時跑 $n$ 次 Bellman--Ford，共
+$\Theta(n^2 m)$，稠密圖上是 $\Theta(n^4)$。 下面三個方法都比後者好。
+
+\subsection{用邊數當子問題：像矩陣乘法的做法}
+
+第~18~章 18.7 節最後提過另一種子問題：$\ell_{ij}^{(k)}$ 是從 $i$ 到 $j$、\textbf{最多用 $k$
+條邊}的路徑的最小權重。 $k = 1$ 時就是 $W$（$w_{ii} = 0$ 讓「不動」也算一種走法）。 看最後
+一條邊從哪個頂點 $t$ 走進 $j$：
+\[
+\ell_{ij}^{(k)} = \min_{1 \le t \le n} \bigl( \ell_{it}^{(k-1)} + w_{tj} \bigr).
+\]
+（$t = j$ 那一項是 $\ell_{ij}^{(k-1)} + 0$，對應「不用第 $k$ 條邊」。） 沒有負環時，最短路徑
+可以取簡單路徑，最多 $n - 1$ 條邊（引理~\ref{lem:spt-simple}），所以 $\delta(i, j) =
+\ell_{ij}^{(n-1)} = \ell_{ij}^{(n)} = \cdots$。
+
+\begin{pseudo}[label=alg:spt-extend]{把最短路徑多延伸一條邊}
+\Function{Extend-Paths}{$L, W, n$}
+    \State $L' \gets$ 新的 $n \times n$ 矩陣
+    \For{$i \gets 1$ \To $n$}
+        \For{$j \gets 1$ \To $n$}
+            \State $L'[i, j] \gets \infty$
+            \For{$t \gets 1$ \To $n$}
+                \State $L'[i, j] \gets \min(L'[i, j],\ L[i, t] + W[t, j])$
+            \EndFor
+        \EndFor
+    \EndFor
+    \State \Return $L'$
+\EndFunction
+\end{pseudo}
+
+把第 5 行的 $\infty$ 換成 $0$、第 7 行的 $\min$ 換成 $+$、$+$ 換成 $\times$，就是一般的矩陣乘
+法 $C = A \cdot B$。 所以把 \proc{Extend-Paths} 看成一種「乘法」，記成 $L \otimes W$，
+$L^{(k)} = L^{(k-1)} \otimes W$，答案是 $W$ 自己「乘」$n - 2$ 次，每次 $\Theta(n^3)$，共
+$\Theta(n^4)$。
+
+這種乘法和一般乘法一樣有結合律（$\min$ 和 $+$ 的關係，和 $+$ 和 $\times$ 的關係一樣：$a +
+\min(b, c) = \min(a + b, a + c)$）。 所以可以用第~17~章 17.1 節快速冪的反覆平方：
+\[
+L^{(1)} = W,\quad L^{(2)} = W \otimes W,\quad L^{(4)} = L^{(2)} \otimes L^{(2)},\quad \ldots
+\]
+算到 $L^{(2^r)}$ 而 $2^r \ge n - 1$ 為止，因為超過 $n - 1$ 條邊也不會更短。 只要
+$\lceil \lg(n - 1) \rceil$ 次乘法，共 $\Theta(n^3 \lg n)$。 不能再用 Strassen 加速：它需要減
+法，而 $\min$ 沒有對應的「減法」（第~17~章 17.3 節）。
+
+以圖~\ref{fig:spt-fw} 的 $F$ 為例（$n = 4$，只要算到 $L^{(4)}$，兩次乘法）：
+\[
+L^{(1)} = W = \begin{pmatrix} 0 & 3 & \infty & 8 \\ \infty & 0 & -2 & 6 \\ 4 & \infty & 0 & 2 \\ 2 & 1 & \infty & 0 \end{pmatrix},\quad
+L^{(2)} = \begin{pmatrix} 0 & 3 & 1 & 8 \\ 2 & 0 & -2 & 0 \\ 4 & 3 & 0 & 2 \\ 2 & 1 & -1 & 0 \end{pmatrix},\quad
+L^{(4)} = \begin{pmatrix} 0 & 3 & 1 & 3 \\ 2 & 0 & -2 & 0 \\ 4 & 3 & 0 & 2 \\ 2 & 1 & -1 & 0 \end{pmatrix}.
+\]
+例如 $\ell_{14}^{(2)} = 8$：兩條邊以內，$1 \to 2 \to 4$ 是 $9$，不如直接的 $8$；
+$\ell_{14}^{(4)} = 3$ 是三條邊的 $1 \to 2 \to 3 \to 4$。 $L^{(4)}$ 就是答案，和下面
+Floyd--Warshall 算出的 $D^{(4)}$ 相同。
+
+\subsection{Floyd--Warshall：中間點當子問題}
+
+第~18~章 18.7 節已經推過遞迴式：$d_{ij}^{(k)}$ 是從 $i$ 到 $j$、中間點都在 $\{1, \ldots, k\}$
+裡的最短路徑權重，
+\[
+d_{ij}^{(0)} = w_{ij}, \qquad
+d_{ij}^{(k)} = \min\bigl( d_{ij}^{(k-1)},\ d_{ik}^{(k-1)} + d_{kj}^{(k-1)} \bigr),
+\]
+而且可以只用一個矩陣就地更新（虛擬碼~18.16 的 \proc{Floyd-Warshall}），時間 $\Theta(n^3)$、空
+間 $\Theta(n^2)$。 這裡補上 $\Pi$。 $k = 0$ 時，有邊 $(i, j)$ 就 $\pi_{ij}^{(0)} = i$，否則是
+\NIL。 第 $k$ 層如果改用經過 $k$ 的路徑 $i \leadsto k \leadsto j$，$j$ 的前一個頂點就是
+$k \leadsto j$ 那一段裡 $j$ 的前一個，也就是 $\pi_{kj}^{(k-1)}$：
+\[
+\pi_{ij}^{(k)} = \begin{cases}
+\pi_{kj}^{(k-1)}, & d_{ik}^{(k-1)} + d_{kj}^{(k-1)} < d_{ij}^{(k-1)}, \\
+\pi_{ij}^{(k-1)}, & \text{其他}.
+\end{cases}
+\]
+
+\begin{pseudo}[label=alg:spt-fw]{Floyd--Warshall 演算法，含前驅矩陣}
+\Function{Floyd-Warshall-Path}{$W, n$}
+    \For{$i \gets 1$ \To $n$}
+        \For{$j \gets 1$ \To $n$}
+            \State $D[i, j] \gets W[i, j]$；$\Pi[i, j] \gets \NIL$
+            \If{$i \ne j$ \AND $W[i, j] < \infty$}
+                \State $\Pi[i, j] \gets i$
+            \EndIf
+        \EndFor
+    \EndFor
+    \For{$k \gets 1$ \To $n$}
+        \For{$i \gets 1$ \To $n$}
+            \For{$j \gets 1$ \To $n$}
+                \If{$D[i, k] + D[k, j] < D[i, j]$}
+                    \State $D[i, j] \gets D[i, k] + D[k, j]$
+                    \State $\Pi[i, j] \gets \Pi[k, j]$
+                \EndIf
+            \EndFor
+        \EndFor
+    \EndFor
+    \State \Return $D, \Pi$
+\EndFunction
+\end{pseudo}
+
+第 2--6 行初始化，第 7--12 行是三層迴圈，$k$ 一定在最外層（第~18~章說過放錯位置會錯，觀念題
+第~\ref{spt-q-order}~題要你找一個反例）。 就地更新沒有問題：第 $k$ 層裡第 $k$ 列和第 $k$ 行
+不會被改（$d_{kk} = 0$，$d_{ik} + d_{kk} = d_{ik}$ 不會更小），所以第 10--12 行讀到的
+$D[i, k]$、$D[k, j]$、$\Pi[k, j]$ 都還是第 $k - 1$ 層的值。
+
+\subsection{手算：$D^{(k)}$ 和 $\Pi^{(k)}$ 的序列}
+\label{sec:spt-fw-trace}
+
+考試最常見的寫法是把 $D^{(0)}, D^{(1)}, \ldots, D^{(n)}$（常常連同 $\Pi^{(k)}$）一個一個寫出
+來。 用圖~\ref{fig:spt-fw} 的 $F$：$4$ 個頂點、$8$ 條邊，$2 \to 3$ 是負邊，沒有負環。
+
+\begin{center}
+\begin{tikzpicture}[x=1cm, y=1cm]
+\node[spt-v] (f1) at (0, 0) {1};
+\node[spt-v] (f2) at (2.4, 1.8) {2};
+\node[spt-v] (f3) at (4.8, 0) {3};
+\node[spt-v] (f4) at (2.4, -1.8) {4};
+\draw[spt-a] (f1) -- node[spt-w, above left] {$3$} (f2);
+\draw[spt-neg] (f2) -- node[spt-wn, above right] {$-2$} (f3);
+\draw[spt-a] (f3) -- node[spt-w, below right] {$2$} (f4);
+\draw[spt-a] (f1) to[bend left=25] node[spt-w, pos=0.5] {$8$} (f4);
+\draw[spt-a] (f4) to[bend left=25] node[spt-w, pos=0.5] {$2$} (f1);
+\draw[spt-a] (f2) to[bend left=25] node[spt-w] {$6$} (f4);
+\draw[spt-a] (f4) to[bend left=25] node[spt-w] {$1$} (f2);
+\draw[spt-a] (f3) to[out=-90, in=-90, looseness=1.6] node[spt-w, below] {$4$} (f1);
+\end{tikzpicture}
+\diagcaption{圖 $F$。 $1$、$4$ 之間和 $2$、$4$ 之間兩個方向各有一條邊。}
+\label{fig:spt-fw}
+\end{center}
+
+每一層\textbf{粗體}是這一層變小的格子，$\Pi$ 裡的 \NIL 寫成「$-$」。
+\begin{gather*}
+D^{(0)} = \begin{pmatrix} 0 & 3 & \infty & 8 \\ \infty & 0 & -2 & 6 \\ 4 & \infty & 0 & 2 \\ 2 & 1 & \infty & 0 \end{pmatrix},\quad
+\Pi^{(0)} = \begin{pmatrix} - & 1 & - & 1 \\ - & - & 2 & 2 \\ 3 & - & - & 3 \\ 4 & 4 & - & - \end{pmatrix}; \\
+D^{(1)} = \begin{pmatrix} 0 & 3 & \infty & 8 \\ \infty & 0 & -2 & 6 \\ 4 & \mathbf{7} & 0 & 2 \\ 2 & 1 & \infty & 0 \end{pmatrix},\quad
+\Pi^{(1)} = \begin{pmatrix} - & 1 & - & 1 \\ - & - & 2 & 2 \\ 3 & \mathbf{1} & - & 3 \\ 4 & 4 & - & - \end{pmatrix}; \\
+D^{(2)} = \begin{pmatrix} 0 & 3 & \mathbf{1} & 8 \\ \infty & 0 & -2 & 6 \\ 4 & 7 & 0 & 2 \\ 2 & 1 & \mathbf{-1} & 0 \end{pmatrix},\quad
+\Pi^{(2)} = \begin{pmatrix} - & 1 & \mathbf{2} & 1 \\ - & - & 2 & 2 \\ 3 & 1 & - & 3 \\ 4 & 4 & \mathbf{2} & - \end{pmatrix}; \\
+D^{(3)} = \begin{pmatrix} 0 & 3 & 1 & \mathbf{3} \\ \mathbf{2} & 0 & -2 & \mathbf{0} \\ 4 & 7 & 0 & 2 \\ 2 & 1 & -1 & 0 \end{pmatrix},\quad
+\Pi^{(3)} = \begin{pmatrix} - & 1 & 2 & \mathbf{3} \\ \mathbf{3} & - & 2 & \mathbf{3} \\ 3 & 1 & - & 3 \\ 4 & 4 & 2 & - \end{pmatrix}; \\
+D^{(4)} = \begin{pmatrix} 0 & 3 & 1 & 3 \\ 2 & 0 & -2 & 0 \\ 4 & \mathbf{3} & 0 & 2 \\ 2 & 1 & -1 & 0 \end{pmatrix},\quad
+\Pi^{(4)} = \begin{pmatrix} - & 1 & 2 & 3 \\ 3 & - & 2 & 3 \\ 3 & \mathbf{4} & - & 3 \\ 4 & 4 & 2 & - \end{pmatrix}.
+\end{gather*}
+
+逐層看：
+\begin{itemize}
+\item $k = 1$：第 $1$ 行裡只有 $d_{31} = 4$、$d_{41} = 2$ 是有限的，第 $1$ 列有限的是 $d_{12}
+= 3$、$d_{14} = 8$。 候選是 $d_{32}$：$4 + 3 = 7 < \infty$，改；$d_{34}$：$4 + 8 = 12$，不比
+$2$ 小；$d_{42}$：$2 + 3 = 5$，不比 $1$ 小；$d_{44}$：不會變。 $\pi_{32} \gets \pi_{12} = 1$。
+\item $k = 2$：$d_{13} = 3 + (-2) = 1$，$d_{43} = 1 + (-2) = -1$。 $d_{14}$ 經過 $2$ 是 $3 + 6
+= 9$，不比 $8$ 小。
+\item $k = 3$：$d_{14} = 1 + 2 = 3$（$1 \to 2 \to 3 \to 4$），$d_{21} = -2 + 4 = 2$，$d_{24} =
+-2 + 2 = 0$。 $\pi_{14} \gets \pi_{34} = 3$，$\pi_{21} \gets \pi_{31} = 3$。
+\item $k = 4$：$d_{32} = 2 + 1 = 3$（$3 \to 4 \to 2$），比 $k = 1$ 時的 $7$ 好；$\pi_{32} \gets
+\pi_{42} = 4$。
+\end{itemize}
+
+手算時有兩個省力的地方。 第 $k$ 層的第 $k$ 列和第 $k$ 行照抄。 第 $k$ 行裡是 $\infty$ 的那些
+列、第 $k$ 列裡是 $\infty$ 的那些行，這一層也都不會變。 例如 $k = 1$ 時第 $1$ 行的 $d_{21} =
+\infty$，第 $2$ 列整列不必看；第 $1$ 列的 $d_{13} = \infty$，第 $3$ 行整行不必看，剩下第 $3$、$4$
+列和第 $2$、$4$ 行交叉的四格，就是上面列出的那四個候選。
+
+\subsection{還原路徑}
+
+從 $\Pi$ 印出 $i$ 到 $j$ 的路徑，和 \proc{Print-Path} 一樣，只是 $\pi$ 換成 $\Pi$ 的第 $i$
+列：
+
+\begin{pseudo}[label=alg:spt-fwpath]{用前驅矩陣印出路徑}
+\Procedure{Print-All-Pairs-Path}{$\Pi, i, j$}
+    \If{$i = j$}
+        \State 印出 $i$
+    \ElsIf{$\Pi[i, j] = \NIL$}
+        \State 印出「從 $i$ 到不了 $j$」
+    \Else
+        \State \Call{Print-All-Pairs-Path}{$\Pi, i, \Pi[i, j]$}
+        \State 印出 $j$
+    \EndIf
+\EndProcedure
+\end{pseudo}
+
+$F$ 裡 $1$ 到 $4$：$\pi_{14} = 3$，$\pi_{13} = 2$，$\pi_{12} = 1$，路徑 $1 \to 2 \to 3 \to 4$，權
+重 $3 - 2 + 2 = 3 = d_{14}$。 $3$ 到 $2$：$\pi_{32} = 4$，$\pi_{34} = 3$，路徑 $3 \to 4 \to 2$，
+權重 $2 + 1 = 3$。
+
+另一種常見的記法是記\textbf{中繼點}：$p_{ij}$ 記下讓 $d_{ij}$ 最後一次變小的那個 $k$，沒有變
+過就是 $0$（直接走邊）。 印路徑時遞迴印 $i \leadsto p_{ij}$ 和 $p_{ij} \leadsto j$ 兩段。 兩種
+記法存的東西不一樣，題目要哪一種就填哪一種，見下面的作答提醒框。
+
+\subsection{有負環時}
+
+Floyd--Warshall 不會在負環上停下來，它照樣跑完三層迴圈，但有負環時有些 $d_{ij}$ 不是
+$\delta(i, j)$（$\delta$ 是 $-\infty$）。 判斷的方法很簡單：\textbf{跑完之後，若某個
+$d_{ii} < 0$，圖就有負環，而且 $i$ 在某個負環上}；反過來，有負環時，負環上一定有某個頂點
+$i$ 的 $d_{ii} < 0$。
+
+理由：$D[i, j]$ 任何時候都等於某一條從 $i$ 到 $j$ 的走法（可以重複頂點）的權重，所以
+$d_{ii} < 0$ 表示有一條從 $i$ 回到 $i$ 的走法權重是負的，它裡面一定有一個負環。 反過來，設
+$c$ 是一個簡單的負環，$k$ 是 $c$ 上編號最大的頂點，$i$ 是 $c$ 上另一個頂點。 環上從 $i$ 到 $k$、
+從 $k$ 到 $i$ 的兩段，中間點都小於 $k$；第 $k - 1$ 層結束時 $D[i, k]$、$D[k, i]$ 不大於這兩段
+的權重（就地更新只會讓值更小），所以第 $k$ 層時 $D[i, i] \le D[i, k] + D[k, i] \le w(c) < 0$。
+
+\subsection{C 程式}
+
+矩陣直接用二維陣列，頂點數上限 \texttt{MAXN} 寫死（第~22~章的 \texttt{aoe.c} 也是這樣）。 讀邊時
+遇到重複的邊只留權重最小的。 第 $k$ 層開始時如果 \texttt{d[i][k]} 是 $\infty$，這一列整列跳過，
+這就是上面說的省力技巧，也順便避免拿 $\infty$ 去相加。 程式印出每一層改了哪些格子，最後印出
+$D$、$\Pi$ 和幾條路徑；有負環時只印出在負環上的頂點。
+
+\begin{example}[label=ex:spt-fw]{c}{(floyd.c) Floyd--Warshall 演算法：前驅矩陣、路徑與負環}
+#include <stdio.h>
+#include <limits.h>
+
+#define MAXN 100
+#define INF (LLONG_MAX / 4)
+
+int n;
+long long d[MAXN][MAXN];        // 距離矩陣 D
+int p[MAXN][MAXN];              // 前驅矩陣 Π：-1 代表 NIL
+
+void floyd_warshall(void)
+{
+    for (int k = 0; k < n; k++) {
+        printf("k=%d:", k + 1);
+        for (int i = 0; i < n; i++) {
+            if (d[i][k] == INF) {               // 走不到 k：這一列不會變
+                continue;
+            }
+            for (int j = 0; j < n; j++) {
+                if (d[k][j] != INF && d[i][k] + d[k][j] < d[i][j]) {
+                    d[i][j] = d[i][k] + d[k][j];
+                    p[i][j] = p[k][j];
+                    printf(" (%d,%d)", i + 1, j + 1);
+                }
+            }
+        }
+        printf("\n");
+    }
+}
+
+void print_path(int i, int j)
+{
+    if (i != j) {
+        print_path(i, p[i][j]);
+        printf(" ");
+    }
+    printf("%d", j + 1);
+}
+
+int main(void)
+{
+    int m, q, u, v, neg;
+    long long w;
+    while (scanf("%d %d", &n, &m) == 2 && n <= MAXN) {
+        for (int i = 0; i < n; i++) {
+            for (int j = 0; j < n; j++) {
+                d[i][j] = (i == j) ? 0 : INF;
+                p[i][j] = -1;
+            }
+        }
+        for (int e = 0; e < m; e++) {
+            if (scanf("%d %d %lld", &u, &v, &w) != 3) {
+                return 1;
+            }
+            if (w < d[u - 1][v - 1]) {          // 重複的邊只留最小的
+                d[u - 1][v - 1] = w;
+                p[u - 1][v - 1] = u - 1;
+            }
+        }
+        floyd_warshall();
+        neg = 0;
+        for (int i = 0; i < n; i++) {
+            if (d[i][i] < 0) {
+                printf("vertex %d is on a negative cycle\n", i + 1);
+                neg = 1;
+            }
+        }
+        for (int i = 0; i < n && !neg; i++) {
+            printf("D%d:", i + 1);
+            for (int j = 0; j < n; j++) {
+                if (d[i][j] == INF) {
+                    printf(" inf");
+                } else {
+                    printf(" %lld", d[i][j]);
+                }
+            }
+            printf(" P%d:", i + 1);
+            for (int j = 0; j < n; j++) {
+                if (p[i][j] == -1) {
+                    printf(" -");
+                } else {
+                    printf(" %d", p[i][j] + 1);
+                }
+            }
+            printf("\n");
+        }
+        if (scanf("%d", &q) != 1) {
+            q = 0;
+        }
+        for (int t = 0; t < q && scanf("%d %d", &u, &v) == 2; t++) {
+            if (neg) {
+                continue;
+            }
+            if (d[u - 1][v - 1] == INF) {
+                printf("%d -> %d: no path\n", u, v);
+            } else {
+                printf("%d -> %d: ", u, v);
+                print_path(u - 1, v - 1);
+                printf(" (length %lld)\n", d[u - 1][v - 1]);
+            }
+        }
+    }
+    return 0;
+}
+\end{example}
+\iosample{4 8 \\ 1 2 3 1 4 8 2 3 -2 2 4 6 \\ 3 1 4 3 4 2 4 2 1 4 1 2 \\ 3 3 2 2 1 1 4 \\ 3 3 \\ 1 2 1 2 3 -3 3 1 1 \\ 0 \\ 3 1 \\ 1 2 5 \\ 1 2 1}{k=1: (3,2) \\ k=2: (1,3) (4,3) \\ k=3: (1,4) (2,1) (2,4) \\ k=4: (3,2) \\ D1: 0 3 1 3 P1: - 1 2 3 \\ D2: 2 0 -2 0 P2: 3 - 2 3 \\ D3: 4 3 0 2 P3: 3 4 - 3 \\ D4: 2 1 -1 0 P4: 4 4 2 - \\ 3 -> 2: 3 4 2 (length 3) \\ 2 -> 1: 2 3 1 (length 2) \\ 1 -> 4: 1 2 3 4 (length 3) \\ k=1: (3,2) \\ k=2: (1,3) (3,3) \\ k=3: (1,1) (1,2) (1,3) (2,1) (2,2) (2,3) (3,1) (3,2) (3,3) \\ vertex 1 is on a negative cycle \\ vertex 2 is on a negative cycle \\ vertex 3 is on a negative cycle \\ k=1: \\ k=2: \\ k=3: \\ D1: 0 5 inf P1: - 1 - \\ D2: inf 0 inf P2: - - - \\ D3: inf inf 0 P3: - - - \\ 2 -> 1: no path}
+
+第一張圖是 $F$，每一層改的格子就是上面粗體的位置，最後的 \texttt{D}、\texttt{P} 兩列一組，
+分別是 $D^{(4)}$ 和 $\Pi^{(4)}$ 的每一列。 第二張圖 $1 \to 2 \to 3 \to 1$ 的權重是 $1 - 3 + 1 =
+-1$，三個頂點的 $d_{ii}$ 都變成負的。 第三張圖只有一條邊 $1 \to 2$，$2$ 到 $1$ 沒有路。
+
+\subsection{遞移閉包}
+
+只想知道「從 $i$ 能不能走到 $j$」時，權重不重要。 有向圖 $G$ 的\textbf{遞移閉包}
+（transitive closure）是一個 $n \times n$ 的 $0/1$ 矩陣，記錄每一對頂點之間有沒有路徑。 這裡
+有兩種定義，差在對角線：
+\begin{itemize}
+\item $A^{+}$：$a^{+}_{ij} = 1$ 若且唯若從 $i$ 到 $j$ 有一條\textbf{長度至少 $1$} 的路徑。 所
+以 $a^{+}_{ii} = 1$ 表示 $i$ 在某個環上。
+\item $A^{*}$（自反遞移閉包）：長度可以是 $0$，所以對角線全是 $1$，其他格子和 $A^{+}$ 相同。
+\end{itemize}
+
+把 Floyd--Warshall 的 $\min$ 換成「或」、$+$ 換成「且」，就是 \textbf{Warshall 演算法}：
+$t_{ij}^{(k)} = 1$ 表示從 $i$ 到 $j$ 有一條長度至少 $1$、中間點都在 $\{1, \ldots, k\}$ 的路徑，
+\[
+t_{ij}^{(0)} = a_{ij}, \qquad t_{ij}^{(k)} = t_{ij}^{(k-1)} \lor \bigl( t_{ik}^{(k-1)} \land
+t_{kj}^{(k-1)} \bigr).
+\]
+從鄰接矩陣 $A$（對角線是 $0$）開始，得到的是 $A^{+}$；要 $A^{*}$，最後把對角線設成 $1$，或
+一開始就把對角線設成 $1$。
+
+\begin{pseudo}[label=alg:spt-tc]{Warshall 演算法：遞移閉包}
+\Function{Transitive-Closure}{$A, n$}
+    \State $T \gets A$ 的複本
+    \For{$k \gets 1$ \To $n$}
+        \For{$i \gets 1$ \To $n$}
+            \For{$j \gets 1$ \To $n$}
+                \State $T[i, j] \gets T[i, j] \lor \bigl( T[i, k] \land T[k, j] \bigr)$
+            \EndFor
+        \EndFor
+    \EndFor
+    \State \Return $T$
+\EndFunction
+\end{pseudo}
+
+就地更新的理由和 Floyd--Warshall 相同：第 $k$ 層裡 $T[i, k]$ 和 $T[k, j]$ 不會因為這一層而改
+變（$T[i, k] \lor (T[i, k] \land T[k, k])$ 還是 $T[i, k]$）。 用位元運算時常數比 Floyd--Warshall
+小很多，這是它值得單獨寫的原因。
+
+\textbf{手算。} 圖~\ref{fig:spt-tc} 的 $C$ 有一個三角形的環 $1 \to 2 \to 3 \to 1$，從 $3$ 走到
+$4$，$4$ 和 $5$ 互相連。
+
+\begin{center}
+\begin{tikzpicture}[x=1cm, y=1cm]
+\node[spt-v] (t1) at (0, 0.9) {1};
+\node[spt-v] (t2) at (1.8, 0.9) {2};
+\node[spt-v] (t3) at (0.9, -0.5) {3};
+\node[spt-v] (t4) at (3.0, -0.5) {4};
+\node[spt-v] (t5) at (4.9, -0.5) {5};
+\draw[spt-a] (t1) -- (t2);
+\draw[spt-a] (t2) -- (t3);
+\draw[spt-a] (t3) -- (t1);
+\draw[spt-a] (t3) -- (t4);
+\draw[spt-a] (t4) to[bend left=20] (t5);
+\draw[spt-a] (t5) to[bend left=20] (t4);
+\end{tikzpicture}
+\diagcaption{圖 $C$：求遞移閉包用的有向圖。}
+\label{fig:spt-tc}
+\end{center}
+
+粗體是這一層新變成 $1$ 的格子：
+\begin{gather*}
+T^{(0)} = \begin{pmatrix} 0&1&0&0&0 \\ 0&0&1&0&0 \\ 1&0&0&1&0 \\ 0&0&0&0&1 \\ 0&0&0&1&0 \end{pmatrix},\quad
+T^{(1)} = \begin{pmatrix} 0&1&0&0&0 \\ 0&0&1&0&0 \\ 1&\mathbf{1}&0&1&0 \\ 0&0&0&0&1 \\ 0&0&0&1&0 \end{pmatrix},\quad
+T^{(2)} = \begin{pmatrix} 0&1&\mathbf{1}&0&0 \\ 0&0&1&0&0 \\ 1&1&\mathbf{1}&1&0 \\ 0&0&0&0&1 \\ 0&0&0&1&0 \end{pmatrix}, \\
+T^{(3)} = \begin{pmatrix} \mathbf{1}&1&1&\mathbf{1}&0 \\ \mathbf{1}&\mathbf{1}&1&\mathbf{1}&0 \\ 1&1&1&1&0 \\ 0&0&0&0&1 \\ 0&0&0&1&0 \end{pmatrix},\quad
+T^{(4)} = \begin{pmatrix} 1&1&1&1&\mathbf{1} \\ 1&1&1&1&\mathbf{1} \\ 1&1&1&1&\mathbf{1} \\ 0&0&0&0&1 \\ 0&0&0&1&\mathbf{1} \end{pmatrix},\quad
+T^{(5)} = \begin{pmatrix} 1&1&1&1&1 \\ 1&1&1&1&1 \\ 1&1&1&1&1 \\ 0&0&0&\mathbf{1}&1 \\ 0&0&0&1&1 \end{pmatrix}.
+\end{gather*}
+
+$T^{(5)} = A^{+}$。 對角線全是 $1$，表示五個頂點都在某個環上；把對角線忽略，$1$、$2$、$3$
+各走得到另外四個頂點，$4$、$5$ 只走得到彼此，共 $3 \times 4 + 2 \times 1 = 14$ 個有序點對
+$(i, j)$，$i \ne j$。 $t_{ij} = t_{ji} = 1$ 的 $i$、$j$ 互相可達，所以 $\{1, 2, 3\}$、$\{4, 5\}$
+是兩個強連通元件（第~23~章）。
+
+\begin{examnote}
+所有點對的題目，先確認題目要的是哪一種矩陣。 (1) 路徑：有的課本記前驅 $\pi_{ij}$（本書），
+有的記最後一次讓 $d_{ij}$ 變小的中繼點 $k$；同一張圖兩種矩陣的內容完全不同，還原路徑的方法也
+不同。 (2) 遞移閉包：$A^{+}$ 的對角線要看有沒有環，$A^{*}$ 的對角線全是 $1$；題目只說「遞移
+閉包」時，看它的定義或題目給的例子，沒有給就寫明你算的是哪一個。 (3) 寫 $D^{(k)}$ 序列時，
+每一層都寫完整的矩陣，並標出改過的格子，閱卷的人才看得出你是一層一層算的。
+\end{examnote}
+
+\textbf{時間與 C 實作。} Warshall 演算法是 $\Theta(n^3)$。 另一種做法是從每個頂點各做一次 BFS
+或 DFS，共 $\Theta(n(n + m))$，稀疏圖上比較快。 用位元可以把 Warshall 加速：把 $T$ 的每一列存
+成一串位元，第 $64$ 個頂點一組放進一個 \texttt{unsigned long long}。 內層迴圈「對每個 $j$，
+$T[i, j] \gets T[i, j] \lor T[k, j]$（當 $T[i, k] = 1$）」就變成把第 $k$ 列整列 OR 進第 $i$
+列，一次處理 $64$ 個 $j$，時間降到大約 $n^3 / 64$。
+
+\begin{cbookrecap}[第~12~章 12.3、12.6 節，第~13~章 13.2 節]
+\texttt{(row[j / 64] >> (j \% 64)) \& 1} 取出第 $j$ 個位元：先找到它在第幾個字，再把它移到最
+低位。 \texttt{row[j / 64] |= (Word)1 << (j \% 64)} 把它設成 $1$。 移位的對象要先轉成
+\texttt{unsigned long long}，寫成 \texttt{1 << 40} 的話，\texttt{1} 是 \texttt{int}，移太多位
+是未定義行為。
+\end{cbookrecap}
+
+\begin{example}[label=ex:spt-tc]{c}{(closure.c) Warshall 演算法：用位元存每一列}
+#include <stdio.h>
+#include <stdlib.h>
+
+typedef unsigned long long Word;    // 一個字存 64 個位元
+#define BITS 64
+
+// 第 i 列存成 w 個字：row[i * w + j / BITS] 的第 j % BITS 個位元是 T[i][j]
+int get_bit(const Word *row, int j)
+{
+    return (int)((row[j / BITS] >> (j % BITS)) & 1u);
+}
+
+void set_bit(Word *row, int j)
+{
+    row[j / BITS] |= (Word)1 << (j % BITS);
+}
+
+// Warshall：T[i][k] = 1 時，第 k 列整列 OR 進第 i 列
+void warshall(Word *t, int n, int w)
+{
+    for (int k = 0; k < n; k++) {
+        for (int i = 0; i < n; i++) {
+            if (get_bit(&t[i * w], k)) {
+                for (int x = 0; x < w; x++) {
+                    t[i * w + x] |= t[k * w + x];
+                }
+            }
+        }
+    }
+}
+
+int main(void)
+{
+    int n, m;
+    while (scanf("%d %d", &n, &m) == 2) {
+        int w = (n + BITS - 1) / BITS;
+        Word *t = calloc((size_t)n * w, sizeof *t);
+        if (t == NULL) {
+            return 1;
+        }
+        for (int e = 0; e < m; e++) {
+            int u, v;
+            if (scanf("%d %d", &u, &v) != 2) {
+                return 1;
+            }
+            set_bit(&t[(u - 1) * w], v - 1);
+        }
+        warshall(t, n, w);
+        long long pairs = 0;
+        for (int i = 0; i < n; i++) {
+            printf("T%d: ", i + 1);
+            for (int j = 0; j < n; j++) {
+                int b = get_bit(&t[i * w], j);
+                printf("%d", b);
+                if (b && i != j) {
+                    pairs++;
+                }
+            }
+            printf("\n");
+        }
+        printf("reachable pairs (i != j): %lld\n", pairs);
+        printf("on a cycle:");
+        int any = 0;
+        for (int i = 0; i < n; i++) {
+            if (get_bit(&t[i * w], i)) {        // T[i][i] = 1：i 走得回自己
+                printf(" %d", i + 1);
+                any = 1;
+            }
+        }
+        printf("%s\n", any ? "" : " none");
+        free(t);
+    }
+    return 0;
+}
+\end{example}
+\iosample{5 6 \\ 1 2 2 3 3 1 3 4 4 5 5 4 \\ 3 2 \\ 1 2 2 3}{T1: 11111 \\ T2: 11111 \\ T3: 11111 \\ T4: 00011 \\ T5: 00011 \\ reachable pairs (i != j): 14 \\ on a cycle: 1 2 3 4 5 \\ T1: 011 \\ T2: 001 \\ T3: 000 \\ reachable pairs (i != j): 3 \\ on a cycle: none}
+
+第一張圖是 $C$，結果和 $T^{(5)}$ 相同。 第二張圖是一條鏈 $1 \to 2 \to 3$，沒有環，對角線都
+是 $0$。 第~23~章實作練習裡的「可達點對個數」，用這支程式數 \texttt{reachable pairs} 就是一
+種做法。
+
+\section{Johnson 演算法}
+\label{sec:spt-johnson}
+
+Floyd--Warshall 不管圖的疏密都是 $\Theta(n^3)$。 稀疏圖上，對每個頂點跑一次 Dijkstra 只要
+$O(nm \lg n)$，$m = O(n)$ 時是 $O(n^2 \lg n)$，快得多；可惜有負邊時 Dijkstra 不能用。
+\textbf{Johnson 演算法}的想法是：先把權重改成非負的，而且改完之後最短路徑還是同一條，再跑
+$n$ 次 Dijkstra。 這一節只講觀念和一個小例子。
+
+\subsection{改權重}
+
+第~\ref{sec:spt-dijkstra-neg}~節說過，每條邊加同一個數不行。 正確的改法是替每個頂點選一個
+數 $h(v)$，令
+\[
+\hat{w}(u, v) = w(u, v) + h(u) - h(v).
+\]
+
+\begin{lemma}
+\label{lem:spt-reweight}
+對任何一條路徑 $p = \langle v_0, v_1, \ldots, v_k \rangle$，$\hat{w}(p) = w(p) + h(v_0) -
+h(v_k)$。 所以 $p$ 是 $w$ 之下從 $v_0$ 到 $v_k$ 的最短路徑，若且唯若它是 $\hat{w}$ 之下的最短
+路徑；$G$ 在 $w$ 之下有負環，若且唯若在 $\hat{w}$ 之下有負環。
+\end{lemma}
+
+\begin{proof}
+$\hat{w}(p) = \sum_{i=1}^{k} \bigl( w(v_{i-1}, v_i) + h(v_{i-1}) - h(v_i) \bigr)$，中間的 $h$
+一加一減全部消掉，只剩 $h(v_0) - h(v_k)$。 從 $v_0$ 到 $v_k$ 的每一條路徑都加上同一個數
+$h(v_0) - h(v_k)$，大小順序不變。 環的起點等於終點，$\hat{w}(c) = w(c)$。
+\end{proof}
+
+加常數失敗，是因為每條路徑加的量和它的邊數有關；這裡加的量只和兩個端點有關，所以不會改變
+誰比較短。 剩下的問題是怎麼選 $h$ 讓每個 $\hat{w}(u, v) \ge 0$，也就是 $h(v) \le h(u) +
+w(u, v)$。 這正是三角不等式的形狀：加一個新頂點 $q$，從 $q$ 連一條權重 $0$ 的邊到每個頂點，
+得到 $G'$；令 $h(v) = \delta(q, v)$。 由引理~\ref{lem:spt-triangle}，
+\[
+h(v) = \delta(q, v) \le \delta(q, u) + w(u, v) = h(u) + w(u, v).
+\]
+$q$ 走得到每個頂點，所以 $h(v)$ 有限（而且 $\le 0$）；$q$ 沒有入邊，$G'$ 的環都是 $G$ 原本的環。
+用 Bellman--Ford 從 $q$ 出發算 $h$，順便檢查 $G$ 有沒有負環。
+
+\begin{pseudo}[label=alg:spt-johnson]{Johnson 演算法}
+\Function{Johnson}{$G, w$}
+    \State $G' \gets G$ 加上新頂點 $q$，以及權重 $0$ 的邊 $(q, v)$，$v \in V$
+    \If{\Call{Bellman-Ford}{$G', w, q$} $=$ \FALSE}
+        \State \Return 「圖有負環」
+    \EndIf
+    \For{每個頂點 $v \in V$}
+        \State $h(v) \gets d[v]$ \Comment{也就是 $\delta(q, v)$}
+    \EndFor
+    \For{每條邊 $(u, v) \in E$}
+        \State $\hat{w}(u, v) \gets w(u, v) + h(u) - h(v)$
+    \EndFor
+    \For{每個頂點 $u \in V$}
+        \State 用 \Call{Dijkstra}{$G, \hat{w}, u$} 求出 $\hat{d}[v] = \hat{\delta}(u, v)$
+        \For{每個頂點 $v \in V$}
+            \State $D[u, v] \gets \hat{d}[v] - h(u) + h(v)$ \Comment{引理~\ref{lem:spt-reweight}}
+        \EndFor
+    \EndFor
+    \State \Return $D$
+\EndFunction
+\end{pseudo}
+
+\textbf{時間。} Bellman--Ford 在 $n + 1$ 個頂點、$n + m$ 條邊的 $G'$ 上是 $O(nm)$（假設每個頂點
+都至少有一條邊，$m \ge n/2$），改權重 $O(m)$，$n$ 次 Dijkstra 用二元堆積共 $O(nm \lg n)$，用費
+氏堆積共 $O(n^2 \lg n + nm)$。 稀疏圖上明顯比 $\Theta(n^3)$ 好；稠密圖 $m = \Theta(n^2)$ 時用
+費氏堆積也只是 $\Theta(n^3)$，和 Floyd--Warshall 打平，而 Floyd--Warshall 的程式短得多、常數
+小，所以稠密圖通常用 Floyd--Warshall。
+
+\subsection{一個例子}
+
+圖~\ref{fig:spt-johnson}~(a) 的 $J$ 有兩條負邊。 加上 $q$ 之後跑 Bellman--Ford，$h(1) = 0$，
+$h(2) = -2$（$q \to 1 \to 2$），$h(3) = -1$（$q \to 1 \to 2 \to 3$），$h(4) = -4$（$q \to 1 \to 2
+\to 3 \to 4$）。 改完的權重在 (b)，全部 $\ge 0$。 例如 $\hat{w}(4, 2) = 5 + (-4) - (-2) = 3$，
+$\hat{w}(3, 4) = -3 + (-1) - (-4) = 0$。
+
+\begin{center}
+\begin{tikzpicture}[x=1cm, y=1cm]
+\begin{scope}
+\node[spt-v] (j1) at (0, 0) {1};
+\node[spt-v] (j2) at (2.2, 1.2) {2};
+\node[spt-v] (j3) at (2.2, -1.2) {3};
+\node[spt-v] (j4) at (4.4, 0) {4};
+\draw[spt-neg] (j1) -- node[spt-wn, above left] {$-2$} (j2);
+\draw[spt-a] (j1) -- node[spt-w, below left] {$4$} (j3);
+\draw[spt-a] (j2) -- node[spt-w, left] {$1$} (j3);
+\draw[spt-neg] (j3) -- node[spt-wn, below right] {$-3$} (j4);
+\draw[spt-a] (j2) to[bend left=15] node[spt-w, above right] {$3$} (j4);
+\draw[spt-a] (j4) to[bend left=15] node[spt-w, below left, pos=0.45] {$5$} (j2);
+\node[font=\small] at (2.2, -2.3) {(a) 原本的權重 $w$};
+\end{scope}
+\begin{scope}[xshift=7.2cm]
+\node[spt-v] (k1) at (0, 0) {1};
+\node[spt-v] (k2) at (2.2, 1.2) {2};
+\node[spt-v] (k3) at (2.2, -1.2) {3};
+\node[spt-v] (k4) at (4.4, 0) {4};
+\draw[spt-a] (k1) -- node[spt-w, above left] {$0$} (k2);
+\draw[spt-a] (k1) -- node[spt-w, below left] {$5$} (k3);
+\draw[spt-a] (k2) -- node[spt-w, left] {$0$} (k3);
+\draw[spt-a] (k3) -- node[spt-w, below right] {$0$} (k4);
+\draw[spt-a] (k2) to[bend left=15] node[spt-w, above right] {$5$} (k4);
+\draw[spt-a] (k4) to[bend left=15] node[spt-w, below left, pos=0.45] {$3$} (k2);
+\node[spt-h, left=2pt of k1] {$h = 0$};
+\node[spt-h, above=2pt of k2] {$h = -2$};
+\node[spt-h, below=2pt of k3] {$h = -1$};
+\node[spt-h, right=2pt of k4] {$h = -4$};
+\node[font=\small] at (2.2, -2.3) {(b) 改過的權重 $\hat{w}$，橘字是 $h$};
+\end{scope}
+\end{tikzpicture}
+\diagcaption{Johnson 演算法的改權重。 最短路徑上的邊改完之後權重常常變成 $0$。}
+\label{fig:spt-johnson}
+\end{center}
+
+在 $\hat{w}$ 上從 $1$ 跑 Dijkstra，$\hat{d}[2] = \hat{d}[3] = \hat{d}[4] = 0$（$1 \to 2 \to 3 \to 4$
+三條邊都是 $0$），換回來 $\delta(1, 4) = 0 - h(1) + h(4) = -4$，正是 $-2 + 1 - 3$。 從 $4$ 跑，
+$\hat{d}[3] = 3 + 0 = 3$（$4 \to 2 \to 3$），$\delta(4, 3) = 3 - (-4) + (-1) = 6 = 5 + 1$。 注意
+$\hat{w}$ 上最短路徑的邊很多是 $0$：$h(v) = \delta(q, v)$ 時，由 $q$ 出發的最短路徑樹上每條
+邊都滿足三角不等式的等號，改完剛好是 $0$。
+
+\subsection{本章演算法整理}
+
+\begin{center}
+\small
+\begin{tabular}{p{0.17\linewidth}p{0.11\linewidth}p{0.17\linewidth}p{0.25\linewidth}p{0.16\linewidth}}
+\toprule
+演算法 & 問題 & 權重 & 時間 & 負環 \\
+\midrule
+BFS（第~21~章） & 單一起點 & 全部相同 & $\Theta(n + m)$ & 不會有 \\
+Dijkstra & 單一起點 & $\ge 0$ & 陣列 $\Theta(n^2)$；二元堆積 $O(m \lg n)$；費氏堆積 $O(m + n \lg n)$ & 不會有 \\
+Bellman--Ford & 單一起點 & 任意 & $\Theta(nm)$ & 偵測從 $s$ 走得到的 \\
+DAG 最短路徑 & 單一起點 & 任意，無環 & $\Theta(n + m)$ & 不會有 \\
+反覆平方 & 所有點對 & 任意 & $\Theta(n^3 \lg n)$ & 對角線變負 \\
+Floyd--Warshall & 所有點對 & 任意 & $\Theta(n^3)$ & $d_{ii} < 0$ \\
+Johnson & 所有點對 & 任意 & $O(nm \lg n)$ & 由 Bellman--Ford 偵測 \\
+Warshall & 可達性 & 不看權重 & $\Theta(n^3)$，用位元約 $n^3/64$ & 不適用 \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+選擇的順序大致是：圖沒有環就用 DAG 的演算法；權重全部相同用 BFS；沒有負邊用 Dijkstra；有負
+邊才用 Bellman--Ford。 所有點對時，$n$ 不大（幾百）或圖稠密用 Floyd--Warshall，又大又稀疏用
+Johnson（沒有負邊時直接跑 $n$ 次 Dijkstra）。
+
+\section{本章常見錯誤}
+\label{sec:spt-pitfalls}
+
+\begin{center}
+\begin{tabular}{p{0.26\linewidth}p{0.48\linewidth}p{0.16\linewidth}}
+\toprule
+錯誤 & 例子 & 見 \\
+\midrule
+有負邊還用 Dijkstra & $N_1$ 只有一條負邊，算出 $d[4] = 5$，正確是 $3$ &
+第~\ref{sec:spt-dijkstra-neg}~節 \\
+用大數代表 $\infty$ 卻不先檢查 & \texttt{INF + (-3) < INF}，從一個還沒走到的頂點去更新別人 &
+第~\ref{sec:spt-relax}~節 \\
+相等也更新 & $G_1$ 第 2 輪 $3 \to 4$ 得到相等的 $6$，更新的話 $\pi[4]$ 變成 $3$，和題目要的
+樹不同 & 第~\ref{sec:spt-dijkstra-trace}~節 \\
+平手規則、邊的順序沒照題目 & Dijkstra 平手時取了別的頂點；Bellman--Ford 沒照指定的邊順序，
+每一輪的表都不一樣 & 第~\ref{sec:spt-dijkstra-trace}、\ref{sec:spt-bf-trace}~節 \\
+就地更新和 $\mathit{dist}^{k}$ 混用 & 同一張表前幾欄用了同一輪剛改的值，後幾欄又沒用 &
+第~\ref{sec:spt-bf-trace}~節 \\
+Bellman--Ford 沒做檢查 & 有負環時 $n - 1$ 輪照樣做完，把錯的 $d$ 當答案 &
+第~\ref{sec:spt-bf}~節 \\
+以為 \TRUE 代表整張圖沒負環 & 從 $s$ 走不到的負環偵測不到；要偵測整張圖，所有 $d$ 從 $0$
+開始 & 第~\ref{sec:spt-bf}~節 \\
+每條邊加同一個數 & 邊數多的路徑被加得比較多，最短路徑跟著變 &
+第~\ref{sec:spt-johnson}~節 \\
+無向圖有負邊 & 一條負的無向邊本身就是負環，本章的演算法都不能直接用 &
+第~\ref{sec:spt-relax}~節 \\
+最長路徑的初值寫 $0$ & DAG 上從 $s$ 走不到的頂點應該是 $-\infty$，寫 $0$ 會把它們當成起點 &
+第~\ref{sec:spt-dag}~節 \\
+Floyd--Warshall 的 $k$ 不在最外層 & 讀到還沒算好的 $D[i, k]$ 或 $D[k, j]$，答案偏大 &
+第~\ref{sec:spt-fw}~節 \\
+$\Pi$ 更新寫成 $\Pi[i, j] \gets k$ & 把前驅矩陣和中繼點矩陣混在一起，還原出錯的路徑 &
+第~\ref{sec:spt-fw}~節 \\
+$W$ 的對角線沒有設 $0$ & 對角線用 $\infty$ 開始，算出的 $d_{ii}$ 是經過 $i$ 的最短環，不是 $0$ &
+第~\ref{sec:spt-fw}~節 \\
+遞移閉包的對角線 & $A^{+}$ 的 $t_{ii}$ 要看 $i$ 在不在環上，照抄 $1$ 或 $0$ 都可能錯 &
+第~\ref{sec:spt-fw}~節 \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\section{觀念題}
+\label{sec:spt-exercises}
+
+題型和研究所考試、期中期末考的筆試相近，有選擇、計算、追蹤、證明和設計。 沒有特別說明時，
+照本書的約定：Dijkstra 平手取編號小的、相等不更新；鄰接串列的鄰居由小到大；Bellman--Ford 照
+題目給的邊順序。 解答在本章最後。
+
+\begin{enumerate}
+\item \label{spt-q-tf}（選擇，可能不只一個答案）下列哪些敘述正確？
+\begin{enumerate}
+\item 每條邊的權重都是相異的正整數時，從 $s$ 到 $v$ 的最短路徑是唯一的。
+\item 每條邊的權重都乘上同一個正數 $c$，任兩點之間的最短路徑不變。
+\item 每條邊的權重都加上同一個正數 $c$，任兩點之間的最短路徑不變。
+\item 無向圖裡有一條權重為負的邊；把每條邊換成兩個方向的有向邊之後，圖一定有負環。
+\item \proc{Bellman-Ford} 回傳 \TRUE，表示整張圖沒有負環。
+\item 有向無環圖即使有負邊，\proc{DAG-Shortest-Paths} 也能求出正確的最短距離。
+\end{enumerate}
+
+\item \label{spt-q-dij}（追蹤）無向圖 $H$ 有 $6$ 個頂點，邊和權重是
+\begin{gather*}
+\{1,2\}\!:4,\ \{1,3\}\!:1,\ \{2,3\}\!:2,\ \{2,4\}\!:5,\ \{3,4\}\!:8, \\
+\{3,5\}\!:10,\ \{4,5\}\!:2,\ \{4,6\}\!:5,\ \{5,6\}\!:3.
+\end{gather*}
+\begin{enumerate}
+\item 從 $s = 1$ 執行 Dijkstra 演算法，照本章的格式寫出每一輪取出的頂點和 $d[1..6]$。
+\item 寫出最後的 $\pi$，畫出最短路徑樹，寫出 $1$ 到 $6$ 的路徑。
+\item 從 $1$ 到 $6$ 的最短路徑有幾條？ $\pi$ 記下的是哪一條，為什麼？ 如果鬆弛時「相等也
+更新」，$\pi$ 哪裡會不同？
+\end{enumerate}
+
+\item \label{spt-q-dk}（計算）對圖~\ref{fig:spt-g1} 的 $G_1$ 從 $1$ 執行 Dijkstra 演算法。
+\begin{enumerate}
+\item \proc{Decrease-Key} 一共被呼叫幾次？ 和 $m$ 比較。
+\item 用陣列版，每次 \proc{Extract-Min} 要看過所有還在 $Q$ 裡的頂點，七次一共看過幾個頂點？
+\item 一般來說，$m = \Theta(n^{3/2})$ 的圖，陣列版和二元堆積版哪一個的時間界比較好？
+\end{enumerate}
+
+\item \label{spt-q-const}（證明與反例）
+\begin{enumerate}
+\item 證明：每條邊的權重都乘上同一個正數 $c$，任兩點之間的最短路徑不變，最短距離變成 $c$ 倍。
+\item 有人想讓 Dijkstra 演算法處理負邊：找出最小的權重 $w_{\min} < 0$，每條邊都加上
+$-w_{\min}$。 舉一個反例說明這樣算出的最短路徑可能不對。
+\item 說明 Johnson 演算法的 $\hat{w}$ 為什麼沒有 (b) 的問題。
+\end{enumerate}
+
+\item \label{spt-q-bf}（追蹤）有向圖有 $5$ 個頂點，起點 $s = 1$，邊依下面的順序掃描：
+\[
+(3, 5)\!:-2,\ (4, 3)\!:-3,\ (2, 3)\!:4,\ (1, 2)\!:6,\ (2, 5)\!:5,\ (1, 4)\!:7,\ (4, 5)\!:9,\ (5, 1)\!:2.
+\]
+\begin{enumerate}
+\item 執行 \proc{Bellman-Ford}，寫出每一輪結束時的 $d[1..5]$ 和最後的 $\pi$。 第幾輪之後 $d$
+就不再改變？
+\item 重新排列這 $8$ 條邊的順序，讓第 $1$ 輪結束時 $d$ 就全部正確。
+\item 證明：只要從 $s$ 走得到的地方沒有負環，一定存在一種邊的順序，讓 Bellman--Ford 第 $1$
+輪結束時 $d$ 就全部等於 $\delta$。
+\end{enumerate}
+
+\item \label{spt-q-neg}（計算）有向圖有 $7$ 個頂點，起點 $s = 1$，邊依序是
+\[
+(1, 2)\!:2,\ (2, 3)\!:1,\ (3, 4)\!:-4,\ (4, 2)\!:1,\ (4, 5)\!:3,\ (1, 6)\!:5,\ (6, 5)\!:1,\ (7, 1)\!:2.
+\]
+\begin{enumerate}
+\item 寫出 \proc{Bellman-Ford} 前兩輪結束時的 $d[1..7]$，並說明之後每一輪 $d$ 怎麼變、第 $6$
+輪結束時的 $d$ 是多少、回傳什麼。
+\item 照第~\ref{sec:spt-negcycle}~節的方法，從 $\pi$ 找出負環。
+\item 寫出每個頂點的 $\delta(1, v)$（有限值、$-\infty$ 或 $\infty$）。
+\end{enumerate}
+
+\item \label{spt-q-dag}（追蹤）有向無環圖有 $7$ 個頂點，邊是
+\begin{gather*}
+1 \to 3\!:2,\ 2 \to 3\!:-1,\ 2 \to 6\!:1,\ 3 \to 4\!:3,\ 3 \to 5\!:6, \\
+4 \to 5\!:-2,\ 4 \to 6\!:4,\ 5 \to 6\!:1,\ 5 \to 7\!:5,\ 6 \to 7\!:-3.
+\end{gather*}
+\begin{enumerate}
+\item 用 Kahn 演算法（佇列，第~22~章的約定）排出拓樸順序。
+\item 從 $s = 3$ 執行 \proc{DAG-Shortest-Paths}，寫出每處理一個頂點之後的 $d$，以及最後的
+$\pi$。
+\item 求從 $3$ 出發到每個頂點的最長路徑長度和一條最長路徑。
+\end{enumerate}
+
+\item \label{spt-q-count}（設計）$G$ 每條邊的權重都是正的。 設計一個 $O(m \lg n)$ 的演算法，求
+出從 $s$ 到每個頂點的\textbf{最短路徑條數}，說明為什麼對，並算出 $G_1$ 從 $1$ 出發的結果。
+為什麼要求權重是正的，而不只是非負？ （第~21~章觀念題第~\ref{q:gtr-count-paths}~題是權重
+都是 $1$ 的版本。）
+
+\item \label{spt-q-fw}（追蹤）有向圖有 $4$ 個頂點，邊是
+\[
+1 \to 2\!:5,\ 1 \to 3\!:2,\ 2 \to 1\!:-1,\ 2 \to 4\!:4,\ 3 \to 2\!:1,\ 3 \to 4\!:7,\ 4 \to 1\!:3,\
+4 \to 3\!:-2.
+\]
+\begin{enumerate}
+\item 寫出 $D^{(0)}$ 到 $D^{(4)}$ 和 $\Pi^{(0)}$ 到 $\Pi^{(4)}$，標出每一層改過的格子。
+\item 用 $\Pi^{(4)}$ 還原 $4$ 到 $2$、$1$ 到 $4$ 的最短路徑，驗算權重。
+\item 改用 \proc{Extend-Paths} 和反覆平方，這張圖要做幾次乘法？ $n = 100$ 的圖呢？
+\end{enumerate}
+
+\item \label{spt-q-order}（反例）有人把 Floyd--Warshall 的三層迴圈寫成 $i$ 最外層、$j$ 中間、$k$
+最內層，其他不變。
+\begin{enumerate}
+\item 找一張最多 $4$ 個頂點、權重都是正數的圖，讓這個版本算錯，指出錯的是哪一格。
+\item 改成 $i$ 最外層、$k$ 中間、$j$ 最內層呢？ 用同一張圖說明。
+\end{enumerate}
+
+\item \label{spt-q-tc}（計算）有向圖有 $5$ 個頂點，邊是 $1 \to 2$、$2 \to 4$、$4 \to 1$、$3 \to 2$、
+$3 \to 5$、$5 \to 3$。
+\begin{enumerate}
+\item 用 Warshall 演算法寫出 $T^{(1)}$ 到 $T^{(5)}$。
+\item 寫出 $A^{+}$ 和 $A^{*}$。
+\item 有幾個有序點對 $(i, j)$，$i \ne j$，從 $i$ 走得到 $j$？ 哪些頂點在環上？ 強連通元件有哪
+些？
+\end{enumerate}
+
+\item \label{spt-q-johnson}（計算）對圖~\ref{fig:spt-fw} 的 $F$ 做 Johnson 演算法。
+\begin{enumerate}
+\item 求出 $h(1..4)$。
+\item 寫出每條邊的 $\hat{w}$，確認都 $\ge 0$。
+\item 在 $\hat{w}$ 上從 $3$ 執行 Dijkstra，換回原本的權重，和 $D^{(4)}$ 的第 $3$ 列比較。
+\end{enumerate}
+
+\item \label{spt-q-mono}（證明與反例）證明：所有權重都 $\ge 0$ 時，Dijkstra 演算法依序取出的頂點，
+取出當時的 $d$ 值不會變小。 再舉一個有負邊的小例子，說明這件事不一定成立。
+
+\item \label{spt-q-choose}（配對）下列每個情況，選本章最適合的演算法，寫出時間。
+\begin{enumerate}
+\item $n = 10^5$、$m = 3 \times 10^5$，權重是 $1$ 到 $100$ 的整數，求一個起點到所有頂點的距離。
+\item $n = 300$，有負邊、沒有負環，要回答任兩點之間的最短距離。
+\item 工程的先後關係圖（沒有環），每項工作有一個可能是負的「成本」，求從開工事件到各事件的
+最小成本。
+\item $n = 2000$、$m = 5000$，有負邊，要知道從某個起點出發會不會遇到負環。
+\item 每條邊的權重都相同，求一個起點到所有頂點的距離。
+\item $n = 5000$、$m = 2 \times 10^4$，有負邊，要任兩點之間的最短距離。
+\end{enumerate}
+
+\item \label{spt-q-via}（設計）$G$ 是有向圖，權重都 $\ge 0$，給定 $s$、$t$。
+\begin{enumerate}
+\item 用 $O(m \lg n)$ 時間求出\textbf{每個頂點到 $t$} 的最短距離。
+\item 求從 $s$ 出發、\textbf{一定要經過}頂點 $x$、到達 $t$ 的最短路徑長度。
+\item 用 $O(m \lg n)$ 時間找出所有「至少在一條 $s$ 到 $t$ 的最短路徑上」的邊，並證明你的判斷
+條件。
+\end{enumerate}
+\end{enumerate}
+
+\section{實作練習}
+\label{sec:spt-practice}
+
+下面是 Aki-Judge 上和本章相關的題目。
+
+\begin{center}
+\begin{tabular}{llc}
+\toprule
+小節 & 題目 & 難度 \\
+\midrule
+Dijkstra & \akiref{shortest-distance-in-an-undirected-weighted-graph}{無向加權圖的最短距離} & 基本 \\
+ & \akiref{lexicographically-smallest-shortest-path}{最短路徑的字典序最小還原} & 進階 \\
+ & \akiref{minimum-cost-across-a-grid}{方格地圖上的最小通行成本} & 基本 \\
+Bellman--Ford & \akiref{shortest-distance-in-a-directed-graph-with-negative-edges}{含負權重有向圖的最短距離} & 基本 \\
+ & \akiref{does-a-directed-graph-contain-a-negative-cycle}{判斷有向圖是否有負環} & 基本 \\
+DAG 上的 DP & \akiref{relay-groups-and-delivery-paths}{中繼群組的送貨路徑} & 進階 \\
+Floyd--Warshall & \akiref{all-pairs-shortest-distance-in-a-directed-graph}{有向圖上任兩點的最短距離} & 基本 \\
+ & \akiref{patrol-route-with-deadlines}{限時巡查路線} & 進階 \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+幾題的提示：
+
+\begin{itemize}
+\item 「無向加權圖的最短距離」的 $n$ 到 $5 \times 10^4$，陣列版 $\Theta(n^2)$ 太慢，要用堆積；範
+例~\ref{ex:spt-dijkstra} 的寫法可以直接用。 平行邊不必特別處理，兩條都放進鄰接串列，鬆弛時自
+然取小的。 無向邊要放兩個方向。 距離用 \texttt{long long}。
+\item 「最短路徑的字典序最小還原」不能只靠 $\pi$：$\pi$ 是每個頂點記「前一個」，平手規則決定的
+是路徑的尾巴，不是開頭。 先從 $t$ 跑一次 Dijkstra（無向圖不必反向），得到每個頂點到 $t$ 的距離
+$\delta(v, t)$；再從 $s$ 出發，每一步走到編號最小、而且 $w(u, v) + \delta(v, t) = \delta(u, t)$
+的鄰居 $v$。 權重是正的，每走一步剩下的距離嚴格變小，不會繞圈。
+\item 「方格地圖上的最小通行成本」的成本在格子上而不是邊上：走進格子 $v$ 的邊，權重就是 $v$
+的成本，起點格的成本另外加。 鄰居用上下左右的位移算，不必建鄰接串列。
+\item 「含負權重有向圖的最短距離」是範例~\ref{ex:spt-bf} 的前半；一定要先檢查 $d[u]$ 是不是
+$\infty$ 再鬆弛。 「判斷有向圖是否有負環」不限起點，所有 $d$ 從 $0$ 開始（第~\ref{sec:spt-bf}~
+節），做完 $n - 1$ 輪再檢查一次。
+\item 「中繼群組的送貨路徑」是第~\ref{sec:spt-dag}~節「依拓樸順序累加路徑條數」的應用，群組
+的編號本身就是拓樸順序。 同一個群組裡的站點完全對稱，以群組為單位算，每條規則 $u \to v$ 讓
+到 $v$ 的條數加上「到 $u$ 的條數 $\times$ $u$ 的站點數」。 不在任何路徑上的站點，是從起點走不
+到或走不到終點的：往前、往後各做一次可達性。
+\item 「有向圖上任兩點的最短距離」的 $n \le 400$，$\Theta(n^3)$ 可以；重複的邊讀入時取最小，
+$k$ 放最外層。
+\item 「限時巡查路線」要列出所有經過每個檢查站恰好一次的走法，是第~20~章的回溯，不是最短路
+徑問題。 但最短路徑可以拿來剪枝：先用 Floyd--Warshall 算出任兩站之間的最短距離 $\delta$，走到
+$u$、時間是 $t$ 時，任何還沒去的站 $v$ 最早也要到 $t + \delta(u, v)$ 才能抵達（就算中間經過其他
+還沒去的站，也不會比最短路徑快），超過期限就整支剪掉。
+\end{itemize}
+
+\section{讀完你應該會}
+\label{sec:spt-checklist}
+
+\begin{itemize}
+\item 說出最短距離、負環、$-\infty$ 的定義，用剪下貼上證明最短路徑的子路徑還是最短路徑，並證
+明鬆弛的上界、收斂、路徑鬆弛三個性質。
+\item 照指定的平手規則手算 Dijkstra 的逐輪表，畫出最短路徑樹；證明它在權重非負時正確，並給
+出有負邊時的反例。
+\item 照指定的邊順序手算 Bellman--Ford 的逐輪表，分辨就地更新和 $\mathit{dist}^{k}$ 兩種寫法；
+證明它能偵測從 $s$ 走得到的負環，並從 $\pi$ 找出負環。
+\item 依拓樸順序求有向無環圖的最短路徑和最長路徑，說明它和第~22~章關鍵路徑的關係。
+\item 寫出 Floyd--Warshall 的 $D^{(k)}$、$\Pi^{(k)}$ 序列並還原路徑，用 $d_{ii} < 0$ 判斷負環；
+用 Warshall 演算法求 $A^{+}$、$A^{*}$。
+\item 說明 Johnson 演算法為什麼改權重之後最短路徑不變、權重一定非負，並依圖的大小、疏密和
+權重的正負選擇演算法。
+\end{itemize}
+
+\textbf{延伸閱讀}（書末會整理完整的參考資料）
+
+\begin{itemize}
+\item Thomas H. Cormen 等，\textit{Introduction to Algorithms}，第 4 版，第 22、23 章：本章的主要
+參考。 22.4 節的差分約束（把一組 $x_j - x_i \le b$ 的不等式化成最短路徑）本章沒有講，是
+Bellman--Ford 一個漂亮的應用。
+\item Ellis Horowitz、Sartaj Sahni、Susan Anderson-Freed，\textit{Fundamentals of Data Structures
+in C}，第 2 版，第 6 章：$\mathit{dist}^{k}$ 形式的 Bellman--Ford、$A^{+}$ 與 $A^{*}$ 等寫法，都是
+這一系列資料結構課本常見的記號。
+\item E. W. Dijkstra，``A Note on Two Problems in Connexion with Graphs''，\textit{Numerische
+Mathematik} 1，1959：三頁的原始論文，同時給了最小生成樹（第~24~章）和最短路徑的做法。
+\item R. Bellman，``On a Routing Problem''，\textit{Quarterly of Applied Mathematics} 16(1)，1958；
+L. R. Ford Jr.，\textit{Network Flow Theory}，RAND Paper P-923，1956：Bellman--Ford 演算法名稱的
+由來。
+\item R. W. Floyd，``Algorithm 97: Shortest Path''，\textit{Communications of the ACM} 5(6)，1962；
+S. Warshall，``A Theorem on Boolean Matrices''，\textit{Journal of the ACM} 9(1)，1962。
+\item D. B. Johnson，``Efficient Algorithms for Shortest Paths in Sparse Networks''，\textit{Journal of
+the ACM} 24(1)，1977：改權重的方法。
+\item M. L. Fredman、R. E. Tarjan，``Fibonacci Heaps and Their Uses in Improved Network
+Optimization Algorithms''，\textit{Journal of the ACM} 34(3)，1987：費氏堆積，以及 Dijkstra 演算法
+因此得到的 $O(m + n \lg n)$。
+\end{itemize}
+
+\addcontentsline{toc}{section}{觀念題解答}
+\section*{觀念題解答}
+
+\begin{enumerate}
+\item (b)、(d)、(f) 正確。 (a)：錯，$1 \to 2$ 權重 $1$、$2 \to 3$ 權重 $4$、$1 \to 3$ 權重 $5$，三個
+權重相異，$1$ 到 $3$ 卻有兩條最短路徑，權重都是 $5$。 (b)：對，見第~\ref{spt-q-const}~題。
+(c)：錯，見第~\ref{spt-q-const}~題 (b)，加正數也一樣，邊數多的路徑吃虧。 (d)：對，負邊 $\{u, v\}$
+變成 $u \to v \to u$，權重是兩倍的負數。 (e)：錯，從 $s$ 走不到的負環偵測不到
+（第~\ref{sec:spt-bf}~節）。 (f)：對，定理~\ref{thm:spt-dag}。
+
+\item 鄰接串列：$\mathit{Adj}[1] = 2, 3$；$\mathit{Adj}[2] = 1, 3, 4$；$\mathit{Adj}[3] = 1, 2, 4, 5$；
+$\mathit{Adj}[4] = 2, 3, 5, 6$；$\mathit{Adj}[5] = 3, 4, 6$；$\mathit{Adj}[6] = 4, 5$。
+\begin{enumerate}
+\item
+\begin{center}
+\begin{tabular}{cc*{6}{c}}
+\toprule
+輪 & 取出 $u$ & $d[1]$ & $d[2]$ & $d[3]$ & $d[4]$ & $d[5]$ & $d[6]$ \\
+\midrule
+初始 & & $0$ & $\infty$ & $\infty$ & $\infty$ & $\infty$ & $\infty$ \\
+1 & $1$ & \sptpick{0} & \sptnew{4} & \sptnew{1} & $\infty$ & $\infty$ & $\infty$ \\
+2 & $3$ & \sptold{0} & \sptnew{3} & \sptpick{1} & \sptnew{9} & \sptnew{11} & $\infty$ \\
+3 & $2$ & \sptold{0} & \sptpick{3} & \sptold{1} & \sptnew{8} & $11$ & $\infty$ \\
+4 & $4$ & \sptold{0} & \sptold{3} & \sptold{1} & \sptpick{8} & \sptnew{10} & \sptnew{13} \\
+5 & $5$ & \sptold{0} & \sptold{3} & \sptold{1} & \sptold{8} & \sptpick{10} & $13$ \\
+6 & $6$ & \sptold{0} & \sptold{3} & \sptold{1} & \sptold{8} & \sptold{10} & \sptpick{13} \\
+\bottomrule
+\end{tabular}
+\end{center}
+\item $\pi[2..6] = 3, 1, 2, 4, 4$。 樹的邊是 $\{1,3\}$、$\{3,2\}$、$\{2,4\}$、$\{4,5\}$、$\{4,6\}$。
+$1$ 到 $6$：$1, 3, 2, 4, 6$，權重 $1 + 2 + 5 + 5 = 13$。
+\item 兩條：$1, 3, 2, 4, 6$ 和 $1, 3, 2, 4, 5, 6$，都是 $13$。 第 4 輪從 $4$ 鬆弛得到 $d[6] = 13$、
+$\pi[6] = 4$；第 5 輪從 $5$ 得到 $10 + 3 = 13$，相等不更新，所以 $\pi$ 記下的是經過 $4 \to 6$ 那一
+條。 相等也更新的話，$\pi[6] = 5$，其他不變（整個過程只有這一次相等）。
+\end{enumerate}
+
+\item (a) 每一輪成功鬆弛的次數是 $3, 2, 2, 1, 2, 1, 0$，共 $11$ 次，比 $m = 14$ 少：有三條邊鬆弛不
+成功（$3 \to 4$ 相等、$4 \to 5$、$6 \to 2$）。 (b) $7 + 6 + \cdots + 1 = 28$ 個。 (c) 二元堆積
+$O((n + m) \lg n) = O(n^{3/2} \lg n)$，陣列版 $\Theta(n^2)$；$n^{3/2} \lg n = o(n^2)$，二元堆積好。
+
+\item (a) 任何一條路徑 $p$，新的權重是 $\sum c \cdot w(e) = c \cdot w(p)$。 $c > 0$，所以兩條路徑誰
+比較輕不會改變，同一對端點之間的最短路徑還是那些，最短距離乘上 $c$（$\pm\infty$ 不變）。
+(b) $1 \to 2$：$-2$，$2 \to 3$：$-2$，$1 \to 3$：$-3$。 原本 $1$ 到 $3$ 的最短路徑是 $1 \to 2 \to 3$，
+權重 $-4$。 每條邊加 $3$ 之後變成 $1, 1, 0$，$1 \to 2 \to 3$ 是 $2$，直接走是 $0$，最短路徑變了。
+$k$ 條邊的路徑被加了 $3k$，邊數不同的路徑加的量不同。 (c) $\hat{w}$ 加在一條路徑上的總量是
+$h(v_0) - h(v_k)$（引理~\ref{lem:spt-reweight}），只和兩端有關，同一對端點之間的每條路徑都加
+同一個數。
+
+\item (a)
+\begin{center}
+\begin{tabular}{c*{5}{c}}
+\toprule
+輪 & $d[1]$ & $d[2]$ & $d[3]$ & $d[4]$ & $d[5]$ \\
+\midrule
+1 & $0$ & $6$ & $\infty$ & $7$ & $11$ \\
+2 & $0$ & $6$ & $4$ & $7$ & $11$ \\
+3 & $0$ & $6$ & $4$ & $7$ & $2$ \\
+4 & $0$ & $6$ & $4$ & $7$ & $2$ \\
+\bottomrule
+\end{tabular}
+\end{center}
+第 1 輪掃 $(3, 5)$、$(4, 3)$、$(2, 3)$ 時起點都還是 $\infty$；第 2 輪才用 $d[4] = 7$ 得到
+$d[3] = 4$，第 3 輪才用 $d[3]$ 得到 $d[5] = 2$。 第 3 輪之後不再改變。 $\pi[2..5] = 1, 4, 1, 3$。
+(b) 例如 $(1,4), (4,3), (3,5), (1,2), (2,3), (2,5), (4,5), (5,1)$：第 1 輪依序得到 $d[4] = 7$、
+$d[3] = 4$、$d[5] = 2$、$d[2] = 6$，之後的邊都鬆弛不動，已經全部正確。
+(c) 依定理~\ref{thm:spt-bf} 和定理~\ref{thm:spt-tree}，存在一棵以 $s$ 為根的最短路徑樹 $T$（例
+如先跑一次 Bellman--Ford 得到的 $\pi$）。 把 $T$ 的邊依頭的深度由淺到深排在最前面（同深度隨
+意），其他的邊排在後面。 對每個 $s$ 走得到的 $v$，$T$ 裡從 $s$ 到 $v$ 的路徑是一條最短路徑，它
+的邊深度遞增，在第 $1$ 輪裡照路徑的先後被鬆弛，由路徑鬆弛性質第 $1$ 輪結束時 $d[v] =
+\delta(s, v)$；走不到的頂點本來就是 $\infty$。 (b) 的順序就是這樣排出來的。
+
+\item (a) 第 1 輪：$d = (0, 0, 3, -1, 2, 5, \infty)$（$(4, 2)$ 用到這一輪剛算出的 $d[4] = -1$，把
+$d[2]$ 從 $2$ 改成 $0$）。 第 2 輪：$d = (0, -2, 1, -3, 0, 5, \infty)$。 之後每一輪 $d[2]$、$d[3]$、
+$d[4]$、$d[5]$ 都再少 $2$（繞一圈負環 $-2$），第 6 輪結束時 $d = (0, -10, -7, -11, -8, 5, \infty)$。
+檢查時 $(2, 3)$：$-10 + 1 = -9 < -7$，回傳 \FALSE。
+(b) $\pi[2] = 4$、$\pi[3] = 2$、$\pi[4] = 3$、$\pi[5] = 4$、$\pi[6] = 1$。 檢查那一輪照樣鬆弛，最後一
+個變小的是 $5$（$(2,3)$、$(3,4)$、$(4,2)$、$(4,5)$ 依序成功）。 從 $5$ 往回走 $7$ 步：$4, 3, 2, 4,
+3, 2, 4$，停在 $4$；繞一圈 $4, 3, 2, 4$，倒過來是負環 $2 \to 3 \to 4 \to 2$，權重 $1 - 4 + 1 = -2$。
+(c) $\delta(1, 1) = 0$，$\delta(1, 6) = 5$；$2, 3, 4$ 在負環上，$5$ 從負環走得到，都是 $-\infty$；
+$7$ 沒有邊進來，是 $\infty$。 注意 $d[6] = 5$ 是對的，雖然 $6$ 和負環上的頂點同一張圖。
+
+\item (a) 入度 $\mathit{in}[1..7] = 0, 0, 2, 1, 2, 3, 2$，佇列一開始是 $1, 2$。 取出 $1$：$\mathit{in}[3]
+= 1$。 取出 $2$：$\mathit{in}[3] = 0$ 進佇列，$\mathit{in}[6] = 2$。 之後依序取出 $3, 4, 5, 6, 7$，每次
+剛好放進下一個。 拓樸順序 $1, 2, 3, 4, 5, 6, 7$。
+(b)
+\begin{center}
+\begin{tabular}{c*{7}{c}}
+\toprule
+處理 $u$ & $d[1]$ & $d[2]$ & $d[3]$ & $d[4]$ & $d[5]$ & $d[6]$ & $d[7]$ \\
+\midrule
+$1$、$2$ & $\infty$ & $\infty$ & $0$ & $\infty$ & $\infty$ & $\infty$ & $\infty$ \\
+$3$ & $\infty$ & $\infty$ & $0$ & \sptnew{3} & \sptnew{6} & $\infty$ & $\infty$ \\
+$4$ & $\infty$ & $\infty$ & $0$ & $3$ & \sptnew{1} & \sptnew{7} & $\infty$ \\
+$5$ & $\infty$ & $\infty$ & $0$ & $3$ & $1$ & \sptnew{2} & \sptnew{6} \\
+$6$ & $\infty$ & $\infty$ & $0$ & $3$ & $1$ & $2$ & \sptnew{$-1$} \\
+$7$ & $\infty$ & $\infty$ & $0$ & $3$ & $1$ & $2$ & $-1$ \\
+\bottomrule
+\end{tabular}
+\end{center}
+$1$、$2$ 排在 $3$ 前面，$3$ 走不到它們，處理時 $d = \infty$ 不鬆弛。 $\pi[4..7] = 3, 4, 5, 6$，到 $7$
+的路徑 $3 \to 4 \to 5 \to 6 \to 7$，權重 $3 - 2 + 1 - 3 = -1$。
+(c) 最長距離 $d[4..7] = 3, 6, 7, 11$：$3 \to 4$；$3 \to 5$（$6 > 3 - 2$）；到 $6$ 有兩條都是 $7$
+（$3 \to 4 \to 6$ 和 $3 \to 5 \to 6$）；$3 \to 5 \to 7$ 是 $11$。
+
+\item 先跑 Dijkstra 得到 $d = \delta(s, \cdot)$ 和取出的順序。 令 $c[s] = 1$，其他是 $0$；依取出的順序
+處理每個頂點 $u$，對每條出邊 $(u, v)$，若 $d[u] + w(u, v) = d[v]$ 就 $c[v] \gets c[v] + c[u]$。 時間
+是 Dijkstra 的 $O(m \lg n)$ 再加 $O(n + m)$。
+
+為什麼對：到 $v \ne s$ 的每一條最短路徑，最後一條邊 $(u, v)$ 都滿足 $\delta(s, u) + w(u, v) = \delta(s,
+v)$，前面那段是到 $u$ 的最短路徑（引理~\ref{lem:spt-subpath}）；反過來，到這種 $u$ 的任何一條最
+短路徑接上 $(u, v)$，都是到 $v$ 的最短路徑。 所以 $c[v] = \sum c[u]$，和是對所有這種 $u$ 取。 權
+重是正的，這種 $u$ 都有 $d[u] < d[v]$，比 $v$ 早取出，加到 $c[v]$ 時 $c[u]$ 已經算完。
+
+$G_1$：$c[1..7] = 1, 1, 1, 2, 1, 1, 1$。 只有 $4$ 有兩條：$1 \to 4$ 和 $1 \to 3 \to 4$，都是 $6$。
+權重可以是 $0$ 時，$(u, v)$ 權重 $0$ 會讓 $d[u] = d[v]$，平手規則可能先處理 $v$，$c[v]$ 就少算了
+$c[u]$；如果還有權重 $0$ 的環，最短路徑（可以重複頂點）有無限多條。 沒有權重 $0$ 的環時，同一
+個 $d$ 值的頂點改依權重 $0$ 的邊的拓樸順序處理就能修正。
+
+\item (a) 粗體是這一層改過的格子，$\Pi$ 裡的「$-$」是 \NIL。
+\begin{gather*}
+D^{(0)} = \begin{pmatrix} 0 & 5 & 2 & \infty \\ -1 & 0 & \infty & 4 \\ \infty & 1 & 0 & 7 \\ 3 & \infty & -2 & 0 \end{pmatrix},\quad
+\Pi^{(0)} = \begin{pmatrix} - & 1 & 1 & - \\ 2 & - & - & 2 \\ - & 3 & - & 3 \\ 4 & - & 4 & - \end{pmatrix}; \\
+D^{(1)} = \begin{pmatrix} 0 & 5 & 2 & \infty \\ -1 & 0 & \mathbf{1} & 4 \\ \infty & 1 & 0 & 7 \\ 3 & \mathbf{8} & -2 & 0 \end{pmatrix},\quad
+\Pi^{(1)} = \begin{pmatrix} - & 1 & 1 & - \\ 2 & - & \mathbf{1} & 2 \\ - & 3 & - & 3 \\ 4 & \mathbf{1} & 4 & - \end{pmatrix}; \\
+D^{(2)} = \begin{pmatrix} 0 & 5 & 2 & \mathbf{9} \\ -1 & 0 & 1 & 4 \\ \mathbf{0} & 1 & 0 & \mathbf{5} \\ 3 & 8 & -2 & 0 \end{pmatrix},\quad
+\Pi^{(2)} = \begin{pmatrix} - & 1 & 1 & \mathbf{2} \\ 2 & - & 1 & 2 \\ \mathbf{2} & 3 & - & \mathbf{2} \\ 4 & 1 & 4 & - \end{pmatrix}; \\
+D^{(3)} = \begin{pmatrix} 0 & \mathbf{3} & 2 & \mathbf{7} \\ -1 & 0 & 1 & 4 \\ 0 & 1 & 0 & 5 \\ \mathbf{-2} & \mathbf{-1} & -2 & 0 \end{pmatrix},\quad
+\Pi^{(3)} = \begin{pmatrix} - & \mathbf{3} & 1 & 2 \\ 2 & - & 1 & 2 \\ 2 & 3 & - & 2 \\ \mathbf{2} & \mathbf{3} & 4 & - \end{pmatrix}.
+\end{gather*}
+$D^{(4)} = D^{(3)}$、$\Pi^{(4)} = \Pi^{(3)}$，第 $4$ 層沒有格子變小。 幾個值得看的地方：$d_{14}$ 在
+第 $2$ 層變成 $9$（$1 \to 2 \to 4$），第 $3$ 層又變成 $7$（$1 \to 3 \to 2 \to 4$），$\pi_{14}$ 都是
+$2$，因為兩條路徑的最後一條邊都是 $2 \to 4$；$\pi_{12}$ 在第 $3$ 層從 $1$ 變成 $3$。
+(b) $4$ 到 $2$：$\pi_{42} = 3$、$\pi_{43} = 4$，路徑 $4 \to 3 \to 2$，權重 $-2 + 1 = -1 = d_{42}$。
+$1$ 到 $4$：$\pi_{14} = 2$、$\pi_{12} = 3$、$\pi_{13} = 1$，路徑 $1 \to 3 \to 2 \to 4$，權重 $2 + 1 + 4 =
+7 = d_{14}$。
+(c) $n - 1 = 3$，算到 $L^{(4)}$，兩次乘法。 $n = 100$ 時 $n - 1 = 99$，$2^7 = 128 \ge 99$，七次。
+
+\item (a) 三條邊 $1 \to 4$、$4 \to 3$、$3 \to 2$，權重都是 $1$。 錯的版本算 $D[1, 2]$ 時（$i = 1$、
+$j = 2$），試 $k = 1..4$：$D[1, 3]$ 要到 $j = 3$ 才會算出來，現在還是 $\infty$；$D[1, 4] = 1$ 但
+$D[4, 2]$ 要到 $i = 4$ 才會算出來，現在也是 $\infty$。 所以 $D[1, 2]$ 停在 $\infty$，正確答案是
+$3$（$1 \to 4 \to 3 \to 2$）。
+(b) 也錯。 $i = 1$ 時，$k = 3$ 那一輪 $D[1, 3]$ 還是 $\infty$（要等 $k = 4$ 才變成 $2$），用不上
+$3 \to 2$；$k = 4$ 那一輪 $D[4, 2]$ 還沒算（第 $4$ 列要到 $i = 4$ 才處理），也是 $\infty$。 $D[1, 2]$
+同樣停在 $\infty$。 $k$ 必須在最外層，才能保證第 $k$ 層用到的 $D[i, k]$、$D[k, j]$ 已經考慮過所有
+$\{1, \ldots, k - 1\}$ 的中間點。
+
+\item (a) 只寫每一層新變成 $1$ 的格子：$T^{(1)}$：$(4, 2)$。 $T^{(2)}$：$(1, 4)$、$(3, 4)$、$(4, 4)$。
+$T^{(3)}$：$(5, 2)$、$(5, 4)$、$(5, 5)$。 $T^{(4)}$：$(1, 1)$、$(2, 1)$、$(2, 2)$、$(3, 1)$、$(5, 1)$。
+$T^{(5)}$：$(3, 3)$。
+(b)
+\[
+A^{+} = T^{(5)} = \begin{pmatrix} 1&1&0&1&0 \\ 1&1&0&1&0 \\ 1&1&1&1&1 \\ 1&1&0&1&0 \\ 1&1&1&1&1 \end{pmatrix},
+\]
+對角線已經全是 $1$，所以 $A^{*} = A^{+}$。
+(c) 不看對角線，各列的 $1$ 有 $2, 2, 4, 2, 4$ 個，共 $14$ 個點對。 五個頂點都在環上
+（$1 \to 2 \to 4 \to 1$、$3 \to 5 \to 3$）。 強連通元件 $\{1, 2, 4\}$、$\{3, 5\}$；從 $\{3, 5\}$ 走得到
+$\{1, 2, 4\}$，反過來不行。
+
+\item (a) 從 $q$ 跑 Bellman--Ford：$h(1) = 0$、$h(2) = 0$、$h(3) = -2$（$q \to 2 \to 3$）、$h(4) = 0$。
+(b) $\hat{w}$：$1 \to 2$：$3$，$1 \to 4$：$8$，$2 \to 3$：$-2 + 0 + 2 = 0$，$2 \to 4$：$6$，$3 \to 1$：
+$4 - 2 - 0 = 2$，$3 \to 4$：$2 - 2 - 0 = 0$，$4 \to 1$：$2$，$4 \to 2$：$1$，全部 $\ge 0$。
+(c) 從 $3$：取出 $3$，$\hat{d}[1] = 2$、$\hat{d}[4] = 0$；取出 $4$，$\hat{d}[2] = 1$（$4 \to 1$ 得到 $2$，
+相等不更新）；再取出 $2$、$1$，沒有變化。 $\hat{d}[1..4] = 2, 1, 0, 0$。 換回來 $D[3, v] = \hat{d}[v] -
+h(3) + h(v) = \hat{d}[v] + 2 + h(v)$，得 $4, 3, 0, 2$，和 $D^{(4)}$ 的第 $3$ 列相同。
+
+\item 對取出的次數歸納，證明「每次取出 $u$ 之後，$Q$ 裡每個頂點的 $d$ 都 $\ge d[u]$」。 取出 $u$ 的
+那一刻，$u$ 是 $Q$ 裡最小的，其他頂點的 $d \ge d[u]$。 接下來鬆弛 $u$ 的出邊，被改的 $d[v]$ 變成
+$d[u] + w(u, v) \ge d[u]$（權重 $\ge 0$），沒被改的本來就 $\ge d[u]$。 所以下一個取出的頂點 $u'$
+有 $d[u'] \ge d[u]$，而 $d[u']$ 在取出之後不再改變（定理~\ref{thm:spt-dijkstra}），取出當時的值
+就是這個。 反例：$1 \to 2$ 權重 $2$、$2 \to 3$ 權重 $-5$。 依序取出 $1$（$0$）、$2$（$2$）、$3$
+（$-3$），$d$ 變小了。
+
+\item (a) Dijkstra 加二元堆積，$O(m \lg n)$，約 $3 \times 10^5 \times 17$。 (b) Floyd--Warshall，
+$\Theta(n^3) = 2.7 \times 10^7$。 (c) DAG 最短路徑，$\Theta(n + m)$。 (d) Bellman--Ford，$\Theta(nm)
+= 10^7$。 (e) BFS，$\Theta(n + m)$。 (f) Johnson，$O(nm \lg n) \approx 5000 \times 2 \times 10^4 \times 13
+\approx 1.3 \times 10^9$；Floyd--Warshall 要 $1.25 \times 10^{11}$。
+
+\item (a) 把每條邊反向得到 $G^{\mathrm{T}}$，從 $t$ 跑 Dijkstra：$G$ 裡從 $v$ 到 $t$ 的路徑，正好是
+$G^{\mathrm{T}}$ 裡從 $t$ 到 $v$ 的路徑倒過來，權重相同。 (b) 答案是 $\delta(s, x) + \delta(x, t)$：從
+$s$ 跑一次 Dijkstra，從 $x$ 再跑一次（或在 $G^{\mathrm{T}}$ 上從 $t$ 跑）。 經過 $x$ 的路徑在 $x$ 切成兩
+段，兩段各自最短時總和最小；接起來可能重複頂點，這在路徑的定義裡是允許的
+（定義~\ref{def:gtr-path}）。 (c) 從 $s$ 在 $G$ 上、從 $t$ 在 $G^{\mathrm{T}}$ 上各跑一次 Dijkstra，得到
+$d_s(v) = \delta(s, v)$、$d_t(v) = \delta(v, t)$。 設 $\delta(s, t) < \infty$。 邊 $(u, v)$ 在某一條 $s$
+到 $t$ 的最短路徑上，若且唯若
+\[
+d_s(u) + w(u, v) + d_t(v) = \delta(s, t).
+\]
+必要：最短路徑 $p$ 經過 $(u, v)$，$p$ 到 $u$ 的那段權重 $\ge d_s(u)$、$v$ 之後那段 $\ge d_t(v)$，所以
+$\delta(s, t) = w(p) \ge d_s(u) + w(u, v) + d_t(v)$；而左邊這三段接起來是一條 $s$ 到 $t$ 的路徑，權重
+$\ge \delta(s, t)$，等號成立。 充分：把 $s$ 到 $u$ 的最短路徑、邊 $(u, v)$、$v$ 到 $t$ 的最短路徑接
+起來，權重正好是 $\delta(s, t)$，是一條經過 $(u, v)$ 的最短路徑。 每條邊檢查一次，總時間
+$O(m \lg n)$。 第~21~章觀念題第~\ref{q:gtr-on-path}~題是權重都是 $1$ 的版本。
+\end{enumerate}

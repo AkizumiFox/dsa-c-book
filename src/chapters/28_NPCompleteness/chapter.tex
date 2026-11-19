@@ -1,0 +1,1760 @@
+\chapter{NP 完備}
+\label{ch:npc}
+
+% 本章的圖共用的樣式（前綴 npc-）
+\tikzset{
+    npc-v/.style={circle, draw=black!70, thick, minimum size=0.62cm, inner sep=0pt, font=\small, fill=white},
+    npc-vA/.style={npc-v, draw=coreStroke, fill=coreFill, very thick},
+    npc-vB/.style={npc-v, draw=memStroke, fill=memFill, very thick},
+    npc-l/.style={circle, draw=black!70, thick, minimum size=0.8cm, inner sep=0pt, font=\small, fill=white},
+    npc-lsel/.style={npc-l, draw=coreStroke, fill=coreFill, very thick},
+    npc-e/.style={draw=black!65, thick},
+    npc-x/.style={draw=memStroke, thick, dashed},
+    npc-ham/.style={draw=coreStroke, line width=1.8pt},
+    npc-t/.style={font=\small},
+    npc-box/.style={draw=black!70, thick, rounded corners=2pt, minimum height=0.8cm, inner sep=4pt, align=center, font=\small, fill=white},
+    npc-pbox/.style={npc-box, font=\footnotesize\sffamily, minimum height=0.6cm, inner sep=3pt},
+    npc-arr/.style={-{Stealth[length=2.2mm]}, draw=black!70, thick},
+    npc-darr/.style={npc-arr, dashed},
+}
+% 問題的名稱（決策問題用無襯線字）
+\newcommand{\npcP}[1]{\textsf{#1}}
+
+教務處要替二十門課排期末考。 同一個學生修的兩門課不能排在同一個時段，可是考場只借到三個時段。
+助理排了一個晚上還排不出來，開始懷疑根本排不下。 如果有人拿一份排好的表給你，你只要一門課一門
+課核對有沒有衝突，幾分鐘就能確定它對不對；要自己從頭排，或是要確定「真的排不下」，好像就只能一
+種一種試。 檢查一個答案和找出一個答案，難度真的差這麼多嗎？ 往下讀之前，先想一想。
+
+前面二十幾章的問題幾乎都有多項式時間的演算法：排序 $\Theta(n \lg n)$、最短路徑、最小生成樹、強
+連通元件都是 $n$ 和 $m$ 的低次多項式。 也有幾個問題一直沒解決：第~18~章的最長簡單路徑、第~20~
+章的圖著色和旅行推銷員問題，我們只能用回溯或分支限界去搜，最壞情況是指數時間。 這一章說明這些問
+題為什麼一直找不到快的演算法，以及怎麼\textbf{證明}一個新問題至少和它們一樣難。
+
+這一章以觀念和證明為主。 先定義 P 和 NP，再定義多項式時間歸約，接著用一串歸約證明十幾個常見
+問題都是 NP 完備的；每個歸約都會證兩個方向，並拿一個自己出的小公式或小圖實際做一次。 最後回到
+第~\ref{sec:ana-input-size}~節的擬多項式時間，說明為什麼 0/1 背包有 $\Theta(nW)$ 的動態規劃，卻
+仍然是 NP 完備。 C 程式只有兩支，用暴力法驗證歸約的兩邊答案一致，用到《C 程式設計基礎》第~12~章
+的位元運算、第~14~章的結構和第~19~章的 \texttt{malloc}。
+
+\section{決策問題與 P}
+\label{sec:npc-decision}
+
+\subsection{最佳化問題和決策問題}
+
+本書大部分的問題都在求「最好」的答案：最短的路徑、總重最小的生成樹、價值最大的背包。 這種問題
+叫\textbf{最佳化問題}（optimization problem）。 這一章改看\textbf{決策問題}（decision problem）：
+答案只有「是」或「否」。 每個最佳化問題都可以加一個門檻變成決策問題：
+
+\begin{center}
+\begin{tabular}{p{0.24\linewidth}p{0.66\linewidth}}
+\toprule
+最佳化問題 & 決策版本 \\
+\midrule
+最短路徑（第~25~章）& 給圖 $G$、兩點 $s$、$t$ 和整數 $L$，有沒有從 $s$ 到 $t$、長度不超過 $L$ 的
+路徑？ \\
+最大團 & 給圖 $G$ 和整數 $k$，有沒有 $k$ 個兩兩相鄰的頂點？ \\
+0/1 背包（第~18~章）& 給重量 $w_i$、價值 $v_i$、容量 $W$ 和目標 $V$，能不能挑一些物品，總重不超
+過 $W$、總價值至少 $V$？ \\
+旅行推銷員（第~20~章）& 給成本矩陣和整數 $B$，有沒有一條經過每個城市恰好一次再回到起點、總成本
+不超過 $B$ 的路線？ \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+決策版本不會比最佳化版本難：最佳值算出來之後，和門檻比一下就知道答案。 所以只要證明某個決策版本
+「很難」，它的最佳化版本也一樣難。 反過來，決策版本會解的話，最佳化版本通常也只多花多項式倍的時
+間，第~\ref{sec:npc-search}~節會示範。 只看決策問題的好處是答案的形式固定，下一節「驗證答案」
+和第~\ref{sec:npc-reduce}~節「把一個問題轉成另一個問題」都比較好說清楚。
+
+一個決策問題的每一個輸入叫一個\textbf{實例}（instance）。 答案是「是」的實例叫\textbf{是實例}，
+答案是「否」的叫\textbf{否實例}。 例如「圖~$G$、$k = 3$」是團問題的一個實例，$G$ 裡有三個兩兩相
+鄰的頂點時，它是是實例。
+
+\subsection{輸入大小與 P}
+
+第~\ref{sec:ana-input-size}~節說過，輸入大小要用寫下輸入所需的位元數來量。 這一章所有的「多項
+式時間」都是指\textbf{輸入的位元數}的多項式。 寫下輸入的方式叫\textbf{編碼}（encoding），只要編
+碼合理，換一種寫法只會讓長度差多項式倍，不影響「是不是多項式」：
+
+\begin{itemize}
+\item 整數用二進位（或十進位）寫。 數值 $x$ 只占 $\Theta(\lg x)$ 個位元。 用一進位（寫 $x$ 個
+$1$）不算合理的編碼，它會把長度灌大成 $x$，第~\ref{sec:npc-pseudo}~節會看到這個差別有多重要。
+\item 圖用鄰接串列或鄰接矩陣都可以。 前者長度約 $(n + m)\lg n$ 位元，後者 $n^2$ 位元，彼此是多項
+式的關係。
+\item 布林公式照字面寫下來，長度和變數、子句的個數成正比（再乘上寫一個變數編號的位元數）。
+\end{itemize}
+
+\begin{definition}[P]
+\label{def:npc-p}
+\textbf{P} 是所有能在多項式時間內解決的決策問題所成的集合：問題 $A$ 屬於 P，如果有一個演算法和
+一個常數 $c$，對 $A$ 的每一個長度為 $N$ 的實例，演算法都在 $O(N^c)$ 步內答出正確的「是」或「否」。
+\end{definition}
+
+本書前面的例子有很多在 P 裡：第~21~章判斷一個圖是不是二分圖（也就是能不能用兩種顏色著色）、第~23~
+章的 2-SAT、第~24~章的最小生成樹、第~25~章的最短路徑，它們的決策版本都在 P 裡。
+
+為什麼用「多項式」當分界？ 主要是三個理由。 第一，多項式在組合之後還是多項式：多項式時間的程序
+呼叫多項式次多項式時間的副程式，總時間仍是多項式，下一節的歸約就靠這一點。 第二，各種合理的計算
+模型（RAM 模型、圖靈機）之間的模擬只差多項式倍，P 不會因為換一種模型而改變。 第三，實際上遇到的
+多項式演算法次數都不大。 反過來看，指數時間的演算法在 $N$ 稍大時就完全不能用，這個分界很少錯判。
+當然 $\Theta(N^{100})$ 也算多項式，「在 P 裡」不代表「實際上很快」；這只是理論上的分界。
+
+\subsection{決策版本夠用嗎}
+\label{sec:npc-search}
+
+假設有一個程序 \proc{Clique}$(G, k)$ 能在多項式時間內回答「$G$ 有沒有大小 $k$ 的團」。 用它可以求
+出最大團的大小，甚至把團找出來：
+
+\begin{pseudo}[label=alg:npc-find-clique]{用決策版本找出最大團}
+\Function{Find-Clique}{$G$}
+    \State $k \gets n$
+    \While{\proc{Clique}$(G, k)$ 回答「否」}
+        \State $k \gets k - 1$
+    \EndWhile
+    \For{$v \gets 1$ \To $n$}
+        \If{\proc{Clique}$(G - v, k)$ 回答「是」}
+            \State $G \gets G - v$ \Comment{不用 $v$ 也有大小 $k$ 的團}
+        \EndIf
+    \EndFor
+    \State \Return $G$ 剩下的頂點
+\EndFunction
+\end{pseudo}
+
+$G - v$ 表示刪掉頂點 $v$ 和它關聯的邊。 第 3、4 行從 $n$ 往下試，停下時 $k$ 就是最大團的大小（至
+少有一個頂點時，$k = 1$ 一定回答「是」）。 第 5 到 7 行一個一個試著刪頂點，刪掉之後還有大小 $k$
+的團就真的刪掉。
+
+\begin{whybox}[剩下的頂點恰好是一個團]
+令 $G'$ 是迴圈結束後的圖。 每次刪除都保證刪完的圖還有大小 $k$ 的團，所以 $G'$ 有一個大小 $k$ 的
+團 $Q$。 假設 $G'$ 還有 $Q$ 以外的頂點 $u$。 迴圈檢查 $u$ 的時候，當時的圖包含 $G'$ 的全部頂點
+（之後只會再刪），也就包含 $Q$，而 $u \notin Q$，所以刪掉 $u$ 之後 $Q$ 還在，第 6 行應該回答
+「是」並刪掉 $u$，矛盾。 因此 $G'$ 的頂點恰好是 $Q$。
+\end{whybox}
+
+\proc{Clique} 最多被呼叫 $2n$ 次，每次的輸入都不比原來的圖大，所以只要 \proc{Clique} 是多項式時間，
+整個程序也是。 這種「用決策版本把答案一塊一塊確定下來」的做法叫\textbf{自我歸約}（self-reduction），
+大部分 NP 完備問題都可以這樣做。
+
+答案是一個數值的時候，要改用二分搜尋。 旅行推銷員問題的成本都是不超過 $C$ 的非負整數時，最佳成
+本在 $0$ 到 $nC$ 之間，二分搜尋只要問決策版本 $\lceil \lg(nC + 1) \rceil$ 次，這是輸入位元數的多
+項式（$\lg C$ 不超過寫下一個成本的位元數）。 如果從 $B = 0, 1, 2, \ldots$ 一個一個問，最多要問
+$nC + 1$ 次，這是 $C$ 的數值的多項式，卻是位元數的指數，第~\ref{sec:npc-pseudo}~節會再遇到這個
+差別。
+
+\section{NP：答案可以快速驗證的問題}
+\label{sec:npc-np}
+
+\subsection{憑證與驗證者}
+
+回到章首的排考。 「三個時段排得下嗎？」是一個決策問題。 答案是「是」的時候，有一個很短的證據可以
+說服別人：一份排好的時段表。 拿到這份表，逐一檢查每一對有共同學生的課，時間和課程對數成正比。
+這份證據叫\textbf{憑證}（certificate），檢查憑證的演算法叫\textbf{驗證者}（verifier）。
+
+\begin{definition}[NP]
+\label{def:npc-np}
+決策問題 $A$ 屬於 \textbf{NP}，如果有一個多項式時間的演算法 $V$（驗證者）和一個多項式 $p$，使得
+對 $A$ 的每一個實例 $x$：
+\[
+x \text{ 是是實例} \iff \text{存在一個字串 } y\text{，} |y| \le p(|x|)\text{，而且 } V(x, y)
+\text{ 回答「是」。}
+\]
+\end{definition}
+
+這個定義有三個要點：
+
+\begin{itemize}
+\item \textbf{憑證要短}：長度是 $|x|$ 的多項式。 不能拿「把所有可能都列出來」當憑證。
+\item \textbf{驗證要快}：$V$ 在 $|x|$ 的多項式時間內做完（$y$ 也只有多項式長，所以兩者一樣）。
+\item \textbf{兩個方向都要成立}：是實例至少有一個憑證能讓 $V$ 回答「是」；否實例則不管給什麼 $y$，
+$V$ 都回答「否」，不會被騙。
+\end{itemize}
+
+定義只要求「存在」憑證，沒有說要怎麼找到它。 NP 描述的是「答案是『是』的時候，能不能被快速確
+認」，和找答案要花多久是兩回事。
+
+\begin{center}
+\begin{tabular}{p{0.2\linewidth}p{0.3\linewidth}p{0.4\linewidth}}
+\toprule
+問題 & 憑證 & 驗證 \\
+\midrule
+\npcP{SAT}：布林公式能不能滿足 & 每個變數的真假 & 代進去算每個子句，和公式長度成正比 \\
+\npcP{CLIQUE}：有沒有大小 $k$ 的團 & $k$ 個頂點 & 檢查 $\binom{k}{2}$ 對都相鄰，$O(k^2)$（用鄰接
+矩陣）\\
+\npcP{HAM-CYCLE}：有沒有哈密頓環 & 頂點的一個排列 & 虛擬碼~\ref{alg:npc-verify-ham}，$\Theta(n)$ \\
+\npcP{SUBSET-SUM}：能不能湊出 $t$ & 挑出的那些數 & 加起來和 $t$ 比較，位元數的多項式 \\
+\npcP{3-COLOR}：能不能三著色 & 每個頂點的顏色 & 檢查每條邊兩端不同色，$O(n + m)$ \\
+\npcP{COMPOSITE}：整數 $x$ 是不是合數 & 一個因數 $d$，$1 < d < x$ & 做一次除法，$\lg x$ 的多項式 \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\textbf{哈密頓環}（Hamiltonian cycle）是恰好經過每個頂點一次的環。 給無向圖 $G$（鄰接矩陣）和一
+個頂點序列 $c = \langle c_1, \ldots, c_n \rangle$ 當憑證，驗證者這樣檢查：
+
+\begin{pseudo}[label=alg:npc-verify-ham]{哈密頓環的驗證者}
+\Function{Verify-Ham-Cycle}{$G, c$}
+    \If{$c$ 的長度不是 $n$}
+        \State \Return \FALSE
+    \EndIf
+    \State 建立陣列 $\mathit{used}[1..n]$，每一格都設成 \FALSE
+    \For{$i \gets 1$ \To $n$}
+        \If{$c_i < 1$ \OR $c_i > n$ \OR $\mathit{used}[c_i]$}
+            \State \Return \FALSE \Comment{不是頂點，或重複了}
+        \EndIf
+        \State $\mathit{used}[c_i] \gets \TRUE$
+    \EndFor
+    \For{$i \gets 1$ \To $n$}
+        \State $j \gets i \bmod n + 1$ \Comment{$c_n$ 的下一個是 $c_1$}
+        \If{$(c_i, c_j) \notin E$}
+            \State \Return \FALSE
+        \EndIf
+    \EndFor
+    \State \Return \TRUE
+\EndFunction
+\end{pseudo}
+
+第 5 到 8 行確認 $c$ 是 $1..n$ 的一個排列，第 9 到 12 行確認相鄰兩個頂點（含最後一個接回第一個）
+之間都有邊。 兩個迴圈各 $n$ 輪，用鄰接矩陣查邊是 $O(1)$，總共 $\Theta(n)$。 $G$ 有哈密頓環時，把
+環上的頂點照順序列出來就是一個會通過的憑證；$G$ 沒有哈密頓環時，任何通過第 5 到 12 行的序列都會
+是一個哈密頓環，不存在，所以不管給什麼都回答 \FALSE。
+
+\subsection{P 和 NP 的關係}
+
+\begin{theorem}
+\label{thm:npc-p-in-np}
+$\mathrm{P} \subseteq \mathrm{NP}$。
+\end{theorem}
+
+\begin{proof}
+設 $A \in \mathrm{P}$，演算法 $M$ 在多項式時間內解 $A$。 令驗證者 $V(x, y)$ 不看 $y$，直接執行
+$M(x)$ 並回答一樣的答案。 $V$ 是多項式時間；$x$ 是是實例時，空字串 $y$ 就讓 $V$ 回答「是」；$x$
+是否實例時，任何 $y$ 都讓 $V$ 回答「否」。 所以 $A \in \mathrm{NP}$。
+\end{proof}
+
+反過來，NP 的問題至少可以在指數時間內解決：把所有長度不超過 $p(|x|)$ 的字串都當憑證試一次，最多
+$2^{p(|x|) + 1}$ 個，每個用多項式時間檢查。 第~20~章的回溯法其實就是在有系統地列舉憑證，只是靠剪枝
+少試一些。
+
+NP 這個名字是 nondeterministic polynomial time（非決定性多項式時間）的縮寫。 另一個等價的定義是：
+有一台「每一步可以同時試好幾種選擇」的機器，只要其中一條路在多項式步內回答「是」就算「是」；這台
+機器「猜」的那一串選擇，正好就是憑證。 \textbf{NP 不是 non-polynomial 的縮寫}，也不是「不能在多項式
+時間內解決的問題」：P 裡的每個問題都在 NP 裡。
+
+\textbf{P 等不等於 NP}，也就是「能快速驗證的問題，是不是都能快速解決」，是到現在還沒有答案的問
+題。 大多數人相信 $\mathrm{P} \ne \mathrm{NP}$，但沒有人證明出來。 這一章所有「某問題沒有多項式
+時間演算法」的說法，都要加上「除非 $\mathrm{P} = \mathrm{NP}$」。
+
+定義~\ref{def:npc-np} 對是實例和否實例不對稱。 「公式可以滿足」有短憑證（一組指派）；「公式不能滿
+足」要說服別人，目前不知道有沒有短的憑證，總不能把 $2^n$ 組指派全部列出來。 補問題（是、否對調）
+在 NP 裡的問題所成的集合叫 \textbf{co-NP}。 $\mathrm{NP} = \text{co-NP}$ 是否成立也還不知道，所以
+「$A$ 在 NP 裡，所以 $A$ 的補問題也在 NP 裡」是不能用的推論。
+
+表裡的 \npcP{COMPOSITE} 是一個有趣的例子。 第~\ref{sec:ana-input-size}~節的試除法要 $\sqrt{x}$ 步，
+是位元數的指數；但給一個因數當憑證，驗證只要一次除法。 2002 年 Agrawal、Kayal、Saxena 證明了判斷
+質數（也就能判斷合數）其實在 P 裡；而真的把因數找出來（質因數分解）目前仍不知道有沒有多項式時間的演
+算法。 判斷「有沒有因數」和「把因數找出來」，難度可以差很多。
+
+\section{多項式時間歸約}
+\label{sec:npc-reduce}
+
+\subsection{定義}
+
+要說「問題 $B$ 至少和問題 $A$ 一樣難」，做法是把 $A$ 的每個實例改寫成 $B$ 的一個實例，答案不變，
+而且改寫很快。 這樣只要 $B$ 會解，$A$ 也就會解。
+
+\begin{definition}[多項式時間歸約]
+\label{def:npc-reduce}
+決策問題 $A$ \textbf{多項式時間歸約}到決策問題 $B$，記作 $A \le_{\mathrm{p}} B$，如果有一個能在多
+項式時間內算出的函數 $f$，把 $A$ 的實例變成 $B$ 的實例，而且對 $A$ 的\textbf{每一個}實例 $x$：
+\[
+x \text{ 是 } A \text{ 的是實例} \iff f(x) \text{ 是 } B \text{ 的是實例}.
+\]
+\end{definition}
+
+\begin{center}
+\begin{tikzpicture}[x=1cm, y=1cm]
+\node[npc-box] (f) at (2.4, 0) {$f$\\[-1pt]{\footnotesize 多項式時間}};
+\node[npc-box] (b) at (6.4, 0) {解 $B$ 的\\[-1pt]演算法};
+\node[npc-t] (x) at (0, 0) {$x$};
+\node[npc-t] (yes) at (9.3, 0.45) {是};
+\node[npc-t] (no) at (9.3, -0.45) {否};
+\draw[npc-arr] (x) -- (f);
+\draw[npc-arr] (f) -- node[above, font=\small] {$f(x)$} (b);
+\draw[npc-arr] (b.east) -- (yes);
+\draw[npc-arr] (b.east) -- (no);
+\draw[black!50, dashed, rounded corners=4pt] (1.1, -1.0) rectangle (8.0, 1.05);
+\node[font=\small, text=black!60, anchor=north west] at (1.15, -1.05) {解 $A$ 的演算法};
+\end{tikzpicture}
+\diagcaption{歸約 $A \le_{\mathrm{p}} B$：先用 $f$ 把 $x$ 改寫成 $B$ 的實例，再交給解 $B$ 的演算
+法，它的答案就是 $x$ 的答案。}
+\label{fig:npc-reduce}
+\end{center}
+
+定義裡的「$\iff$」有兩個方向，證明一個歸約時兩個都要證：
+
+\begin{enumerate}
+\item $x$ 是是實例 $\Rightarrow$ $f(x)$ 是是實例；
+\item $f(x)$ 是是實例 $\Rightarrow$ $x$ 是是實例（等價地：$x$ 是否實例 $\Rightarrow$ $f(x)$ 是否實
+例）。
+\end{enumerate}
+
+只證第一個方向，$f$ 可以把每個實例都變成同一個是實例，什麼都沒證到。 另外，$f$ 必須對
+\textbf{所有}實例都有定義、都在多項式時間內算完，而且算的時候\textbf{不知道} $x$ 的答案。 「如果
+$x$ 是是實例就輸出某某，否則輸出某某」這種寫法不是歸約，除非你能在多項式時間內判斷 $x$ 的答案。
+
+\begin{lemma}
+\label{lem:npc-reduce-p}
+若 $A \le_{\mathrm{p}} B$ 且 $B \in \mathrm{P}$，則 $A \in \mathrm{P}$。
+\end{lemma}
+
+\begin{proof}
+設 $f$ 在 $O(N^a)$ 時間內算完，解 $B$ 的演算法在 $O(N^b)$ 時間內算完。 長度 $N$ 的 $x$，算 $f(x)$
+最多走 $O(N^a)$ 步，每步最多寫一個符號，所以 $|f(x)| = O(N^a)$。 照圖~\ref{fig:npc-reduce} 先算
+$f(x)$ 再解 $B$，總時間 $O(N^a) + O((N^a)^b) = O(N^{ab})$，是多項式。 答案正確是因為 $x$ 和 $f(x)$
+的答案相同。
+\end{proof}
+
+換一個方向讀：若 $A \le_{\mathrm{p}} B$ 且 $A$ 不在 P 裡，則 $B$ 也不在 P 裡。 所以 $A \le_{\mathrm{p}}
+B$ 讀作「$B$ 至少和 $A$ 一樣難」。 記號 $\le$ 的方向和難度一致：左邊不比右邊難。
+
+\begin{lemma}
+\label{lem:npc-trans}
+若 $A \le_{\mathrm{p}} B$ 且 $B \le_{\mathrm{p}} C$，則 $A \le_{\mathrm{p}} C$。
+\end{lemma}
+
+\begin{proof}
+令 $f$、$g$ 是兩個歸約，取 $h(x) = g(f(x))$。 和引理~\ref{lem:npc-reduce-p} 的證明一樣，$|f(x)|$ 是
+$|x|$ 的多項式，所以 $h$ 是多項式時間。 $x$ 是 $A$ 的是實例 $\iff$ $f(x)$ 是 $B$ 的是實例 $\iff$
+$g(f(x))$ 是 $C$ 的是實例。
+\end{proof}
+
+\begin{examnote}
+寫歸約時先寫出「$A \le_{\mathrm{p}} B$」，並說明哪一個是已知的難問題、哪一個是要證的問題：要證 $B$
+很難，就把\textbf{已知很難的 $A$ 轉成 $B$}，方向是 $A \le_{\mathrm{p}} B$。 中文說「把 $A$ 歸約到
+$B$」也是 $A \le_{\mathrm{p}} B$。 寫完構造之後，用兩個小標題分開寫兩個方向，最後一句交代 $f$ 的計
+算時間。
+\end{examnote}
+
+\subsection{第一組例子：獨立集、團、頂點覆蓋}
+\label{sec:npc-is-vc}
+
+先看三個關係很近的圖論問題。 $G = (V, E)$ 是無向圖，$S \subseteq V$。
+
+\begin{itemize}
+\item $S$ 是\textbf{獨立集}（independent set）：$S$ 裡任兩個頂點都不相鄰。 \npcP{IND-SET}：給 $G$ 和
+$k$，有沒有大小 $k$ 的獨立集？
+\item $S$ 是\textbf{團}（clique）：$S$ 裡任兩個頂點都相鄰。 \npcP{CLIQUE}：給 $G$ 和 $k$，有沒有大
+小 $k$ 的團？
+\item $S$ 是\textbf{頂點覆蓋}（vertex cover）：每條邊至少有一端在 $S$ 裡。 \npcP{VERTEX-COVER}：給
+$G$ 和 $k$，有沒有大小 $k$ 的頂點覆蓋？
+\end{itemize}
+
+（問「恰好 $k$ 個」或「至少 $k$ 個」對獨立集和團是一樣的，因為獨立集、團的子集合仍然是獨立集、團；
+頂點覆蓋則是「恰好 $k$」和「至多 $k$」一樣，因為頂點覆蓋加頂點仍是頂點覆蓋。 以下都在 $k \le n$ 的
+範圍討論。）
+
+$G$ 的\textbf{補圖} $\overline{G}$ 和 $G$ 有相同的頂點，兩個不同的頂點在 $\overline{G}$ 裡相鄰，若且
+唯若它們在 $G$ 裡不相鄰。
+
+\begin{lemma}
+\label{lem:npc-complement}
+對 $G = (V, E)$ 和 $S \subseteq V$，下面三件事等價：
+(1) $S$ 是 $G$ 的獨立集；(2) $V - S$ 是 $G$ 的頂點覆蓋；(3) $S$ 是 $\overline{G}$ 的團。
+\end{lemma}
+
+\begin{proof}
+(1)$\iff$(3)：$S$ 裡兩個頂點在 $G$ 裡不相鄰，就是在 $\overline{G}$ 裡相鄰，照定義直接成立。
+
+(1)$\Rightarrow$(2)：任取一條邊 $\{u, v\}$。 $S$ 是獨立集，$u$、$v$ 不會都在 $S$ 裡，所以至少一端
+在 $V - S$ 裡。
+
+(2)$\Rightarrow$(1)：任取 $u, v \in S$。 如果 $\{u, v\} \in E$，這條邊的兩端都不在 $V - S$ 裡，和
+$V - S$ 是頂點覆蓋矛盾。 所以 $S$ 裡任兩點都不相鄰。
+\end{proof}
+
+圖~\ref{fig:npc-is-vc} 的 $G$ 有 $6$ 個頂點、$7$ 條邊。 $S = \{1, 4, 6\}$ 是獨立集（藍色），
+$V - S = \{2, 3, 5\}$ 是頂點覆蓋（橘色）：七條邊每一條都碰到 $2$、$3$、$5$ 之一。 右邊的
+$\overline{G}$ 有 $\binom{6}{2} - 7 = 8$ 條邊，$\{1, 4, 6\}$ 在裡面兩兩相鄰，是一個團。
+
+\begin{center}
+\begin{tikzpicture}[x=1cm, y=1cm]
+\begin{scope}
+\node[npc-vA] (a1) at (0, 0.8) {1};
+\node[npc-vB] (a2) at (1.3, 1.6) {2};
+\node[npc-vB] (a3) at (1.3, 0) {3};
+\node[npc-vA] (a4) at (2.8, 1.6) {4};
+\node[npc-vB] (a5) at (2.8, 0) {5};
+\node[npc-vA] (a6) at (4.1, 0.8) {6};
+\foreach \a/\b in {1/2, 1/3, 2/3, 2/4, 3/5, 4/5, 5/6}
+    \draw[npc-e] (a\a) -- (a\b);
+\node[npc-t] at (2.05, -0.8) {$G$};
+\end{scope}
+\begin{scope}[xshift=6.6cm]
+\node[npc-vA] (b1) at (0, 0.6) {1};
+\node[npc-vA] (b4) at (1.5, 1.7) {4};
+\node[npc-vA] (b6) at (3.0, 0.6) {6};
+\node[npc-v] (b3) at (3.2, 1.9) {3};
+\node[npc-v] (b5) at (0.8, -0.4) {5};
+\node[npc-v] (b2) at (2.2, -0.4) {2};
+\draw[npc-ham] (b1) -- (b4) -- (b6) -- (b1);
+\foreach \a/\b in {1/5, 5/2, 2/6, 3/4, 3/6}
+    \draw[npc-e] (b\a) -- (b\b);
+\node[npc-t] at (1.6, -1.15) {$\overline{G}$};
+\end{scope}
+\end{tikzpicture}
+\diagcaption{左：$G$ 的獨立集 $\{1, 4, 6\}$（藍）和頂點覆蓋 $\{2, 3, 5\}$（橘）。 右：補圖
+$\overline{G}$（頂點位置重新排過，比較好看出結構），粗線是團 $\{1, 4, 6\}$。}
+\label{fig:npc-is-vc}
+\end{center}
+
+由引理~\ref{lem:npc-complement} 立刻得到兩個歸約：
+
+\begin{itemize}
+\item $\npcP{IND-SET} \le_{\mathrm{p}} \npcP{CLIQUE}$：$f(G, k) = (\overline{G}, k)$。 $G$ 有大小 $k$
+的獨立集 $S$ $\Rightarrow$ $S$ 是 $\overline{G}$ 的大小 $k$ 的團；反過來 $\overline{G}$ 有大小 $k$ 的
+團 $S$ $\Rightarrow$ $S$ 是 $G$ 的獨立集。 建 $\overline{G}$ 的鄰接矩陣要 $\Theta(n^2)$。
+\item $\npcP{IND-SET} \le_{\mathrm{p}} \npcP{VERTEX-COVER}$：$f(G, k) = (G, n - k)$。 $G$ 有大小 $k$ 的
+獨立集 $S$ $\Rightarrow$ $V - S$ 是大小 $n - k$ 的頂點覆蓋；反過來大小 $n - k$ 的頂點覆蓋 $C$
+$\Rightarrow$ $V - C$ 是大小 $k$ 的獨立集。 只要把 $k$ 換成 $n - k$，$O(N)$ 時間。
+\end{itemize}
+
+同樣的論證也給出反方向的歸約（$\npcP{CLIQUE} \le_{\mathrm{p}} \npcP{IND-SET}$ 等），三個問題彼此可以
+互相歸約，難度一樣。 到這裡我們只知道它們「一樣難」，還不知道「很難」；第~\ref{sec:npc-sat-is}~節
+會把一個已知很難的問題歸約到獨立集。
+
+注意「兩個方向」和「互相歸約」是兩件事。 證 $A \le_{\mathrm{p}} B$ 時要證的兩個方向，是同一個 $f$
+下「$x$ 是是實例 $\Rightarrow$ $f(x)$ 是是實例」和它的反方向；並不需要另外證 $B \le_{\mathrm{p}} A$。
+
+\section{NP 完備與 Cook--Levin 定理}
+\label{sec:npc-npc}
+
+\subsection{NP 難與 NP 完備}
+
+\begin{definition}[NP 難、NP 完備]
+\label{def:npc-npc}
+決策問題 $B$ 是 \textbf{NP 難}（NP-hard）的，如果 NP 裡的\textbf{每一個}問題 $A$ 都滿足
+$A \le_{\mathrm{p}} B$。 如果 $B$ 是 NP 難的，而且 $B \in \mathrm{NP}$，就說 $B$ 是 \textbf{NP 完
+備}（NP-complete）的。 NP 完備問題所成的集合記作 NPC。
+\end{definition}
+
+NP 完備問題是 NP 裡「最難」的問題：NP 裡任何問題都能轉成它。
+
+\begin{theorem}
+\label{thm:npc-pnp}
+如果有任何一個 NP 完備問題在 P 裡，則 $\mathrm{P} = \mathrm{NP}$。 等價地，如果
+$\mathrm{P} \ne \mathrm{NP}$，則沒有任何 NP 完備問題在 P 裡。
+\end{theorem}
+
+\begin{proof}
+設 $B$ 是 NP 完備的且 $B \in \mathrm{P}$。 任取 $A \in \mathrm{NP}$，由定義 $A \le_{\mathrm{p}} B$，
+由引理~\ref{lem:npc-reduce-p}，$A \in \mathrm{P}$。 所以 $\mathrm{NP} \subseteq \mathrm{P}$，加上定
+理~\ref{thm:npc-p-in-np} 得 $\mathrm{P} = \mathrm{NP}$。
+\end{proof}
+
+所以證明一個問題是 NP 完備的，等於說「除非 $\mathrm{P} = \mathrm{NP}$，它沒有多項式時間演算法」。 幾
+十年來，成千上萬個 NP 完備問題都沒有人找到多項式時間演算法，這是大家相信 $\mathrm{P} \ne \mathrm{NP}$
+的主要理由。
+
+\begin{center}
+\begin{tikzpicture}[x=1cm, y=1cm]
+\begin{scope}
+\clip (0, 0) ellipse (2.9 and 1.55);
+\fill[memFill] (1.35, -2) rectangle (6, 2);
+\end{scope}
+\fill[coreFill] (-1.25, 0) ellipse (1.1 and 0.8);
+\draw[thick, coreStroke] (-1.25, 0) ellipse (1.1 and 0.8);
+\draw[thick] (0, 0) ellipse (2.9 and 1.55);
+\draw[thick, memStroke, dashed, rounded corners=6pt] (1.35, -1.95) rectangle (5.6, 1.95);
+\node[font=\small] at (-1.25, 0) {P};
+\node[font=\small] at (-0.1, 1.15) {NP};
+\node[font=\small, align=center] at (2.05, 0) {NP\\完備};
+\node[font=\small, align=center] at (4.35, 0) {NP 難\\（不在 NP 裡\\的部分）};
+\end{tikzpicture}
+\diagcaption{假設 $\mathrm{P} \ne \mathrm{NP}$ 時的關係。 NP 完備是 NP 和 NP 難的交集；NP 難的問題不
+一定在 NP 裡。}
+\label{fig:npc-classes}
+\end{center}
+
+圖~\ref{fig:npc-classes} 是一般相信的樣子。 如果 $\mathrm{P} = \mathrm{NP}$，圖會整個塌掉：P、NP 和
+NP 完備幾乎是同一個集合（只差「永遠回答是」和「永遠回答否」這兩個沒有否實例或沒有是實例的問題，
+別的問題無法歸約到它們）。 $\mathrm{P} \ne \mathrm{NP}$ 時，Ladner 在 1975 年證明了 NP 裡一定還有既
+不在 P、也不是 NP 完備的問題，質因數分解的決策版本常被當成可能的例子，但目前沒有證明。
+
+\textbf{NP 難的問題不一定在 NP 裡}。 兩個常見的例子：
+\begin{itemize}
+\item 最佳化問題。 「求最短的旅行推銷員路線」不是決策問題，談不上在不在 NP 裡；但它會解的話決策版
+本就會解，所以習慣上也說它是 NP 難的。 嚴格的說法是：它若有多項式時間演算法，則
+$\mathrm{P} = \mathrm{NP}$。
+\item 比 NP 更難的決策問題。 例如停機問題（給一支程式和輸入，問它會不會停）：任何公式 $\varphi$ 都
+可以改寫成一支程式「依序試所有指派，找到滿足的就停，全部試完都沒有就進入無窮迴圈」，它會停若且唯若
+$\varphi$ 可以滿足，所以 $\npcP{SAT} \le_{\mathrm{p}}$ 停機問題，停機問題是 NP 難的（下一小節會說明
+\npcP{SAT} 是 NP 完備的）。 但停機問題根本沒有演算法能解，當然不在 NP 裡。
+\end{itemize}
+
+\subsection{怎麼證明一個問題是 NP 完備}
+
+直接用定義要對 NP 裡「每一個」問題都給一個歸約，這做不到。 有了第一個 NP 完備問題之後，遞移性
+（引理~\ref{lem:npc-trans}）讓證明只需要一個歸約：
+
+\begin{lemma}
+\label{lem:npc-recipe}
+若 $A$ 是 NP 完備的，$A \le_{\mathrm{p}} B$，而且 $B \in \mathrm{NP}$，則 $B$ 是 NP 完備的。
+\end{lemma}
+
+\begin{proof}
+任取 $C \in \mathrm{NP}$。 $A$ 是 NP 難的，所以 $C \le_{\mathrm{p}} A$；再由 $A \le_{\mathrm{p}} B$ 和
+引理~\ref{lem:npc-trans}，$C \le_{\mathrm{p}} B$。 所以 $B$ 是 NP 難的，又 $B \in \mathrm{NP}$，$B$ 是
+NP 完備的。
+\end{proof}
+
+\begin{examnote}
+證明「$B$ 是 NP 完備的」照四步寫，每一步一個小標題：
+(1)~$B \in \mathrm{NP}$：說出憑證是什麼、驗證者做什麼、為什麼是多項式時間。
+(2)~挑一個已知 NP 完備的 $A$，寫出「證明 $A \le_{\mathrm{p}} B$」。
+(3)~寫出構造 $f$，並說明 $f$ 是多項式時間（輸出大小也是多項式）。
+(4)~證兩個方向：$x \in A \Rightarrow f(x) \in B$，以及 $f(x) \in B \Rightarrow x \in A$。
+只證 (2)～(4) 得到的是「NP 難」；少了 (1) 就不能說「NP 完備」。
+\end{examnote}
+
+\subsection{布林公式與 Cook--Levin 定理}
+
+\textbf{布林變數} $x_1, \ldots, x_n$ 的值是真（$1$）或假（$0$）。 一個變數 $x_i$ 或它的否定
+$\neg x_i$ 叫一個\textbf{文字}（literal）；幾個文字用「或」（$\vee$）接起來叫一個\textbf{子句}（clause）；
+幾個子句用「且」（$\wedge$）接起來，就是\textbf{合取範式}（conjunctive normal form，CNF）。 例如
+\[
+(x_1 \vee \neg x_2) \wedge (\neg x_1 \vee x_2 \vee x_3) \wedge (\neg x_3)
+\]
+是有三個子句的 CNF 公式。 給每個變數一個真假值叫一組\textbf{指派}（assignment）；一組指派讓每個子句
+都至少有一個文字為真，就說它\textbf{滿足}這個公式。 上面的公式可以用 $x_1 = x_2 = 1$、$x_3 = 0$ 滿
+足。
+
+\begin{itemize}
+\item \npcP{SAT}：給一個 CNF 公式，它可以被滿足嗎？
+\item \npcP{3-SAT}：同樣的問題，但公式是 \textbf{3-CNF}：每個子句恰好有三個文字，而且這三個文字的變
+數互不相同。
+\end{itemize}
+
+（有的課本的 3-SAT 允許子句少於三個文字，或允許同一個變數在一個子句裡出現兩次。 這些版本都一樣是
+NP 完備的，題目有定義時照題目。）
+
+\npcP{SAT} 在 NP 裡：憑證是一組指派，驗證者把它代進每個子句，時間和公式長度成正比。
+
+\begin{theorem}[Cook--Levin]
+\label{thm:npc-cook}
+\npcP{SAT} 是 NP 完備的。
+\end{theorem}
+
+這是第一個被證明的 NP 完備問題（Cook 1971 年；Levin 獨立得到相同的結果）。 證明要對 NP 裡「每一個」
+問題直接給歸約，本書不寫，只說想法。
+
+\begin{whybox}[Cook--Levin 定理的想法]
+任取 $A \in \mathrm{NP}$，它有一個驗證者 $V$，在 $p(N)$ 步內做完。 把 $V$ 在輸入 $(x, y)$ 上執行的
+過程畫成一張表：第 $t$ 列是第 $t$ 步時整台機器的狀態（記憶體內容、目前執行到哪裡），共 $p(N)$ 列，
+每列 $O(p(N))$ 格。 每一格的內容只由上一列附近固定幾格決定，這種「局部」的規則可以寫成常數大小的
+子句。 再加上「第一列是 $x$ 和某個 $y$」「最後一列回答是」的子句，得到一個多項式大小的 CNF 公式
+$\varphi_x$。 $y$ 的位元是公式裡的自由變數：有某個 $y$ 讓 $V$ 回答是，若且唯若 $\varphi_x$ 可以滿
+足。 所以 $A \le_{\mathrm{p}} \npcP{SAT}$。 細節見 Sipser 第 7.4 節或 CLRS 第 34.3 節。
+\end{whybox}
+
+有了 \npcP{SAT} 之後，引理~\ref{lem:npc-recipe} 讓其他問題只要從一個已知的 NP 完備問題歸約過來。 下一
+節就照這個方式，一步一步把 NP 完備的問題串起來。
+
+\section{歸約鏈}
+\label{sec:npc-chain}
+
+圖~\ref{fig:npc-chain} 是本節要證明的歸約。 實線箭頭在本章證明，虛線箭頭的結論本書只敘述，不給證明。
+
+\begin{center}
+\begin{tikzpicture}[x=1cm, y=1cm]
+\node[npc-pbox] (sat) at (0, 0.6) {SAT};
+\node[npc-pbox] (s3) at (2.0, 0.6) {3-SAT};
+\node[npc-pbox] (is) at (4.4, 2.2) {IND-SET};
+\node[npc-pbox] (ss) at (4.4, 0.6) {SUBSET-SUM};
+\node[npc-pbox] (hc) at (4.4, -0.9) {HAM-CYCLE};
+\node[npc-pbox] (c3) at (4.4, -2.2) {3-COLOR};
+\node[npc-pbox] (cl) at (7.6, 2.8) {CLIQUE};
+\node[npc-pbox] (vc) at (7.6, 1.8) {VERTEX-COVER};
+\node[npc-pbox] (kn) at (7.6, 0.6) {KNAPSACK};
+\node[npc-pbox] (tsp) at (7.6, -0.4) {TSP};
+\node[npc-pbox] (hp) at (7.6, -1.4) {HAM-PATH};
+\node[npc-pbox] (lp) at (10.6, -1.4) {LONGEST-PATH};
+\draw[npc-arr] (sat) -- (s3);
+\draw[npc-arr] (s3) -- (is);
+\draw[npc-arr] (s3) -- (ss);
+\draw[npc-darr] (s3) -- (hc);
+\draw[npc-darr] (s3) -- (c3);
+\draw[npc-arr] (is) -- (cl);
+\draw[npc-arr] (is) -- (vc);
+\draw[npc-arr] (ss) -- (kn);
+\draw[npc-arr] (hc) -- (tsp);
+\draw[npc-darr] (hc) -- (hp);
+\draw[npc-arr] (hp) -- (lp);
+\node[font=\scriptsize, text=black!60, align=center] at (0, -0.2) {Cook--Levin};
+\end{tikzpicture}
+\diagcaption{本章的歸約鏈。 箭頭 $A \to B$ 表示 $A \le_{\mathrm{p}} B$；實線在本章證明，虛線只敘述結論。}
+\label{fig:npc-chain}
+\end{center}
+
+\subsection{SAT 歸約到 3-SAT}
+\label{sec:npc-sat-3sat}
+
+\begin{theorem}
+\label{thm:npc-3sat}
+\npcP{3-SAT} 是 NP 完備的。
+\end{theorem}
+
+\npcP{3-SAT} 是 \npcP{SAT} 的特殊情形，驗證方法相同，所以在 NP 裡。 下面證明 $\npcP{SAT} \le_{\mathrm{p}}
+\npcP{3-SAT}$：把每個子句換成一組恰好三個文字的子句，換的時候加入新的變數。 先做一個簡單的整理：一
+個子句裡重複的文字只留一個；同時含有 $x$ 和 $\neg x$ 的子句一定為真，直接刪掉（全部刪光的話，輸出
+一個固定可以滿足的 3-CNF 公式）。 然後對每個子句 $C = (\ell_1 \vee \cdots \vee \ell_r)$，依長度 $r$
+換成：
+
+\begin{itemize}
+\item $r = 3$：不變。
+\item $r = 2$：加一個新變數 $b$，換成 $(\ell_1 \vee \ell_2 \vee b) \wedge (\ell_1 \vee \ell_2 \vee \neg b)$。
+\item $r = 1$：加兩個新變數 $c$、$d$，換成
+$(\ell_1 \vee c \vee d) \wedge (\ell_1 \vee c \vee \neg d) \wedge (\ell_1 \vee \neg c \vee d) \wedge
+(\ell_1 \vee \neg c \vee \neg d)$。
+\item $r \ge 4$：加 $r - 3$ 個新變數 $a_1, \ldots, a_{r-3}$，換成 $r - 2$ 個子句串成的鏈
+\[
+(\ell_1 \vee \ell_2 \vee a_1) \wedge (\neg a_1 \vee \ell_3 \vee a_2) \wedge \cdots \wedge (\neg a_{r-4}
+\vee \ell_{r-2} \vee a_{r-3}) \wedge (\neg a_{r-3} \vee \ell_{r-1} \vee \ell_r).
+\]
+第一個子句放 $\ell_1$、$\ell_2$，最後一個放 $\ell_{r-1}$、$\ell_r$，中間第 $s$ 個子句（$2 \le s \le r - 3$）
+是 $(\neg a_{s-1} \vee \ell_{s+1} \vee a_s)$。 例如 $r = 4$ 時只有兩個子句 $(\ell_1 \vee \ell_2 \vee a_1)
+\wedge (\neg a_1 \vee \ell_3 \vee \ell_4)$。
+\end{itemize}
+
+每個子句都用自己的新變數，不同子句的新變數不共用。 一個長度 $r$ 的子句最多換成 $\max(4, r - 2)$
+個子句，所以新公式的長度是原公式的常數倍，$f$ 是線性時間。
+
+\begin{proof}[證明（兩個方向）]
+只要對每一種長度證明：\textbf{原來的子句 $C$ 被某組指派滿足，若且唯若這組指派能擴充到 $C$ 的新變
+數上，使換出來的子句全部為真。} 每個子句的新變數只出現在它自己換出來的子句裡，可以各自擴充，所以
+對整個公式也成立。
+
+$r = 2$。 ($\Rightarrow$) $\ell_1 \vee \ell_2$ 為真，兩個新子句不管 $b$ 是什麼都為真。 ($\Leftarrow$)
+兩個新子句都為真。 $b$ 和 $\neg b$ 有一個為假，含那個文字的子句只能靠 $\ell_1 \vee \ell_2$，所以
+$\ell_1 \vee \ell_2$ 為真。
+
+$r = 1$。 同樣的理由：$(c, d)$ 的四種組合中，恰好有一個子句的 $c$、$d$ 兩個文字都為假，它只能靠
+$\ell_1$。
+
+$r \ge 4$。 ($\Rightarrow$) 設 $\ell_i$ 為真。 令 $a_1, \ldots, a_{i-2}$ 為真，$a_{i-1}, \ldots,
+a_{r-3}$ 為假（超出 $1..r-3$ 的範圍就不管）。 含 $\ell_i$ 的子句因 $\ell_i$ 為真；它左邊的子句各
+含一個正的 $a_j$，$j \le i - 2$，為真；右邊的子句各含一個 $\neg a_j$，$j \ge i - 1$，也為真。
+($\Leftarrow$) 用反證。 設 $\ell_1, \ldots, \ell_r$ 全部為假，而換出來的子句全部為真。 第一個子句
+$(\ell_1 \vee \ell_2 \vee a_1)$ 只能靠 $a_1$，所以 $a_1 = 1$；第二個子句的 $\neg a_1$ 為假、$\ell_3$
+為假，只能靠 $a_2$，所以 $a_2 = 1$；依此類推 $a_1 = \cdots = a_{r-3} = 1$。 最後一個子句
+$(\neg a_{r-3} \vee \ell_{r-1} \vee \ell_r)$ 三個文字都為假，矛盾。
+\end{proof}
+
+\textbf{例子}。 公式
+\[
+\alpha = (x_1 \vee \neg x_2 \vee x_3 \vee x_4 \vee \neg x_5) \wedge (\neg x_1 \vee x_5) \wedge (x_2)
+\]
+換成 3-CNF：
+
+\begin{center}
+\begin{tabular}{p{0.3\linewidth}p{0.5\linewidth}l}
+\toprule
+原子句 & 換成 & 新變數 \\
+\midrule
+$(x_1 \vee \neg x_2 \vee x_3 \vee x_4 \vee \neg x_5)$ & $(x_1 \vee \neg x_2 \vee a_1) \wedge (\neg a_1 \vee
+x_3 \vee a_2) \wedge (\neg a_2 \vee x_4 \vee \neg x_5)$ & $a_1, a_2$ \\
+$(\neg x_1 \vee x_5)$ & $(\neg x_1 \vee x_5 \vee b) \wedge (\neg x_1 \vee x_5 \vee \neg b)$ & $b$ \\
+$(x_2)$ & $(x_2 \vee c \vee d) \wedge (x_2 \vee c \vee \neg d) \wedge (x_2 \vee \neg c \vee d) \wedge
+(x_2 \vee \neg c \vee \neg d)$ & $c, d$ \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+共 $9$ 個子句、$10$ 個變數。 指派 $x = (0, 1, 0, 1, 0)$ 滿足 $\alpha$：第一個子句只靠 $x_4$（$\neg x_5$
+也為真，但 $x_4$ 就夠了）。 照證明的做法，$\ell_4 = x_4$ 為真，令 $a_1 = a_2 = 1$：$(x_1 \vee \neg x_2
+\vee a_1)$ 靠 $a_1$，$(\neg a_1 \vee x_3 \vee a_2)$ 靠 $a_2$，$(\neg a_2 \vee x_4 \vee \neg x_5)$ 靠
+$x_4$。 $b$、$c$、$d$ 隨便給。 反過來，如果把 $x_4$ 改成 $0$、$x_5$ 改成 $1$（第二個子句仍為真），第
+一個子句的五個文字全為假，鏈上 $a_1$、$a_2$ 被迫為真，最後一個子句 $(\neg a_2 \vee x_4 \vee \neg x_5)$
+就不能滿足。
+
+\subsection{3-SAT 歸約到獨立集}
+\label{sec:npc-sat-is}
+
+\begin{theorem}
+\label{thm:npc-is}
+\npcP{IND-SET}、\npcP{CLIQUE}、\npcP{VERTEX-COVER} 都是 NP 完備的。
+\end{theorem}
+
+三個問題都在 NP 裡：憑證是那 $k$ 個頂點，檢查兩兩不相鄰、兩兩相鄰或每條邊都被碰到，都是多項式時間。
+第~\ref{sec:npc-is-vc}~節已經有 $\npcP{IND-SET} \le_{\mathrm{p}} \npcP{CLIQUE}$ 和 $\npcP{IND-SET}
+\le_{\mathrm{p}} \npcP{VERTEX-COVER}$，所以只要證明 $\npcP{3-SAT} \le_{\mathrm{p}} \npcP{IND-SET}$。
+
+想法：獨立集要在每個子句裡挑一個「負責讓它為真」的文字，而且挑出來的文字不能互相矛盾。 每個子句做
+成一個三角形（同一個三角形最多挑一個），矛盾的兩個文字之間連一條邊（不能同時挑）。
+
+\begin{pseudo}[label=alg:npc-sat-is]{3-SAT 歸約到獨立集}
+\Function{Sat-To-IS}{$\varphi$}
+    \State $V \gets \emptyset$，$E \gets \emptyset$
+    \For{$j \gets 1$ \To $k$}
+        \State 加入頂點 $v_{j,1}, v_{j,2}, v_{j,3}$，$v_{j,p}$ 標上文字 $\ell_{j,p}$
+        \State 加入邊 $\{v_{j,1}, v_{j,2}\}$、$\{v_{j,1}, v_{j,3}\}$、$\{v_{j,2}, v_{j,3}\}$
+    \EndFor
+    \For{每一對頂點 $v_{j,p}$、$v_{j',p'}$，$j < j'$}
+        \If{$\ell_{j,p}$ 和 $\ell_{j',p'}$ 是同一個變數的正、反兩面}
+            \State 加入邊 $\{v_{j,p}, v_{j',p'}\}$ \Comment{矛盾邊}
+        \EndIf
+    \EndFor
+    \State \Return $(G = (V, E),\ k)$
+\EndFunction
+\end{pseudo}
+
+這裡 $\varphi = C_1 \wedge \cdots \wedge C_k$，$C_j = (\ell_{j,1} \vee \ell_{j,2} \vee \ell_{j,3})$。 圖
+有 $3k$ 個頂點；第 6 行檢查 $O(k^2)$ 對頂點，所以 $f$ 是 $O(k^2)$ 時間。 輸出的門檻就是子句數 $k$。
+
+\begin{proof}[證明：$\varphi$ 可以滿足 $\iff$ $G$ 有大小 $k$ 的獨立集]
+($\Rightarrow$) 取一組滿足 $\varphi$ 的指派。 每個子句至少有一個文字為真，在每個子句挑一個為真的文
+字，令 $S$ 是對應的 $k$ 個頂點。 $S$ 的頂點來自不同的子句，沒有三角形的邊；矛盾邊的兩端是 $x$ 和
+$\neg x$，不可能同時為真，所以 $S$ 裡也沒有矛盾邊。 $S$ 是大小 $k$ 的獨立集。
+
+($\Leftarrow$) 設 $S$ 是大小 $k$ 的獨立集。 同一個三角形的頂點兩兩相鄰，$S$ 在每個三角形最多一個頂
+點；共有 $k$ 個三角形，所以\textbf{恰好}各一個。 把 $S$ 的頂點標的文字都設成真：$S$ 裡沒有矛盾邊，
+不會同時要求 $x = 1$ 和 $x = 0$，這組要求是一致的；沒被提到的變數隨便給。 每個子句都有一個文字在
+$S$ 裡而為真，所以 $\varphi$ 被滿足。
+\end{proof}
+
+證明的 ($\Leftarrow$) 用了兩個構造上的細節：三角形保證「每個子句恰好挑一個」，矛盾邊保證「挑出來的
+文字不互相矛盾」。 少了任何一種邊，($\Leftarrow$) 就會失敗：沒有三角形的邊，獨立集可以在同一個子句挑
+兩個、在別的子句一個都不挑；沒有矛盾邊，可以同時挑 $x_1$ 和 $\neg x_1$。
+
+\textbf{例子}。 公式
+\[
+\varphi = (x_1 \vee \neg x_2 \vee x_5) \wedge (\neg x_1 \vee x_2 \vee \neg x_3) \wedge (x_1 \vee x_3 \vee
+x_4) \wedge (\neg x_1 \vee \neg x_4 \vee \neg x_5)
+\]
+有 $5$ 個變數、$k = 4$ 個子句，得到的圖如圖~\ref{fig:npc-sat-is}：$12$ 個頂點、$12$ 條三角形的邊、
+$8$ 條矛盾邊（$x_1$ 出現兩次、$\neg x_1$ 出現兩次，在外圈連成四條；$x_2$、$x_3$、$x_4$、$x_5$ 各一
+條，在內圈）。
+
+\begin{center}
+\begin{tikzpicture}[x=0.95cm, y=0.95cm]
+\node[npc-lsel] (s00) at (-0.6,4.6) {$x_1$};
+\node[npc-l] (s01) at (0.8,4.1) {$\neg x_2$};
+\node[npc-l] (s02) at (-0.1,3.2) {$x_5$};
+\node[npc-l] (s10) at (6.6,4.6) {$\neg x_1$};
+\node[npc-lsel] (s11) at (5.2,4.1) {$x_2$};
+\node[npc-l] (s12) at (6.1,3.2) {$\neg x_3$};
+\node[npc-lsel] (s20) at (6.6,-0.6) {$x_1$};
+\node[npc-l] (s21) at (6.1,0.8) {$x_3$};
+\node[npc-l] (s22) at (5.2,-0.1) {$x_4$};
+\node[npc-l] (s30) at (-0.6,-0.6) {$\neg x_1$};
+\node[npc-lsel] (s31) at (0.8,-0.1) {$\neg x_4$};
+\node[npc-l] (s32) at (-0.1,0.8) {$\neg x_5$};
+\draw[npc-e] (s00) -- (s01) -- (s02) -- (s00);
+\draw[npc-e] (s10) -- (s11) -- (s12) -- (s10);
+\draw[npc-e] (s20) -- (s21) -- (s22) -- (s20);
+\draw[npc-e] (s30) -- (s31) -- (s32) -- (s30);
+\draw[npc-x] (s00) to[bend left=22] (s10);
+\draw[npc-x] (s00) to[bend right=22] (s30);
+\draw[npc-x] (s01) -- (s11);
+\draw[npc-x] (s02) -- (s32);
+\draw[npc-x] (s10) to[bend left=22] (s20);
+\draw[npc-x] (s12) -- (s21);
+\draw[npc-x] (s20) to[bend left=22] (s30);
+\draw[npc-x] (s22) -- (s31);
+\node[npc-t] at (-1.5,4.6) {$C_1$};
+\node[npc-t] at (7.5,4.6) {$C_2$};
+\node[npc-t] at (7.5,-0.6) {$C_3$};
+\node[npc-t] at (-1.5,-0.6) {$C_4$};
+\end{tikzpicture}
+\diagcaption{$\varphi$ 歸約出來的圖。 實線是三角形的邊，橘色虛線是矛盾邊；藍色的四個頂點是對應指
+派 $x = (1, 1, 0, 0, 0)$ 的獨立集。}
+\label{fig:npc-sat-is}
+\end{center}
+
+($\Rightarrow$) 方向：指派 $x = (1, 1, 0, 0, 0)$ 滿足 $\varphi$。 每個子句挑第一個為真的文字：$C_1$
+挑 $x_1$，$C_2$ 的 $\neg x_1$ 為假、挑 $x_2$，$C_3$ 挑 $x_1$，$C_4$ 的 $\neg x_1$ 為假、挑 $\neg x_4$。
+這四個頂點（圖中藍色）兩兩不相鄰：$C_1$ 和 $C_3$ 的兩個 $x_1$ 是同一個文字，之間沒有邊；$x_2$ 的矛
+盾邊連到 $C_1$ 的 $\neg x_2$，$\neg x_4$ 的矛盾邊連到 $C_3$ 的 $x_4$，都沒被挑。
+
+($\Leftarrow$) 方向：反過來從這個獨立集讀出 $x_1 = 1$、$x_2 = 1$、$x_4 = 0$；$x_3$、$x_5$ 沒被提到，
+給 $0$。 得到的正是 $(1, 1, 0, 0, 0)$。 如果獨立集挑的是別的頂點，例如 $C_3$ 改挑 $x_3$（它的矛盾邊連
+到 $C_2$ 的 $\neg x_3$，沒被挑），讀出來的指派變成 $(1, 1, 1, 0, 0)$，一樣滿足 $\varphi$。
+
+\subsection{C 程式：兩邊各用暴力法算一次}
+
+下面的程式讀入 3-CNF 公式，照虛擬碼~\ref{alg:npc-sat-is} 建出圖，再用兩個互不相干的暴力法分別回答
+兩邊的問題：\texttt{brute\_sat} 試全部 $2^{\mathit{nv}}$ 組指派；\texttt{max\_is} 用第~20~章的回溯
+求最大獨立集，完全不知道圖是怎麼造出來的。 兩邊的答案應該一致：公式可以滿足若且唯若最大獨立集的大小
+是 $k$。 接著把證明的兩個方向實際做一次：從指派挑出獨立集，從獨立集讀回指派，再用兩個驗證者
+\texttt{satisfies}、\texttt{independent} 檢查。
+
+第一組輸入是上面的 $\varphi$；第二組是三個變數的八個子句，每種正負號組合各一個，任何指派都會讓其中
+一個子句的三個文字全為假，不能滿足。 文字用整數表示：$+i$ 是 $x_i$，$-i$ 是 $\neg x_i$，印出來時寫成 \texttt{x2}、\texttt{!x2}。 獨立集
+（\texttt{IS}）依頂點編號印出，每個子句恰好一個，依序是 $C_1, C_2, \ldots$ 挑的文字。
+
+\begin{cbookrecap}[第~12~章位元運算、第~14~章結構、第~19~章 \texttt{malloc}]
+\texttt{(m >> s) \& 1} 取出整數 \texttt{m} 從右數第 \texttt{s} 位（從 $0$ 數起）。 \texttt{brute\_sat}
+讓 \texttt{m} 從 $0$ 跑到 $2^{\mathit{nv}} - 1$，第 $i$ 個變數取第 $\mathit{nv} - i$ 位，於是指派依
+$x_1 x_2 \cdots x_{\mathit{nv}}$ 的字典序產生。 \texttt{1LL << nv} 用 \texttt{long long} 做位移，避免
+\texttt{nv} 稍大時溢位。
+
+結構 \texttt{Formula} 包一個用 \texttt{malloc} 要來的文字陣列，函式收結構的指標，用
+\texttt{f->lit[i]} 存取。 鄰接矩陣用 \texttt{calloc} 要一塊 $n \times n$ 個 \texttt{char} 的一維陣列，
+$u$ 列 $v$ 行在 \texttt{adj[u * n + v]}。
+\end{cbookrecap}
+
+\begin{example}[label=ex:npc-sat-is]{c}{(npc\_sat\_is.c) 3-SAT 歸約到獨立集，兩邊用暴力法比對}
+#include <stdio.h>
+#include <stdlib.h>
+
+// 3-CNF 公式：nv 個變數 x1..xnv，k 個子句。 lit[3*j+p] 是
+// 第 j 個子句的第 p 個文字：+i 表示 xi，-i 表示 !xi。
+typedef struct {
+    int nv, k;
+    int *lit;
+} Formula;
+
+// 文字 l 在指派 x[1..nv] 之下是否為真
+int lit_true(int l, const int *x)
+{
+    return l > 0 ? x[l] == 1 : x[-l] == 0;
+}
+
+// 驗證者一：指派 x 是否滿足每一個子句
+int satisfies(const Formula *f, const int *x)
+{
+    for (int j = 0; j < f->k; j++) {
+        int ok = 0;
+        for (int p = 0; p < 3; p++) {
+            ok = ok || lit_true(f->lit[3 * j + p], x);
+        }
+        if (!ok) {
+            return 0;
+        }
+    }
+    return 1;
+}
+
+// 歸約：頂點 3*j+p 對應第 j 個子句的第 p 個文字。 同一個子句
+// 的三個頂點連成三角形，xi 和 !xi 之間連矛盾邊。 回傳鄰接矩陣。
+char *reduce(const Formula *f, int *edges)
+{
+    int n = 3 * f->k;
+    char *adj = calloc((size_t)n * n, 1);
+    *edges = 0;
+    for (int u = 0; u < n; u++) {
+        for (int v = u + 1; v < n; v++) {
+            if (u / 3 == v / 3 || f->lit[u] == -f->lit[v]) {
+                adj[u * n + v] = adj[v * n + u] = 1;
+                (*edges)++;
+            }
+        }
+    }
+    return adj;
+}
+
+// 驗證者二：頂點 s[0..cnt-1] 是否兩兩不相鄰
+int independent(const char *adj, int n, const int *s, int cnt)
+{
+    for (int a = 0; a < cnt; a++) {
+        for (int b = a + 1; b < cnt; b++) {
+            if (adj[s[a] * n + s[b]]) {
+                return 0;
+            }
+        }
+    }
+    return 1;
+}
+
+// 暴力法一：依 x1 x2 ... xnv 的字典序試全部 2^nv 組指派
+int brute_sat(const Formula *f, int *x)
+{
+    for (long long m = 0; m < (1LL << f->nv); m++) {
+        for (int i = 1; i <= f->nv; i++) {
+            x[i] = (int)((m >> (f->nv - i)) & 1);
+        }
+        if (satisfies(f, x)) {
+            return 1;
+        }
+    }
+    return 0;
+}
+
+// 暴力法二：回溯求最大獨立集，不知道圖是怎麼造出來的。
+// cur[0..cnt-1] 是目前選的頂點，接下來決定頂點 v。
+void max_is(const char *adj, int n, int v, int *cur, int cnt,
+            int *best, int *bcnt)
+{
+    if (cnt + (n - v) <= *bcnt) {     // 剩下的全選也贏不了
+        return;
+    }
+    if (v == n) {
+        *bcnt = cnt;
+        for (int i = 0; i < cnt; i++) {
+            best[i] = cur[i];
+        }
+        return;
+    }
+    int ok = 1;
+    for (int i = 0; i < cnt; i++) {
+        if (adj[cur[i] * n + v]) {
+            ok = 0;
+        }
+    }
+    if (ok) {                         // 先試「選 v」
+        cur[cnt] = v;
+        max_is(adj, n, v + 1, cur, cnt + 1, best, bcnt);
+    }
+    max_is(adj, n, v + 1, cur, cnt, best, bcnt);
+}
+
+// 印出頂點 v 標的文字（獨立集依頂點編號印，正好一個子句一個）
+void print_lit(const Formula *f, int v)
+{
+    int l = f->lit[v];
+    printf(" %sx%d", l < 0 ? "!" : "", abs(l));
+}
+
+void print_x(const char *label, const int *x, int nv)
+{
+    printf("%s", label);
+    for (int i = 1; i <= nv; i++) {
+        printf(" %d", x[i]);
+    }
+    printf("\n");
+}
+
+int main(void)
+{
+    int t;
+    if (scanf("%d", &t) != 1) {
+        return 1;
+    }
+    for (int c = 1; c <= t; c++) {
+        Formula f;
+        if (scanf("%d %d", &f.nv, &f.k) != 2) {
+            return 1;
+        }
+        int n = 3 * f.k, edges;
+        f.lit = malloc(n * sizeof *f.lit);
+        for (int i = 0; i < n; i++) {
+            if (scanf("%d", &f.lit[i]) != 1) {
+                free(f.lit);
+                return 1;
+            }
+        }
+        char *adj = reduce(&f, &edges);
+        int *x = calloc(f.nv + 1, sizeof *x);
+        int *cur = malloc(n * sizeof *cur);
+        int *best = malloc(n * sizeof *best);
+        int sat = brute_sat(&f, x), bcnt = 0;
+        max_is(adj, n, 0, cur, 0, best, &bcnt);
+        printf("formula %d: %d vertices, %d edges\n", c, n, edges);
+        printf("sat = %s, max IS = %d (k = %d)\n",
+               sat ? "yes" : "no", bcnt, f.k);
+        if (sat) {           // 方向一：指派 -> 每個子句挑一個真文字
+            print_x("x =", x, f.nv);
+            printf("-> IS:");
+            for (int j = 0; j < f.k; j++) {
+                int p = 0;
+                while (!lit_true(f.lit[3 * j + p], x)) {
+                    p++;
+                }
+                cur[j] = 3 * j + p;
+                print_lit(&f, cur[j]);
+            }
+            printf("\n-> independent? %s\n",
+                   independent(adj, n, cur, f.k) ? "yes" : "no");
+        }
+        if (bcnt == f.k) {   // 方向二：獨立集 -> 指派
+            printf("IS:");
+            for (int i = 1; i <= f.nv; i++) {
+                x[i] = 0;    // 沒被提到的變數給 0
+            }
+            for (int i = 0; i < bcnt; i++) {
+                x[abs(f.lit[best[i]])] = (f.lit[best[i]] > 0);
+                print_lit(&f, best[i]);
+            }
+            printf("\n");
+            print_x("-> x =", x, f.nv);
+            printf("-> satisfies? %s\n",
+                   satisfies(&f, x) ? "yes" : "no");
+        }
+        free(x);
+        free(cur);
+        free(best);
+        free(adj);
+        free(f.lit);
+    }
+    return 0;
+}
+\end{example}
+\iosample{2 \\ 5 4 \\ 1 -2 5 \\ -1 2 -3 \\ 1 3 4 \\ -1 -4 -5 \\ 3 8 \\ 1 2 3 \\ 1 2 -3 \\ 1 -2 3 \\ 1 -2 -3 \\ -1 2 3 \\ -1 2 -3 \\ -1 -2 3 \\ -1 -2 -3}{formula 1: 12 vertices, 20 edges \\ sat = yes, max IS = 4 (k = 4) \\ x = 0 0 0 1 0 \\ -> IS: !x2 !x1 x4 !x1 \\ -> independent? yes \\ IS: x1 x2 x1 !x4 \\ -> x = 1 1 0 0 0 \\ -> satisfies? yes \\ formula 2: 24 vertices, 72 edges \\ sat = no, max IS = 7 (k = 8)}
+
+第一組：$12$ 個頂點、$20$ 條邊（$12$ 條三角形的邊加 $8$ 條矛盾邊），和上面算的一樣。 \texttt{brute\_sat} 依字典序找到的第一組指派是
+$(0, 0, 0, 1, 0)$，每個子句挑第一個為真的文字，得到另一個大小 $4$ 的獨立集。 \texttt{max\_is} 依頂點
+編號先試「選」，找到的正是圖~\ref{fig:npc-sat-is} 的四個藍色頂點，讀回 $(1, 1, 0, 0, 0)$。 第二組：
+$24$ 個頂點，$8$ 個三角形 $24$ 條邊，每個文字和另外四個子句裡它的否定各連一條，共 $24 \times 4 / 2
+= 48$ 條矛盾邊；公式不能滿足，最大獨立集只有 $7 < 8$，兩邊都回答「否」。
+
+兩個暴力法都是指數時間，只能跑小例子；它們的用途是檢查歸約做對了。 歸約本身（\texttt{reduce}）是
+$O(k^2)$。
+
+\subsection{3-SAT 歸約到子集合和}
+\label{sec:npc-subset}
+
+第~20~章的\textbf{子集合和}問題列出所有和為 $M$ 的子集合；這裡用它的決策版本。 \npcP{SUBSET-SUM}：給
+正整數 $s_1, \ldots, s_m$ 和目標 $t$，能不能挑一些數（每個最多一次），和恰好是 $t$？
+
+\begin{theorem}
+\label{thm:npc-subset}
+\npcP{SUBSET-SUM} 是 NP 完備的。
+\end{theorem}
+
+憑證是挑出來的那些數，加起來和 $t$ 比較，所以在 NP 裡。 下面證明 $\npcP{3-SAT} \le_{\mathrm{p}}
+\npcP{SUBSET-SUM}$。 3-CNF 公式有 $n$ 個變數、$k$ 個子句。 造出來的每個數都寫成 $n + k$ 位的
+\textbf{十進位}數，左邊 $n$ 位各對應一個變數，右邊 $k$ 位各對應一個子句：
+
+\begin{itemize}
+\item 每個變數 $x_i$ 造兩個數。 $y_i$ 代表「$x_i$ 為真」：變數位 $i$ 是 $1$，子句位 $j$ 在 $C_j$ 含
+$x_i$ 時是 $1$，其他位是 $0$。 $z_i$ 代表「$x_i$ 為假」：變數位 $i$ 是 $1$，子句位 $j$ 在 $C_j$ 含
+$\neg x_i$ 時是 $1$。
+\item 每個子句 $C_j$ 造兩個一樣的\textbf{補數} $g_j = h_j$：只有子句位 $j$ 是 $1$。
+\item 目標 $t$：每個變數位是 $1$，每個子句位是 $3$。
+\end{itemize}
+
+一共 $2n + 2k$ 個數，每個 $n + k$ 位，寫下它們要 $O((n + k)^2)$ 個數字，是公式長度的多項式。 注意
+這些數的\textbf{數值}大約是 $10^{n+k}$，是公式長度的指數；第~\ref{sec:npc-pseudo}~節會用到這一點。
+
+\begin{proof}[證明（兩個方向）]
+先看一件事：\textbf{加任何一些數都不會進位}。 每一位上最多有幾個數是 $1$？ 變數位 $i$ 只有 $y_i$、
+$z_i$ 兩個；子句位 $j$ 有三個文字對應的數（每個文字的變數不同，各貢獻一個）加上 $g_j$、$h_j$，最多
+$5$。 都小於 $10$，所以挑出來的數相加時，每一位可以分開算。
+
+($\Rightarrow$) 取一組滿足的指派。 $x_i$ 為真就挑 $y_i$，為假就挑 $z_i$，每個變數位剛好是 $1$。 子句
+位 $j$ 等於 $C_j$ 裡為真的文字個數，介於 $1$ 和 $3$ 之間（至少 $1$ 因為指派滿足 $C_j$）；差幾個到
+$3$，就從 $g_j$、$h_j$ 裡挑幾個（$0$、$1$ 或 $2$ 個）。 每一位都和 $t$ 相同，和恰好是 $t$。
+
+($\Leftarrow$) 設挑出來的數和是 $t$。 不會進位，所以每一位分別等於 $t$ 的那一位。 變數位 $i$ 是 $1$，
+表示 $y_i$、$z_i$ 恰好挑了一個：挑 $y_i$ 就令 $x_i = 1$，挑 $z_i$ 就令 $x_i = 0$，得到一組指派。 子句
+位 $j$ 是 $3$，而 $g_j$、$h_j$ 最多貢獻 $2$，所以至少有一個挑出來的 $y_i$ 或 $z_i$ 在這一位是 $1$，
+也就是 $C_j$ 至少有一個文字在這組指派下為真。 每個子句都被滿足。
+\end{proof}
+
+\textbf{例子}。 公式 $\psi = (x_1 \vee x_2 \vee \neg x_3) \wedge (x_1 \vee \neg x_2 \vee x_3)$，$n = 3$、
+$k = 2$，每個數 $5$ 位：
+
+\begin{center}
+\begin{tabular}{c|ccc|cc}
+\toprule
+數 & $x_1$ & $x_2$ & $x_3$ & $C_1$ & $C_2$ \\
+\midrule
+$y_1$ & 1 & 0 & 0 & 1 & 1 \\
+$z_1$ & 1 & 0 & 0 & 0 & 0 \\
+$y_2$ & 0 & 1 & 0 & 1 & 0 \\
+$z_2$ & 0 & 1 & 0 & 0 & 1 \\
+$y_3$ & 0 & 0 & 1 & 0 & 1 \\
+$z_3$ & 0 & 0 & 1 & 1 & 0 \\
+$g_1 = h_1$ & 0 & 0 & 0 & 1 & 0 \\
+$g_2 = h_2$ & 0 & 0 & 0 & 0 & 1 \\
+\midrule
+$t$ & 1 & 1 & 1 & 3 & 3 \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+$z_1$ 的子句位全是 $0$：$\neg x_1$ 沒有出現在任何子句裡。 指派 $x = (1, 1, 0)$ 滿足 $\psi$：$C_1$ 的
+三個文字 $x_1$、$x_2$、$\neg x_3$ 全為真，$C_2$ 只有 $x_1$ 為真。 挑 $y_1 + y_2 + z_3 = 10011 + 01010
++ 00110 = 11131$，$C_1$ 位已經是 $3$，$C_2$ 位只有 $1$，再挑 $g_2$、$h_2$ 補 $2$，得到 $11133 = t$。
+另一方面，指派 $(0, 0, 1)$ 讓 $C_1$ 的三個文字全為假：挑 $z_1$、$z_2$、$y_3$ 之後 $C_1$ 位是 $0$，補數
+最多再加 $2$，湊不到 $3$。
+
+下面的程式照這個構造產生數字，再用和第~18~章 0/1 背包同一種的填表（只記「湊不湊得出」）判斷能不能
+湊出 $t$，並從表中還原挑了哪些數、讀回指派。 動態規劃的表有 $t + 1$ 格，程式在
+超過一千萬格時只印 $t$，不做動態規劃。 第一組輸入是 $\psi$，第二組是上一小節的 $\varphi$。
+
+\begin{example}[label=ex:npc-subset]{c}{(npc\_subset\_sum.c) 3-SAT 歸約到子集合和，再用動態規劃判斷}
+#include <stdio.h>
+#include <stdlib.h>
+
+#define LIMIT 10000000LL   // DP 表超過一千萬格就不做
+
+// 第 i 個數的名字：y1 z1 y2 z2 ... g1 h1 g2 h2 ...
+void print_name(int i, int nv)
+{
+    if (i < 2 * nv) {
+        printf("%c%d", i % 2 ? 'z' : 'y', i / 2 + 1);
+    } else {
+        printf("%c%d", i % 2 ? 'h' : 'g', (i - 2 * nv) / 2 + 1);
+    }
+}
+
+// 3-SAT 歸約到子集合和，再用 DP 判斷。 每個數有 w = nv + k 位
+// （十進位）：左邊 nv 位對應變數，右邊 k 位對應子句。
+void solve(int nv, int k, const int *lit)
+{
+    int w = nv + k, cnt = 2 * w;
+    long long pos[18], p = 1, t = 0;      // pos[d]：由左數第 d 位
+    for (int d = w - 1; d >= 0; d--, p *= 10) {
+        pos[d] = p;
+    }
+    // a[2i-2] = y_i，a[2i-1] = z_i；之後是 g1 h1 g2 h2 ...
+    long long *a = calloc(cnt, sizeof *a);
+    for (int i = 1; i <= nv; i++) {
+        a[2 * i - 2] = a[2 * i - 1] = pos[i - 1];
+        t += pos[i - 1];
+    }
+    for (int j = 0; j < k; j++) {
+        for (int q = 0; q < 3; q++) {   // xi 加到 y_i，!xi 加到 z_i
+            int l = lit[3 * j + q];
+            a[l > 0 ? 2 * l - 2 : -2 * l - 1] += pos[nv + j];
+        }
+        a[2 * nv + 2 * j] = a[2 * nv + 2 * j + 1] = pos[nv + j];
+        t += 3 * pos[nv + j];
+    }
+    printf("t = %0*lld\n", w, t);
+    if (t + 1 > LIMIT) {                  // 表太大：只印 t 就結束
+        printf("DP: %lld cells, skipped\n", t + 1);
+        free(a);
+        return;
+    }
+    for (int i = 0; i < cnt; i += 2) {
+        print_name(i, nv);
+        printf(" %0*lld | ", w, a[i]);
+        print_name(i + 1, nv);
+        printf(" %0*lld\n", w, a[i + 1]);
+    }
+
+    // reach[s]：湊得出 s；from[s]：第一次湊出 s 用的數（編號+1）
+    char *reach = calloc(t + 1, 1), *from = calloc(t + 1, 1);
+    reach[0] = 1;
+    for (int i = 0; i < cnt; i++) {
+        for (long long s = t; s >= a[i]; s--) {   // 每個數只用一次
+            if (reach[s - a[i]] && !reach[s]) {
+                reach[s] = 1;
+                from[s] = (char)(i + 1);
+            }
+        }
+    }
+    printf("DP: %lld cells, %s\n", t + 1, reach[t] ? "yes" : "no");
+    if (reach[t]) {
+        int *x = calloc(nv + 1, sizeof *x);
+        printf("subset:");
+        for (long long s = t; s > 0; s -= a[from[s] - 1]) {
+            int i = from[s] - 1;
+            printf(" ");
+            print_name(i, nv);
+            if (i < 2 * nv && i % 2 == 0) {   // 挑了 y_i：xi 為真
+                x[i / 2 + 1] = 1;
+            }
+        }
+        printf("\n-> x =");
+        for (int i = 1; i <= nv; i++) {
+            printf(" %d", x[i]);
+        }
+        printf("\n");
+        free(x);
+    }
+    free(reach);
+    free(from);
+    free(a);
+}
+
+int main(void)
+{
+    int tc;
+    if (scanf("%d", &tc) != 1) {
+        return 1;
+    }
+    for (int c = 1; c <= tc; c++) {
+        int nv, k;
+        if (scanf("%d %d", &nv, &k) != 2 || nv + k > 18) {
+            return 1;
+        }
+        int *lit = malloc(3 * k * sizeof *lit);
+        for (int i = 0; i < 3 * k; i++) {
+            if (scanf("%d", &lit[i]) != 1) {
+                free(lit);
+                return 1;
+            }
+        }
+        printf("formula %d: %d numbers, %d digits\n",
+               c, 2 * (nv + k), nv + k);
+        solve(nv, k, lit);
+        free(lit);
+    }
+    return 0;
+}
+\end{example}
+\iosample{2 \\ 3 2 \\ 1 2 -3 \\ 1 -2 3 \\ 5 4 \\ 1 -2 5 \\ -1 2 -3 \\ 1 3 4 \\ -1 -4 -5}{formula 1: 10 numbers, 5 digits \\ t = 11133 \\ y1 10011 | z1 10000 \\ y2 01010 | z2 01001 \\ y3 00101 | z3 00110 \\ g1 00010 | h1 00010 \\ g2 00001 | h2 00001 \\ DP: 11134 cells, yes \\ subset: h1 g1 y3 z2 y1 \\ -> x = 1 0 1 \\ formula 2: 18 numbers, 9 digits \\ t = 111113333 \\ DP: 111113334 cells, skipped}
+
+$\psi$ 的表只有 $11134$ 格，動態規劃找到 $h_1 + g_1 + y_3 + z_2 + y_1$，讀回指派 $(1, 0, 1)$：$C_1$ 只
+有 $x_1$ 為真，所以補了 $g_1$、$h_1$；$C_2$ 的三個文字全為真，不用補。 $\varphi$ 只多了兩個變數、兩個子句，數字從 $5$ 位變成 $9$ 位，表
+就要一億一千多萬格。 動態規劃的時間和 $t$ 的\textbf{數值}成正比，而歸約造出來的 $t$ 大約是
+$10^{n+k}$，每多一個變數或子句，表就大十倍。
+
+\textbf{0/1 背包}。 第~18~章 0/1 背包的決策版本 \npcP{KNAPSACK}：給 $w_i$、$v_i$、$W$、$V$，能不能挑一些物
+品，總重不超過 $W$、總價值至少 $V$？ 它在 NP 裡（憑證是挑的物品）。 證明 $\npcP{SUBSET-SUM}
+\le_{\mathrm{p}} \npcP{KNAPSACK}$：令每個物品的重量和價值都等於 $s_i$，$W = V = t$。
+
+\begin{itemize}
+\item ($\Rightarrow$) 挑出的數和恰好是 $t$，同一批物品總重 $t \le W$、總價值 $t \ge V$。
+\item ($\Leftarrow$) 挑出的物品總重不超過 $t$、總價值至少 $t$；兩者是同一個和，所以恰好是 $t$。
+\end{itemize}
+
+所以 \npcP{KNAPSACK} 是 NP 完備的，這就是第~18~章和第~19~章說「0/1 背包目前沒有已知的多項式時間演算
+法」的原因。 在子集合和的數之外再加兩個適當的數，也可以證明\textbf{分割問題}（\npcP{PARTITION}：能不能把一堆正整數分成和相等的
+兩堆）是 NP 完備的，本書不展開。
+
+\subsection{哈密頓環歸約到旅行推銷員問題}
+\label{sec:npc-tsp}
+
+\begin{theorem}[Karp 1972]
+\label{thm:npc-ham}
+\npcP{HAM-CYCLE}（無向圖有沒有哈密頓環）是 NP 完備的。
+\end{theorem}
+
+它在 NP 裡（虛擬碼~\ref{alg:npc-verify-ham}）。 NP 難的證明要從 \npcP{3-SAT} 或 \npcP{VERTEX-COVER}
+歸約過來，需要設計比較複雜的「零件」（gadget）子圖來模擬變數和子句，本書只敘述結論，有興趣可以看
+CLRS 第 34.5.3 節（從頂點覆蓋歸約）或 Sipser 第 7.5 節（從 3-SAT 先歸約到有向圖的哈密頓路徑，再轉成無向圖）。
+
+旅行推銷員問題的決策版本 \npcP{TSP}：給 $n$ 個城市，兩兩之間的成本 $c(i, j) = c(j, i)$ 是非負整數，以
+及門檻 $B$，有沒有一條經過每個城市恰好一次、回到起點、總成本不超過 $B$ 的路線（巡迴）？
+
+\begin{theorem}
+\label{thm:npc-tsp}
+\npcP{TSP} 是 NP 完備的。
+\end{theorem}
+
+\begin{proof}
+\textbf{在 NP 裡}：憑證是城市的排列，檢查它是排列、算總成本和 $B$ 比，$\Theta(n)$。
+
+\textbf{歸約 $\npcP{HAM-CYCLE} \le_{\mathrm{p}} \npcP{TSP}$}。 給無向圖 $G = (V, E)$，$n = |V|$，造 $n$
+個城市（一個頂點一個），成本
+\[
+c(i, j) = \begin{cases} 1, & \{i, j\} \in E, \\ 2, & \{i, j\} \notin E, \end{cases}
+\]
+門檻 $B = n$。 填 $n^2$ 格成本，$\Theta(n^2)$ 時間。
+
+($\Rightarrow$) $G$ 有哈密頓環。 照環的順序走，就是一條經過每個城市一次的巡迴，它的 $n$ 段都是 $G$ 的
+邊，成本 $n \le B$。
+
+($\Leftarrow$) 有一條成本不超過 $n$ 的巡迴。 巡迴恰好有 $n$ 段，每段成本至少 $1$，總和不超過 $n$ 只
+可能每段都是 $1$，也就是每段都是 $G$ 的邊。 這條巡迴照順序就是 $G$ 的一個哈密頓環。
+\end{proof}
+
+成本只用了 $1$ 和 $2$，而 $1 + 1 \ge 2$，所以造出來的實例滿足三角不等式 $c(i, j) \le c(i, k) + c(k,
+j)$。 也就是說，即使限制成本滿足三角不等式（第~29~章的「度量 TSP」），\npcP{TSP} 仍是 NP 完備的。 許
+多課本改用 $0$ 和 $1$（邊的成本 $0$、非邊 $1$、門檻 $0$），證明完全一樣，但那樣造出來的實例不滿足三
+角不等式。
+
+\textbf{例子}。 圖~\ref{fig:npc-ham} 左邊的 $H_1$ 有哈密頓環 $1 \to 2 \to 5 \to 3 \to 4 \to 1$（粗線）。
+歸約出的成本矩陣如下，這條巡迴的成本是 $1 + 1 + 1 + 1 + 1 = 5 = B$，回答「是」。
+
+\begin{center}
+\begin{tikzpicture}[x=1cm, y=1cm]
+\begin{scope}
+\node[npc-v] (h1) at (90:1.35) {1};
+\node[npc-v] (h2) at (18:1.35) {2};
+\node[npc-v] (h5) at (-54:1.35) {5};
+\node[npc-v] (h3) at (-126:1.35) {3};
+\node[npc-v] (h4) at (162:1.35) {4};
+\draw[npc-ham] (h1) -- (h2) -- (h5) -- (h3) -- (h4) -- (h1);
+\draw[npc-e] (h2) -- (h3);
+\draw[npc-e] (h4) -- (h5);
+\node[npc-t] at (0, -1.9) {$H_1$};
+\end{scope}
+\begin{scope}[xshift=5.2cm]
+\node[npc-v] (k1) at (-1.6, 0.8) {1};
+\node[npc-v] (k2) at (-1.6, -0.8) {2};
+\node[npc-v] (k3) at (0, 0) {3};
+\node[npc-v] (k4) at (1.6, 0.8) {4};
+\node[npc-v] (k5) at (1.6, -0.8) {5};
+\foreach \a/\b in {1/2, 1/3, 2/3, 3/4, 3/5, 4/5}
+    \draw[npc-e] (k\a) -- (k\b);
+\node[npc-t] at (0, -1.9) {$H_2$};
+\end{scope}
+\end{tikzpicture}
+\diagcaption{$H_1$ 有哈密頓環（粗線）；$H_2$ 沒有，因為頂點 $3$ 是割點。}
+\label{fig:npc-ham}
+\end{center}
+
+\begin{center}
+\begin{tabular}{c|ccccc}
+\toprule
+$c(i, j)$ & 1 & 2 & 3 & 4 & 5 \\
+\midrule
+1 & -- & 1 & 2 & 1 & 2 \\
+2 & 1 & -- & 1 & 2 & 1 \\
+3 & 2 & 1 & -- & 1 & 1 \\
+4 & 1 & 2 & 1 & -- & 1 \\
+5 & 2 & 1 & 1 & 1 & -- \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+右邊的 $H_2$ 是兩個共用頂點 $3$ 的三角形。 哈密頓環刪掉一個頂點後還是連通的（剩下一條路徑），但
+$H_2$ 刪掉 $3$ 就斷成兩塊（$3$ 是第~23~章的割點），所以 $H_2$ 沒有哈密頓環。 對應的 \npcP{TSP} 實例
+每條巡迴都至少要用一段成本 $2$，例如 $1 \to 2 \to 3 \to 4 \to 5 \to 1$ 的成本是 $1 + 1 + 1 + 1 + 2 =
+6 > 5$，回答「否」，和 $H_2$ 一致。
+
+\textbf{哈密頓路徑與最長路徑}。 \npcP{HAM-PATH}（有沒有一條經過每個頂點恰好一次的路徑）也是 NP 完備
+的（同樣只敘述）。 第~18~章說過最長簡單路徑沒有最佳子結構；它的決策版本 \npcP{LONGEST-PATH}（給 $G$
+和 $L$，有沒有一條至少 $L$ 條邊的簡單路徑）是 NP 完備的：憑證是那條路徑；而 $\npcP{HAM-PATH}
+\le_{\mathrm{p}} \npcP{LONGEST-PATH}$ 只要取 $L = n - 1$，因為恰好 $n - 1$ 條邊的簡單路徑經過全部 $n$
+個頂點，正是哈密頓路徑。 第~25~章的最短路徑在 P 裡，換成「最長」就變成 NP 完備；在 DAG 上的最長路
+徑則因為沒有環，可以用第~22~章的拓樸順序加動態規劃在線性時間內解決。
+
+\subsection{其他常見的 NP 完備問題}
+
+下面這些問題也是 NP 完備的，本書只敘述結論。 右欄是外表很像、卻在 P 裡的問題，研究所考試很常拿來對
+照。
+
+\begin{center}
+\begin{tabular}{p{0.44\linewidth}p{0.46\linewidth}}
+\toprule
+NP 完備 & 相近但在 P 裡 \\
+\midrule
+\npcP{3-SAT}：每個子句三個文字 & 2-SAT：每個子句兩個文字（第~23~章，強連通元件） \\
+\npcP{3-COLOR}：三種顏色著色（第~20~章的 $m$ 著色，$m \ge 3$）& 兩種顏色著色，就是判斷二分圖（第~21~章）\\
+\npcP{HAM-CYCLE}：每個\textbf{頂點}恰好經過一次 & 歐拉環：每條\textbf{邊}恰好經過一次（連通且每個頂點
+度數都是偶數） \\
+\npcP{LONGEST-PATH}：最長簡單路徑 & 最短路徑（第~25~章）；DAG 上的最長路徑（第~22~章） \\
+\npcP{IND-SET}：一般圖的最大獨立集 & 樹上的最大獨立集（樹形動態規劃）\\
+\npcP{SUBSET-SUM}、\npcP{KNAPSACK} & 分數背包（第~19~章，貪心）\\
+最大割：把頂點分兩邊，跨兩邊的邊最多 & 最小割（第~26~章，最大流）\\
+\npcP{VERTEX-COVER}：一般圖的最小頂點覆蓋 & 二分圖的最小頂點覆蓋（大小等於最大匹配，可用第~26~章的最大流求）\\
+\bottomrule
+\end{tabular}
+\end{center}
+
+這張表要記住的是：問題的外表只差一點，難度可以從多項式跳到 NP 完備。 判斷一個新問題時，不要只看它
+「像」哪一個問題。
+
+\section{擬多項式時間與強 NP 完備}
+\label{sec:npc-pseudo}
+
+\subsection{\texorpdfstring{$\Theta(mt)$}{Θ(mt)} 的動態規劃並沒有證明 P = NP}
+
+\npcP{SUBSET-SUM} 有一個 $\Theta(mt)$ 的動態規劃（$m$ 個數、目標 $t$，範例~\ref{ex:npc-subset} 用的就是
+它），\npcP{KNAPSACK} 有第~18~章 $\Theta(nW)$ 的動態規劃。 它們都是 NP 完備問題，看起來卻有多項式
+時間的演算法，難道 $\mathrm{P} = \mathrm{NP}$？
+
+答案在第~\ref{sec:ana-input-size}~節：輸入大小是位元數。 $t$ 只占 $b = \lceil \lg(t + 1) \rceil$ 個
+位元，$\Theta(mt) = \Theta(m \cdot 2^b)$ 是輸入長度的指數。 範例~\ref{ex:npc-subset} 的第二組輸入就是
+實例：輸入只是 $18$ 個九位數，表卻有一億多格。 這種演算法叫擬多項式時間。
+
+\begin{definition}[擬多項式時間]
+\label{def:npc-pseudo}
+一個處理整數的演算法是\textbf{擬多項式時間}（pseudo-polynomial time）的，如果它的時間是輸入長度 $N$
+和輸入中最大的數值 $M$ 這兩者的多項式。
+\end{definition}
+
+$M$ 最大可以到 $2^N$ 左右，所以擬多項式時間不一定是多項式時間。 但如果實例裡的數都不大（例如 $M \le
+N^2$），擬多項式時間的演算法在這些實例上就是多項式時間。 第~\ref{sec:npc-search}~節「從 $B = 0$ 一
+個一個問」的做法也是同一回事：問的次數是 $C$ 的數值的多項式，是擬多項式。
+
+用一進位寫數字（$t$ 寫成 $t$ 個 $1$）時，輸入長度至少是 $t$，$\Theta(mt)$ 就成了輸入長度的多項式。
+所以「一進位編碼的子集合和」在 P 裡。 這不矛盾：一進位把輸入灌大了指數倍，演算法相對於這個膨脹過
+的長度當然顯得快。 這也是第~\ref{sec:npc-decision}~節說一進位不算合理編碼的原因。
+
+\subsection{強 NP 完備與弱 NP 完備}
+
+子集合和的 NP 完備性完全靠「數很大」：第~\ref{sec:npc-subset}~節的歸約造出約 $10^{n+k}$ 的數，如果數
+值被限制在輸入長度的多項式以內，動態規劃就能在多項式時間內解掉。 有些問題不是這樣，數再小也一樣難。
+
+\begin{definition}[強 NP 完備]
+\label{def:npc-strong}
+一個 NP 完備問題是\textbf{強 NP 完備}（strongly NP-complete）的，如果存在多項式 $q$，使得它限制在
+「所有數都不超過 $q(N)$」的實例上仍是 NP 完備的。 有擬多項式時間演算法的 NP 完備問題叫\textbf{弱 NP
+完備}（weakly NP-complete）。
+\end{definition}
+
+\begin{theorem}
+\label{thm:npc-strong}
+如果 $\mathrm{P} \ne \mathrm{NP}$，強 NP 完備的問題沒有擬多項式時間演算法。
+\end{theorem}
+
+\begin{proof}
+設強 NP 完備的問題 $A$ 有時間 $O((NM)^c)$ 的演算法。 把它用在「所有數都不超過 $q(N)$」的實例上，時
+間是 $O((N q(N))^c)$，是多項式。 這個受限的版本是 NP 完備的，由定理~\ref{thm:npc-pnp}，
+$\mathrm{P} = \mathrm{NP}$。
+\end{proof}
+
+\begin{itemize}
+\item \npcP{TSP} 是強 NP 完備的：定理~\ref{thm:npc-tsp} 的歸約只用了成本 $1$ 和 $2$，限制成本不超過
+$2$ 的 \npcP{TSP} 仍是 NP 完備。 所以不要期待 \npcP{TSP} 有「依成本大小」的動態規劃。
+\item 輸入裡根本沒有數值的問題（\npcP{SAT}、\npcP{CLIQUE}、\npcP{HAM-CYCLE}）照定義都是強 NP 完備的。
+\item \npcP{SUBSET-SUM}、\npcP{KNAPSACK}、\npcP{PARTITION} 都是弱 NP 完備的：有擬多項式時間的動態規劃。
+\item 裝箱問題（bin packing）和 3-分割問題（把 $3q$ 個數分成 $q$ 組、每組三個數、和都相同）是強 NP
+完備的，雖然它們看起來和分割問題很像（只敘述）。
+\end{itemize}
+
+\begin{examnote}
+題目問某個演算法「是不是多項式時間」時，先寫出輸入長度：$n$ 個不超過 $M$ 的整數，長度約
+$n \lg M$ 位元。 再把時間寫成 $n$ 和 $\lg M$ 的函數。 $\Theta(nM)$、$\Theta(n\sqrt{M})$ 都含有 $M$ 本身，
+是 $\lg M$ 的指數，屬於擬多項式；$\Theta(n^2 \lg M)$ 才是多項式。
+\end{examnote}
+
+\section{遇到 NP 完備問題怎麼辦}
+\label{sec:npc-cope}
+
+證明一個問題是 NP 完備的，意思是「不要再找對所有輸入都又快又正確的演算法」，但問題還是要解。 常見
+的方向有幾種，本書前後幾章都已經或將會用到：
+
+\begin{itemize}
+\item \textbf{看輸入有沒有特別的結構}。 圖是樹、是 DAG、是二分圖，或子句只有兩個文字時，很多 NP 完備
+問題會變成多項式時間（上一節的表）。 NP 完備說的是\textbf{最壞情況}，不是每個實例都難。
+\item \textbf{數不大時用擬多項式時間}。 背包、子集合和在容量、目標不大時，第~18~章的動態規劃非常實用。
+\item \textbf{聰明一點的指數時間}。 第~20~章的回溯和分支限界靠剪枝讓實際試的組合少很多；\npcP{TSP} 用
+「子集合 $\times$ 終點」當狀態的動態規劃是 $O(n^2 2^n)$，比 $(n - 1)!$ 條路線少得多。
+\item \textbf{參數小時}。 頂點覆蓋問 $k$ 個頂點夠不夠：任取一條還沒被覆蓋的邊 $\{u, v\}$，$u$、$v$ 至少
+要選一個，分兩支遞迴，每支 $k$ 減 $1$，搜尋樹最多 $2^k$ 個葉子，時間 $O(2^k (n + m))$。 $k$ 很小時，
+即使 $n$ 很大也跑得動。
+\item \textbf{近似}。 不求最佳解，只求保證離最佳解不遠的解，例如頂點覆蓋的 2-近似，見第~29~章。
+\end{itemize}
+
+\section{本章常見錯誤}
+\label{sec:npc-pitfalls}
+
+\begin{center}
+\begin{tabular}{p{0.24\linewidth}p{0.50\linewidth}p{0.16\linewidth}}
+\toprule
+寫歸約時的錯誤 & 例子 & 見 \\
+\midrule
+歸約方向反了 & 要證新問題 $B$ 是 NP 難的，卻證了 $B \le_{\mathrm{p}} \npcP{3-SAT}$；這只說明 $B$ 不比
+\npcP{3-SAT} 難 & 第~\ref{sec:npc-reduce}~節 \\
+只證一個方向 & 只證「$\varphi$ 可以滿足 $\Rightarrow$ 圖有大小 $k$ 的獨立集」；把每個實例都送到同一個
+是實例的 $f$ 也滿足這一半 & 第~\ref{sec:npc-reduce}~節 \\
+構造時偷看答案 & 「$\varphi$ 可以滿足就輸出一個三角形，否則輸出一條邊」：$f$ 要先判斷 $\varphi$，這本身
+就不知道能不能在多項式時間做到 & 第~\ref{sec:npc-reduce}~節 \\
+構造的大小不是多項式 & 把 $\varphi$ 的 $2^n$ 組指派各做成一個頂點；$f$ 的時間（和輸出長度）必須是多項式
+& 第~\ref{sec:npc-reduce}~節 \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\begin{center}
+\begin{tabular}{p{0.24\linewidth}p{0.50\linewidth}p{0.16\linewidth}}
+\toprule
+觀念上的錯誤 & 例子 & 見 \\
+\midrule
+把 NP 讀成「非多項式」 & 「NP 的問題都沒有多項式時間演算法」；其實 $\mathrm{P} \subseteq
+\mathrm{NP}$ & 第~\ref{sec:npc-np}~節 \\
+把猜想當成定理 & 「已經證明 \npcP{TSP} 沒有多項式時間演算法」；要說「除非 $\mathrm{P} = \mathrm{NP}$」
+& 第~\ref{sec:npc-np}~節 \\
+以為 NP 難的都在 NP 裡 & 說「求最短巡迴是 NP 完備的」；最佳化問題不是決策問題，只能說 NP 難 &
+第~\ref{sec:npc-npc}~節 \\
+忘了證在 NP 裡 & 只給了歸約就說「NP 完備」，得到的其實只有 NP 難 & 第~\ref{sec:npc-npc}~節 \\
+特殊情形和一般化搞反 & 「2-SAT 是 3-SAT 的特殊情形，所以 2-SAT 也是 NP 完備」；特殊情形可能比較簡單
+& 第~\ref{sec:npc-chain}~節 \\
+用數值當輸入大小 & 「子集合和有 $\Theta(mt)$ 的動態規劃，所以 $\mathrm{P} = \mathrm{NP}$」 &
+第~\ref{sec:npc-pseudo}~節 \\
+以為每個實例都難 & 「獨立集是 NP 完備的，所以樹上的最大獨立集也沒有多項式時間演算法」 &
+第~\ref{sec:npc-cope}~節 \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\section{觀念題}
+\label{sec:npc-exercises}
+
+題型和研究所考試、期中期末考的筆試相近，有選擇、計算、追蹤和證明。 除非題目另外說明，都可以使用本章
+證明或敘述過的 NP 完備問題（\npcP{SAT}、\npcP{3-SAT}、\npcP{IND-SET}、\npcP{CLIQUE}、
+\npcP{VERTEX-COVER}、\npcP{SUBSET-SUM}、\npcP{KNAPSACK}、\npcP{HAM-CYCLE}、\npcP{HAM-PATH}、\npcP{TSP}、
+\npcP{3-COLOR}）。 解答在本章最後。
+
+\begin{enumerate}
+\item （選擇，可能不只一個答案）下列哪些敘述正確？
+\begin{enumerate}
+\item $\mathrm{P} \subseteq \mathrm{NP}$。
+\item NP 是所有「不能在多項式時間內解決」的決策問題所成的集合。
+\item 只要有一個 NP 完備問題有多項式時間演算法，就有 $\mathrm{P} = \mathrm{NP}$。
+\item 每一個 NP 難的問題都在 NP 裡。
+\item 若決策問題 $A$ 在 NP 裡，則 $A$ 的補問題（是、否對調）也在 NP 裡。
+\item 若 $\mathrm{P} \ne \mathrm{NP}$，則 NP 完備問題的每一個實例都要指數時間才能解。
+\end{enumerate}
+
+\item （選擇，可能不只一個答案）已知 $A \le_{\mathrm{p}} B$。 下列哪些\textbf{一定}成立？
+\begin{enumerate}
+\item 若 $B \in \mathrm{P}$，則 $A \in \mathrm{P}$。
+\item 若 $A \in \mathrm{P}$，則 $B \in \mathrm{P}$。
+\item 若 $A$ 是 NP 完備的且 $B \in \mathrm{NP}$，則 $B$ 是 NP 完備的。
+\item 若 $B$ 是 NP 完備的，則 $A$ 是 NP 完備的。
+\item 若 $A \notin \mathrm{P}$，則 $B \notin \mathrm{P}$。
+\item $B \le_{\mathrm{p}} A$。
+\end{enumerate}
+
+\item （是非，說明理由）「子集合和問題有 $\Theta(mt)$ 的動態規劃，$m$ 是數的個數、$t$ 是目標；而子集合
+和是 NP 完備的，所以 $\mathrm{P} = \mathrm{NP}$。」
+
+\item （分類）輸入是 $n$ 個正整數，每個都不超過 $M$。 下列執行時間各是多項式時間、擬多項式時間（但不
+是多項式時間），還是兩者都不是？ 說明理由。
+\begin{gather*}
+\text{(a) } \Theta(n^3 \lg M) \qquad \text{(b) } \Theta(nM) \qquad \text{(c) } \Theta(n\sqrt{M}) \\
+\text{(d) } \Theta(2^n \lg M) \qquad \text{(e) } \Theta(n^2 (\lg M)^3) \qquad \text{(f) } \Theta(n^{\lg M})
+\end{gather*}
+
+\item （追蹤）用第~\ref{sec:npc-sat-3sat}~節的方法把
+\[
+\beta = (x_1 \vee \neg x_2 \vee x_3 \vee \neg x_4 \vee x_5 \vee x_6) \wedge (\neg x_3 \vee x_4) \wedge
+(\neg x_1) \wedge (x_2 \vee \neg x_5 \vee \neg x_6)
+\]
+換成 3-CNF。
+\begin{enumerate}
+\item 寫出換出來的每一個子句，新公式有幾個子句、幾個變數？
+\item 指派 $x = (0, 1, 1, 1, 0, 0)$ 滿足 $\beta$。 照證明的做法替新變數決定值，並逐一檢查第一個子句換出
+來的子句都為真。
+\item 一般地，長度 $r \ge 4$ 的子句換出幾個子句、幾個新變數？ 為什麼整個歸約是線性時間？
+\end{enumerate}
+
+\item （追蹤）對公式 $\rho = (x_1 \vee x_2 \vee \neg x_3) \wedge (\neg x_1 \vee x_3 \vee x_4) \wedge
+(\neg x_2 \vee \neg x_4 \vee x_3)$ 做第~\ref{sec:npc-sat-is}~節的歸約。
+\begin{enumerate}
+\item 圖有幾個頂點、幾條三角形的邊、幾條矛盾邊？ 列出每一條矛盾邊。
+\item 找一個大小 $3$ 的獨立集，並讀出對應的指派，驗證它滿足 $\rho$。
+\item 找一個包含 $C_1$ 的 $\neg x_3$ 的大小 $3$ 的獨立集，或說明不存在。
+\end{enumerate}
+
+\item （計算）用第~\ref{sec:npc-subset}~節的公式 $\psi$ 和它的數字表。
+\begin{enumerate}
+\item 指派 $(1, 0, 0)$ 滿足 $\psi$。 寫出它對應的子集合（含補數），並驗算和是 $t$。
+\item 一共有幾個子集合的和恰好是 $t$？（$g_j$、$h_j$ 數值相同，但算成兩個不同的數。）
+\item 如果把每個數改用\textbf{二進位}解讀（同樣的 $0$、$1$ 位，但每一位代表 $2$ 的次方；$t$ 的子句位
+仍是 $3$），證明裡哪一句話不再成立？ 找一個和是 $t$、卻不對應任何指派的子集合。
+\end{enumerate}
+
+\item （證明）$k$-\npcP{COLOR}：給圖 $G$，能不能用 $k$ 種顏色替頂點著色，使每條邊兩端不同色？ 已知
+\npcP{3-COLOR} 是 NP 完備的。 證明 \npcP{4-COLOR} 是 NP 完備的，並說明怎麼推廣到每個 $k \ge 3$。
+（提示：期末考如果多了一個時段，可以多排一門「和每門課都衝突」的課。）
+
+\item （證明）設 $G$ 至少有兩個頂點。 令 $G'$ 是在 $G$ 上加一個新頂點 $w$，並把 $w$ 和 $G$ 的每個頂點
+相連。
+\begin{enumerate}
+\item 證明：$G$ 有哈密頓路徑若且唯若 $G'$ 有哈密頓環。
+\item 這給出哪一個方向的歸約？ 它能不能用來證明 \npcP{HAM-PATH} 是 NP 難的？ 如果不能，它證明了什麼？
+\end{enumerate}
+
+\item （證明）社團要選 $k$ 位幹部，名單上有些同學兩兩合不來，不能同時當選；另外有一群同學 $R$ 是指定
+一定要選的。 \npcP{TEAM}：給合不來關係的圖 $G$、整數 $k$ 和集合 $R$，有沒有 $k$ 位兩兩合得來、而且
+包含 $R$ 全部的人選？
+\begin{enumerate}
+\item 證明 \npcP{TEAM} 是 NP 完備的。
+\item 反過來，說明怎麼用一次解 \npcP{IND-SET} 的程序回答 \npcP{TEAM}，所以兩者一樣難。
+\end{enumerate}
+
+\item （是非，說明理由）
+\begin{enumerate}
+\item 「2-SAT 是 \npcP{3-SAT} 的特殊情形，而 \npcP{3-SAT} 是 NP 完備的，所以 2-SAT 也是 NP 完備的。」
+\item 「\npcP{SAT} 包含 \npcP{3-SAT} 當特殊情形，\npcP{3-SAT} 是 NP 難的，所以 \npcP{SAT} 也是 NP 難的。」
+\item 「要證明新問題 $B$ 是 NP 難的，可以寫一個把 $B$ 的實例轉成 3-CNF 公式的多項式時間歸約。」
+\item 「\npcP{3-SAT} 是 \npcP{SAT} 的特殊情形，所以只要說明這一點，就證明了 \npcP{3-SAT} 是 NP 難的。」
+\end{enumerate}
+
+\item （證明）$C$ 表示 \npcP{TSP} 實例裡最大的成本。
+\begin{enumerate}
+\item 證明：如果 \npcP{TSP} 有時間 $O((nC)^5)$ 的演算法，則 $\mathrm{P} = \mathrm{NP}$。
+\item 0/1 背包有 $\Theta(nW)$ 的演算法，形式和 (a) 的假設很像，為什麼不能得到同樣的結論？
+\end{enumerate}
+
+\item （計算）完全二分圖 $K_{2,3}$：頂點 $1, 2$ 在一邊、$3, 4, 5$ 在另一邊，兩邊之間每一對都有邊，同一
+邊內沒有邊。
+\begin{enumerate}
+\item 寫出定理~\ref{thm:npc-tsp} 的歸約得到的成本矩陣和門檻 $B$。
+\item 求最便宜的巡迴成本，並證明不可能更小。
+\item 由 (b) 判斷 $K_{2,3}$ 有沒有哈密頓環。
+\end{enumerate}
+\end{enumerate}
+
+\section{實作練習}
+\label{sec:npc-practice}
+
+Aki-Judge 目前沒有和本章對應的題目；這一章的練習以觀念題為主。 範例~\ref{ex:npc-sat-is} 和
+範例~\ref{ex:npc-subset} 可以拿來檢查追蹤題：把觀念題 6 的 $\rho$ 改成輸入，程式會印出圖的頂點數、邊
+數和一組大小 $3$ 的獨立集。 第二支程式的第一組輸入就是觀念題 7 的 $\psi$，可以把它改成只輸出「和是
+$t$ 的子集合有幾個」，對照觀念題 7(b) 的答案。
+
+\section{讀完你應該會}
+\label{sec:npc-checklist}
+
+\begin{itemize}
+\item 能把最佳化問題寫成決策版本，並用決策版本的演算法（自我歸約或二分搜尋）求出最佳解，判斷呼叫次數
+是不是輸入長度的多項式。
+\item 能替一個問題說出憑證和驗證者，判斷它在不在 NP 裡；能說明 $\mathrm{P} \subseteq \mathrm{NP}$，不把
+NP 當成「非多項式」。
+\item 能寫出多項式時間歸約的定義，判斷題目裡歸約的方向，並推出「若 $B \in \mathrm{P}$ 則 $A \in
+\mathrm{P}$」這類結論。
+\item 能照四步證明一個問題是 NP 完備的；對 \npcP{SAT} $\to$ \npcP{3-SAT}、\npcP{3-SAT} $\to$
+\npcP{IND-SET}、\npcP{IND-SET} $\to$ \npcP{CLIQUE}／\npcP{VERTEX-COVER}、\npcP{3-SAT} $\to$
+\npcP{SUBSET-SUM}、\npcP{HAM-CYCLE} $\to$ \npcP{TSP}，能寫出構造、證明兩個方向，並在小例子上實際做一次。
+\item 能分辨多項式、擬多項式和指數時間，說明 0/1 背包的 $\Theta(nW)$ 為什麼沒有證明 $\mathrm{P} =
+\mathrm{NP}$，以及強、弱 NP 完備的差別。
+\end{itemize}
+
+\textbf{延伸閱讀}（書末會整理完整的參考資料）
+
+\begin{itemize}
+\item Thomas H. Cormen 等，\textit{Introduction to Algorithms}，第 4 版，第 34 章：用電路可滿足性證明
+Cook--Levin 定理，並完整證明哈密頓環、子集合和等問題的 NP 完備性。
+\item Michael Sipser，\textit{Introduction to the Theory of Computation}，第 3 版，第 7 章：從圖靈機的角度
+定義 P 和 NP，第 7.4、7.5 節是 Cook--Levin 定理和一串歸約，零件的畫法很清楚。
+\item Michael R. Garey、David S. Johnson，\textit{Computers and Intractability: A Guide to the Theory of
+NP-Completeness}，1979：附錄列了三百多個 NP 完備問題，第 4 章講強 NP 完備；遇到新問題時可以先查這本。
+\item Jon Kleinberg、Éva Tardos，\textit{Algorithm Design}，第 8 章：把 NP 完備問題分成幾大類（打包、覆
+蓋、排列、分割、數值），對「從哪一個問題歸約過來」很有幫助。
+\item Steven S. Skiena，\textit{The Algorithm Design Manual}，第 3 版，第 11 章：從實務的角度談怎麼證
+明、怎麼面對 NP 完備問題。
+\item Stephen A. Cook，``The Complexity of Theorem-Proving Procedures''，STOC 1971；Richard M. Karp，
+``Reducibility Among Combinatorial Problems''，1972：第一個 NP 完備問題，以及最早的二十一個 NP 完備問題。
+\end{itemize}
+
+\addcontentsline{toc}{section}{觀念題解答}
+\section*{觀念題解答}
+
+\begin{enumerate}
+\item (a)、(c) 正確。 (b)：P 裡的問題都在 NP 裡，NP 是 nondeterministic polynomial 的縮寫。 (d)：停機問題
+是 NP 難的，但沒有演算法能解，不在 NP 裡；求最短巡迴這種最佳化問題也不在 NP 裡。 (e)：這是
+$\mathrm{NP} = \text{co-NP}$ 的問題，目前不知道；例如「公式不能滿足」沒有已知的短憑證。 (f)：NP 完備說
+的是最壞情況。 很多實例（例如沒有矛盾的公式、樹狀的圖）很容易；而且 $\mathrm{P} \ne \mathrm{NP}$ 只保證
+沒有多項式時間演算法，不代表一定要指數時間（例如 $n^{\lg n}$ 介於兩者之間）。
+
+\item (a)、(c)、(e) 一定成立。 (a) 是引理~\ref{lem:npc-reduce-p}，(e) 是 (a) 的換質位。 (c) 是引
+理~\ref{lem:npc-recipe}。 (b)：$A$ 簡單不代表 $B$ 簡單；P 裡的任何問題都能歸約到 \npcP{3-SAT}（直接在
+多項式時間內解出答案，再輸出一個固定的是實例或否實例），但不能因此說 \npcP{3-SAT} 在 P 裡。 (d)：同一
+個例子，$A$ 在 P 裡、$B = \npcP{3-SAT}$；除非 $\mathrm{P} = \mathrm{NP}$，$A$ 不是 NP 完備的。 (f)：歸
+約不必反過來成立。
+
+\item 錯。 輸入大小是寫下 $m$ 個數和 $t$ 所需的位元數，$t$ 只占約 $\lg t$ 個位元，$\Theta(mt) = \Theta(m 2^{\lg t})$ 是位元數的指數，屬於擬多項式時間，不是多
+項式時間。 第~\ref{sec:npc-subset}~節的歸約造出來的 $t$ 大約是 $10^{n+k}$，這時動態規劃要指數時間。
+
+\item 輸入長度約 $n \lg M$。
+(a) 多項式。 (b) 擬多項式：$M = 2^{\lg M}$ 是 $\lg M$ 的指數。 (c) 擬多項式：$\sqrt{M} = 2^{(\lg M)/2}$，
+仍是 $\lg M$ 的指數，但它是 $n$ 和 $M$ 的多項式。 (d) 兩者都不是：$2^n$ 連 $n$ 的多項式都不是。 (e) 多項
+式。 (f) 兩者都不是：$n^{\lg M} = M^{\lg n}$，$M$ 的次方隨 $n$ 變大，不是 $n$ 和 $M$ 的多項式（固定
+$M = 2$ 時是 $n$，但 $M = n$ 時是 $n^{\lg n}$）。
+
+\item
+\begin{enumerate}
+\item 第一個子句 $r = 6$，用 $a_1, a_2, a_3$：
+$(x_1 \vee \neg x_2 \vee a_1) \wedge (\neg a_1 \vee x_3 \vee a_2) \wedge (\neg a_2 \vee \neg x_4 \vee a_3)
+\wedge (\neg a_3 \vee x_5 \vee x_6)$。 第二個子句 $r = 2$，用 $b$：$(\neg x_3 \vee x_4 \vee b) \wedge
+(\neg x_3 \vee x_4 \vee \neg b)$。 第三個子句 $r = 1$，用 $c$、$d$：$(\neg x_1 \vee c \vee d) \wedge
+(\neg x_1 \vee c \vee \neg d) \wedge (\neg x_1 \vee \neg c \vee d) \wedge (\neg x_1 \vee \neg c \vee
+\neg d)$。 第四個子句不變。 共 $4 + 2 + 4 + 1 = 11$ 個子句，$6 + 3 + 1 + 2 = 12$ 個變數。
+\item 檢查 $\beta$：第一個子句靠 $x_3$，第二個靠 $x_4$，第三個靠 $\neg x_1$，第四個靠 $x_2$。 第一個子句
+裡為真的是 $\ell_3 = x_3$，令 $a_1 = 1$、$a_2 = a_3 = 0$：$(x_1 \vee \neg x_2 \vee a_1)$ 靠 $a_1$；
+$(\neg a_1 \vee x_3 \vee a_2)$ 靠 $x_3$；$(\neg a_2 \vee \neg x_4 \vee a_3)$ 靠 $\neg a_2$；
+$(\neg a_3 \vee x_5 \vee x_6)$ 靠 $\neg a_3$。 $b$、$c$、$d$ 任意。
+\item $r - 2$ 個子句、$r - 3$ 個新變數。 每個子句換出的文字個數最多是原來長度的常數倍（$r = 1$ 時 $12$
+個文字、$r \ge 4$ 時 $3(r - 2) < 3r$），所以新公式長度是原公式的常數倍，掃一遍就能寫出來。
+\end{enumerate}
+
+\item
+\begin{enumerate}
+\item $9$ 個頂點、$9$ 條三角形的邊、$5$ 條矛盾邊：$x_1$($C_1$)--$\neg x_1$($C_2$)、$x_2$($C_1$)--$\neg x_2$
+($C_3$)、$\neg x_3$($C_1$)--$x_3$($C_2$)、$\neg x_3$($C_1$)--$x_3$($C_3$)、$x_4$($C_2$)--$\neg x_4$($C_3$)。
+\item 例如 $\{x_2(C_1), x_3(C_2), x_3(C_3)\}$：兩個 $x_3$ 是同一個文字，沒有邊；$x_2$ 的矛盾邊連到
+$\neg x_2(C_3)$，沒被選。 讀出 $x_2 = x_3 = 1$，$x_1$、$x_4$ 任意（例如都給 $0$）。 驗證：$C_1$ 靠
+$x_2$，$C_2$、$C_3$ 靠 $x_3$。
+\item 選了 $\neg x_3(C_1)$，兩個 $x_3$ 都不能選。 $C_2$ 只能選 $\neg x_1$ 或 $x_4$，$C_3$ 只能選
+$\neg x_2$ 或 $\neg x_4$，而 $x_4$、$\neg x_4$ 不能同時選。 例如 $\{\neg x_3(C_1), \neg x_1(C_2),
+\neg x_2(C_3)\}$，對應 $x_1 = x_2 = x_3 = 0$；或 $\{\neg x_3(C_1), x_4(C_2), \neg x_2(C_3)\}$，對應
+$x_2 = x_3 = 0$、$x_4 = 1$。 都滿足 $\rho$。
+\end{enumerate}
+
+\item
+\begin{enumerate}
+\item $x_1 = 1$ 挑 $y_1 = 10011$，$x_2 = 0$ 挑 $z_2 = 01001$，$x_3 = 0$ 挑 $z_3 = 00110$，和是
+$11122$：$C_1$ 有 $x_1$、$\neg x_3$ 兩個文字為真，$C_2$ 有 $x_1$、$\neg x_2$ 兩個。 兩個子句各差 $1$，
+挑 $g_1 = 00010$ 和 $g_2 = 00001$（或換成 $h_1$、$h_2$），總和 $11133 = t$。
+\item 每組滿足的指派決定了 $y$、$z$ 怎麼挑；子句 $j$ 有 $c_j$ 個文字為真時，要從 $g_j$、$h_j$ 挑
+$3 - c_j$ 個，有 $\binom{2}{3 - c_j}$ 種（$c_j = 2$ 時 $2$ 種，其他 $1$ 種）。 $8$ 組指派中 $(0, 0, 1)$
+不滿足 $C_1$、$(0, 1, 0)$ 不滿足 $C_2$，其餘六組的 $(c_1, c_2)$ 是：$(0, 0, 0)$：$(1, 1)$；
+$(0, 1, 1)$：$(1, 1)$；$(1, 0, 0)$：$(2, 2)$；$(1, 0, 1)$：$(1, 3)$；$(1, 1, 0)$：$(3, 1)$；
+$(1, 1, 1)$：$(2, 2)$。 子集合個數 $1 + 1 + 4 + 1 + 1 + 4 = 12$。
+\item 「加任何一些數都不會進位」不再成立：二進位每一位只要有兩個 $1$ 就進位。 例如挑 $y_1$、$z_1$、
+$g_1$：二進位下 $y_1 = 10011_2 = 19$、$z_1 = 10000_2 = 16$、$g_1 = 00010_2 = 2$，和是 $37$；而
+$t = 16 + 8 + 4 + 3 \cdot 2 + 3 \cdot 1 = 37$。 這個子集合同時挑了 $y_1$ 和 $z_1$，又沒有挑任何 $x_2$、
+$x_3$ 的數，不對應任何指派：$x_1$ 位的 $16 + 16$ 多出來的 $16$，剛好補上缺少的 $x_2$、$x_3$ 兩位
+（$8 + 4$）和子句位少掉的 $4$。 用十進位（或任何大於 $5$ 的進位制）就不會發生。
+\end{enumerate}
+
+\item \textbf{在 NP 裡}：憑證是每個頂點的顏色，檢查每條邊兩端不同色，$O(n + m)$。 \textbf{歸約
+$\npcP{3-COLOR} \le_{\mathrm{p}} \npcP{4-COLOR}$}：$G'$ 是 $G$ 加一個新頂點 $w$，$w$ 和 $G$ 的每個頂點相
+連，$O(n + m)$ 時間。 ($\Rightarrow$) $G$ 有三著色，$w$ 塗第四種顏色，$w$ 的鄰居都不是這個顏色，得到
+$G'$ 的四著色。 ($\Leftarrow$) $G'$ 有四著色。 $w$ 和所有其他頂點相鄰，它們都不是 $w$ 的顏色，只用了另外
+三種，限制到 $G$ 上就是三著色。 推廣：同樣的構造給出 $k$-\npcP{COLOR} $\le_{\mathrm{p}}$
+$(k+1)$-\npcP{COLOR}，由 $k = 3$ 開始歸納，每個 $k \ge 3$ 都是 NP 完備的。 （$k = 2$ 在 P 裡，就是判斷
+二分圖，所以不能從 $k = 2$ 開始。）
+
+\item
+\begin{enumerate}
+\item ($\Rightarrow$) $G$ 有哈密頓路徑 $v_1, v_2, \ldots, v_n$。 $w$ 和 $v_1$、$v_n$ 都相鄰，
+$w, v_1, \ldots, v_n, w$ 是 $G'$ 的哈密頓環（$n \ge 2$，所以至少三個頂點，是一個環）。 ($\Leftarrow$)
+$G'$ 有哈密頓環，它經過 $w$ 恰好一次。 從環上刪掉 $w$，剩下一條依序經過 $G$ 的全部頂點的路徑；這條路徑
+上的邊都不碰 $w$，所以都是 $G$ 原本的邊。 它是 $G$ 的哈密頓路徑。
+\item 這是 $\npcP{HAM-PATH} \le_{\mathrm{p}} \npcP{HAM-CYCLE}$（$G \mapsto G'$，$O(n + m)$）。 它說明
+\npcP{HAM-CYCLE} 至少和 \npcP{HAM-PATH} 一樣難，不能用來證明 \npcP{HAM-PATH} 是 NP 難的：那需要把一個已
+知的 NP 完備問題歸約\textbf{到} \npcP{HAM-PATH}。 它真正給出的是：若 \npcP{HAM-CYCLE} 在 P 裡，則
+\npcP{HAM-PATH} 也在 P 裡。 （\npcP{HAM-CYCLE} 已知是 NP 完備的，所以這個結論本來就由「\npcP{HAM-PATH}
+在 NP 裡」得到了，這個歸約沒有提供新的難度資訊。）
+\end{enumerate}
+
+\item
+\begin{enumerate}
+\item \textbf{在 NP 裡}：憑證是 $k$ 位人選，檢查人數、兩兩之間沒有邊、$R$ 的每個人都在裡面，多項式時
+間。 \textbf{歸約 $\npcP{IND-SET} \le_{\mathrm{p}} \npcP{TEAM}$}：$f(G, k) = (G, k, \emptyset)$。
+($\Rightarrow$) 大小 $k$ 的獨立集就是包含空集合的人選。 ($\Leftarrow$) 包含 $\emptyset$ 的人選就是大小
+$k$ 的獨立集。 所以 \npcP{TEAM} 是 NP 完備的。 一般化（多加一個條件可以設成「沒有限制」）的問題至少
+和原問題一樣難。
+\item 先檢查 $R$ 本身兩兩合得來、$|R| \le k$，不是就回答否。 再刪掉 $R$ 和所有和 $R$ 裡某人合不來的人，
+在剩下的圖 $G''$ 上問有沒有大小 $k - |R|$ 的獨立集。 剩下的人和 $R$ 都合得來，所以 $G''$ 的獨立集加上
+$R$ 就是合法的人選；反過來，合法人選扣掉 $R$ 一定落在 $G''$ 裡。 這是
+$\npcP{TEAM} \le_{\mathrm{p}} \npcP{IND-SET}$，兩者一樣難。
+\end{enumerate}
+
+\item
+\begin{enumerate}
+\item 錯。 一個 NP 完備問題的特殊情形可能很簡單；2-SAT 在 P 裡（第~23~章）。 證明 NP 難要把已知的難問題
+歸約到 2-SAT，而這做不到（除非 $\mathrm{P} = \mathrm{NP}$）。
+\item 對。 取 $f$ 為恆等函數，3-CNF 公式本身就是 CNF 公式，答案相同，這是 $\npcP{3-SAT} \le_{\mathrm{p}}
+\npcP{SAT}$。 一般化的問題至少和特殊情形一樣難。
+\item 錯。 那是 $B \le_{\mathrm{p}} \npcP{3-SAT}$，只說明 $B$ 不比 \npcP{3-SAT} 難（加上 $B$ 的驗證者，
+其實就是 $B \in \mathrm{NP}$ 的另一種說法）。 要證 $B$ 是 NP 難的，應該把 3-CNF 公式轉成 $B$ 的實例。
+\item 錯。 理由同 (a)：特殊情形可能比較簡單，必須另外證 $\npcP{SAT} \le_{\mathrm{p}} \npcP{3-SAT}$
+（第~\ref{sec:npc-sat-3sat}~節）。
+\end{enumerate}
+
+\item
+\begin{enumerate}
+\item 給 \npcP{HAM-CYCLE} 的實例 $G$，用定理~\ref{thm:npc-tsp} 的歸約造出 \npcP{TSP} 實例，它的成本只有 $1$
+和 $2$，$C = 2$。 在它上面跑假設的演算法，時間 $O((2n)^5) = O(n^5)$，加上歸約的 $\Theta(n^2)$，得到
+\npcP{HAM-CYCLE} 的多項式時間演算法。 \npcP{HAM-CYCLE} 是 NP 完備的，由定理~\ref{thm:npc-pnp}，
+$\mathrm{P} = \mathrm{NP}$。 （這正是「\npcP{TSP} 是強 NP 完備」的意思。）
+\item (a) 的論證需要一群數值都很小、卻仍然 NP 完備的實例（\npcP{TSP} 有：成本只有 $1$、$2$ 的實
+例）。 0/1 背包是弱 NP 完備的，它的難度來自很大的數：從子集合和歸約過來時，$W = t$ 可以是輸入長度的指
+數，$\Theta(nW)$ 在這些實例上是指數時間。 而在 $W$ 不超過輸入長度的多項式的實例上，$\Theta(nW)$ 已經
+是多項式時間，這樣的實例不可能是 NP 完備的（除非 $\mathrm{P} = \mathrm{NP}$），所以推不出結論。
+\end{enumerate}
+
+\item
+\begin{enumerate}
+\item 兩邊之間的成本是 $1$，同一邊之內是 $2$，$B = 5$：
+\begin{center}
+\begin{tabular}{c|ccccc}
+$c(i, j)$ & 1 & 2 & 3 & 4 & 5 \\
+\hline
+1 & -- & 2 & 1 & 1 & 1 \\
+2 & 2 & -- & 1 & 1 & 1 \\
+3 & 1 & 1 & -- & 2 & 2 \\
+4 & 1 & 1 & 2 & -- & 2 \\
+5 & 1 & 1 & 2 & 2 & -- \\
+\end{tabular}
+\end{center}
+\item 最小成本是 $6$，例如 $1 \to 3 \to 2 \to 4 \to 5 \to 1$：$1 + 1 + 1 + 2 + 1$。 成本 $5$ 的巡迴每一
+段都要是邊，也就是每一段都跨兩邊。 巡迴上 $3$、$4$、$5$ 各有兩個相鄰的城市，共 $6$ 個「相鄰位置」都要
+是 $1$ 或 $2$；但 $1$、$2$ 在巡迴上各只有兩個鄰居，最多提供 $4$ 個。 不可能，所以至少一段成本是 $2$，
+總成本至少 $6$。
+\item 最小成本 $6 > B = 5$，\npcP{TSP} 實例回答否，由歸約的兩個方向，$K_{2,3}$ 沒有哈密頓環。 一般地，
+兩邊頂點數不同的二分圖都沒有哈密頓環：環上兩邊的頂點必須交錯出現。
+\end{enumerate}
+\end{enumerate}

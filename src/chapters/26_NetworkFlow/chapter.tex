@@ -1,0 +1,1917 @@
+\chapter{網路流與二分匹配}
+\label{ch:flw}
+
+% 本章的圖共用的樣式（前綴 flw-）。 Edmonds–Karp 每一輪的剩餘網路、距離表和最後的
+% 流，都由模擬程式照虛擬碼逐步執行後產生，再和本章 C 程式的輸出對過。
+\tikzset{
+    flw-v/.style={circle, draw=black!70, thick, minimum size=0.62cm, inner sep=0pt, font=\small, fill=white},
+    flw-vS/.style={draw=coreStroke, fill=coreFill},
+    flw-a/.style={-{Stealth[length=2.2mm]}, draw=black!65, thick},
+    flw-e/.style={draw=black!55, thick},
+    flw-rev/.style={densely dashed},
+    flw-aug/.style={draw=examStroke, very thick},
+    flw-cut/.style={draw=memStroke, very thick},
+    flw-m/.style={draw=examStroke, line width=1.8pt},
+    flw-c/.style={font=\scriptsize, fill=white, inner sep=1pt},
+    flw-cA/.style={text=examStroke, font=\scriptsize\bfseries},
+    flw-t/.style={font=\small},
+}
+
+一家賣生鮮蔬果的網路商店，每天晚上要把貨從郊區的集貨場運到市區的配送中心。 中間有五
+個轉運站，每一段路線由不同的車隊負責，一個晚上最多只能載固定的板數。 貨可以在轉運站換
+車、分開走不同的路線，但轉運站沒有冷藏庫，當晚進站多少板，就得當晚全部送出去。 物流經
+理想知道一個晚上最多能送多少板到配送中心；如果不夠，應該先替哪一段路線加車。 另一邊，
+系上的四位助教要分配到五堂實習課，每位助教只帶一堂，每堂課只要一位助教，而每位助教只有
+某幾堂的時間可以。 最多能讓幾堂課有助教？ 兩個問題都可以先隨便排一種送法、一種分配，再
+慢慢改。 往下讀之前，先想一想：排到一半發現卡住時，要怎麼把先前的決定改掉，又不會越改
+越亂？
+
+這一章處理\textbf{最大流}（maximum flow）問題：在每條邊有容量上限的有向圖上，從起點送
+最多的量到終點。 主要的方法是 Ford–Fulkerson：一再找一條「還能多送一點」的路徑，沿著它
+送。 關鍵是\textbf{剩餘網路}，它除了記錄每條邊還能多送多少，也允許把先前送出去的量退回
+來，所以一開始選錯路不會讓演算法卡住。 Edmonds–Karp 演算法規定每次用 BFS 找邊數最少的
+路徑，時間是 $O(nm^2)$，和容量的大小無關。 證明這一切正確的是\textbf{最大流最小割定
+理}：能送的最大量，剛好等於要把起點和終點完全隔開、最少得切掉多少容量。 最後把二分圖
+的最大匹配化成最大流，助教的分配就是一個例子。
+
+這一章用到第~21~章的有向圖、BFS（虛擬碼~\ref{alg:gtr-bfs}、定理~\ref{thm:gtr-bfs}）和
+二分圖（定義~\ref{def:gtr-bipartite}），名詞和符號都沿用那一章：$n = |V|$、$m = |E|$，
+$u \leadsto v$ 表示有路徑，$\delta(u, v)$ 是邊數最少的路徑長度。 第~1~章 1.9 節的「擬
+多項式」也會出現一次。 C 程式用到《C 程式設計基礎》第~8~章的二維陣列、第~19~章的
+\texttt{malloc}。
+
+本章的例子圖頂點用字母，$s$ 是起點、$t$ 是終點。 手算時，「依序看鄰居」的順序寫在每個
+例子裡；C 程式的頂點一律是 $0..n-1$，$s$ 是 $0$、$t$ 是 $n - 1$，印出時再換回字母。
+
+\section{流網路與流}
+\label{sec:flw-network}
+
+\subsection{定義}
+
+\begin{definition}[流網路]
+\label{def:flw-network}
+\textbf{流網路}（flow network）是一張有向圖 $G = (V, E)$，加上兩個指定的頂點：
+\textbf{源點}（source）$s$ 和\textbf{匯點}（sink）$t$，以及每條邊 $(u, v) \in E$ 的
+\textbf{容量}（capacity）$c(u, v) \ge 0$。 不是邊的頂點對，規定 $c(u, v) = 0$。
+\end{definition}
+
+本章另外做兩個假設，都不會讓問題變窄，第~\ref{sec:flw-model}~節會說明怎麼把一般的情
+形轉成這樣。
+
+\begin{enumerate}
+\item \textbf{沒有自環，也沒有反平行邊}：$(u, v) \in E$ 時，$(v, u) \notin E$。 第~21~章的
+簡單有向圖允許 $u \to v$ 和 $v \to u$ 同時存在，這裡不允許。 這個假設讓下一節剩餘網路的
+定義只有一種情況要考慮。
+\item \textbf{每個頂點都在某條 $s \leadsto t$ 的路徑上}。 走不到、或走了也到不了 $t$ 的頂
+點，對送貨沒有幫助，可以先刪掉。 這樣 $s$ 以外的每個頂點都至少有一條進來的邊，所以
+$m \ge n - 1$，$O(n + m)$ 可以寫成 $O(m)$。
+\end{enumerate}
+
+\begin{definition}[流]
+\label{def:flw-flow}
+流網路 $G$ 上的\textbf{流}（flow）是一個函數 $f : V \times V \to \mathbb{R}$，滿足
+\begin{itemize}
+\item \textbf{容量限制}：所有 $u, v \in V$，$0 \le f(u, v) \le c(u, v)$。
+\item \textbf{流量守恆}：所有 $u \in V - \{s, t\}$，
+\[
+\sum_{v \in V} f(v, u) = \sum_{v \in V} f(u, v),
+\]
+也就是流進 $u$ 的總量等於流出 $u$ 的總量。
+\end{itemize}
+$f(u, v)$ 叫做邊 $(u, v)$ 上的流量。 流的\textbf{值}（value）是從源點淨流出的量：
+\[
+|f| = \sum_{v \in V} f(s, v) - \sum_{v \in V} f(v, s).
+\]
+\textbf{最大流問題}：給定流網路，找一個值最大的流。
+\end{definition}
+
+不是邊的頂點對，容量是 $0$，所以流量也只能是 $0$；守恆式裡的和實際上只跑過真正的邊。
+$|f|$ 的寫法看起來像絕對值，其實只是一個記號。 本章的例子裡沒有邊指進 $s$，第二個和
+是 $0$；定義保留它，是因為下面的證明要對一般的網路成立。
+
+圖~\ref{fig:flw-net}(a) 是章首的物流網路。 集貨場是 $s$，配送中心是 $t$，五個轉運站是
+$a$ 到 $e$；邊上的數字是每晚最多能載的板數。 圖 (b) 是其中一個流 $f_1$，每條邊標成
+「流量$/$容量」，斜線只是分隔，不是除法。
+
+\begin{center}
+\begin{tikzpicture}[x=0.95cm, y=0.95cm]
+\begin{scope}[xshift=0cm]
+\node[flw-v] (Ns) at (0, 0) {$s$};
+\node[flw-v] (Na) at (2.2, 1.6) {$a$};
+\node[flw-v] (Nb) at (2.2, 0) {$b$};
+\node[flw-v] (Nc) at (2.2, -1.6) {$c$};
+\node[flw-v] (Nd) at (4.7, 0.95) {$d$};
+\node[flw-v] (Ne) at (4.7, -0.95) {$e$};
+\node[flw-v] (Nt) at (6.9, 0) {$t$};
+\draw[flw-a] (Ns) -- node[flw-c] {5} (Na);
+\draw[flw-a] (Ns) -- node[flw-c] {11} (Nb);
+\draw[flw-a] (Ns) -- node[flw-c] {7} (Nc);
+\draw[flw-a] (Nb) -- node[flw-c] {2} (Na);
+\draw[flw-a] (Na) -- node[flw-c] {12} (Nd);
+\draw[flw-a] (Nb) -- node[flw-c] {5} (Nd);
+\draw[flw-a] (Nb) -- node[flw-c] {6} (Ne);
+\draw[flw-a] (Nc) -- node[flw-c] {7} (Ne);
+\draw[flw-a] (Nd) -- node[flw-c] {2} (Ne);
+\draw[flw-a] (Nd) -- node[flw-c] {12} (Nt);
+\draw[flw-a] (Ne) -- node[flw-c] {9} (Nt);
+\node[flw-t] at (3.45, -2.45) {(a) 容量 $c$};
+\end{scope}
+\begin{scope}[xshift=8.4cm]
+\node[flw-v] (Ms) at (0, 0) {$s$};
+\node[flw-v] (Ma) at (2.2, 1.6) {$a$};
+\node[flw-v] (Mb) at (2.2, 0) {$b$};
+\node[flw-v] (Mc) at (2.2, -1.6) {$c$};
+\node[flw-v] (Md) at (4.7, 0.95) {$d$};
+\node[flw-v] (Me) at (4.7, -0.95) {$e$};
+\node[flw-v] (Mt) at (6.9, 0) {$t$};
+\draw[flw-a] (Ms) -- node[flw-c] {5/5} (Ma);
+\draw[flw-a] (Ms) -- node[flw-c] {11/11} (Mb);
+\draw[flw-a] (Ms) -- node[flw-c] {0/7} (Mc);
+\draw[flw-a] (Mb) -- node[flw-c] {0/2} (Ma);
+\draw[flw-a] (Ma) -- node[flw-c] {5/12} (Md);
+\draw[flw-a] (Mb) -- node[flw-c] {5/5} (Md);
+\draw[flw-a] (Mb) -- node[flw-c] {6/6} (Me);
+\draw[flw-a] (Mc) -- node[flw-c] {0/7} (Me);
+\draw[flw-a] (Md) -- node[flw-c] {0/2} (Me);
+\draw[flw-a] (Md) -- node[flw-c] {10/12} (Mt);
+\draw[flw-a] (Me) -- node[flw-c] {6/9} (Mt);
+\node[flw-t] at (3.45, -2.45) {(b) 一個流 $f_1$，$|f_1| = 16$};
+\end{scope}
+\end{tikzpicture}
+\diagcaption{章首的物流網路（單位：板）。 (a) 每條邊的容量。 (b) 一個流 $f_1$，每條邊標
+「流量$/$容量」。 第~\ref{sec:flw-ek-trace}~節會看到，它就是 Edmonds--Karp 做完三輪之後
+的流。}
+\label{fig:flw-net}
+\end{center}
+
+檢查 $f_1$ 是一個流：每條邊的流量都沒有超過容量；在 $b$，流進 $11$，流出
+$f_1(b, a) + f_1(b, d) + f_1(b, e) = 0 + 5 + 6 = 11$；在 $d$，流進 $5 + 5 = 10$，流出
+$0 + 10 = 10$；其他轉運站也一樣。 值是 $|f_1| = 5 + 11 + 0 = 16$，剛好等於流進 $t$ 的
+$10 + 6$。 這不是巧合，第~\ref{sec:flw-mfmc}~節會證明流的值也等於流進匯點的淨量。 這
+個流還不是最大的：第~\ref{sec:flw-ek}~節會算出這張網路的最大流是 $21$。
+
+\begin{examnote}
+有些課本用另一種定義：$f(u, v)$ 代表「淨流量」，要求 $f(u, v) = -f(v, u)$（斜對稱），
+守恆寫成 $\sum_{v} f(u, v) = 0$，反方向的流量會出現負數。 兩種定義算出的最大流值相同，
+剩餘容量的公式和表格裡的數字卻不一樣。 作答前先看題目用的是哪一種，照題目的寫法填表；
+題目沒有說明時，用本書的寫法（流量都不是負數），並在答案開頭寫一句「$f(u, v)$ 表示邊
+$(u, v)$ 上的流量」。
+\end{examnote}
+
+\subsection{幾種常見的轉換}
+\label{sec:flw-model}
+
+實際的問題常常不直接長成上面的樣子，下面三種轉換最常用，都只多出 $O(n + m)$ 個頂點和
+邊。
+
+\textbf{反平行邊。} 如果 $u \to v$ 和 $v \to u$ 都有容量，挑其中一條，例如 $(v, u)$，
+加一個新頂點 $x$，把它換成 $v \to x$ 和 $x \to u$ 兩條邊，容量都是 $c(v, u)$。 原本走
+$v \to u$ 的流改走 $v \to x \to u$，反過來也一樣，所以兩張網路的流一一對應、值相同。
+本章第~\ref{sec:flw-c}~節的程式用矩陣存剩餘容量，連這一步都可以省掉，到時再說明。
+
+\textbf{多個源點、多個匯點。} 好幾個集貨場 $s_1, \ldots, s_k$ 和好幾個配送中心
+$t_1, \ldots, t_\ell$ 時，加一個\textbf{超級源點} $s^{*}$，從它連到每個 $s_i$；再加一
+個\textbf{超級匯點} $t^{*}$，從每個 $t_j$ 連過去。 新邊的容量設成「夠大」就好，例如
+$s_i$ 所有出邊的容量和。 這和第~21~章多起點 BFS 加一個虛擬起點是同一個想法。
+
+\textbf{頂點的容量。} 如果轉運站 $v$ 一晚最多只能處理 $k$ 板，把 $v$ 拆成 $v_{\mathrm{in}}$
+和 $v_{\mathrm{out}}$ 兩個頂點，中間連一條容量 $k$ 的邊 $v_{\mathrm{in}} \to v_{\mathrm{out}}$；
+原本指進 $v$ 的邊改指進 $v_{\mathrm{in}}$，原本從 $v$ 出去的邊改從 $v_{\mathrm{out}}$ 出
+去。 經過 $v$ 的流都得走那條新邊，所以總量不會超過 $k$。
+
+\begin{center}
+\begin{tikzpicture}[x=1cm, y=1cm]
+\begin{scope}
+\node[flw-v] (u) at (0, 0) {$u$};
+\node[flw-v] (v) at (2.4, 0) {$v$};
+\draw[flw-a] (u) to[bend left=18] node[flw-c] {6} (v);
+\draw[flw-a] (v) to[bend left=18] node[flw-c] {4} (u);
+\node at (3.35, 0) {$\Rightarrow$};
+\node[flw-v] (u2) at (4.3, 0) {$u$};
+\node[flw-v] (v2) at (6.7, 0) {$v$};
+\node[flw-v] (x2) at (5.5, -1.1) {$x$};
+\draw[flw-a] (u2) -- node[flw-c] {6} (v2);
+\draw[flw-a] (v2) -- node[flw-c] {4} (x2);
+\draw[flw-a] (x2) -- node[flw-c] {4} (u2);
+\node[flw-t] at (3.35, -1.9) {(a) 拆掉反平行邊};
+\end{scope}
+\begin{scope}[xshift=8.6cm]
+\node[flw-v] (p) at (0, 0.7) {$p$};
+\node[flw-v] (q) at (0, -0.7) {$q$};
+\node[flw-v, minimum size=0.8cm] (bi) at (1.9, 0) {$b_{\mathrm{in}}$};
+\node[flw-v, minimum size=0.8cm] (bo) at (3.9, 0) {$b_{\mathrm{out}}$};
+\node[flw-v] (r) at (5.8, 0.7) {$r$};
+\node[flw-v] (w) at (5.8, -0.7) {$w$};
+\draw[flw-a] (p) -- (bi);
+\draw[flw-a] (q) -- (bi);
+\draw[flw-a, flw-cut] (bi) -- node[flw-c] {$k$} (bo);
+\draw[flw-a] (bo) -- (r);
+\draw[flw-a] (bo) -- (w);
+\node[flw-t] at (2.9, -1.9) {(b) 頂點 $b$ 的容量 $k$};
+\end{scope}
+\end{tikzpicture}
+\diagcaption{兩種轉換。 (a) $u$、$v$ 之間兩個方向都有邊，把 $v \to u$ 換成經過新頂點
+$x$ 的兩條邊。 (b) 把頂點拆成兩個，中間的邊（粗線）就是頂點的容量。}
+\label{fig:flw-model}
+\end{center}
+
+\section{剩餘網路與增廣路徑}
+\label{sec:flw-residual}
+
+\subsection{只會往前加，會卡住}
+
+最直覺的做法是：找一條從 $s$ 到 $t$、每條邊都還沒滿的路徑，送到路上最緊的那條邊滿為
+止，一直重複到找不到這種路徑。 這個做法會停在不是最大的地方。
+
+圖~\ref{fig:flw-greedy}(a) 的小網路有 $s, x, y, t$ 四個頂點。 假設第一次挑了
+$s \to x \to y \to t$，三條邊還能送的量是 $2, 2, 2$，送 $2$。 之後 $s \to x$ 滿了，
+$s \to y$ 還能送 $1$，但 $y \to t$ 也滿了；$x \to t$ 還能送 $1$，可是到 $x$ 的唯一入口已
+經滿了。 每條從 $s$ 到 $t$ 的路徑都至少有一條滿的邊，只能停在 $2$。 但這張網路其實可以
+送 $3$：$s \to x$ 送 $2$，其中 $1$ 走 $x \to t$、$1$ 走 $x \to y \to t$；另外 $s \to y$ 送
+$1$ 走 $y \to t$。
+
+差別在 $x \to y$ 上的那兩板。 要從 $2$ 變成 $3$，得把其中一板「退回」$x$，讓它改走
+$x \to t$，而 $y$ 少掉的那一板由 $s \to y$ 補上。 只會往前加的做法沒有「退回」這個動作，
+所以第一步選錯就回不來。 下面的剩餘網路把「退回」也當成一條可以走的邊。
+
+\begin{center}
+\begin{tikzpicture}[x=1.0cm, y=1.0cm]
+\begin{scope}[xshift=0cm]
+\node[flw-v] (gs) at (0, 0) {$s$};
+\node[flw-v] (gx) at (2, 1.1) {$x$};
+\node[flw-v] (gy) at (2, -1.1) {$y$};
+\node[flw-v] (gt) at (4, 0) {$t$};
+\draw[flw-a] (gs) -- node[flw-c] {2/2} (gx);
+\draw[flw-a] (gs) -- node[flw-c] {0/1} (gy);
+\draw[flw-a] (gx) -- node[flw-c] {2/2} (gy);
+\draw[flw-a] (gx) -- node[flw-c] {0/1} (gt);
+\draw[flw-a] (gy) -- node[flw-c] {2/2} (gt);
+\node[flw-t] at (2, -1.85) {(a) 先走 $s \to x \to y \to t$};
+\end{scope}
+\begin{scope}[xshift=5.2cm]
+\node[flw-v] (hs) at (0, 0) {$s$};
+\node[flw-v] (hx) at (2, 1.1) {$x$};
+\node[flw-v] (hy) at (2, -1.1) {$y$};
+\node[flw-v] (ht) at (4, 0) {$t$};
+\draw[flw-a, flw-rev] (hx) -- node[flw-c] {2} (hs);
+\draw[flw-a, flw-aug] (hs) -- node[flw-c, flw-cA] {1} (hy);
+\draw[flw-a, flw-rev, flw-aug] (hy) -- node[flw-c, flw-cA] {2} (hx);
+\draw[flw-a, flw-aug] (hx) -- node[flw-c, flw-cA] {1} (ht);
+\draw[flw-a, flw-rev] (ht) -- node[flw-c] {2} (hy);
+\node[flw-t] at (2, -1.85) {(b) 剩餘網路 $G_f$};
+\end{scope}
+\begin{scope}[xshift=10.4cm]
+\node[flw-v] (ks) at (0, 0) {$s$};
+\node[flw-v] (kx) at (2, 1.1) {$x$};
+\node[flw-v] (ky) at (2, -1.1) {$y$};
+\node[flw-v] (kt) at (4, 0) {$t$};
+\draw[flw-a] (ks) -- node[flw-c] {2/2} (kx);
+\draw[flw-a] (ks) -- node[flw-c] {1/1} (ky);
+\draw[flw-a] (kx) -- node[flw-c] {1/2} (ky);
+\draw[flw-a] (kx) -- node[flw-c] {1/1} (kt);
+\draw[flw-a] (ky) -- node[flw-c] {2/2} (kt);
+\node[flw-t] at (2, -1.85) {(c) 增廣之後，$|f| = 3$};
+\end{scope}
+\end{tikzpicture}
+\diagcaption{只會往前加會卡住的例子。 (a) 先沿 $s \to x \to y \to t$ 送 $2$，之後每條路
+徑都有一條滿的邊。 (b) 這個流的剩餘網路，虛線是反向邊；紅色的路徑經過反向邊
+$y \to x$。 (c) 沿紅色路徑送 $1$ 之後的流。}
+\label{fig:flw-greedy}
+\end{center}
+
+\subsection{剩餘容量與剩餘網路}
+
+\begin{definition}[剩餘網路]
+\label{def:flw-residual}
+$f$ 是流網路 $G$ 上的一個流。 對每一對頂點 $u, v$，定義\textbf{剩餘容量}（residual
+capacity）
+\[
+c_f(u, v) =
+\begin{cases}
+c(u, v) - f(u, v) & \text{若 } (u, v) \in E, \\
+f(v, u) & \text{若 } (v, u) \in E, \\
+0 & \text{其他。}
+\end{cases}
+\]
+\textbf{剩餘網路}（residual network）是 $G_f = (V, E_f)$，其中
+$E_f = \{(u, v) : c_f(u, v) > 0\}$，每條邊的容量是 $c_f(u, v)$。
+\end{definition}
+
+因為沒有反平行邊，前兩種情況不會同時成立，$c_f(u, v)$ 的值是確定的。 原本的每條邊
+$(u, v)$ 在剩餘網路裡最多變成兩條：
+\begin{itemize}
+\item \textbf{順向邊} $(u, v)$，容量 $c(u, v) - f(u, v)$：這條路還能多送多少。 邊滿了就沒
+有這條。
+\item \textbf{反向邊} $(v, u)$，容量 $f(u, v)$：最多能把多少已經送出去的量退回來。 邊上
+沒有流就沒有這條。
+\end{itemize}
+所以 $|E_f| \le 2m$。 本章的圖把反向邊畫成虛線，方便分辨；在剩餘網路裡，兩種邊的地位完
+全一樣。 剩餘網路也叫\textbf{殘餘網路}，兩個名字都常見。
+
+圖~\ref{fig:flw-greedy}(b) 是送了 $2$ 之後的剩餘網路。 $s \to x$、$y \to t$ 滿了，只剩反
+向邊 $x \to s$、$t \to y$；$x \to y$ 全部用掉，換成容量 $2$ 的反向邊 $y \to x$。 這時有
+一條從 $s$ 到 $t$ 的路徑 $s \to y \to x \to t$（紅色），中間那一步就是「把 $x \to y$ 上的
+量退回 $x$」。
+
+\subsection{增廣路徑}
+
+\begin{definition}[增廣路徑]
+\label{def:flw-augpath}
+剩餘網路 $G_f$ 裡從 $s$ 到 $t$ 的簡單路徑叫\textbf{增廣路徑}（augmenting path），也叫
+擴增路徑。 路徑 $p$ 的\textbf{剩餘容量}是路上最小的剩餘容量
+\[
+c_f(p) = \min\{c_f(u, v) : (u, v) \text{ 在 } p \text{ 上}\},
+\]
+也叫 $p$ 的\textbf{瓶頸}（bottleneck）。 剩餘容量剛好等於 $c_f(p)$ 的邊叫 $p$ 的
+\textbf{關鍵邊}（critical edge），一條路徑至少有一條。
+\end{definition}
+
+沿著增廣路徑 $p$ \textbf{增廣}（augment），就是對 $p$ 上的每條剩餘邊 $(u, v)$ 做一件事：
+\begin{itemize}
+\item 若 $(u, v) \in E$（順向邊），$f(u, v) \gets f(u, v) + c_f(p)$；
+\item 若 $(v, u) \in E$（反向邊），$f(v, u) \gets f(v, u) - c_f(p)$。
+\end{itemize}
+
+\begin{lemma}
+\label{lem:flw-augment}
+$p$ 是 $G_f$ 的增廣路徑。 沿 $p$ 增廣之後得到的 $f'$ 仍然是一個流，而且
+$|f'| = |f| + c_f(p)$。
+\end{lemma}
+
+\begin{proof}
+記 $b = c_f(p) > 0$。 $p$ 是簡單路徑，不會同時經過 $(u, v)$ 和 $(v, u)$，所以每條原本的
+邊最多被改一次。
+
+\textbf{容量限制。} 順向邊：$f'(u, v) = f(u, v) + b \le f(u, v) + c_f(u, v) = c(u, v)$，
+而且顯然不是負的。 反向邊：$f'(v, u) = f(v, u) - b \ge f(v, u) - c_f(u, v) = 0$，而且沒有變
+大，不會超過 $c(v, u)$。
+
+\textbf{流量守恆。} 不在 $p$ 上的頂點，相關的流量都沒變。 $p$ 經過的頂點 $w \ne s, t$ 剛
+好有一條剩餘邊進來、一條剩餘邊出去。 進來的那條如果是順向邊 $(x, w)$，流進 $w$ 的量多
+$b$；如果是反向邊（原本的邊是 $(w, x)$），流出 $w$ 的量少 $b$。 兩種情況下，「流進減流
+出」都多了 $b$。 同理，出去的那條讓「流進減流出」少了 $b$。 合起來沒有變，守恆仍成立。
+
+\textbf{值。} $p$ 從 $s$ 出發，不會再回到 $s$，所以 $s$ 只有一條出去的剩餘邊
+$(s, y)$。 它是順向邊時 $f(s, y)$ 多 $b$；是反向邊時，原本的邊 $(y, s)$ 上的流少 $b$。
+兩種情況都讓 $|f|$ 多 $b$。
+\end{proof}
+
+回到圖~\ref{fig:flw-greedy}：路徑 $s \to y \to x \to t$ 的剩餘容量是 $1, 2, 1$，瓶頸是
+$1$。 $s \to y$、$x \to t$ 是順向邊，流量各加 $1$；$y \to x$ 是反向邊，$x \to y$ 的流量從
+$2$ 減成 $1$。 得到圖 (c)，值是 $3$。
+
+\section{Ford--Fulkerson 方法}
+\label{sec:flw-ff}
+
+\subsection{方法}
+
+把上一節的動作一直重複，就是 Ford 和 Fulkerson 在 1956 年提出的方法：從全部是 $0$ 的流開
+始，只要剩餘網路裡還有增廣路徑，就沿著它增廣。
+
+\begin{pseudo}[label=alg:flw-ff]{Ford--Fulkerson 方法}
+\Procedure{Ford-Fulkerson}{$G, s, t$}
+    \For{每條邊 $(u, v) \in E$}
+        \State $f(u, v) \gets 0$
+    \EndFor
+    \While{$G_f$ 裡有從 $s$ 到 $t$ 的簡單路徑 $p$}
+        \State $b \gets \min\{c_f(u, v) : (u, v) \text{ 在 } p \text{ 上}\}$
+        \For{$p$ 上的每條邊 $(u, v)$}
+            \If{$(u, v) \in E$}
+                \State $f(u, v) \gets f(u, v) + b$ \Comment{順向：多送}
+            \Else
+                \State $f(v, u) \gets f(v, u) - b$ \Comment{反向：退回}
+            \EndIf
+        \EndFor
+    \EndWhile
+    \State \Return $f$
+\EndProcedure
+\end{pseudo}
+
+第 4 行沒有規定要找哪一條路徑，用 DFS、BFS 或任何方法找都可以，習慣上叫它 Ford--Fulkerson
+「方法」：不同的找法，跑的步數可能差很多（見下面），但只要停下來，答案都是最大流。
+「停下來時一定是最大流」要用第~\ref{sec:flw-mfmc}~節的最大流最小割定理證明；這裡先看它
+會不會停、要跑多久。
+
+\subsection{會不會停、跑多久}
+
+\textbf{容量都是整數時一定會停。} 用歸納法：一開始流量都是 $0$；如果目前的流量都是整
+數，剩餘容量也都是整數，瓶頸 $b$ 是正整數，增廣後流量仍是整數。 所以每一輪 $|f|$ 至少
+增加 $1$。 另一方面 $|f|$ 不會超過從 $s$ 出去的容量總和，所以迴圈最多執行 $|f^{*}|$ 輪，
+$f^{*}$ 是最大流。
+
+每一輪要建出（或直接在原圖上模擬）剩餘網路、找一條路徑、沿路更新，都是 $O(n + m)$，在
+本章的假設下就是 $O(m)$。 所以容量是整數時，Ford--Fulkerson 的時間是 $O(m\,|f^{*}|)$。
+
+\begin{theorem}[整數性]
+\label{thm:flw-integral}
+流網路的容量都是整數時，Ford--Fulkerson 方法求出的最大流，每條邊的流量都是整數。 特別
+是，一定存在一個流量全是整數的最大流。
+\end{theorem}
+
+上面的歸納已經證明流量全是整數；「它是最大流」等第~\ref{sec:flw-mfmc}~節再補上。 這個定
+理看起來平凡，第~\ref{sec:flw-match}~節把匹配化成流的時候，靠的就是它：流量只能是 $0$
+或 $1$，才能解讀成「配」或「不配」。
+
+\subsection{選錯路徑的代價}
+\label{sec:flw-bad}
+
+$O(m\,|f^{*}|)$ 和容量的大小有關。 圖~\ref{fig:flw-bad} 的網路最大流是 $200$，兩次增廣
+就夠：$s \to u \to t$、$s \to v \to t$ 各送 $100$。 但如果第 4 行很不巧，第一次選
+$s \to u \to v \to t$，瓶頸是中間那條容量 $1$ 的邊，只送 $1$；第二次選
+$s \to v \to u \to t$，其中 $v \to u$ 是反向邊，把剛剛送的那 $1$ 退回，又只送 $1$。 兩種
+路徑輪流選，每次只增加 $1$，要 $200$ 輪才結束。
+
+\begin{center}
+\begin{tikzpicture}[x=1.1cm, y=1.1cm]
+\node[flw-v] (s) at (0, 0) {$s$};
+\node[flw-v] (u) at (2.2, 1.1) {$u$};
+\node[flw-v] (v) at (2.2, -1.1) {$v$};
+\node[flw-v] (t) at (4.4, 0) {$t$};
+\draw[flw-a] (s) -- node[flw-c] {100} (u);
+\draw[flw-a] (s) -- node[flw-c] {100} (v);
+\draw[flw-a] (u) -- node[flw-c] {1} (v);
+\draw[flw-a] (u) -- node[flw-c] {100} (t);
+\draw[flw-a] (v) -- node[flw-c] {100} (t);
+\end{tikzpicture}
+\diagcaption{兩條路徑輪流經過中間那條容量 $1$ 的邊，Ford--Fulkerson 要增廣 $200$ 次；BFS
+找最短的路徑只要 $2$ 次。}
+\label{fig:flw-bad}
+\end{center}
+
+把 $100$ 換成 $10^9$，就要二十億輪。 輸入只是五個數字，每個用三十個位元就寫得下，執行
+時間卻和數值本身成正比，這正是第~1~章 1.9 節說的\textbf{擬多項式}時間。 容量不是整數時
+情況更糟：可以構造出容量是無理數的網路，讓 Ford--Fulkerson 永遠不停，流的值甚至收斂到比
+最大流小的數。 下一節的 Edmonds--Karp 只改了第 4 行「怎麼找路徑」，就把這兩個問題一起解
+決。
+
+\section{Edmonds--Karp 演算法}
+\label{sec:flw-ek}
+
+\subsection{用 BFS 找增廣路徑}
+
+Edmonds 和 Karp 在 1972 年發表的做法很簡單：每一輪都在剩餘網路上從 $s$ 做 BFS，找\textbf{邊
+數最少}的增廣路徑。 由第~21~章的定理~\ref{thm:gtr-bfs}，BFS 樹上從 $s$ 到 $t$ 的路徑就是
+$G_f$ 裡最短的路徑，長度是 $\delta_f(s, t)$。 這裡的 $\delta_f$ 是在剩餘網路 $G_f$ 上算的
+距離，每條邊都算長度 $1$，和容量多大無關。
+
+寫成程式時，不必真的把 $G_f$ 建出來。 只要記住每一對頂點的剩餘容量 $c_f(u, v)$：一開始
+$c_f(u, v) = c(u, v)$；沿路徑送 $b$ 時，路上每條邊 $(u, v)$ 的 $c_f(u, v)$ 減 $b$，反方向的
+$c_f(v, u)$ 加 $b$。 這一個規則同時處理了順向邊和反向邊：送過去的量變成反方向可以退回的
+量，退回的量變成順方向可以再送的量。
+
+\begin{pseudo}[label=alg:flw-ek]{Edmonds--Karp（用剩餘容量寫）}
+\Procedure{Edmonds-Karp}{$G, s, t$}
+    \For{每一對頂點 $u, v$}
+        \State $c_f(u, v) \gets c(u, v)$
+    \EndFor
+    \State $\mathit{val} \gets 0$
+    \While{\TRUE}
+        \State 在 $G_f$ 上從 $s$ 做 \Call{BFS}{}，只走 $c_f(u, v) > 0$ 的邊，得到 $\pi$
+        \If{$t$ 沒有被發現}
+            \State \Return $\mathit{val}$
+        \EndIf
+        \State $b \gets \infty$；$v \gets t$
+        \While{$v \ne s$} \Comment{沿 $\pi$ 往回找瓶頸}
+            \State $b \gets \min(b, c_f(\pi[v], v))$
+            \State $v \gets \pi[v]$
+        \EndWhile
+        \State $v \gets t$
+        \While{$v \ne s$} \Comment{沿 $\pi$ 往回增廣}
+            \State $c_f(\pi[v], v) \gets c_f(\pi[v], v) - b$
+            \State $c_f(v, \pi[v]) \gets c_f(v, \pi[v]) + b$
+            \State $v \gets \pi[v]$
+        \EndWhile
+        \State $\mathit{val} \gets \mathit{val} + b$
+    \EndWhile
+\EndProcedure
+\end{pseudo}
+
+第 6 行的 BFS 就是虛擬碼~\ref{alg:gtr-bfs}，只是「$v$ 是 $u$ 的鄰居」換成「$c_f(u, v) > 0$」。
+第 9 到 12 行沿著前驅 $\pi$ 從 $t$ 走回 $s$，求瓶頸；第 13 到 17 行再走一次，更新剩餘容
+量。 結束後，每條邊的流量是 $f(u, v) = c(u, v) - c_f(u, v)$，$(u, v) \in E$。
+
+\textbf{鄰居的順序。} 剩餘網路裡可能有好幾條一樣短的增廣路徑，BFS 找到哪一條，要看鄰居
+依什麼順序檢查。 本章的手算一律照頂點的固定順序（物流網路是 $s, a, b, c, d, e, t$）檢查
+每個頂點的剩餘邊，不分順向、反向；C 程式也照這個順序，輸出可以逐列對照。 不同的順序可
+能走出不同的路徑和不同的最大流，但最大流的\textbf{值}一定相同。
+
+\subsection{手算追蹤}
+\label{sec:flw-ek-trace}
+
+在圖~\ref{fig:flw-net}(a) 的物流網路上執行 Edmonds--Karp。 下表每一列是一輪：先在目前的剩
+餘網路上從 $s$ 做 BFS，列出每個頂點的距離 $\delta_f(s, v)$，再寫出 BFS 樹上的增廣路徑、
+瓶頸、關鍵邊，以及增廣之後的 $|f|$。
+
+\begin{center}
+\small
+\begin{tabular}{c|ccccccc|lccc}
+\toprule
+輪 & $s$ & $a$ & $b$ & $c$ & $d$ & $e$ & $t$ & 增廣路徑 & 瓶頸 & 關鍵邊 & $|f|$ \\
+\midrule
+1 & 0 & 1 & 1 & 1 & 2 & 2 & 3 & $s \to a \to d \to t$ & $5$ & $(s, a)$ & $5$ \\
+2 & 0 & 2 & 1 & 1 & 2 & 2 & 3 & $s \to b \to d \to t$ & $5$ & $(b, d)$ & $10$ \\
+3 & 0 & 2 & 1 & 1 & 3 & 2 & 3 & $s \to b \to e \to t$ & $6$ & $(s, b)$、$(b, e)$ & $16$ \\
+4 & 0 & 4 & 3 & 1 & 4 & 2 & 3 & $s \to c \to e \to t$ & $3$ & $(e, t)$ & $19$ \\
+5 & 0 & 4 & 3 & 1 & 5 & 2 & 6 & $s \to c \to e \to b \to a \to d \to t$ & $2$ & $(b, a)$、$(d, t)$ & $21$ \\
+6 & 0 & $\infty$ & 3 & 1 & $\infty$ & 2 & $\infty$ & 走不到 $t$，結束 & & & \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+圖~\ref{fig:flw-ek-rounds} 是每一輪開始時的剩餘網路，紅色是那一輪的增廣路徑，紅色的數字
+是路徑上的剩餘容量。
+
+\begin{center}
+\begin{tikzpicture}[x=0.95cm, y=0.95cm]
+\begin{scope}[xshift=0.0cm]
+\node[flw-v] (R0s) at (0, 0) {$s$};
+\node[flw-v] (R0a) at (2.2, 1.6) {$a$};
+\node[flw-v] (R0b) at (2.2, 0) {$b$};
+\node[flw-v] (R0c) at (2.2, -1.6) {$c$};
+\node[flw-v] (R0d) at (4.7, 0.95) {$d$};
+\node[flw-v] (R0e) at (4.7, -0.95) {$e$};
+\node[flw-v] (R0t) at (6.9, 0) {$t$};
+\draw[flw-a, flw-aug] (R0s) -- node[flw-c, flw-cA] {5} (R0a);
+\draw[flw-a] (R0s) -- node[flw-c] {11} (R0b);
+\draw[flw-a] (R0s) -- node[flw-c] {7} (R0c);
+\draw[flw-a] (R0b) -- node[flw-c] {2} (R0a);
+\draw[flw-a, flw-aug] (R0a) -- node[flw-c, flw-cA] {12} (R0d);
+\draw[flw-a] (R0b) -- node[flw-c] {5} (R0d);
+\draw[flw-a] (R0b) -- node[flw-c] {6} (R0e);
+\draw[flw-a] (R0c) -- node[flw-c] {7} (R0e);
+\draw[flw-a] (R0d) -- node[flw-c] {2} (R0e);
+\draw[flw-a, flw-aug] (R0d) -- node[flw-c, flw-cA] {12} (R0t);
+\draw[flw-a] (R0e) -- node[flw-c] {9} (R0t);
+\node[flw-t] at (3.45, -2.45) {(a) 第 1 輪：$s \to a \to d \to t$，瓶頸 $5$};
+\end{scope}
+\begin{scope}[xshift=8.4cm]
+\node[flw-v] (R1s) at (0, 0) {$s$};
+\node[flw-v] (R1a) at (2.2, 1.6) {$a$};
+\node[flw-v] (R1b) at (2.2, 0) {$b$};
+\node[flw-v] (R1c) at (2.2, -1.6) {$c$};
+\node[flw-v] (R1d) at (4.7, 0.95) {$d$};
+\node[flw-v] (R1e) at (4.7, -0.95) {$e$};
+\node[flw-v] (R1t) at (6.9, 0) {$t$};
+\draw[flw-a, flw-rev] (R1a) -- node[flw-c] {5} (R1s);
+\draw[flw-a, flw-aug] (R1s) -- node[flw-c, flw-cA] {11} (R1b);
+\draw[flw-a] (R1s) -- node[flw-c] {7} (R1c);
+\draw[flw-a] (R1b) -- node[flw-c] {2} (R1a);
+\draw[flw-a] (R1a) to[bend left=17] node[flw-c] {7} (R1d);
+\draw[flw-a, flw-rev] (R1d) to[bend left=17] node[flw-c] {5} (R1a);
+\draw[flw-a, flw-aug] (R1b) -- node[flw-c, flw-cA] {5} (R1d);
+\draw[flw-a] (R1b) -- node[flw-c] {6} (R1e);
+\draw[flw-a] (R1c) -- node[flw-c] {7} (R1e);
+\draw[flw-a] (R1d) -- node[flw-c] {2} (R1e);
+\draw[flw-a, flw-aug] (R1d) to[bend left=17] node[flw-c, flw-cA] {7} (R1t);
+\draw[flw-a, flw-rev] (R1t) to[bend left=17] node[flw-c] {5} (R1d);
+\draw[flw-a] (R1e) -- node[flw-c] {9} (R1t);
+\node[flw-t] at (3.45, -2.45) {(b) 第 2 輪：$s \to b \to d \to t$，瓶頸 $5$};
+\end{scope}
+\end{tikzpicture}
+
+\medskip
+\begin{tikzpicture}[x=0.95cm, y=0.95cm]
+\begin{scope}[xshift=0.0cm]
+\node[flw-v] (R2s) at (0, 0) {$s$};
+\node[flw-v] (R2a) at (2.2, 1.6) {$a$};
+\node[flw-v] (R2b) at (2.2, 0) {$b$};
+\node[flw-v] (R2c) at (2.2, -1.6) {$c$};
+\node[flw-v] (R2d) at (4.7, 0.95) {$d$};
+\node[flw-v] (R2e) at (4.7, -0.95) {$e$};
+\node[flw-v] (R2t) at (6.9, 0) {$t$};
+\draw[flw-a, flw-rev] (R2a) -- node[flw-c] {5} (R2s);
+\draw[flw-a, flw-aug] (R2s) to[bend left=17] node[flw-c, flw-cA] {6} (R2b);
+\draw[flw-a, flw-rev] (R2b) to[bend left=17] node[flw-c] {5} (R2s);
+\draw[flw-a] (R2s) -- node[flw-c] {7} (R2c);
+\draw[flw-a] (R2b) -- node[flw-c] {2} (R2a);
+\draw[flw-a] (R2a) to[bend left=17] node[flw-c] {7} (R2d);
+\draw[flw-a, flw-rev] (R2d) to[bend left=17] node[flw-c] {5} (R2a);
+\draw[flw-a, flw-rev] (R2d) -- node[flw-c] {5} (R2b);
+\draw[flw-a, flw-aug] (R2b) -- node[flw-c, flw-cA] {6} (R2e);
+\draw[flw-a] (R2c) -- node[flw-c] {7} (R2e);
+\draw[flw-a] (R2d) -- node[flw-c] {2} (R2e);
+\draw[flw-a] (R2d) to[bend left=17] node[flw-c] {2} (R2t);
+\draw[flw-a, flw-rev] (R2t) to[bend left=17] node[flw-c] {10} (R2d);
+\draw[flw-a, flw-aug] (R2e) -- node[flw-c, flw-cA] {9} (R2t);
+\node[flw-t] at (3.45, -2.45) {(c) 第 3 輪：$s \to b \to e \to t$，瓶頸 $6$};
+\end{scope}
+\begin{scope}[xshift=8.4cm]
+\node[flw-v] (R3s) at (0, 0) {$s$};
+\node[flw-v] (R3a) at (2.2, 1.6) {$a$};
+\node[flw-v] (R3b) at (2.2, 0) {$b$};
+\node[flw-v] (R3c) at (2.2, -1.6) {$c$};
+\node[flw-v] (R3d) at (4.7, 0.95) {$d$};
+\node[flw-v] (R3e) at (4.7, -0.95) {$e$};
+\node[flw-v] (R3t) at (6.9, 0) {$t$};
+\draw[flw-a, flw-rev] (R3a) -- node[flw-c] {5} (R3s);
+\draw[flw-a, flw-rev] (R3b) -- node[flw-c] {11} (R3s);
+\draw[flw-a, flw-aug] (R3s) -- node[flw-c, flw-cA] {7} (R3c);
+\draw[flw-a] (R3b) -- node[flw-c] {2} (R3a);
+\draw[flw-a] (R3a) to[bend left=17] node[flw-c] {7} (R3d);
+\draw[flw-a, flw-rev] (R3d) to[bend left=17] node[flw-c] {5} (R3a);
+\draw[flw-a, flw-rev] (R3d) -- node[flw-c] {5} (R3b);
+\draw[flw-a, flw-rev] (R3e) -- node[flw-c] {6} (R3b);
+\draw[flw-a, flw-aug] (R3c) -- node[flw-c, flw-cA] {7} (R3e);
+\draw[flw-a] (R3d) -- node[flw-c] {2} (R3e);
+\draw[flw-a] (R3d) to[bend left=17] node[flw-c] {2} (R3t);
+\draw[flw-a, flw-rev] (R3t) to[bend left=17] node[flw-c] {10} (R3d);
+\draw[flw-a, flw-aug] (R3e) to[bend left=17] node[flw-c, flw-cA] {3} (R3t);
+\draw[flw-a, flw-rev] (R3t) to[bend left=17] node[flw-c] {6} (R3e);
+\node[flw-t] at (3.45, -2.45) {(d) 第 4 輪：$s \to c \to e \to t$，瓶頸 $3$};
+\end{scope}
+\end{tikzpicture}
+
+\medskip
+\begin{tikzpicture}[x=0.95cm, y=0.95cm]
+\begin{scope}[xshift=0.0cm]
+\node[flw-v] (R4s) at (0, 0) {$s$};
+\node[flw-v] (R4a) at (2.2, 1.6) {$a$};
+\node[flw-v] (R4b) at (2.2, 0) {$b$};
+\node[flw-v] (R4c) at (2.2, -1.6) {$c$};
+\node[flw-v] (R4d) at (4.7, 0.95) {$d$};
+\node[flw-v] (R4e) at (4.7, -0.95) {$e$};
+\node[flw-v] (R4t) at (6.9, 0) {$t$};
+\draw[flw-a, flw-rev] (R4a) -- node[flw-c] {5} (R4s);
+\draw[flw-a, flw-rev] (R4b) -- node[flw-c] {11} (R4s);
+\draw[flw-a, flw-aug] (R4s) to[bend left=17] node[flw-c, flw-cA] {4} (R4c);
+\draw[flw-a, flw-rev] (R4c) to[bend left=17] node[flw-c] {3} (R4s);
+\draw[flw-a, flw-aug] (R4b) -- node[flw-c, flw-cA] {2} (R4a);
+\draw[flw-a, flw-aug] (R4a) to[bend left=17] node[flw-c, flw-cA] {7} (R4d);
+\draw[flw-a, flw-rev] (R4d) to[bend left=17] node[flw-c] {5} (R4a);
+\draw[flw-a, flw-rev] (R4d) -- node[flw-c] {5} (R4b);
+\draw[flw-a, flw-rev, flw-aug] (R4e) -- node[flw-c, flw-cA] {6} (R4b);
+\draw[flw-a, flw-aug] (R4c) to[bend left=17] node[flw-c, flw-cA] {4} (R4e);
+\draw[flw-a, flw-rev] (R4e) to[bend left=17] node[flw-c] {3} (R4c);
+\draw[flw-a] (R4d) -- node[flw-c] {2} (R4e);
+\draw[flw-a, flw-aug] (R4d) to[bend left=17] node[flw-c, flw-cA] {2} (R4t);
+\draw[flw-a, flw-rev] (R4t) to[bend left=17] node[flw-c] {10} (R4d);
+\draw[flw-a, flw-rev] (R4t) -- node[flw-c] {9} (R4e);
+\node[flw-t] at (3.45, -2.45) {(e) 第 5 輪：$s \to c \to e \to b \to a \to d \to t$，瓶頸 $2$};
+\end{scope}
+\begin{scope}[xshift=8.4cm]
+\node[flw-v, flw-vS] (R5s) at (0, 0) {$s$};
+\node[flw-v] (R5a) at (2.2, 1.6) {$a$};
+\node[flw-v, flw-vS] (R5b) at (2.2, 0) {$b$};
+\node[flw-v, flw-vS] (R5c) at (2.2, -1.6) {$c$};
+\node[flw-v] (R5d) at (4.7, 0.95) {$d$};
+\node[flw-v, flw-vS] (R5e) at (4.7, -0.95) {$e$};
+\node[flw-v] (R5t) at (6.9, 0) {$t$};
+\draw[flw-a, flw-rev] (R5a) -- node[flw-c] {5} (R5s);
+\draw[flw-a, flw-rev] (R5b) -- node[flw-c] {11} (R5s);
+\draw[flw-a] (R5s) to[bend left=17] node[flw-c] {2} (R5c);
+\draw[flw-a, flw-rev] (R5c) to[bend left=17] node[flw-c] {5} (R5s);
+\draw[flw-a, flw-rev] (R5a) -- node[flw-c] {2} (R5b);
+\draw[flw-a] (R5a) to[bend left=17] node[flw-c] {5} (R5d);
+\draw[flw-a, flw-rev] (R5d) to[bend left=17] node[flw-c] {7} (R5a);
+\draw[flw-a, flw-rev] (R5d) -- node[flw-c] {5} (R5b);
+\draw[flw-a] (R5b) to[bend left=17] node[flw-c] {2} (R5e);
+\draw[flw-a, flw-rev] (R5e) to[bend left=17] node[flw-c] {4} (R5b);
+\draw[flw-a] (R5c) to[bend left=17] node[flw-c] {2} (R5e);
+\draw[flw-a, flw-rev] (R5e) to[bend left=17] node[flw-c] {5} (R5c);
+\draw[flw-a] (R5d) -- node[flw-c] {2} (R5e);
+\draw[flw-a, flw-rev] (R5t) -- node[flw-c] {12} (R5d);
+\draw[flw-a, flw-rev] (R5t) -- node[flw-c] {9} (R5e);
+\node[flw-t] at (3.45, -2.45) {(f) 結束：走不到 $t$};
+\end{scope}
+\end{tikzpicture}
+\diagcaption{物流網路上 Edmonds--Karp 每一輪開始時的剩餘網路 $G_f$。 實線是順向邊，虛線是
+反向邊，數字是剩餘容量；兩個方向都有剩餘容量時畫成兩條弧線。 (f) 的藍色頂點是從 $s$ 還走得
+到的頂點。}
+\label{fig:flw-ek-rounds}
+\end{center}
+
+逐輪看幾個地方：
+
+\begin{itemize}
+\item \textbf{第 1 輪。} 一開始 $G_f$ 就是原圖。 BFS 依序發現 $a, b, c$（距離 $1$），再從
+$a$ 發現 $d$、從 $b$ 發現 $e$（距離 $2$），最後從 $d$ 發現 $t$。 $s \to b \to d \to t$ 也
+一樣短，但 $a$ 比 $b$ 早被拿出佇列，$d$ 是 $a$ 發現的，所以路徑經過 $a$。
+\item \textbf{第 2 輪。} $s \to a$ 滿了，$a$ 只能經由 $b \to a$ 到達，距離變成 $2$。 同時
+多了反向邊 $a \to s$、$d \to a$、$t \to d$，容量都是 $5$。
+\item \textbf{第 3 輪。} $b \to d$ 滿了，$d$ 改由 $a$ 發現，距離變成 $3$。 這一輪的瓶頸 $6$
+同時出現在 $s \to b$ 和 $b \to e$，兩條都是關鍵邊。 做完之後的流就是圖~\ref{fig:flw-net}(b)
+的 $f_1$。
+\item \textbf{第 4 輪。} $s$ 出去的邊只剩 $s \to c$。 $b$ 要經過 $c \to e$ 和反向邊
+$e \to b$ 才到得了，距離跳到 $3$，$a$ 跳到 $4$。 最短的增廣路徑是 $s \to c \to e \to t$，
+瓶頸是 $e \to t$ 剩下的 $3$。
+\item \textbf{第 5 輪。} $e \to t$ 也滿了，$t$ 的距離從 $3$ 跳到 $6$。 增廣路徑
+$s \to c \to e \to b \to a \to d \to t$ 經過反向邊 $e \to b$：$b \to e$ 上原本有 $6$ 板，
+其中 $2$ 板「退回」$b$，改走 $b \to a \to d \to t$；$e$ 少掉的那 $2$ 板，由
+$s \to c \to e$ 送來的補上。 這和第~\ref{sec:flw-residual}~節的小例子是同一件事。
+\item \textbf{第 6 輪。} BFS 只走得到 $s, b, c, e$，找不到增廣路徑，最大流是 $21$。
+\end{itemize}
+
+表裡每一欄由上往下看，距離都沒有變小過：$a$ 是 $1, 2, 2, 4, 4, \infty$，$t$ 是
+$3, 3, 3, 3, 6, \infty$。 下一小節會證明這件事一定成立，它就是 Edmonds--Karp 跑得快的原因。
+
+圖~\ref{fig:flw-final} 是最後的流。 藍色的頂點和橘色的邊是下一節要講的最小割。
+
+\begin{center}
+\begin{tikzpicture}[x=1.1cm, y=1.1cm]
+\node[flw-v, flw-vS] (Zs) at (0, 0) {$s$};
+\node[flw-v] (Za) at (2.2, 1.6) {$a$};
+\node[flw-v, flw-vS] (Zb) at (2.2, 0) {$b$};
+\node[flw-v, flw-vS] (Zc) at (2.2, -1.6) {$c$};
+\node[flw-v] (Zd) at (4.7, 0.95) {$d$};
+\node[flw-v, flw-vS] (Ze) at (4.7, -0.95) {$e$};
+\node[flw-v] (Zt) at (6.9, 0) {$t$};
+\draw[flw-a, flw-cut] (Zs) -- node[flw-c] {5/5} (Za);
+\draw[flw-a] (Zs) -- node[flw-c] {11/11} (Zb);
+\draw[flw-a] (Zs) -- node[flw-c] {5/7} (Zc);
+\draw[flw-a, flw-cut] (Zb) -- node[flw-c] {2/2} (Za);
+\draw[flw-a] (Za) -- node[flw-c] {7/12} (Zd);
+\draw[flw-a, flw-cut] (Zb) -- node[flw-c] {5/5} (Zd);
+\draw[flw-a] (Zb) -- node[flw-c] {4/6} (Ze);
+\draw[flw-a] (Zc) -- node[flw-c] {5/7} (Ze);
+\draw[flw-a] (Zd) -- node[flw-c] {0/2} (Ze);
+\draw[flw-a] (Zd) -- node[flw-c] {12/12} (Zt);
+\draw[flw-a, flw-cut] (Ze) -- node[flw-c] {9/9} (Zt);
+\end{tikzpicture}
+\diagcaption{Edmonds--Karp 求出的最大流，$|f| = 21$。 藍色的 $S = \{s, b, c, e\}$ 是最後的
+剩餘網路裡從 $s$ 走得到的頂點，橘色的四條邊從 $S$ 指向 $T = \{a, d, t\}$，全部是滿的。}
+\label{fig:flw-final}
+\end{center}
+
+\begin{examnote}
+手算增廣的題目，每一輪寫出：目前的剩餘網路（或列出所有 $c_f > 0$ 的邊和剩餘容量）、增
+廣路徑、瓶頸、增廣後的 $|f|$。 最常漏的是反向邊：每送一次，路上每條邊都要多一條反方向、
+同樣大小的剩餘容量。 題目沒有規定找路徑的順序時，在答案開頭寫明「BFS，鄰居依字母順
+序」，因為不同的順序會走出不同的路徑。 最後再寫出最大流的值和一個最小割，兩者相等，就是
+最好的驗算。
+\end{examnote}
+
+\subsection{增廣次數是 $O(nm)$}
+\label{sec:flw-ek-proof}
+
+以下 $f$ 是某一輪增廣之前的流，$f'$ 是增廣之後的流，$\delta_f(s, v)$、$\delta_{f'}(s, v)$
+分別是 $G_f$、$G_{f'}$ 裡從 $s$ 到 $v$ 的邊數距離。
+
+\begin{lemma}
+\label{lem:flw-mono}
+執行 Edmonds--Karp 時，對每個頂點 $v \ne s$，$\delta_f(s, v)$ 在每一次增廣之後都不會變小。
+\end{lemma}
+
+\begin{proof}
+用反證法。 假設某次增廣（從 $f$ 變成 $f'$）讓某些頂點的距離變小了，在這些頂點裡取
+$\delta_{f'}(s, v)$ 最小的一個 $v$。 $v$ 在 $G_{f'}$ 裡走得到（距離變小，不會是 $\infty$），
+取 $G_{f'}$ 裡從 $s$ 到 $v$ 的一條最短路徑，$u$ 是 $v$ 前面那個頂點，所以
+\[
+\delta_{f'}(s, u) = \delta_{f'}(s, v) - 1 .
+\]
+$u$ 的距離在 $G_{f'}$ 裡比 $v$ 小，由 $v$ 的取法，$u$ 的距離沒有變小（$u = s$ 時距離本來
+就是 $0$）：$\delta_f(s, u) \le \delta_{f'}(s, u)$。
+
+先看 $(u, v)$ 是不是 $G_f$ 的邊。 如果是，由第~21~章 BFS 證明裡的事實 (a)（走一條邊距離最
+多加一），
+\[
+\delta_f(s, v) \le \delta_f(s, u) + 1 \le \delta_{f'}(s, u) + 1 = \delta_{f'}(s, v),
+\]
+和「$v$ 的距離變小」矛盾。 所以 $(u, v)$ 不在 $G_f$ 裡，卻在 $G_{f'}$ 裡。 剩餘容量從 $0$
+變成正的，只可能是這次的增廣路徑經過了反方向的 $(v, u)$。 增廣路徑是 $G_f$ 裡的最短路
+徑，它經過 $(v, u)$，表示 $\delta_f(s, u) = \delta_f(s, v) + 1$。 於是
+\[
+\delta_f(s, v) = \delta_f(s, u) - 1 \le \delta_{f'}(s, u) - 1 = \delta_{f'}(s, v) - 2,
+\]
+距離反而至少增加了 $2$，又矛盾。
+\end{proof}
+
+\begin{theorem}
+\label{thm:flw-ek}
+Edmonds--Karp 演算法最多增廣 $nm$ 次（更精確地說，$O(nm)$ 次），時間是 $O(nm^2)$。
+\end{theorem}
+
+\begin{proof}
+看一條可能出現在剩餘網路裡的邊 $(u, v)$，也就是 $(u, v) \in E$ 或 $(v, u) \in E$，這種邊最
+多 $2m$ 條。 每次增廣，路徑上至少有一條關鍵邊，增廣之後它的剩餘容量變成 $0$，從剩餘網路
+消失。
+
+假設 $(u, v)$ 在某一輪（流是 $f$）當了關鍵邊。 它在 BFS 求出的最短路徑上，所以
+$\delta_f(s, v) = \delta_f(s, u) + 1$。 增廣之後它消失了；要再出現，之後某一輪（流是
+$f''$）的增廣路徑必須經過 $(v, u)$，那時 $\delta_{f''}(s, u) = \delta_{f''}(s, v) + 1$。 由
+引理~\ref{lem:flw-mono}，$\delta_{f''}(s, v) \ge \delta_f(s, v)$，所以
+\[
+\delta_{f''}(s, u) = \delta_{f''}(s, v) + 1 \ge \delta_f(s, v) + 1 = \delta_f(s, u) + 2 .
+\]
+也就是說，$(u, v)$ 每多當一次關鍵邊，$u$ 的距離至少多 $2$。 $u$ 在增廣路徑上又不是 $t$，
+距離最多是 $n - 2$；從 $0$ 開始每次至少加 $2$，$(u, v)$ 當關鍵邊最多
+$(n - 2)/2 + 1 = n/2$ 次。
+
+每次增廣至少有一條關鍵邊，所以增廣次數不超過 $2m \cdot n/2 = nm$。 每一輪的 BFS 和更新都
+是 $O(n + m) = O(m)$，總時間 $O(nm^2)$。
+\end{proof}
+
+這個上界只和 $n$、$m$ 有關，跟容量多大、甚至是不是整數都無關：無理數的容量也一定在
+$nm$ 輪內停下來。 圖~\ref{fig:flw-bad} 的網路，Edmonds--Karp 第一輪就找到長度 $2$ 的
+$s \to u \to t$，兩輪就結束。 證明裡「每次至少加 $2$」的估計並不緊，實際上增廣次數通常
+遠少於 $nm$；物流網路 $n = 7$、$m = 11$，只增廣了 $5$ 次。
+
+最大流還有更快的演算法。 Dinic（1970）在每個階段用 BFS 把頂點分層，一次找出很多條同樣
+長度的增廣路徑，時間 $O(n^2 m)$；推送–重標（push-relabel）一類的方法不找完整的路徑，
+讓頂點暫時多收一些流，再往前推，可以做到 $O(n^3)$。 這些都超出本書的範圍，延伸閱讀列了
+參考資料。
+
+\section{最大流最小割定理}
+\label{sec:flw-mfmc}
+
+\subsection{割}
+
+章首的物流經理還問了一句：要增加送貨量，該先替哪一段路線加車？ 直覺上，如果某幾條路線
+一斷，集貨場就完全送不到配送中心，那這幾條路線的容量加起來，就是送貨量的上限。 這一節
+把這個直覺寫成定理。
+
+\begin{definition}[割]
+\label{def:flw-cut}
+流網路的一個\textbf{割}（cut）$(S, T)$ 是把 $V$ 分成兩部分 $S$ 和 $T = V - S$，而且
+$s \in S$、$t \in T$。 割的\textbf{容量}是從 $S$ 指向 $T$ 的邊的容量和：
+\[
+c(S, T) = \sum_{u \in S} \sum_{v \in T} c(u, v) .
+\]
+給定流 $f$，通過割的\textbf{淨流量}是
+\[
+f(S, T) = \sum_{u \in S} \sum_{v \in T} f(u, v) - \sum_{u \in S} \sum_{v \in T} f(v, u) .
+\]
+容量最小的割叫\textbf{最小割}（minimum cut）。
+\end{definition}
+
+兩個定義不對稱，要特別注意：容量只算從 $S$ 到 $T$ 的邊；淨流量則是從 $S$ 到 $T$ 的流
+量，減掉從 $T$ 回到 $S$ 的流量。
+
+以物流網路和圖~\ref{fig:flw-net}(b) 的流 $f_1$ 為例，取 $S = \{s, a, d\}$，
+$T = \{b, c, e, t\}$。 從 $S$ 到 $T$ 的邊是 $s \to b$、$s \to c$、$d \to e$、$d \to t$，
+從 $T$ 到 $S$ 的邊是 $b \to a$、$b \to d$。 所以
+\begin{align*}
+c(S, T) &= 11 + 7 + 2 + 12 = 32, \\
+f_1(S, T) &= (11 + 0 + 0 + 10) - (0 + 5) = 16 .
+\end{align*}
+淨流量剛好是 $|f_1| = 16$。 再取 $S = \{s, b, c, e\}$：從 $S$ 到 $T$ 的邊是 $s \to a$、
+$b \to a$、$b \to d$、$e \to t$，$c(S, T) = 5 + 2 + 5 + 9 = 21$；從 $T$ 到 $S$ 的邊只有
+$d \to e$，它的容量不算進 $c(S, T)$。
+
+\begin{lemma}
+\label{lem:flw-cutflow}
+$f$ 是流，$(S, T)$ 是任意一個割，則 $f(S, T) = |f|$。
+\end{lemma}
+
+\begin{proof}
+對每個頂點 $u$，記 $\mathrm{out}(u) = \sum_{v} f(u, v)$、$\mathrm{in}(u) = \sum_{v} f(v, u)$。
+由定義，$\mathrm{out}(s) - \mathrm{in}(s) = |f|$；由流量守恆，$S$ 裡其他的頂點（$t$ 不在
+$S$ 裡）都是 $\mathrm{out}(u) - \mathrm{in}(u) = 0$。 加起來，
+\[
+\sum_{u \in S} \bigl(\mathrm{out}(u) - \mathrm{in}(u)\bigr) = |f| .
+\]
+把左邊每一項 $f(x, y)$ 依另一端在 $S$ 還是 $T$ 分開。 兩端都在 $S$ 的 $f(x, y)$，在
+$\mathrm{out}(x)$ 裡加一次、在 $\mathrm{in}(y)$ 裡減一次，互相抵消。 剩下的，是 $u \in S$
+流向 $T$ 的量（加）和 $T$ 流進 $u \in S$ 的量（減），合起來正是 $f(S, T)$。
+\end{proof}
+
+取 $S = V - \{t\}$，就得到 $|f|$ 等於流進 $t$ 的淨量，這是前面 $f_1$ 的例子看到的事。
+
+\begin{corollary}
+\label{cor:flw-weak}
+任何流 $f$ 和任何割 $(S, T)$，都有 $|f| \le c(S, T)$。
+\end{corollary}
+
+\begin{proof}
+$|f| = f(S, T) \le \sum_{u \in S} \sum_{v \in T} f(u, v) \le \sum_{u \in S} \sum_{v \in T}
+c(u, v) = c(S, T)$。 第一個不等號丟掉了減掉的那一項（它不是負的），第二個用容量限制。
+\end{proof}
+
+所以\textbf{任何}一個割的容量都是\textbf{任何}一個流的上限，最大流的值不超過最小割的容
+量。 物流網路的割 $\{s, b, c, e\}$ 容量 $21$，Edmonds--Karp 也找到了值 $21$ 的流，兩邊碰
+在一起，就同時證明了「流 $21$ 是最大的」和「割 $21$ 是最小的」。 下面的定理說，兩邊一定
+會碰在一起。
+
+\subsection{定理與證明}
+
+\begin{theorem}[最大流最小割定理]
+\label{thm:flw-mfmc}
+$f$ 是流網路 $G$ 上的一個流。 下面三件事等價：
+\begin{enumerate}
+\item $f$ 是最大流。
+\item 剩餘網路 $G_f$ 裡沒有增廣路徑。
+\item 有某個割 $(S, T)$ 使得 $|f| = c(S, T)$。
+\end{enumerate}
+\end{theorem}
+
+\begin{proof}
+\textbf{(1) $\Rightarrow$ (2)。} 如果 $G_f$ 有增廣路徑 $p$，由引理~\ref{lem:flw-augment}，
+沿 $p$ 增廣得到的流值是 $|f| + c_f(p) > |f|$，$f$ 就不是最大流。
+
+\textbf{(2) $\Rightarrow$ (3)。} 令 $S$ 是 $G_f$ 裡從 $s$ 走得到的頂點，$T = V - S$。
+$s \in S$；$G_f$ 沒有增廣路徑，所以 $t \notin S$，$(S, T)$ 是一個割。 取 $u \in S$、
+$v \in T$：
+\begin{itemize}
+\item 若 $(u, v) \in E$，則 $f(u, v) = c(u, v)$。 否則 $c_f(u, v) = c(u, v) - f(u, v) > 0$，
+$(u, v)$ 是 $G_f$ 的邊，$v$ 也走得到，和 $v \in T$ 矛盾。
+\item 若 $(v, u) \in E$，則 $f(v, u) = 0$。 否則 $c_f(u, v) = f(v, u) > 0$，同樣矛盾。
+\end{itemize}
+不是邊的頂點對流量都是 $0$。 所以
+\[
+f(S, T) = \sum_{u \in S} \sum_{v \in T} c(u, v) - 0 = c(S, T),
+\]
+再由引理~\ref{lem:flw-cutflow}，$|f| = f(S, T) = c(S, T)$。
+
+\textbf{(3) $\Rightarrow$ (1)。} 由系理~\ref{cor:flw-weak}，任何流 $g$ 都有
+$|g| \le c(S, T) = |f|$，所以 $f$ 是最大流。
+\end{proof}
+
+這個定理一次給了三個結論。 第一，\textbf{最大流的值等於最小割的容量}：由 (1) 推到 (3)，
+最大流的值等於某個割的容量，而系理~\ref{cor:flw-weak} 說沒有割比它小。 第二，
+\textbf{Ford--Fulkerson 是對的}：虛擬碼~\ref{alg:flw-ff} 停下來時 $G_f$ 沒有增廣路徑，由
+(2) 推到 (1)，手上的流就是最大流。 這也補完了定理~\ref{thm:flw-integral}：容量是整數時，
+Ford--Fulkerson 會停，停下來的流量全是整數，又是最大流。 第三，\textbf{最小割可以順便求
+出來}，就是證明裡的 $S$。
+
+\subsection{手找最小割}
+\label{sec:flw-mincut}
+
+求出最大流之後，在最後的剩餘網路上從 $s$ 做一次 BFS 或 DFS，走得到的頂點是 $S$，其他是
+$T$，多花 $O(n + m)$。 Edmonds--Karp 最後那一輪 BFS 已經做了這件事：表裡第 6 列距離不是
+$\infty$ 的頂點，就是 $S = \{s, b, c, e\}$。
+
+驗算的方法是看證明的 (2) $\Rightarrow$ (3)：從 $S$ 到 $T$ 的邊都要滿，從 $T$ 到 $S$ 的邊
+都要沒有流。 圖~\ref{fig:flw-final} 裡，$s \to a$（$5/5$）、$b \to a$（$2/2$）、
+$b \to d$（$5/5$）、$e \to t$（$9/9$）都滿了，唯一從 $T$ 回到 $S$ 的 $d \to e$ 流量是
+$0$；容量和是 $21$，等於 $|f|$。
+
+最小割不一定只有一個。 物流網路的 $S' = \{s, a, b, c, d, e\}$（只有 $t$ 在另一邊）也是最
+小割：$d \to t$ 和 $e \to t$ 的容量和是 $12 + 9 = 21$。 用剩餘網路找到的那一個，$S$ 是所有
+最小割裡最小的（觀念題第~\ref{q:flw-smallest}~題）。
+
+回到物流經理的問題。 加大某條邊的容量，最大流要變大，所有的最小割都得變大，所以這條邊
+必須出現在\textbf{每一個}最小割裡；只在其中一個最小割裡的邊，加了也沒用，因為另一個最小
+割還是 $21$。 物流網路的兩個最小割共有的邊只有 $e \to t$。 實際算一下：$s \to a$ 加 $3$
+板，最大流還是 $21$；$e \to t$ 加 $3$ 板，最大流變成 $23$（不是 $24$，因為又有別的割變成
+最緊的）。 只靠「加在最小割的邊上」不保證有用，但不在每個最小割裡的邊一定沒用。
+
+\begin{examnote}
+題目問「最小割」時，寫出 $S$、$T$、從 $S$ 到 $T$ 的每條邊和它們的容量和，並說明它等於
+最大流的值。 容量只加從 $S$ 指向 $T$ 的邊；從 $T$ 指回 $S$ 的邊，不論容量多大都不算。 題
+目問「所有的最小割」時，不能只交剩餘網路找到的那一個，要逐一檢查其他的分法（可以用觀念
+題第~\ref{q:flw-allcuts}~題的方法縮小範圍）。
+\end{examnote}
+
+\section{二分匹配}
+\label{sec:flw-match}
+
+\subsection{匹配}
+
+\begin{definition}[匹配]
+\label{def:flw-matching}
+無向圖 $G = (V, E)$ 的一個\textbf{匹配}（matching）是一個邊的子集合 $M \subseteq E$，其中
+任兩條邊都沒有共同的端點。 $M$ 裡某條邊的端點叫\textbf{已匹配}（matched）的頂點，其他叫
+\textbf{未匹配}（free，也叫自由）的頂點。 邊數最多的匹配叫\textbf{最大匹配}（maximum
+matching）；每個頂點都已匹配的叫\textbf{完美匹配}（perfect matching）。
+\end{definition}
+
+這一節只處理二分圖。 照第~21~章的定義~\ref{def:gtr-bipartite}，二分圖的頂點分成 $L$ 和 $R$
+兩邊，每條邊一端在 $L$、一端在 $R$；寫成 $G = (L \cup R, E)$。 章首的助教分配就是二分圖：
+$L = \{x_1, x_2, x_3, x_4\}$ 是四位助教，$R = \{y_1, \ldots, y_5\}$ 是五堂實習課，助教
+$x_i$ 有空帶 $y_j$ 就連一條邊。
+
+\begin{center}
+\small
+\begin{tabular}{cl}
+\toprule
+助教 & 有空的實習課 \\
+\midrule
+$x_1$ & $y_3$、$y_5$ \\
+$x_2$ & $y_1$、$y_2$、$y_4$、$y_5$ \\
+$x_3$ & $y_1$、$y_2$ \\
+$x_4$ & $y_2$ \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+一個匹配就是一種分配：每位助教最多帶一堂，每堂課最多一位助教。 最直接的做法是依序讓每
+位助教挑第一堂還沒人帶的課：$x_1$ 拿 $y_3$、$x_2$ 拿 $y_1$、$x_3$ 拿 $y_2$，輪到 $x_4$
+時，他唯一能帶的 $y_2$ 已經被拿走了（圖~\ref{fig:flw-ta}(a)）。 這三條邊已經不能再加任何
+一條邊，但最大匹配有四條（圖 (b)）。
+
+\begin{center}
+\begin{tikzpicture}[x=1cm,y=0.95cm]
+\begin{scope}[xshift=0cm]
+\node[flw-v] (Ax1) at (0, 1.5) {$x_1$};
+\node[flw-v] (Ax2) at (0, 0.5) {$x_2$};
+\node[flw-v] (Ax3) at (0, -0.5) {$x_3$};
+\node[flw-v] (Ax4) at (0, -1.5) {$x_4$};
+\node[flw-v] (Ay1) at (2.4, 2) {$y_1$};
+\node[flw-v] (Ay2) at (2.4, 1) {$y_2$};
+\node[flw-v] (Ay3) at (2.4, 0) {$y_3$};
+\node[flw-v] (Ay4) at (2.4, -1) {$y_4$};
+\node[flw-v] (Ay5) at (2.4, -2) {$y_5$};
+\draw[flw-m] (Ax1) -- (Ay3);
+\draw[flw-e] (Ax1) -- (Ay5);
+\draw[flw-m] (Ax2) -- (Ay1);
+\draw[flw-e] (Ax2) -- (Ay2);
+\draw[flw-e] (Ax2) -- (Ay4);
+\draw[flw-e] (Ax2) -- (Ay5);
+\draw[flw-e] (Ax3) -- (Ay1);
+\draw[flw-m] (Ax3) -- (Ay2);
+\draw[flw-e] (Ax4) -- (Ay2);
+\node[flw-t] at (1.2, -2.75) {(a) 依序配給第一個有空的課};
+\end{scope}
+\begin{scope}[xshift=5.2cm]
+\node[flw-v] (Bx1) at (0, 1.5) {$x_1$};
+\node[flw-v] (Bx2) at (0, 0.5) {$x_2$};
+\node[flw-v] (Bx3) at (0, -0.5) {$x_3$};
+\node[flw-v] (Bx4) at (0, -1.5) {$x_4$};
+\node[flw-v] (By1) at (2.4, 2) {$y_1$};
+\node[flw-v] (By2) at (2.4, 1) {$y_2$};
+\node[flw-v] (By3) at (2.4, 0) {$y_3$};
+\node[flw-v] (By4) at (2.4, -1) {$y_4$};
+\node[flw-v] (By5) at (2.4, -2) {$y_5$};
+\draw[flw-m] (Bx1) -- (By3);
+\draw[flw-e] (Bx1) -- (By5);
+\draw[flw-e] (Bx2) -- (By1);
+\draw[flw-e] (Bx2) -- (By2);
+\draw[flw-m] (Bx2) -- (By4);
+\draw[flw-e] (Bx2) -- (By5);
+\draw[flw-m] (Bx3) -- (By1);
+\draw[flw-e] (Bx3) -- (By2);
+\draw[flw-m] (Bx4) -- (By2);
+\node[flw-t] at (1.2, -2.75) {(b) 最大匹配};
+\end{scope}
+\end{tikzpicture}
+\diagcaption{助教分配的二分圖，粗紅線是匹配。 (a) 依序讓 $x_1, x_2, x_3$ 挑第一堂沒人帶的課，
+$x_4$ 沒課可帶；這個匹配不能再加邊。 (b) 四條邊的最大匹配。}
+\label{fig:flw-ta}
+\end{center}
+
+\begin{examnote}
+「不能再加邊」的匹配叫\textbf{極大匹配}（maximal matching），「邊數最多」的叫
+\textbf{最大匹配}（maximum matching）。 最大匹配一定是極大匹配，反過來不一定，圖~
+\ref{fig:flw-ta}(a) 就是反例。 中文的「極大」「最大」只差一個字，英文也只差兩個字母；作
+答時遇到這兩個詞，先確認題目要的是哪一個，必要時把英文寫在旁邊。
+\end{examnote}
+
+\subsection{轉成最大流}
+\label{sec:flw-reduce}
+
+把二分圖 $G = (L \cup R, E)$ 改成流網路 $G'$：
+\begin{itemize}
+\item 頂點是 $L \cup R$，再加上新的源點 $s$ 和匯點 $t$。
+\item 從 $s$ 到每個 $x \in L$ 連一條邊；從每個 $y \in R$ 到 $t$ 連一條邊。
+\item $G$ 的每條邊 $\{x, y\}$（$x \in L$、$y \in R$）改成有向邊 $x \to y$，方向一律從 $L$
+指向 $R$。
+\item 所有邊的容量都是 $1$。
+\end{itemize}
+$G'$ 有 $n + 2$ 個頂點、$m + |L| + |R| = m + n$ 條邊，圖~\ref{fig:flw-tanet}(a) 是助教例子
+的 $G'$。 想成：$s$ 給每位助教一張「派課單」，派課單只能沿著「有空」的邊交給一堂課，每堂
+課最多收一張，再交給 $t$。
+
+\begin{lemma}
+\label{lem:flw-match-flow}
+(1) $G$ 的每個匹配 $M$ 對應 $G'$ 的一個整數流 $f$，$|f| = |M|$。 (2) 反過來，$G'$ 的每個
+整數流 $f$ 對應 $G$ 的一個匹配 $M$，$|M| = |f|$。
+\end{lemma}
+
+\begin{proof}
+(1) 對 $M$ 的每條邊 $\{x, y\}$，在 $s \to x \to y \to t$ 三條邊上各放流量 $1$，其他邊都是
+$0$。 $M$ 的邊沒有共同端點，所以每條 $s \to x$、$y \to t$ 最多被放一次，不超過容量；每個
+$x$、$y$ 流進和流出都是 $0$ 或 $1$，守恆成立。 值是從 $s$ 出去的量，等於 $|M|$。
+
+(2) 容量都是 $1$，整數流每條邊的流量不是 $0$ 就是 $1$。 令
+$M = \{\{x, y\} : x \in L,\ y \in R,\ f(x, y) = 1\}$。 每個 $x \in L$ 只有一條進來的邊
+$s \to x$，流進最多 $1$；由守恆，$x$ 出去的邊最多一條有流。 同理每個 $y \in R$ 只有一條出
+去的邊 $y \to t$，進來的邊最多一條有流。 所以 $M$ 的邊沒有共同端點，是一個匹配。 取割
+$S = \{s\} \cup L$：$s \to x$ 兩端都在 $S$ 裡，所以從 $S$ 到 $T$ 的邊只有 $L$ 到 $R$ 的
+邊；從 $T$ 回到 $S$ 的邊一條也沒有（$G'$ 沒有從 $R$ 指回 $L$ 的邊，也沒有指向 $s$ 的邊）。
+由引理~\ref{lem:flw-cutflow}，
+$|f| = f(S, T) = \sum_{x \in L} \sum_{y \in R} f(x, y) = |M|$。
+\end{proof}
+
+\begin{theorem}
+\label{thm:flw-match}
+二分圖 $G$ 的最大匹配的邊數，等於 $G'$ 的最大流的值。 在 $G'$ 上執行 Ford--Fulkerson，把
+有流的 $x \to y$ 邊挑出來，就是一個最大匹配，時間 $O(n(n + m))$。
+\end{theorem}
+
+\begin{proof}
+由定理~\ref{thm:flw-integral}，Ford--Fulkerson 求出的最大流 $f$ 是整數流，由引理~\ref{lem:flw-match-flow}(2)
+它對應一個 $|f|$ 條邊的匹配。 如果有更大的匹配 $M$，由引理~\ref{lem:flw-match-flow}(1)，
+就有值 $|M| > |f|$ 的流，和 $f$ 是最大流矛盾。 時間：最大匹配最多 $\min(|L|, |R|) \le n/2$
+條邊，所以 $|f^{*}| \le n/2$，迴圈最多 $n/2$ 輪；每一輪在 $G'$ 上找路徑是
+$O(n + m)$。
+\end{proof}
+
+如果 $G$ 沒有孤立的頂點，$n \le 2m$，時間可以寫成 $O(nm)$。 這裡的瓶頸永遠是 $1$，所以用
+DFS 還是 BFS 找路徑，輪數都一樣是 $|f^{*}|$；Edmonds--Karp 的 $O(nm^2)$ 在這裡反而是比較
+鬆的估計。
+
+\subsection{手算：分配助教}
+\label{sec:flw-match-trace}
+
+在 $G'$ 上執行 Edmonds--Karp，鄰居依 $s, x_1, \ldots, x_4, y_1, \ldots, y_5, t$ 的順序檢查。
+前三輪的剩餘網路裡，$s \to x_i \to y_j \to t$ 這種長度 $3$ 的路徑還在，BFS 依序找到
+
+\begin{center}
+\small
+\begin{tabular}{clcl}
+\toprule
+輪 & 增廣路徑 & 長度 & 匹配的變化 \\
+\midrule
+1 & $s \to x_1 \to y_3 \to t$ & 3 & 加入 $\{x_1, y_3\}$ \\
+2 & $s \to x_2 \to y_1 \to t$ & 3 & 加入 $\{x_2, y_1\}$ \\
+3 & $s \to x_3 \to y_2 \to t$ & 3 & 加入 $\{x_3, y_2\}$ \\
+4 & $s \to x_4 \to y_2 \to x_3 \to y_1 \to x_2 \to y_4 \to t$ & 7 &
+加入 $\{x_4, y_2\}$、$\{x_3, y_1\}$、$\{x_2, y_4\}$；\\
+& & & 拿掉 $\{x_3, y_2\}$、$\{x_2, y_1\}$ \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+前三輪和「依序挑第一堂沒人帶的課」完全一樣。 第 4 輪開始時（圖~\ref{fig:flw-tanet}(b)），
+$s$ 只剩 $s \to x_4$ 一條順向邊；已匹配的邊 $x_i \to y_j$ 都滿了，換成反向邊
+$y_j \to x_i$；已匹配的課 $y_1, y_2, y_3$ 到 $t$ 的邊也滿了，只有 $y_4$、$y_5$ 還連得到
+$t$。 BFS 從 $x_4$ 只能走到 $y_2$，再沿反向邊回到 $y_2$ 現在的助教 $x_3$，$x_3$ 走到他另
+一堂有空的 $y_1$，再回到 $y_1$ 的助教 $x_2$，$x_2$ 走到沒人帶的 $y_4$，最後到 $t$。
+
+\begin{center}
+\begin{tikzpicture}[x=0.95cm,y=0.95cm]
+\begin{scope}[xshift=0cm]
+\node[flw-v] (Ps) at (-2, 0) {$s$};
+\node[flw-v] (Pt) at (4.4, 0) {$t$};
+\node[flw-v] (Px1) at (0, 1.5) {$x_1$};
+\node[flw-v] (Px2) at (0, 0.5) {$x_2$};
+\node[flw-v] (Px3) at (0, -0.5) {$x_3$};
+\node[flw-v] (Px4) at (0, -1.5) {$x_4$};
+\node[flw-v] (Py1) at (2.4, 2) {$y_1$};
+\node[flw-v] (Py2) at (2.4, 1) {$y_2$};
+\node[flw-v] (Py3) at (2.4, 0) {$y_3$};
+\node[flw-v] (Py4) at (2.4, -1) {$y_4$};
+\node[flw-v] (Py5) at (2.4, -2) {$y_5$};
+\draw[flw-a] (Ps) -- (Px1);
+\draw[flw-a] (Ps) -- (Px2);
+\draw[flw-a] (Ps) -- (Px3);
+\draw[flw-a] (Ps) -- (Px4);
+\draw[flw-a] (Px1) -- (Py3);
+\draw[flw-a] (Px1) -- (Py5);
+\draw[flw-a] (Px2) -- (Py1);
+\draw[flw-a] (Px2) -- (Py2);
+\draw[flw-a] (Px2) -- (Py4);
+\draw[flw-a] (Px2) -- (Py5);
+\draw[flw-a] (Px3) -- (Py1);
+\draw[flw-a] (Px3) -- (Py2);
+\draw[flw-a] (Px4) -- (Py2);
+\draw[flw-a] (Py1) -- (Pt);
+\draw[flw-a] (Py2) -- (Pt);
+\draw[flw-a] (Py3) -- (Pt);
+\draw[flw-a] (Py4) -- (Pt);
+\draw[flw-a] (Py5) -- (Pt);
+\node[flw-t] at (1.2, -2.75) {(a) $G'$：每條邊容量都是 $1$};
+\end{scope}
+\begin{scope}[xshift=8.0cm]
+\node[flw-v] (Qs) at (-2, 0) {$s$};
+\node[flw-v] (Qt) at (4.4, 0) {$t$};
+\node[flw-v] (Qx1) at (0, 1.5) {$x_1$};
+\node[flw-v] (Qx2) at (0, 0.5) {$x_2$};
+\node[flw-v] (Qx3) at (0, -0.5) {$x_3$};
+\node[flw-v] (Qx4) at (0, -1.5) {$x_4$};
+\node[flw-v] (Qy1) at (2.4, 2) {$y_1$};
+\node[flw-v] (Qy2) at (2.4, 1) {$y_2$};
+\node[flw-v] (Qy3) at (2.4, 0) {$y_3$};
+\node[flw-v] (Qy4) at (2.4, -1) {$y_4$};
+\node[flw-v] (Qy5) at (2.4, -2) {$y_5$};
+\draw[flw-a, flw-rev] (Qx1) -- (Qs);
+\draw[flw-a, flw-rev] (Qx2) -- (Qs);
+\draw[flw-a, flw-rev] (Qx3) -- (Qs);
+\draw[flw-a, flw-aug] (Qs) -- (Qx4);
+\draw[flw-a, flw-rev] (Qy3) -- (Qx1);
+\draw[flw-a] (Qx1) -- (Qy5);
+\draw[flw-a, flw-rev, flw-aug] (Qy1) -- (Qx2);
+\draw[flw-a] (Qx2) -- (Qy2);
+\draw[flw-a, flw-aug] (Qx2) -- (Qy4);
+\draw[flw-a] (Qx2) -- (Qy5);
+\draw[flw-a, flw-aug] (Qx3) -- (Qy1);
+\draw[flw-a, flw-rev, flw-aug] (Qy2) -- (Qx3);
+\draw[flw-a, flw-aug] (Qx4) -- (Qy2);
+\draw[flw-a, flw-rev] (Qt) -- (Qy1);
+\draw[flw-a, flw-rev] (Qt) -- (Qy2);
+\draw[flw-a, flw-rev] (Qt) -- (Qy3);
+\draw[flw-a, flw-aug] (Qy4) -- (Qt);
+\draw[flw-a] (Qy5) -- (Qt);
+\node[flw-t] at (1.2, -2.75) {(b) 第 4 輪的剩餘網路};
+\end{scope}
+\end{tikzpicture}
+\diagcaption{(a) 助教分配轉成的流網路 $G'$，邊的方向一律是 $s \to L \to R \to t$。 (b) 前三
+輪做完之後的剩餘網路，虛線是反向邊（已匹配的邊和用掉的 $s \to x$、$y \to t$）；紅色是第 4
+輪的增廣路徑，在 $L$、$R$ 之間來回，交替走未匹配的邊和已匹配的邊。}
+\label{fig:flw-tanet}
+\end{center}
+
+用分配的話說：$x_4$ 要 $y_2$，於是 $x_3$ 讓出 $y_2$ 改帶 $y_1$，$x_2$ 讓出 $y_1$ 改帶
+$y_4$。 每位已經有課的助教還是有課，只是換了一堂，多出來的是 $x_4$。 最後的匹配是
+$\{x_1, y_3\}$、$\{x_2, y_4\}$、$\{x_3, y_1\}$、$\{x_4, y_2\}$，四位助教都有課，$y_5$ 沒有助
+教。 $|L| = 4$，不可能更多，這就是最大匹配。
+
+\subsection{交錯路徑}
+\label{sec:flw-alt}
+
+第 4 輪的路徑去掉頭尾的 $s$、$t$，是 $G$ 裡的路徑 $x_4, y_2, x_3, y_1, x_2, y_4$：第一、
+三、五條邊不在匹配裡，第二、四條在。 這種「不在 $M$、在 $M$」交替出現的路徑叫做
+\textbf{交錯路徑}（alternating path）；兩端都是未匹配頂點的交錯路徑，叫做（對 $M$ 的）
+\textbf{增廣路徑}。
+
+匹配的增廣路徑和 $G'$ 的增廣路徑是同一件事。 $M$ 對應的流，剩餘網路長這樣：未匹配的 $x$
+才有 $s \to x$；不在 $M$ 的邊是順向邊 $x \to y$，在 $M$ 的邊只剩反向邊 $y \to x$；未匹配
+的 $y$ 才有 $y \to t$。 所以 $G'_f$ 裡從 $s$ 到 $t$ 的路徑，一定是從一個未匹配的 $x$ 出
+發，從 $L$ 往 $R$ 走不在 $M$ 的邊，從 $R$ 往 $L$ 走在 $M$ 的邊，最後停在一個未匹配的 $y$。
+沿它增廣，等於把路徑上的邊「在 $M$ 的拿掉、不在 $M$ 的加進來」，路徑上不在 $M$ 的邊比在
+$M$ 的多一條，匹配就多一條邊。
+
+再加上最大流最小割定理（$G'_f$ 沒有增廣路徑 $\Leftrightarrow$ 流是最大的），得到：
+
+\begin{corollary}
+\label{cor:flw-berge}
+二分圖的匹配 $M$ 是最大匹配，若且唯若 $G$ 裡沒有對 $M$ 的增廣路徑。
+\end{corollary}
+
+這個結論對一般的圖也成立（Berge，1957），只是一般圖的增廣路徑不好找，超出本書範圍。
+
+既然增廣路徑可以直接在 $G$ 上找，就不必真的建出 $G'$。 虛擬碼~\ref{alg:flw-alt} 對每個
+$x \in L$ 用 DFS 找一條從 $x$ 出發的增廣路徑：$\mathit{mate}[y]$ 是目前和 $y$ 配對的頂點，
+沒有配對時是 \NIL；$\mathit{seen}[y]$ 記錄這次 DFS 已經試過的 $y$，避免繞圈。
+
+\begin{pseudo}[label=alg:flw-alt]{用交錯路徑求二分圖的最大匹配}
+\Procedure{Try-Augment}{$x$} \Comment{從 $x \in L$ 找增廣路徑}
+    \For{每個 $y \in \mathit{Adj}[x]$}
+        \If{$\mathit{seen}[y] = \FALSE$}
+            \State $\mathit{seen}[y] \gets \TRUE$
+            \If{$\mathit{mate}[y] = \NIL$ \OR \Call{Try-Augment}{$\mathit{mate}[y]$}}
+                \State $\mathit{mate}[y] \gets x$
+                \State \Return \TRUE
+            \EndIf
+        \EndIf
+    \EndFor
+    \State \Return \FALSE
+\EndProcedure
+\Statex
+\Procedure{Bipartite-Matching}{$G$}
+    \For{每個 $y \in R$}
+        \State $\mathit{mate}[y] \gets \NIL$
+    \EndFor
+    \State $\mathit{size} \gets 0$
+    \For{每個 $x \in L$}
+        \For{每個 $y \in R$}
+            \State $\mathit{seen}[y] \gets \FALSE$
+        \EndFor
+        \If{\Call{Try-Augment}{$x$}}
+            \State $\mathit{size} \gets \mathit{size} + 1$
+        \EndIf
+    \EndFor
+    \State \Return $\mathit{size}$
+\EndProcedure
+\end{pseudo}
+
+第 5 行是整個演算法的核心：$y$ 沒人配，路徑就在 $y$ 結束；$y$ 已經配給別人，就遞迴問「那
+個人能不能改配別堂」，問得到，路徑就經過 $y$ 和 $\mathit{mate}[y]$ 繼續延伸。 找到之後，
+第 6 行在遞迴回來的途中，把路徑上的每個 $y$ 改配給前一個 $x$，也就是把交錯路徑翻轉。
+
+每次呼叫 \proc{Try-Augment} 從一個 $x$ 出發，是一次 DFS，每個 $y$ 最多試一次，花
+$O(n + m)$；外層對每個 $x$ 做一次，總時間 $O(|L|(n + m)) = O(nm)$（沒有孤立頂點時）。 一
+個 $x$ 這次找不到增廣路徑，之後也不必再試它（觀念題第~\ref{q:flw-once}~題），所以外層迴
+圈每個 $x$ 只跑一次就夠。 第~\ref{sec:flw-c}~節最後用一張隨機的大圖比較
+過，兩種做法求出的匹配大小相同。
+
+把二分匹配做得更快的是 Hopcroft--Karp 演算法（1973）：每個階段用 BFS 分層，一次找出很多
+條互不相交的最短增廣路徑，時間 $O(m\sqrt{n})$。 邊上有權重、要讓總成本最小的指派問題
+（assignment problem），可以用匈牙利演算法（Hungarian algorithm）在 $O(n^3)$ 時間解決。
+這兩個演算法本書都不展開，延伸閱讀列了參考資料；觀念題第~\ref{q:flw-konig}~題用最大流最
+小割證明二分圖的另一個重要性質（König 定理）。
+
+\section{C 實作}
+\label{sec:flw-c}
+
+\subsection{鄰接矩陣的 Edmonds--Karp}
+
+本節的程式用一個 $n \times n$ 的陣列 \texttt{res} 存剩餘容量 $c_f(u, v)$，另一個陣列
+\texttt{cap} 存原本的容量，就是虛擬碼~\ref{alg:flw-ek} 的直接翻譯。 選鄰接矩陣有三個理由：
+
+\begin{itemize}
+\item \textbf{反向邊不用另外存。} $(u, v)$ 的反向邊就是 \texttt{res[v][u]}，增廣時一格減、
+一格加。
+\item \textbf{反平行邊不用轉換。} 如果 $u \to v$、$v \to u$ 兩條邊都有，\texttt{res[u][v]}
+一開始是 $c(u, v)$，之後自動變成「$c(u, v)$ 減掉 $u$ 往 $v$ 送的、加上 $v$ 往 $u$ 送的」，
+兩個方向合併成一格。 第~\ref{sec:flw-model}~節加新頂點的轉換在這裡可以省掉。 印流量時取
+$c(u, v) - c_f(u, v)$，只印正的：兩個方向互相抵消後，只有一個方向留下流量。
+\item \textbf{鄰居順序和手算一樣。} BFS 掃一整列 $v = 0, 1, \ldots, n - 1$，頂點編號照輸入
+的順序，和手算「依固定順序檢查鄰居」的規則相同，輸出可以逐列對照。
+\end{itemize}
+
+代價是空間 $\Theta(n^2)$，而且每次 BFS 要掃整個矩陣，花 $\Theta(n^2)$ 而不是 $O(n + m)$，
+總時間變成 $O(nm) \cdot \Theta(n^2) = O(n^3 m)$。 幾百個頂點以內沒有問題，更大的稀疏圖要
+換成下一小節的邊串列。
+
+\begin{cbookrecap}[第~8~章 8.6 節、第~19~章 19.3 節]
+二維陣列在記憶體裡是一列接一列排的，第 $i$ 列第 $j$ 個元素的位移是 \texttt{i * C + j}。
+大小執行時才知道的二維表，用 \texttt{malloc} 配置 \texttt{n * n} 個元素的一塊，自己算位移；
+這裡用巨集 \texttt{RES(g, u, v)} 包起來，寫起來和 \texttt{res[u][v]} 一樣。 \texttt{calloc}
+配置後全部設成 $0$，正好當成「沒有邊」；\texttt{memcpy} 一次把整張容量表複製成剩餘容量
+表。 每一塊 \texttt{malloc}、\texttt{calloc} 來的記憶體都要 \texttt{free}。
+\end{cbookrecap}
+
+輸入有好幾張網路，一直讀到檔案結束。 每張網路第一行是 $n$、$m$，第二行是 $n$ 個頂點的名
+字（最多三個字元，第一個是 $s$、最後一個是 $t$），接著 $m$ 行各一條邊和容量；同一對頂點
+重複出現時容量相加。 每一輪印一列：BFS 求出的距離（依頂點的順序，走不到印 \texttt{-}）、
+增廣路徑、瓶頸和增廣之後的值。 最後印出有流的邊和最小割。 輸入的三張網路依序是物流網
+路、一張有反平行邊的小網路，以及助教分配的 $G'$。
+
+\begin{example}[label=ex:flw-maxflow]{c}{(maxflow.c) 鄰接矩陣的 Edmonds--Karp、最小割與二分匹配}
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+
+#define MAXN 64
+
+typedef struct {
+    int n;
+    char name[MAXN][4];         // 頂點的名字，0 是 s，n-1 是 t
+    int *cap;                   // cap[u*n+v]：原本的容量 c(u, v)
+    int *res;                   // res[u*n+v]：剩餘容量 c_f(u, v)
+} Network;
+
+#define CAP(g, u, v) ((g)->cap[(u) * (g)->n + (v)])
+#define RES(g, u, v) ((g)->res[(u) * (g)->n + (v)])
+
+int find_vertex(const Network *g, const char *s)
+{
+    for (int i = 0; i < g->n; i++)
+        if (strcmp(g->name[i], s) == 0)
+            return i;
+    return -1;
+}
+
+// 在剩餘網路上從 s 做 BFS（虛擬碼 21.1），鄰居照編號由小到大看。
+// dist[v] = -1 表示走不到。回傳 1：走得到 t。
+int bfs(const Network *g, int *dist, int *pi, int *queue)
+{
+    int n = g->n, head = 0, tail = 0;
+    for (int v = 0; v < n; v++)
+        dist[v] = pi[v] = -1;
+    dist[0] = 0;
+    queue[tail++] = 0;
+    while (head < tail) {
+        int u = queue[head++];
+        for (int v = 0; v < n; v++)
+            if (dist[v] == -1 && RES(g, u, v) > 0) {
+                dist[v] = dist[u] + 1;
+                pi[v] = u;
+                queue[tail++] = v;
+            }
+    }
+    return dist[n - 1] != -1;
+}
+
+// Edmonds–Karp（虛擬碼 26.2）。每一輪印出距離、增廣路徑、瓶頸和 |f|。
+// 結束時 dist 是最後一次 BFS 的結果，走得到的頂點就是最小割的 S。
+long edmonds_karp(Network *g, int *dist, int *pi, int *queue)
+{
+    int n = g->n, t = n - 1;
+    long value = 0;
+    memcpy(g->res, g->cap, (size_t)n * n * sizeof *g->res);
+    for (;;) {
+        int found = bfs(g, dist, pi, queue);
+        for (int v = 0; v < n; v++) {
+            if (v > 0)
+                putchar(' ');
+            if (dist[v] == -1)
+                putchar('-');
+            else
+                printf("%d", dist[v]);
+        }
+        if (!found) {
+            printf(" | no path\n");
+            return value;
+        }
+        int b = RES(g, pi[t], t);                 // 瓶頸 c_f(p)
+        for (int v = t; v != 0; v = pi[v])
+            if (RES(g, pi[v], v) < b)
+                b = RES(g, pi[v], v);
+        int len = 0;
+        for (int v = t; v != 0; v = pi[v]) {      // 沿路徑增廣
+            RES(g, pi[v], v) -= b;
+            RES(g, v, pi[v]) += b;
+            queue[len++] = v;                     // 倒著存路徑
+        }
+        value += b;
+        printf(" | s");
+        while (len > 0)
+            printf(" %s", g->name[queue[--len]]);
+        printf(" | +%d = %ld\n", b, value);
+    }
+}
+
+// 印出有流的邊（f/c），再印出最小割。
+void report(const Network *g, const int *dist)
+{
+    int n = g->n, k = 0;
+    for (int u = 0; u < n; u++)
+        for (int v = 0; v < n; v++) {
+            int f = CAP(g, u, v) - RES(g, u, v);  // 反平行邊可能為負
+            if (CAP(g, u, v) == 0 || f <= 0)
+                continue;
+            printf("%s%s->%s %d/%d", k % 3 == 0 ? "" : ", ",
+                   g->name[u], g->name[v], f, CAP(g, u, v));
+            if (++k % 3 == 0)
+                printf("\n");
+        }
+    if (k % 3 != 0)
+        printf("\n");
+    long c = 0;
+    printf("min cut S = {s");
+    for (int v = 1; v < n; v++)
+        if (dist[v] != -1)
+            printf(" %s", g->name[v]);
+    printf("}\ncut edges:");
+    for (int u = 0; u < n; u++) {
+        if (dist[u] == -1)                        // u 不在 S 裡
+            continue;
+        for (int v = 0; v < n; v++)
+            if (dist[v] == -1 && CAP(g, u, v) > 0) {
+                printf(" %s->%s", g->name[u], g->name[v]);
+                c += CAP(g, u, v);
+            }
+    }
+    printf(" = %ld\n", c);
+}
+
+int main(void)
+{
+    int n, m, id = 0;
+    while (scanf("%d %d", &n, &m) == 2) {
+        if (n < 2 || n > MAXN)
+            return 1;
+        Network g = {.n = n};
+        for (int i = 0; i < n; i++)
+            if (scanf("%3s", g.name[i]) != 1)
+                return 1;
+        g.cap = calloc((size_t)n * n, sizeof *g.cap);
+        g.res = malloc((size_t)n * n * sizeof *g.res);
+        int *buf = malloc(3 * (size_t)n * sizeof *buf);
+        if (g.cap == NULL || g.res == NULL || buf == NULL)
+            return 1;
+        for (int i = 0; i < m; i++) {
+            char a[4], b[4];
+            int c;
+            if (scanf("%3s %3s %d", a, b, &c) != 3)
+                return 1;
+            int u = find_vertex(&g, a), v = find_vertex(&g, b);
+            if (u < 0 || v < 0 || u == v || c < 0)
+                return 1;
+            CAP(&g, u, v) += c;                   // 重邊的容量相加
+        }
+        printf("network %d\n", ++id);
+        long value = edmonds_karp(&g, buf, buf + n, buf + 2 * n);
+        printf("max flow %ld\n", value);
+        report(&g, buf);
+        free(buf);
+        free(g.cap);
+        free(g.res);
+    }
+    return 0;
+}
+\end{example}
+\iosample{7 11 \\ s a b c d e t \\ s a 5 \\ s b 11 \\ s c 7 \\ b a 2 \\ a d 12 \\ b d 5 \\ b e 6 \\ c e 7 \\ d e 2 \\ d t 12 \\ e t 9 \\ 4 6 \\ s u v t \\ s u 3 \\ s v 2 \\ u v 6 \\ v u 4 \\ u t 2 \\ v t 3 \\ 11 18 \\ s x1 x2 x3 x4 y1 y2 y3 y4 y5 t \\ s x1 1 \\ s x2 1 \\ s x3 1 \\ s x4 1 \\ x1 y3 1 \\ x1 y5 1 \\ x2 y1 1 \\ x2 y2 1 \\ x2 y4 1 \\ x2 y5 1 \\ x3 y1 1 \\ x3 y2 1 \\ x4 y2 1 \\ y1 t 1 \\ y2 t 1 \\ y3 t 1 \\ y4 t 1 \\ y5 t 1}{network 1 \\ 0 1 1 1 2 2 3 | s a d t | +5 = 5 \\ 0 2 1 1 2 2 3 | s b d t | +5 = 10 \\ 0 2 1 1 3 2 3 | s b e t | +6 = 16 \\ 0 4 3 1 4 2 3 | s c e t | +3 = 19 \\ 0 4 3 1 5 2 6 | s c e b a d t | +2 = 21 \\ 0 - 3 1 - 2 - | no path \\ max flow 21 \\ s->a 5/5, s->b 11/11, s->c 5/7 \\ a->d 7/12, b->a 2/2, b->d 5/5 \\ b->e 4/6, c->e 5/7, d->t 12/12 \\ e->t 9/9 \\ min cut S = \{s b c e\} \\ cut edges: s->a b->a b->d e->t = 21 \\ network 2 \\ 0 1 1 2 | s u t | +2 = 2 \\ 0 1 1 2 | s v t | +2 = 4 \\ 0 1 2 3 | s u v t | +1 = 5 \\ 0 - - - | no path \\ max flow 5 \\ s->u 3/3, s->v 2/2, u->v 1/6 \\ u->t 2/2, v->t 3/3 \\ min cut S = \{s\} \\ cut edges: s->u s->v = 5 \\ network 3 \\ 0 1 1 1 1 2 2 2 2 2 3 | s x1 y3 t | +1 = 1 \\ 0 5 1 1 1 2 2 4 2 2 3 | s x2 y1 t | +1 = 2 \\ 0 5 3 1 1 2 2 4 4 4 3 | s x3 y2 t | +1 = 3 \\ 0 9 5 3 1 4 2 8 6 6 7 | s x4 y2 x3 y1 x2 y4 t | +1 = 4 \\ 0 - - - - - - - - - - | no path \\ max flow 4 \\ s->x1 1/1, s->x2 1/1, s->x3 1/1 \\ s->x4 1/1, x1->y3 1/1, x2->y4 1/1 \\ x3->y1 1/1, x4->y2 1/1, y1->t 1/1 \\ y2->t 1/1, y3->t 1/1, y4->t 1/1 \\ min cut S = \{s\} \\ cut edges: s->x1 s->x2 s->x3 s->x4 = 4}
+
+第一張網路的前六列和第~\ref{sec:flw-ek-trace}~節的表逐列相同，最後一列距離是 \texttt{-}
+的頂點就是 $T$；流量那四列是圖~\ref{fig:flw-final}（沒有流的 $d \to e$ 不印），最後兩列是
+第~\ref{sec:flw-mincut}~節的最小割。 第二張網路的 $u \to v$、$v \to u$ 是一對反平行邊，程
+式不需要任何轉換就算出最大流 $5$，流量只留在 $u \to v$ 一個方向。 第三張是第~\ref{sec:flw-match-trace}~節
+的四輪增廣，$x \to y$ 有流的四條邊就是最大匹配。 注意第三張的 BFS 找到 $t$ 之後沒有停，
+繼續沿反向邊從 $t$ 走回已匹配的 $y$，所以距離列裡有些 $y$ 的距離比 $t$ 還大；這不影響找到
+的路徑，只是為了印出完整的距離。 這張的最小割是 $S = \{s\}$：四位助教都有課，$s$ 出去的
+邊全滿。
+
+\subsection{邊串列：大而稀疏的圖}
+
+頂點有幾萬個時，矩陣太浪費。 這時把每條邊存成一對\textbf{弧}（arc）：第 $2i$ 條弧是原本
+的邊 $u \to v$，剩餘容量從 $c(u, v)$ 開始；第 $2i + 1$ 條是它的反向弧 $v \to u$，從 $0$ 開
+始。 兩條弧的編號只差最低位元，\texttt{k \^{} 1} 就是弧 \texttt{k} 的另一半，增廣時
+\texttt{res[k]} 減、\texttt{res[k \^{} 1]} 加。 每個頂點的弧用陣列串成串列
+（\texttt{first}、\texttt{next}，和第~21~章的鄰接串列是同一個結構，只是指標換成陣列下標），
+BFS 只掃真正存在的弧，一輪 $O(n + m)$，總時間就是定理~\ref{thm:flw-ek} 的 $O(nm^2)$。 BFS
+記下走進每個頂點的弧 \texttt{pe[v]}；弧的起點是另一半的終點 \texttt{to[pe[v] \^{} 1]}，沿著
+它就能從 $t$ 走回 $s$。
+
+\begin{code}{c}{邊串列的 Edmonds--Karp（片段）}
+typedef struct {
+    int n, arcs;
+    int *first, *last;          // 頂點的第一條、最後一條弧
+    int *to, *res, *next;       // 弧的終點、剩餘容量、下一條
+} FlowNet;
+
+// 把弧 u -> v 接在 u 的串列尾端；-1 表示沒有弧
+void push_arc(FlowNet *g, int u, int v, int c)
+{
+    int k = g->arcs++;
+    g->to[k] = v;
+    g->res[k] = c;
+    g->next[k] = -1;
+    if (g->last[u] == -1)
+        g->first[u] = k;
+    else
+        g->next[g->last[u]] = k;
+    g->last[u] = k;
+}
+
+void add_edge(FlowNet *g, int u, int v, int c)
+{
+    push_arc(g, u, v, c);       // 弧 2i
+    push_arc(g, v, u, 0);       // 弧 2i+1
+}
+
+// max_flow 的主迴圈；pe、queue 是長度 n 的陣列
+for (;;) {
+    for (int v = 0; v < n; v++)
+        pe[v] = -2;                         // -2：還沒發現
+    pe[s] = -1;
+    int head = 0, tail = 0;
+    queue[tail++] = s;
+    while (head < tail && pe[t] == -2) {    // 找到 t 就可以停
+        int u = queue[head++];
+        for (int k = g->first[u]; k != -1; k = g->next[k])
+            if (g->res[k] > 0 && pe[g->to[k]] == -2) {
+                pe[g->to[k]] = k;
+                queue[tail++] = g->to[k];
+            }
+    }
+    if (pe[t] == -2)
+        break;
+    int b = g->res[pe[t]];
+    for (int v = t; v != s; v = g->to[pe[v] ^ 1])
+        if (g->res[pe[v]] < b)
+            b = g->res[pe[v]];
+    for (int v = t; v != s; v = g->to[pe[v] ^ 1]) {
+        g->res[pe[v]] -= b;
+        g->res[pe[v] ^ 1] += b;
+    }
+    flow += b;
+}
+\end{code}
+
+用這個結構求二分匹配時，照第~\ref{sec:flw-reduce}~節建 $G'$，先加 $s \to x$、再加
+$x \to y$、最後加 $y \to t$。 弧接在串列尾端，輸入的邊依 $(x, y)$ 排好時，每個頂點的弧剛好
+依對方的編號由小到大，BFS 的順序和手算一樣。 結束後，原本的邊 $x \to y$（偶數號的弧）剩
+餘容量是 $0$，表示上面有流，這條邊就在匹配裡。 拿左右各 $2000$ 個頂點、$8000$ 條邊的隨機
+二分圖測試，$G'$ 有 $4002$ 個頂點：用上一小節的矩陣，兩張表要 $2 \times 4002^2$ 個
+\texttt{int}，大約 $128$ MB，每次 BFS 要掃一千六百萬格；用邊串列只要幾萬個弧，和虛擬碼~\ref{alg:flw-alt}
+的寫法算出的匹配大小相同。
+
+\section{本章常見錯誤}
+\label{sec:flw-pitfalls}
+
+\begin{center}
+\small
+\begin{tabular}{p{0.27\linewidth}p{0.48\linewidth}p{0.15\linewidth}}
+\toprule
+錯誤 & 例子 & 見 \\
+\midrule
+剩餘網路漏了反向邊 & 只畫「還能送多少」，沒畫「能退回多少」；物流網路第 5 輪的路徑
+$s \to c \to e \to b \to \cdots$ 就找不到，停在 $19$ & 第~\ref{sec:flw-residual}~節 \\
+反向邊的容量寫錯 & 把 $(v, u)$ 的剩餘容量寫成 $c(u, v)$ 或 $c(u, v) - f(u, v)$；正確是
+$f(u, v)$ & 定義~\ref{def:flw-residual} \\
+沿反向邊增廣時把流量加上去 & 路徑經過反向邊 $e \to b$，應該是 $f(b, e)$ 減 $2$，卻寫成
+$f(e, b) = 2$ & 引理~\ref{lem:flw-augment} \\
+割的容量算錯方向 & 把從 $T$ 指回 $S$ 的 $d \to e$ 也加進去（或減掉） &
+第~\ref{sec:flw-mfmc}~節 \\
+淨流量忘了減回流 & $S = \{s, a, d\}$ 時沒減 $f_1(b, d) = 5$，算出 $21$ 而不是 $16$ &
+引理~\ref{lem:flw-cutflow} \\
+以為最小割、最大流都只有一個 & 只交剩餘網路找到的 $\{s, b, c, e\}$，漏了 $V - \{t\}$ &
+第~\ref{sec:flw-mincut}~節 \\
+找不到「每條邊都沒滿的路徑」就停 & 圖~\ref{fig:flw-greedy} 停在 $2$；要在剩餘網路上找才
+對 & 第~\ref{sec:flw-residual}~節 \\
+把 Ford--Fulkerson 寫成多項式時間 & $O(m\,|f^{*}|)$ 和容量的數值成正比，是擬多項式 &
+第~\ref{sec:flw-bad}~節 \\
+把增廣次數當成時間 & Edmonds--Karp 增廣 $O(nm)$ 次，每次 $O(m)$，共 $O(nm^2)$；用矩陣
+做 BFS 是 $O(n^3 m)$ & 第~\ref{sec:flw-ek-proof}~節 \\
+二分圖的邊畫成雙向 & $x \to y$ 和 $y \to x$ 都放容量 $1$，流可以在 $L$、$R$ 之間來回，對
+不回匹配 & 第~\ref{sec:flw-reduce}~節 \\
+極大匹配當成最大匹配 & 依序貪心配到不能再加，就說是最大匹配 & 第~\ref{sec:flw-match}~節 \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\section{觀念題}
+\label{sec:flw-exercises}
+
+題型和研究所考試、期中期末考的筆試相近。 沒有特別說明時，Edmonds--Karp 的 BFS 依題目列出
+頂點的順序檢查鄰居。 「物流網路」指圖~\ref{fig:flw-net}(a)。 解答在本章最後。
+
+\begin{enumerate}
+\item \label{q:flw-tf}（選擇，可能不只一個答案）下列敘述哪些正確？
+\begin{enumerate}
+\item 任何一個流的值，都不超過任何一個割的容量。
+\item 割 $(S, T)$ 的容量，是從 $S$ 到 $T$ 的邊的容量和，減掉從 $T$ 到 $S$ 的邊的容量和。
+\item 若剩餘網路 $G_f$ 裡沒有從 $s$ 到 $t$ 的路徑，$f$ 是最大流。
+\item 一張流網路的最大流只有一個。
+\item 容量都是整數時，每一個最大流的每條邊流量都是整數。
+\item Edmonds--Karp 每一輪找到的增廣路徑，邊數不會比前一輪少。
+\item 增廣之後，這條路徑的關鍵邊不會出現在新的剩餘網路裡。
+\end{enumerate}
+
+\item \label{q:flw-check}（計算）下表是物流網路上的三個函數，每一欄是一條邊的值。
+\begin{center}
+\small
+\begin{tabular}{c|ccccccccccc}
+ & $sa$ & $sb$ & $sc$ & $ba$ & $ad$ & $bd$ & $be$ & $ce$ & $de$ & $dt$ & $et$ \\
+\hline
+$f_A$ & 5 & 8 & 6 & 2 & 7 & 3 & 3 & 6 & 1 & 9 & 10 \\
+$f_B$ & 5 & 8 & 4 & 2 & 7 & 3 & 3 & 4 & 1 & 9 & 8 \\
+$f_C$ & 4 & 10 & 7 & 2 & 6 & 5 & 4 & 7 & 0 & 11 & 9 \\
+\end{tabular}
+\end{center}
+(a) 哪些是流？ 不是流的，指出違反了哪一條規則、在哪裡。 (b) 對是流的那一個，寫出它的值，
+列出剩餘網路的所有邊和剩餘容量，並用 BFS（順序 $s, a, b, c, d, e, t$）找出一條最短的增廣
+路徑和瓶頸。
+
+\item \label{q:flw-trace}（追蹤）流網路的頂點依序是 $s, 1, 2, 3, 4, t$，邊和容量是
+$s \to 1$：$5$、$s \to 2$：$6$、$1 \to 2$：$2$、$1 \to 3$：$4$、$1 \to 4$：$9$、
+$2 \to 3$：$2$、$2 \to 4$：$2$、$4 \to 3$：$3$、$3 \to t$：$4$、$4 \to t$：$8$。 執行
+Edmonds--Karp，每一輪寫出各頂點的距離、增廣路徑、瓶頸和 $|f|$；最後寫出每條邊的流量和一
+個最小割。
+
+\item \label{q:flw-allcuts}（計算與證明）證明：$f$ 是最大流時，割 $(S, T)$ 是最小割，若且
+唯若在 $G_f$ 裡沒有從 $S$ 指向 $T$ 的邊。 用這個事實找出物流網路所有的最小割。
+
+\item \label{q:flw-smallest}（證明）$f$ 是最大流，$R$ 是 $G_f$ 裡從 $s$ 走得到的頂點。 證
+明對每一個最小割 $(S, T)$，都有 $R \subseteq S$。 也就是說，第~\ref{sec:flw-mincut}~節
+找到的最小割，源點那一側是所有最小割裡最小的。
+
+\item \label{q:flw-plus1}（證明或反例）$(S, T)$ 是 $G$ 的一個最小割。 下列敘述對的請證
+明，錯的請給反例。
+\begin{enumerate}
+\item 每條邊的容量都乘以同一個正數 $k$，$(S, T)$ 仍是最小割。
+\item 每條邊的容量都加 $1$，$(S, T)$ 仍是最小割。
+\item 每條邊的容量都加 $1$，最大流的值至少增加 $1$。
+\end{enumerate}
+
+\item \label{q:flw-bad}（計算）把圖~\ref{fig:flw-bad} 的四個 $100$ 換成正整數 $K$。 (a) Ford--Fulkerson
+在最壞的路徑選擇下要增廣幾次？ 寫出造成最壞情況的選法。 (b) Edmonds--Karp（順序
+$s, u, v, t$）增廣幾次？ 每一次的路徑是什麼？ (c) $K = 10^9$ 時，(a) 的次數和輸入的長度（位
+元數）是什麼關係？
+
+\item \label{q:flw-time}（計算）用 $n$、$m$ 和最大流的值 $F$ 寫出下列做法的時間上界（容量都
+是整數，圖滿足本章的兩個假設）。
+\begin{enumerate}
+\item Ford--Fulkerson，用 DFS 在鄰接串列上找增廣路徑。
+\item Edmonds--Karp，用鄰接串列（或第~\ref{sec:flw-c}~節的邊串列）。
+\item Edmonds--Karp，用鄰接矩陣，每次 BFS 掃整個矩陣。
+\item 二分圖最大匹配，在 $G'$ 上用 Ford--Fulkerson。
+\end{enumerate}
+
+\item \label{q:flw-vertex}（計算）物流網路的轉運站 $b$ 改建，一晚最多只能處理 $8$ 板（進
+出 $b$ 的量都不超過 $8$），其他不變。 畫出轉換後的網路，求新的最大流的值，並給一個最小割
+證明它是最大的。
+
+\item \label{q:flw-disjoint}（設計與證明）$G$ 是有向圖，$s \ne t$ 是兩個頂點。 兩條路徑如
+果沒有共用的邊，就說它們\textbf{邊互斥}（edge-disjoint）。 把每條邊的容量都設成 $1$，證
+明：(a) 從 $s$ 到 $t$ 最多有幾條兩兩邊互斥的路徑，就等於這個網路的最大流的值；(b) 這個值也
+等於「最少要刪掉幾條邊，才能讓 $s$ 走不到 $t$」。
+
+\item \label{q:flw-mtrace}（追蹤）二分圖 $L = \{x_1, \ldots, x_5\}$、
+$R = \{y_1, \ldots, y_5\}$，邊是：$x_1$ 連 $y_2, y_3$；$x_2$ 連 $y_5$；$x_3$ 連 $y_2$；$x_4$
+連 $y_2, y_3, y_4, y_5$；$x_5$ 連 $y_2, y_5$。 (a) 在 $G'$ 上執行 Edmonds--Karp（順序
+$s, x_1, \ldots, x_5, y_1, \ldots, y_5, t$），寫出每一輪的增廣路徑和最後的匹配。 (b) 改用虛擬碼~\ref{alg:flw-alt}
+（$x$、$y$ 都依編號），寫出每次呼叫 \proc{Try-Augment} 的結果。 (c) 說明為什麼不可能有 $5$
+條邊的匹配。
+
+\item \label{q:flw-konig}（證明）無向圖的\textbf{頂點覆蓋}（vertex cover）是一個頂點的集合
+$C$，每條邊至少有一個端點在 $C$ 裡。 證明 König 定理：二分圖裡，最大匹配的邊數等於最小頂
+點覆蓋的頂點數。 （提示：把 $G'$ 中間那些邊的容量改成 $n + 1$，看最小割。） 用你的證明，
+找出第~\ref{q:flw-mtrace}~題那張圖的一個最小頂點覆蓋。
+
+\item \label{q:flw-once}（證明）$M$ 是二分圖的匹配，$x \in L$ 未匹配，而且 $G$ 裡沒有從
+$x$ 出發、對 $M$ 的增廣路徑。 $P$ 是對 $M$ 的另一條增廣路徑，$M'$ 是沿 $P$ 翻轉之後的匹配。
+證明對 $M'$ 也沒有從 $x$ 出發的增廣路徑。 （這說明虛擬碼~\ref{alg:flw-alt} 每個 $x$ 只試
+一次就夠。）
+
+\item \label{q:flw-maximal}（證明）$M$ 是任意一張圖（不一定是二分圖）的極大匹配，$M^{*}$
+是最大匹配。 證明 $|M^{*}| \le 2|M|$，並給一個等號成立的例子。
+\end{enumerate}
+
+\section{實作練習}
+\label{sec:flw-practice}
+
+Aki-Judge 目前還沒有和本章對應的題目，請用觀念題和第~\ref{sec:flw-c}~節的程式練習。
+例如把觀念題第~\ref{q:flw-trace}~題的網路改寫成範例~\ref{ex:flw-maxflow} 的輸入格式，和自
+己的手算對照；或把第~\ref{q:flw-mtrace}~題的二分圖照第~\ref{sec:flw-reduce}~節改成 $G'$，交給同一支程
+式。 想練邊串列的話，把第~\ref{sec:flw-c}~節的片段補成完整的程式，用同樣的輸入對答案。 也可
+以替範例程式加上頂點容量（第~\ref{sec:flw-model}~節的拆點），用第~\ref{q:flw-vertex}~題
+檢查。
+
+\section{讀完你應該會}
+\label{sec:flw-checklist}
+
+\begin{itemize}
+\item 寫出流網路、流、流的值、剩餘容量、剩餘網路、增廣路徑、割的定義，並把反平行邊、多
+個源點匯點、頂點容量轉成標準的流網路。
+\item 檢查一個函數是不是流；給定流，畫出剩餘網路（順向邊和反向邊都要有），沿增廣路徑更
+新流量。
+\item 照指定的順序手算 Edmonds--Karp：每一輪的距離、增廣路徑、瓶頸、$|f|$，以及最後的
+流。
+\item 證明最大流最小割定理，用最後的剩餘網路找出最小割，並用「$S$ 到 $T$ 全滿、$T$ 到 $S$
+全空」驗算。
+\item 說明 Ford--Fulkerson 為什麼是擬多項式、Edmonds--Karp 為什麼是 $O(nm^2)$（距離不減、
+每條邊當關鍵邊最多 $n/2$ 次）。
+\item 把二分圖最大匹配轉成最大流，用交錯路徑解釋每一次增廣，寫出 C 程式（矩陣或邊串列）。
+\end{itemize}
+
+\textbf{延伸閱讀}（書末會整理完整的參考資料）
+
+\begin{itemize}
+\item Thomas H. Cormen 等，\textit{Introduction to Algorithms}，第 4 版，第 24 章：流網路、
+Ford--Fulkerson、Edmonds--Karp 的完整證明和二分匹配。 第 25 章接著講 Hopcroft--Karp 演算
+法、穩定婚姻問題和匈牙利演算法。
+\item Jon Kleinberg、Éva Tardos，\textit{Algorithm Design}，第 7 章：網路流的應用講得最多，
+包括邊互斥路徑、專案選擇、影像分割等「怎麼把問題建成流」的例子。
+\item Steven S. Skiena，\textit{The Algorithm Design Manual}，第 3 版，8.5 節：從應用的角度
+講二分匹配和網路流，適合想知道實務上什麼問題會用到流的讀者。
+\item Antti Laaksonen，\textit{Competitive Programmer's Handbook}，第 20 章：流與割、互斥
+路徑、最大匹配和路徑覆蓋，篇幅很短，程式寫法偏向競賽。
+\item L. R. Ford, Jr.、D. R. Fulkerson，``Maximal Flow through a Network''，\textit{Canadian
+Journal of Mathematics} 8，1956：Ford--Fulkerson 方法和最大流最小割定理的原始論文。
+\item Jack Edmonds、Richard M. Karp，``Theoretical Improvements in Algorithmic Efficiency for
+Network Flow Problems''，\textit{Journal of the ACM} 19(2)，1972：證明用最短的增廣路徑時，
+增廣次數和容量無關。
+\item John E. Hopcroft、Richard M. Karp，``An $n^{5/2}$ Algorithm for Maximum Matchings in
+Bipartite Graphs''，\textit{SIAM Journal on Computing} 2(4)，1973：一次找很多條最短增廣路
+徑的二分匹配演算法。
+\end{itemize}
+
+\addcontentsline{toc}{section}{觀念題解答}
+\section*{觀念題解答}
+
+\begin{enumerate}
+\item (a)、(c)、(f)、(g) 正確。 (a)：系理~\ref{cor:flw-weak}。 (b)：錯，容量只算從 $S$ 到
+$T$ 的邊，從 $T$ 到 $S$ 的邊不加也不減。 (c)：定理~\ref{thm:flw-mfmc} 的 (2) $\Rightarrow$
+(1)。 (d)：錯。 例如 $s \to a$、$a \to t$、$a \to b$、$b \to t$ 四條邊容量都是 $1$，最大流的
+值是 $1$，那一單位可以走 $a \to t$，也可以走 $a \to b \to t$，是兩個不同的最大流。 (e)：
+錯，同一個例子，兩條路各走 $1/2$ 也是最大流。 定理~\ref{thm:flw-integral} 只保證「存在」
+整數的最大流，而且 Ford--Fulkerson 會找到它。 (f)：由引理~\ref{lem:flw-mono}，
+$\delta_f(s, t)$ 不會變小，而增廣路徑的邊數就是 $\delta_f(s, t)$。 (g)：關鍵邊的剩餘容量等
+於瓶頸，增廣後變成 $0$。
+
+\item (a) $f_A$ 不是流：$e \to t$ 的流量 $10$ 超過容量 $9$（各頂點都守恆）。 $f_C$ 不是流：
+$b$ 流進 $10$、流出 $2 + 5 + 4 = 11$；$e$ 流進 $4 + 7 + 0 = 11$、流出 $9$，兩處不守恆（容
+量都沒超過）。 $f_B$ 是流：容量都沒超過；$a$ 流進 $5 + 2$、流出 $7$；$b$ 流進 $8$、流出
+$2 + 3 + 3$；$c$ 進出都是 $4$；$d$ 流進 $7 + 3$、流出 $1 + 9$；$e$ 流進 $3 + 4 + 1$、流出
+$8$。
+
+(b) $|f_B| = 5 + 8 + 4 = 17$（也等於流進 $t$ 的 $9 + 8$）。 剩餘網路的順向邊：$s \to b$：
+$3$、$s \to c$：$3$、$a \to d$：$5$、$b \to d$：$2$、$b \to e$：$3$、$c \to e$：$3$、
+$d \to e$：$1$、$d \to t$：$3$、$e \to t$：$1$（$s \to a$、$b \to a$ 已滿）。 反向邊：
+$a \to s$：$5$、$b \to s$：$8$、$c \to s$：$4$、$a \to b$：$2$、$d \to a$：$7$、$d \to b$：
+$3$、$e \to b$：$3$、$e \to c$：$4$、$e \to d$：$1$、$t \to d$：$9$、$t \to e$：$8$。 BFS 從
+$s$ 發現 $b$、$c$（距離 $1$），從 $b$ 發現 $d$、$e$（距離 $2$），從 $d$ 發現 $t$（距離
+$3$）；$a$ 要經過 $d \to a$，距離 $3$。 增廣路徑 $s \to b \to d \to t$，剩餘容量
+$3, 2, 3$，瓶頸 $2$。 所以 $f_B$ 不是最大流；繼續做下去，會再經過
+$s \to b \to e \to t$（$1$）和 $s \to c \to e \to d \to t$（$1$）到達 $21$。
+
+\item 距離依 $s, 1, 2, 3, 4, t$ 的順序：
+
+\begin{center}
+\small
+\begin{tabular}{c|cccccc|lcc}
+\toprule
+輪 & $s$ & $1$ & $2$ & $3$ & $4$ & $t$ & 增廣路徑 & 瓶頸 & $|f|$ \\
+\midrule
+1 & 0 & 1 & 1 & 2 & 2 & 3 & $s \to 1 \to 3 \to t$ & $4$ & $4$ \\
+2 & 0 & 1 & 1 & 2 & 2 & 3 & $s \to 1 \to 4 \to t$ & $1$ & $5$ \\
+3 & 0 & 3 & 1 & 2 & 2 & 3 & $s \to 2 \to 4 \to t$ & $2$ & $7$ \\
+4 & 0 & 3 & 1 & 2 & 4 & 5 & $s \to 2 \to 3 \to 1 \to 4 \to t$ & $2$ & $9$ \\
+5 & 0 & $\infty$ & 1 & $\infty$ & $\infty$ & $\infty$ & 走不到 $t$ & & \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+第 1 輪 $1 \to 3$、$3 \to t$ 同時滿了（瓶頸 $4$）；第 2 輪 $s \to 1$ 滿了，之後 $1$ 只能經
+過 $2 \to 3$ 和反向邊 $3 \to 1$ 到達，距離變成 $3$。 第 4 輪的路徑經過反向邊 $3 \to 1$：
+$1 \to 3$ 上的 $4$ 單位退回 $2$ 單位，改走 $1 \to 4 \to t$，$3$ 少掉的由 $2 \to 3$ 補上。
+最後的流量：$s \to 1$：$5$、$s \to 2$：$4$、$1 \to 2$：$0$、$1 \to 3$：$2$、$1 \to 4$：
+$3$、$2 \to 3$：$2$、$2 \to 4$：$2$、$4 \to 3$：$0$、$3 \to t$：$4$、$4 \to t$：$5$，值 $9$。
+最小割 $S = \{s, 2\}$、$T = \{1, 3, 4, t\}$，割邊 $s \to 1$、$2 \to 3$、$2 \to 4$，容量
+$5 + 2 + 2 = 9$；從 $T$ 指回 $S$ 的 $1 \to 2$ 不算，它的流量是 $0$。 這張網路的最小割只有這
+一個（可以用第~\ref{q:flw-allcuts}~題的方法驗證）。
+
+\item 先證明。 由引理~\ref{lem:flw-cutflow}，
+$|f| = f(S, T) = \sum_{S \to T} f(u, v) - \sum_{T \to S} f(v, u) \le c(S, T)$，等號成立若且
+唯若從 $S$ 到 $T$ 的邊全滿、從 $T$ 到 $S$ 的邊全空。 $f$ 是最大流，由最大流最小割定理
+$|f|$ 等於最小割的容量，所以 $(S, T)$ 是最小割 $\Leftrightarrow$ $c(S, T) = |f|$
+$\Leftrightarrow$ 上面的等號成立。 而「$S \to T$ 的邊全滿、$T \to S$ 的邊全空」正好是說：
+沒有從 $S$ 到 $T$ 的順向剩餘邊（全滿），也沒有從 $S$ 到 $T$ 的反向剩餘邊（反向邊來自 $T$
+到 $S$ 的流）。
+
+再找物流網路的最小割。 用圖~\ref{fig:flw-final} 的最大流。 $G_f$ 裡從 $s$ 走得到的是
+$R = \{s, b, c, e\}$，由第~\ref{q:flw-smallest}~題，每個最小割的 $S$ 都包含 $R$，只剩 $a$、
+$d$ 要決定放哪一邊。 $G_f$ 裡有 $a \to d$（剩餘 $5$）和 $d \to a$（反向，$7$），所以 $a$、
+$d$ 必須同一邊，否則就有一條從 $S$ 到 $T$ 的剩餘邊。 兩種選法都檢查：$S = R$ 是第~\ref{sec:flw-mincut}~節
+的最小割；$S = R \cup \{a, d\} = V - \{t\}$ 時，從 $S$ 出去的剩餘邊只可能指向 $t$，但
+$d \to t$、$e \to t$ 都滿了，所以也是最小割，容量 $12 + 9 = 21$。 物流網路剛好有這兩個最
+小割。
+
+\item 取任意一個最小割 $(S, T)$。 由第~\ref{q:flw-allcuts}~題，$G_f$ 裡沒有從 $S$ 指向 $T$
+的邊。 從 $s \in S$ 出發，沿著 $G_f$ 的邊走，永遠出不了 $S$，所以走得到的頂點都在 $S$ 裡，
+$R \subseteq S$。 由定理~\ref{thm:flw-mfmc} 的證明，$(R, V - R)$ 本身也是最小割，所以它是
+源點一側最小的那一個。
+
+\item
+\begin{enumerate}
+\item 對。 每個割的容量都乘以 $k$，大小順序不變，原本最小的還是最小。
+\item 錯。 反例：$s \to x$ 容量 $4$；$x \to y_1$、$x \to y_2$、$x \to y_3$ 容量 $1$；
+$y_1 \to t$、$y_2 \to t$、$y_3 \to t$ 容量 $5$。 最小割是 $S = \{s, x\}$，容量 $3$（$S = \{s\}$
+是 $4$，其他的割至少 $5$）。 每條邊加 $1$ 之後，$S = \{s, x\}$ 變成 $6$，$S = \{s\}$ 只有
+$5$，原本的最小割不再是最小。 割邊多的割，加的也多。
+\item 對。 由本章的假設，$t$ 在某條從 $s$ 出發的路徑上，這條路徑一定有一條邊從 $S$ 跨到 $T$，
+所以每個割至少有一條 $S \to T$ 的邊，容量至少增加 $1$。 新的最小割容量至少是舊的加 $1$，
+由最大流最小割定理，最大流的值也至少加 $1$。
+\end{enumerate}
+
+\item (a) $2K$ 次。 奇數輪選 $s \to u \to v \to t$，偶數輪選 $s \to v \to u \to t$。 奇數輪
+後 $u \to v$ 滿了，留下容量 $1$ 的反向邊 $v \to u$；偶數輪經過它，把那一單位退回，$u \to v$
+又空了。 每一輪的瓶頸都是中間那條容量 $1$ 的邊（或它的反向邊），每輪只增加 $1$，最大流是
+$2K$，所以要 $2K$ 輪。 這也是 $O(m\,|f^{*}|)$ 這個上界在這張圖上會被達到的情形。 (b) $2$ 次。
+第 1 輪 BFS 依序發現 $u$、$v$，再從 $u$ 發現 $t$，路徑 $s \to u \to t$，瓶頸 $K$。 第 2 輪
+$s \to u$ 滿了，路徑 $s \to v \to t$，瓶頸 $K$。 (c) 輸入的長度大約是 $4 \lg K$ 個位元
+（四個 $K$，再加上常數），次數 $2K$ 是輸入長度的指數，$K = 10^9$ 時要二十億輪；而 Edmonds--Karp 的次數
+和 $K$ 無關。
+
+\item (a) 每一輪 $O(n + m) = O(m)$，最多 $F$ 輪：$O(mF)$。 (b) $O(nm)$ 輪，每輪 $O(m)$：
+$O(nm^2)$。 (c) $O(nm)$ 輪，每輪 BFS $\Theta(n^2)$：$O(n^3 m)$；矩陣在 $m$ 接近 $n^2$ 的
+稠密圖上才划算。 (d) $F \le n/2$，$G'$ 有 $n + 2$ 個頂點、$m + n$ 條邊，每輪 $O(n + m)$：
+$O(n(n + m))$。
+
+\item 把 $b$ 拆成 $b_{\mathrm{in}}$、$b_{\mathrm{out}}$，加邊 $b_{\mathrm{in}} \to b_{\mathrm{out}}$，
+容量 $8$；$s \to b$ 改成 $s \to b_{\mathrm{in}}$，$b \to a$、$b \to d$、$b \to e$ 改從
+$b_{\mathrm{out}}$ 出發。 最大流是 $20$。 一個值 $20$ 的流：$s \to a$：$5$、$s \to c$：$7$、
+$s \to b_{\mathrm{in}} \to b_{\mathrm{out}}$：$8$，其中 $b_{\mathrm{out}} \to d$：$5$、
+$b_{\mathrm{out}} \to e$：$2$、$b_{\mathrm{out}} \to a$：$1$；$a \to d$：$6$、$c \to e$：
+$7$、$d \to e$：$0$、$d \to t$：$11$、$e \to t$：$9$（可以逐點檢查守恆）。 割
+$S = \{s, b_{\mathrm{in}}\}$ 的割邊是 $s \to a$、$s \to c$、$b_{\mathrm{in}} \to b_{\mathrm{out}}$，
+容量 $5 + 7 + 8 = 20$，所以 $20$ 是最大的。
+
+\item (a) 設最大流的值是 $F$，最多有 $k$ 條兩兩邊互斥的路徑。 \textbf{$k \le F$}：在 $k$ 條路徑
+經過的每條邊上放流量 $1$。 路徑沒有共用邊，每條邊最多 $1$；路徑經過中間的頂點時一進一出，
+守恆成立（同一條路徑重複經過某個頂點也一樣）；$s$ 每條路徑出去一次，值是 $k$。
+\textbf{$F \le k$}：由定理~\ref{thm:flw-integral}，有一個流量全是 $0$ 或 $1$ 的最大流。 從 $s$
+出發，每次沿一條流量是 $1$ 的邊往前走。 如果走回已經走過的頂點，就繞出了一個環：把環上
+的流量都改成 $0$，每個頂點流進、流出各少 $1$，仍是流，值也不變；丟掉這個環，從環的起點
+繼續走。 走到 $v \ne s, t$ 時，$v$ 有一條流進的有流邊，由守恆就有一條流出的有流邊，可以
+繼續；回到 $s$ 時，$|f| \ge 1$ 表示 $s$ 流出的比流進的多，也還有出邊。 邊數有限，所以最後
+會走到 $t$，得到一條簡單路徑。 把這條路徑上的流量都改成 $0$，剩下的仍是流，值少 $1$。 重
+複 $F$ 次，得到 $F$ 條邊互斥的路徑。 (b) 刪掉一個最小割的所有割邊，$s$ 就走不到
+$t$，所以最少的刪邊數不超過最小割的容量 $= F$。 反過來，刪掉某個邊集合 $D$ 之後 $s$ 走不到
+$t$，令 $S$ 是刪邊後 $s$ 走得到的頂點，則原圖裡所有從 $S$ 指向 $V - S$ 的邊都在 $D$ 裡，
+$|D| \ge c(S, V - S) \ge F$。 這個結果叫 Menger 定理（邊的版本）。
+
+\item (a) 依序是 $s \to x_1 \to y_2 \to t$、$s \to x_2 \to y_5 \to t$、$s \to x_4 \to y_3 \to t$，
+第 4 輪 $s \to x_3 \to y_2 \to x_1 \to y_3 \to x_4 \to y_4 \to t$。 第 3 輪輪到 $x_3$ 時，它唯一
+的 $y_2$ 已經配給 $x_1$，從 $x_3$ 出發的路徑比較長；BFS 先找到從 $x_4$ 出發、長度 $3$ 的
+那一條。 第 4 輪：$x_3$ 要 $y_2$，$x_1$ 改配 $y_3$，$x_4$ 改配 $y_4$。 最後的匹配
+$\{x_1, y_3\}$、$\{x_2, y_5\}$、$\{x_3, y_2\}$、$\{x_4, y_4\}$，$x_5$ 和 $y_1$ 沒配到。 這時
+剩餘網路裡 $s$ 只走得到 $x_5$、$y_2$、$y_5$、$x_3$、$x_2$，到不了 $t$。
+
+(b) $x_1$：$y_2$ 沒人配，配給 $x_1$。 $x_2$：$y_5$ 沒人配，配給 $x_2$。 $x_3$：$y_2$ 配給了
+$x_1$，遞迴 \proc{Try-Augment}$(x_1)$：$y_2$ 這次已看過，$y_3$ 沒人配，配給 $x_1$；回來後
+$y_2$ 改配 $x_3$。 $x_4$：$y_2$ 屬於 $x_3$，$x_3$ 沒有別的課，失敗；$y_3$ 屬於 $x_1$，$x_1$ 的
+$y_2$、$y_3$ 都看過了，失敗；$y_4$ 沒人配，配給 $x_4$。 $x_5$：$y_2$ 屬於 $x_3$，失敗；$y_5$
+屬於 $x_2$，$x_2$ 沒有別的課，失敗，傳回 \FALSE。 結果和 (a) 相同，大小 $4$。
+
+(c) $x_2$、$x_3$、$x_5$ 這三位能帶的課都在 $\{y_2, y_5\}$ 裡，三個人兩堂課，至少一個人配不到，
+所以最多 $4$ 條。 換個說法：$\{x_1, x_4, y_2, y_5\}$ 碰到每一條邊，匹配的每條邊都要用掉其中
+一個不同的頂點，匹配最多 $4$ 條（這就是第~\ref{q:flw-konig}~題的頂點覆蓋）。
+
+\item 匹配 $M$ 和頂點覆蓋 $C$：$M$ 的每條邊至少有一個端點在 $C$ 裡，$M$ 的邊沒有共同端點，
+這些端點都不同，所以 $|M| \le |C|$，最大匹配 $\le$ 最小覆蓋。
+
+反方向：把 $G'$ 中間的邊 $x \to y$ 容量改成 $n + 1$，$s \to x$、$y \to t$ 仍是 $1$。 每個 $x$
+流進最多 $1$，所以中間邊的流量其實不會超過 $1$；引理~\ref{lem:flw-match-flow} 的證明照樣成
+立，最大流的值仍等於最大匹配的邊數 $\nu$。 取一個最小割 $(S, T)$。 割 $\{s\}$ 的容量是 $|L|
+\le n$，所以最小割的容量不超過 $n$，不可能包含容量 $n + 1$ 的中間邊：\textbf{沒有一條邊從
+$L \cap S$ 指到 $R \cap T$}。 令 $C = (L \cap T) \cup (R \cap S)$。 對任一條邊 $\{x, y\}$，
+若 $x \notin C$ 則 $x \in S$，由上一句 $y \in S$，所以 $y \in C$；$C$ 是頂點覆蓋。 割邊只剩
+$s \to x$（$x \in L \cap T$）和 $y \to t$（$y \in R \cap S$），容量剛好是 $|C|$。 所以
+$|C| = $ 最小割 $= \nu$，最小覆蓋 $\le$ 最大匹配。
+
+第~\ref{q:flw-mtrace}~題那張圖：最後的剩餘網路裡 $s$ 走得到 $S = \{s, x_2, x_3, x_5, y_2, y_5\}$
+（中間邊容量改大，只多出從已匹配的 $x$ 走向它伴侶的順向邊；已匹配的 $x$ 只能從伴侶那
+裡走到，伴侶本來就在 $S$ 裡，所以走得到的頂點不變），$C = \{x_1, x_4\} \cup \{y_2, y_5\}$，四個頂點，等於最
+大匹配的大小。
+
+\item 令 $Z$ 是從 $x$ 出發、沿對 $M$ 的交錯路徑走得到的頂點（第一步走不在 $M$ 的邊）。 從 $x$
+沒有增廣路徑，所以 $Z$ 裡 $R$ 的頂點都已匹配，而且它們在 $M$ 裡的伴侶也在 $Z$ 裡。 先證明
+$P$ 和 $Z$ 沒有共同的頂點。 $P$ 的兩端是未匹配的 $x' \in L$（$x' \ne x$，否則 $P$ 就是從 $x$
+出發的增廣路徑）和未匹配的 $y' \in R$（$y' \notin Z$）。 假設 $P$ 碰到 $Z$，在 $P$ 上取最靠
+近 $y'$ 的 $Z$ 頂點 $w$。 若 $w \in L$，$P$ 從 $w$ 往 $y'$ 走的下一條邊不在 $M$，接在到 $w$ 的
+交錯路徑後面，下一個頂點也在 $Z$ 裡；若 $w \in R$，$P$ 往 $y'$ 走的下一條邊是 $w$ 在 $M$ 的
+邊，它的伴侶也在 $Z$ 裡。 兩種情況都和「$w$ 最靠近 $y'$」矛盾（$w \ne y'$，因為 $y' \notin Z$）。
+所以 $P$ 和 $Z$ 不相交，翻轉 $P$ 不會改變任何碰到 $Z$ 的邊在不在匹配裡。 從 $x$ 沿對 $M'$ 的
+交錯路徑走，每一步看的都是碰到 $Z$ 的邊，走到的還是 $Z$，$Z$ 裡 $R$ 的頂點在 $M'$ 中仍已匹
+配，所以對 $M'$ 也沒有從 $x$ 出發的增廣路徑。
+
+\item $M^{*}$ 的每條邊 $\{u, v\}$ 至少有一個端點已被 $M$ 匹配，否則可以把它加進 $M$，和 $M$
+是極大匹配矛盾。 把 $M^{*}$ 的每條邊對應到它一個被 $M$ 匹配的端點；$M^{*}$ 的邊沒有共同端
+點，所以這些端點都不同。 被 $M$ 匹配的頂點只有 $2|M|$ 個，所以 $|M^{*}| \le 2|M|$。 等號的例
+子：一條路徑 $a - b - c - d$，$M = \{\{b, c\}\}$ 是極大匹配（另外兩條邊都碰到 $b$ 或 $c$），
+最大匹配 $\{\{a, b\}, \{c, d\}\}$ 有兩條邊。
+\end{enumerate}
