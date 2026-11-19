@@ -391,7 +391,7 @@ $\mathit{low}[u] < d[u]$ 表示 $u$ 的子樹裡有路能回到比 $u$ 更早發
 \Procedure{Tarjan-Visit}{$G, u$}
     \State $\mathit{time} \gets \mathit{time} + 1$；$d[u] \gets \mathit{time}$；$\mathit{low}[u] \gets \mathit{time}$
     \State \Call{Push}{$S, u$}；$\mathit{onstack}[u] \gets \TRUE$
-    \For{每個 $w \in G.\mathit{Adj}[u]$}
+    \For{每個 $w \in \mathit{Adj}[u]$}
         \If{$d[w] = 0$} \Comment{樹邊}
             \State \Call{Tarjan-Visit}{$G, w$}
             \State $\mathit{low}[u] \gets \min(\mathit{low}[u], \mathit{low}[w])$
@@ -442,7 +442,7 @@ $\mathit{low}[u]$ 會被一個不相干的小 $d$ 值拉低，$u$ 明明是頭�
 6 & 樹邊 $9\to5$，發現 $5$ & $d[5]=\mathit{low}[5]=5$ & 1 2 6 9 5 &  \\
 7 & $5\to6$，$6$ 在堆疊裡；$5$ 完成 & $\mathit{low}[5]=\min(5,d[6])=3$；留在堆疊 & 1 2 6 9 5 &  \\
 8 & 回到 $9$；$9$ 完成 & $\mathit{low}[9]=\min(4,\mathit{low}[5])=3$；留在堆疊 & 1 2 6 9 5 &  \\
-9 & 回到 $6$；$6$ 完成 & $\mathit{low}[6]=\min(3,\mathit{low}[9])=3$；$\mathit{low}[6]=d[6]$，彈出 & 1 2 & $\{5,9,6\}$ \\
+9 & 回到 $6$；$6$ 完成 & $\mathit{low}[6]=\min(3,\mathit{low}[9])=3=d[6]$，彈出 & 1 2 & $\{5,9,6\}$ \\
 10 & 回到 $2$；$2$ 完成 & $\mathit{low}[2]=\min(1,\mathit{low}[6])=1$；留在堆疊 & 1 2 &  \\
 11 & 回到 $1$ & $\mathit{low}[1]=\min(1,\mathit{low}[2])=1$ & 1 2 &  \\
 12 & 樹邊 $1\to4$，發現 $4$ & $d[4]=\mathit{low}[4]=6$ & 1 2 4 &  \\
@@ -451,9 +451,9 @@ $\mathit{low}[u]$ 會被一個不相干的小 $d$ 值拉低，$u$ 明明是頭�
 15 & $3\to5$，$5$ 不在堆疊 & 略過 & 1 2 4 3 &  \\
 16 & 樹邊 $3\to8$，發現 $8$ & $d[8]=\mathit{low}[8]=8$ & 1 2 4 3 8 &  \\
 17 & $8\to3$，$3$ 在堆疊裡；$8$ 完成 & $\mathit{low}[8]=\min(8,d[3])=7$；留在堆疊 & 1 2 4 3 8 &  \\
-18 & 回到 $3$；$3$ 完成 & $\mathit{low}[3]=\min(7,\mathit{low}[8])=7$；$\mathit{low}[3]=d[3]$，彈出 & 1 2 4 & $\{8,3\}$ \\
+18 & 回到 $3$；$3$ 完成 & $\mathit{low}[3]=\min(7,\mathit{low}[8])=7=d[3]$，彈出 & 1 2 4 & $\{8,3\}$ \\
 19 & 回到 $4$；$4$ 完成 & $\mathit{low}[4]=\min(2,\mathit{low}[3])=2$；留在堆疊 & 1 2 4 &  \\
-20 & 回到 $1$；$1$ 完成 & $\mathit{low}[1]=\min(1,\mathit{low}[4])=1$；$\mathit{low}[1]=d[1]$，彈出 & （空） & $\{4,2,1\}$ \\
+20 & 回到 $1$；$1$ 完成 & $\mathit{low}[1]=\min(1,\mathit{low}[4])=1=d[1]$，彈出 & （空） & $\{4,2,1\}$ \\
 21 & 主迴圈發現 $7$ & $d[7]=\mathit{low}[7]=9$ & 7 &  \\
 22 & $7\to1$，$1$ 不在堆疊 & 略過 & 7 &  \\
 23 & $7\to8$，$8$ 不在堆疊；$7$ 完成 & $\mathit{low}[7]=d[7]$，彈出 & （空） & $\{7\}$ \\
@@ -734,9 +734,10 @@ void visit(Tarjan *t, int u)
         // 剛彈出的頂點還留在 stack[top..end-1]。 它們的出邊只會連到
         // 自己的元件或更早彈出的元件，所以 comp 都已經填好了。
         for (int i = t->top; i < end; i++) {
-            for (Node *x = t->g->adj[t->stack[i]]; x != NULL; x = x->next) {
+            for (Node *x = t->g->adj[t->stack[i]]; x != NULL;
+                 x = x->next) {
                 int c2 = t->comp[x->v];
-                if (c2 != c && t->mark[c2] != c) {  // 每對元件只記一次
+                if (c2 != c && t->mark[c2] != c) {  // 每對只記一次
                     t->mark[c2] = c;
                     t->indeg[c2]++;
                     printf(" %d", c2);
@@ -755,12 +756,13 @@ int main(void)
     }
     Graph g = {n, calloc(n, sizeof(Node *))};
     Tarjan t = {&g, calloc(n, sizeof(int)), calloc(n, sizeof(int)),
-                calloc(n, sizeof(int)), malloc(n * sizeof(int)), 0, 0, 0,
-                calloc(n, sizeof(int)), calloc(n + 1, sizeof(int)),
+                calloc(n, sizeof(int)), malloc(n * sizeof(int)),
+                0, 0, 0, calloc(n, sizeof(int)),
+                calloc(n + 1, sizeof(int)),
                 calloc(n + 1, sizeof(int))};
     int ok = g.adj != NULL && t.d != NULL && t.low != NULL
-             && t.on_stack != NULL && t.stack != NULL && t.comp != NULL
-             && t.mark != NULL && t.indeg != NULL;
+             && t.on_stack != NULL && t.stack != NULL
+             && t.comp != NULL && t.mark != NULL && t.indeg != NULL;
     for (int i = 0; ok && i < m; i++) {
         int u, v;
         ok = scanf("%d %d", &u, &v) == 2 && u >= 1 && u <= n
@@ -997,7 +999,7 @@ $u$ 會把 $T(v)$ 切開，但拿掉 $\{u, v\}$ 不會，因為 $T(v)$ 還能經
 \Procedure{Cut-Visit}{$G, u, p$} \Comment{$p$ 是 $u$ 的父節點}
     \State $\mathit{time} \gets \mathit{time} + 1$；$d[u] \gets \mathit{time}$；$\mathit{low}[u] \gets \mathit{time}$
     \State $c \gets 0$ \Comment{子節點個數}
-    \For{每個 $w \in G.\mathit{Adj}[u]$}
+    \For{每個 $w \in \mathit{Adj}[u]$}
         \If{$d[w] = 0$} \Comment{樹邊}
             \State $c \gets c + 1$
             \State \Call{Cut-Visit}{$G, w, u$}
@@ -1172,7 +1174,7 @@ $\{u, v\}$ 誤判成橋。 有平行邊時，要幫每條邊編號，遞迴時�
 塊}（block）。
 \end{definition}
 
-自反和對稱很明顯；遞移性（$e_1, e_2$ 在同一個環上、$e_2, e_3$ 在同一個環上，則
+自反（$e_1 = e_1$）和對稱（同一個環也同時經過 $e_2$、$e_1$）直接從定義看得出來；遞移性（$e_1, e_2$ 在同一個環上、$e_2, e_3$ 在同一個環上，則
 $e_1, e_3$ 也在某個環上）需要一點功夫，這裡不證，見延伸閱讀。 幾個常用的性質：
 
 \begin{itemize}
@@ -1204,7 +1206,7 @@ $e_1, e_3$ 也在某個環上）需要一點功夫，這裡不證，見延伸閱
 \begin{pseudo}[label=alg:con-bcc]{雙連通元件（主程序和虛擬碼~\ref{alg:con-cut} 相同，另外設 $S \gets$ 空堆疊、$k \gets 0$）}
 \Procedure{BCC-Visit}{$G, u, p$}
     \State $\mathit{time} \gets \mathit{time} + 1$；$d[u] \gets \mathit{time}$；$\mathit{low}[u] \gets \mathit{time}$
-    \For{每個 $w \in G.\mathit{Adj}[u]$}
+    \For{每個 $w \in \mathit{Adj}[u]$}
         \If{$d[w] = 0$} \Comment{樹邊}
             \State \Call{Push}{$S, (u, w)$}
             \State \Call{BCC-Visit}{$G, w, u$}
@@ -1242,16 +1244,16 @@ DFS 的走法和圖~\ref{fig:con-corridor-tree} 相同。 邊寫成 $u$--$w$ 表
 \begin{center}
 \small
 \setlength{\tabcolsep}{4pt}
-\begin{tabular}{llp{0.40\linewidth}l}
+\begin{tabular}{ll>{\raggedright\arraybackslash}p{0.42\linewidth}l}
 \toprule
 時刻 & 判斷 & 彈出前的堆疊（底 $\to$ 頂） & 彈出的區塊 \\
 \midrule
-從 $2$ 回到 $4$ & $\mathit{low}[2] = 6 \ge 5$ & 1--3, 3--5, 5--1, 3--6, 6--4, 4--2 & 4--2 \\
-從 $7$ 回到 $8$ & $\mathit{low}[7] = 7 \ge 7$ & 1--3, 3--5, 5--1, 3--6, 6--4, 4--8, 8--6, 8--7, 7--9, 9--8 & 9--8, 7--9, 8--7 \\
-從 $4$ 回到 $6$ & $\mathit{low}[4] = 4 \ge 4$ & 1--3, 3--5, 5--1, 3--6, 6--4, 4--8, 8--6 & 8--6, 4--8, 6--4 \\
-從 $6$ 回到 $3$ & $\mathit{low}[6] = 4 \ge 2$ & 1--3, 3--5, 5--1, 3--6 & 3--6 \\
-從 $3$ 回到 $1$ & $\mathit{low}[3] = 1 \ge 1$ & 1--3, 3--5, 5--1 & 5--1, 3--5, 1--3 \\
-從 $10$ 回到 $1$ & $\mathit{low}[10] = 10 \ge 1$ & 1--10 & 1--10 \\
+從 $2$ 回到 $4$ & $\mathit{low}[2] = 6 \ge 5$ & \mbox{1--3}, \mbox{3--5}, \mbox{5--1}, \mbox{3--6}, \mbox{6--4}, \mbox{4--2} & \mbox{4--2} \\
+從 $7$ 回到 $8$ & $\mathit{low}[7] = 7 \ge 7$ & \mbox{1--3}, \mbox{3--5}, \mbox{5--1}, \mbox{3--6}, \mbox{6--4}, \mbox{4--8}, \mbox{8--6}, \mbox{8--7}, \mbox{7--9}, \mbox{9--8} & \mbox{9--8}, \mbox{7--9}, \mbox{8--7} \\
+從 $4$ 回到 $6$ & $\mathit{low}[4] = 4 \ge 4$ & \mbox{1--3}, \mbox{3--5}, \mbox{5--1}, \mbox{3--6}, \mbox{6--4}, \mbox{4--8}, \mbox{8--6} & \mbox{8--6}, \mbox{4--8}, \mbox{6--4} \\
+從 $6$ 回到 $3$ & $\mathit{low}[6] = 4 \ge 2$ & \mbox{1--3}, \mbox{3--5}, \mbox{5--1}, \mbox{3--6} & \mbox{3--6} \\
+從 $3$ 回到 $1$ & $\mathit{low}[3] = 1 \ge 1$ & \mbox{1--3}, \mbox{3--5}, \mbox{5--1} & \mbox{5--1}, \mbox{3--5}, \mbox{1--3} \\
+從 $10$ 回到 $1$ & $\mathit{low}[10] = 10 \ge 1$ & \mbox{1--10} & \mbox{1--10} \\
 \bottomrule
 \end{tabular}
 \end{center}
@@ -1344,7 +1346,7 @@ void visit(Search *s, int u, int parent)
             if (s->low[w] < s->low[u]) {
                 s->low[u] = s->low[w];
             }
-            if (s->low[w] >= s->d[u]) {             // w 的子樹到不了 u 的上面
+            if (s->low[w] >= s->d[u]) {     // w 的子樹到不了 u 上面
                 if (parent != -1) {
                     s->is_cut[u] = 1;
                 }
@@ -1359,7 +1361,7 @@ void visit(Search *s, int u, int parent)
                 } while (e.u != u || e.w != w);
                 printf("\n");
             }
-        } else if (w != parent && s->d[w] < s->d[u]) {  // 往祖先的後向邊
+        } else if (w != parent && s->d[w] < s->d[u]) {  // 後向邊
             s->es[s->top++] = (Edge){u, w};
             if (s->d[w] < s->low[u]) {
                 s->low[u] = s->d[w];
@@ -1379,15 +1381,16 @@ int main(void)
     }
     Graph g = {n, calloc(n, sizeof(Node *))};
     Search s = {&g, calloc(n, sizeof(int)), calloc(n, sizeof(int)),
-                calloc(n, sizeof(int)), malloc((m + 1) * sizeof(Edge)),
-                0, 0, 0};
+                calloc(n, sizeof(int)),
+                malloc((m + 1) * sizeof(Edge)), 0, 0, 0};
     int ok = g.adj != NULL && s.d != NULL && s.low != NULL
              && s.is_cut != NULL && s.es != NULL;
     for (int i = 0; ok && i < m; i++) {
         int u, v;
         ok = scanf("%d %d", &u, &v) == 2 && u >= 1 && u <= n
              && v >= 1 && v <= n && u != v
-             && add_arc(&g, u - 1, v - 1) && add_arc(&g, v - 1, u - 1);
+             && add_arc(&g, u - 1, v - 1)
+             && add_arc(&g, v - 1, u - 1);
     }
     if (ok) {
         for (int u = 0; u < n; u++) {
@@ -1440,7 +1443,7 @@ $\{4, 6, 7, 8, 9\}$、$\{2\}$、$\{10\}$ 四塊。 注意 $\{4, 6, 7, 8, 9\}$ �
 
 \begin{center}
 \small
-\begin{tabular}{p{0.24\linewidth}p{0.52\linewidth}p{0.14\linewidth}}
+\begin{tabular}{>{\raggedright\arraybackslash}p{0.24\linewidth}>{\raggedright\arraybackslash}p{0.52\linewidth}>{\raggedright\arraybackslash}p{0.14\linewidth}}
 \toprule
 錯誤 & 例子 & 見 \\
 \midrule
@@ -1621,7 +1624,9 @@ Processing Letters} 8(3)，1979：用強連通元件解 2-SAT。
 \begin{enumerate}
 \item (b)、(e)、(f) 正確。
 (a)：圖~\ref{fig:con-roads} 裡 $f$ 最大的是 $7$，在 $G$ 上從 $7$ 出發會走遍全部 $9$ 個頂
-點，四個元件併成一棵樹。 (b)：定理~\ref{thm:con-tarjan}。 (c)：引理~\ref{lem:con-dag}，元
+點，四個元件併成一棵樹。 在 $G$ 上改照 $f$ 由小到大挑起點也不對：三個頂點、邊 $1 \to 2$、
+$2 \to 1$、$1 \to 3$，第一次 DFS 得到 $f[2] = 3$、$f[3] = 5$、$f[1] = 6$；從 $f$ 最小的 $2$
+出發，在 $G$ 上走得到 $1$ 和 $3$，把 $\{1, 2\}$、$\{3\}$ 兩個元件併成一棵樹。 (b)：定理~\ref{thm:con-tarjan}。 (c)：引理~\ref{lem:con-dag}，元
 件圖沒有環。 (d)：校園的 $4$、$6$ 都是割點，$\{4, 6\}$ 在環 $4, 6, 8$ 上，不是橋。 (e)：設
 $\{u, v\}$ 是橋，拿掉它後分成含 $u$ 的一塊和含 $v$ 的一塊。 頂點至少 $3$ 個，其中一塊至
 少有 $2$ 個頂點，設是 $u$ 那塊；這塊連通，所以 $u$ 在塊裡有鄰居 $x$。 拿掉 $u$ 後 $x$ 和

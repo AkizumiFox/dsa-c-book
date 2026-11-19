@@ -130,7 +130,8 @@ $\langle -2, 3, 0, -5, 7, -1 \rangle$，$i = 2$；$j = 4$ 時交換 $A[2]$、$A[
 $\langle -2, -5, 0, 3, 7, -1 \rangle$，$i = 3$；$j = 6$ 時交換 $A[3]$、$A[6]$，得
 $\langle -2, -5, -1, 3, 7, 0 \rangle$，$i = 4$，回傳 $3$。 第 3 行的迴圈跑 $n$ 輪，每輪
 $O(1)$，總共 $\Theta(n)$；只用了 $i$、$j$ 兩個變數。 題目如果再問「為什麼對」，註解裡的兩
-個敘述就是迴圈不變量，照第~\ref{sec:exm-invariant}~小節的三步寫出來即可。
+個敘述就是迴圈不變量，照第~\ref{sec:exm-invariant}~小節的三步寫出來即可（觀念題
+第~\ref{q:exm-neg-proof}~題）。
 
 \subsection{例：遞迴的寫法}
 
@@ -177,7 +178,7 @@ $n + 1$ 個空指標各呼叫一次，時間 $\Theta(n)$。 如果題目用 CLRS
 
 \begin{center}
 \small
-\begin{tabular}{p{0.25\linewidth}p{0.52\linewidth}p{0.11\linewidth}}
+\begin{tabular}{>{\raggedright\arraybackslash}p{0.25\linewidth}>{\raggedright\arraybackslash}p{0.50\linewidth}>{\raggedright\arraybackslash}p{0.13\linewidth}}
 \toprule
 會被扣分的寫法 & 完整的寫法 & 見 \\
 \midrule
@@ -337,7 +338,7 @@ $h = 0$、空樹 $h = -1$。 先看清楚題目的定義再寫基礎情況。 �
 $n - 1$ 個，所以除了 $a$ 以外，還有一個數 $b$ 一場都沒輸過。 把 $b$ 改成比所有數都大的值，
 其他數不變。 $b$ 原本每一場都贏，改大之後每一場的結果都和原來相同，所以 $\mathcal{A}$ 做的比
 較、得到的結果都一樣，仍然回答 $a$。 但新輸入的最大值是 $b$，$\mathcal{A}$ 答錯，矛盾。 因此
-每個正確的演算法都至少比 $n - 1$ 次。（第~16~章第~\ref{sec:sel-minmax}~節。）
+每個正確的演算法都至少比 $n - 1$ 次。（第~\ref{sec:sel-minmax}~節。）
 \end{exmgood}
 
 反證法的格式是：明白寫出「假設……」，推到一個和前提或已知事實衝突的地方，指出衝突的是哪兩
@@ -580,8 +581,8 @@ $(10 + 1) \bmod 11 = 0$，寫成「第 $11$ 格」就出了表。
 \bottomrule
 \end{tabular}
 \end{center}
-最後的表就是上面那一列。 總探測次數 $15$，平均 $15/7 \approx 2.14$。 檢查：七個鍵各占一格，沒有兩個
-鍵在同一格。
+最後的表（第 $0$ 到第 $10$ 格）：$32, 43, -, 47, 36, 58, 15, -, -, -, 21$。 總探測次數 $15$，平均
+$15/7 \approx 2.14$。 檢查：七個鍵各占一格，沒有兩個鍵在同一格。
 \end{exmgood}
 
 二次探測要寫出 $i^2 \bmod m$ 的值，雙重雜湊再加一欄 $h_2(k)$；有刪除標記時，先寫明插入遇到標
@@ -591,7 +592,7 @@ $(10 + 1) \bmod 11 = 0$，寫成「第 $11$ 格」就出了表。
 
 題目：圖~\ref{fig:exm-dij} 的有向圖，從頂點 $1$ 執行 Dijkstra 演算法。
 
-\begin{center}
+\begin{center}\begin{minipage}{\linewidth}\centering
 \begin{tikzpicture}[x=1cm, y=1cm]
 \node[exm-v] (v1) at (0, 0) {1};
 \node[exm-v] (v2) at (2.2, 1.2) {2};
@@ -605,11 +606,11 @@ $(10 + 1) \bmod 11 = 0$，寫成「第 $11$ 格」就出了表。
 \draw[exm-a] (v2) -- node[exm-w] {1} (v4);
 \draw[exm-a] (v2) -- node[exm-w] {6} (v5);
 \draw[exm-a] (v4) -- node[exm-w] {2} (v5);
-\draw[exm-a] (v3) to[bend right=40] node[exm-w] {8} (v5);
+\draw[exm-a] (v3) to[bend right=75] node[exm-w] {8} (v5);
 \end{tikzpicture}
 \diagcaption{Dijkstra 演算法的例子。}
 \label{fig:exm-dij}
-\end{center}
+\end{minipage}\end{center}
 
 \begin{exmbad}
 $d = (0, 3, 1, 4, 6)$。
@@ -682,7 +683,7 @@ Edmonds--Karp & 每一輪的剩餘網路（或 $c_f > 0$ 的邊）、增廣路�
 
 \begingroup\footnotesize
 \setlength{\LTpre}{\medskipamount}\setlength{\LTpost}{\medskipamount}
-\begin{longtable}{p{0.15\linewidth}p{0.38\linewidth}p{0.30\linewidth}p{0.05\linewidth}}
+\begin{longtable}{>{\raggedright\arraybackslash}p{0.15\linewidth}>{\raggedright\arraybackslash}p{0.38\linewidth}>{\raggedright\arraybackslash}p{0.30\linewidth}>{\raggedright\arraybackslash}p{0.05\linewidth}}
 \toprule
 主題 & 各課本的不同寫法 & 本書 & 章 \\
 \midrule
@@ -788,7 +789,7 @@ Rabin--Karp & 字元對應的數字（$\mathtt{a} = 1$、ASCII）；$d$、$q$；
 
 \begingroup\footnotesize
 \setlength{\LTpre}{\medskipamount}\setlength{\LTpost}{\medskipamount}
-\begin{longtable}{p{0.2\linewidth}p{0.64\linewidth}p{0.06\linewidth}}
+\begin{longtable}{>{\raggedright\arraybackslash}p{0.2\linewidth}>{\raggedright\arraybackslash}p{0.64\linewidth}>{\raggedright\arraybackslash}p{0.06\linewidth}}
 \multicolumn{3}{c}{\textbf{各章作答提醒裡的寫法要點}} \\[2pt]
 \toprule
 題型 & 要寫出的東西 & 章 \\
@@ -876,6 +877,28 @@ NP 完備 & 四步：屬於 NP、選已知問題、構造與時間、兩個方�
 
 \item （歸約）有人要證明問題 $X$ 是 NP 難的，寫了一個多項式時間的 $f$，把 $X$ 的實例轉成
 \textsf{SAT} 的實例，答案相同。 這證明了什麼？ 要證 $X$ 是 NP 難，應該怎麼做？
+
+\item （複雜度）下面的片段，第 4 行一共執行幾次？ 用 $\Theta$ 表示。 有人答：「外層 $n$ 次，
+內層最多 $n$ 次，所以是 $\Theta(n^2)$。」 這個答案錯在哪裡？ 寫出完整的答案。
+\begin{center}
+\begin{minipage}{0.55\linewidth}
+\begin{algorithmic}[1]
+\For{$i \gets 1$ \To $n$}
+    \State $j \gets i$
+    \While{$j \le n$}
+        \State $j \gets j + i$
+    \EndWhile
+\EndFor
+\end{algorithmic}
+\end{minipage}
+\end{center}
+\label{q:exm-harmonic}
+
+\item （迴圈不變量）有人這樣證明第~\ref{sec:exm-pseudo}~節的 \proc{Move-Negatives}（虛擬
+碼~\ref{alg:exm-neg}）是對的：「不變量是『$A[1..i-1]$ 都是負數』。 一開始是空的；遇到負數就換
+到第 $i$ 格再把 $i$ 加一，所以一直成立。 結束時前面都是負數，回傳 $i - 1$。」 這份證明缺了什
+麼？ 寫出完整的證明。
+\label{q:exm-neg-proof}
 \end{enumerate}
 
 \section{讀完你應該會}
@@ -934,4 +957,33 @@ n = n_0 + n_1 + n_2 \ge n_0 + n_2 = 2n_0 - 1,
 說明 $X$ 很難。 要證 $X$ 是 NP 難，方向要反過來：挑一個已知 NP 完備的問題 $A$（例如
 \textsf{SAT} 或 \textsf{3-SAT}），構造多項式時間的 $g$ 證明 $A \le_{\mathrm{p}} X$，兩個方向都
 要證。
+
+\item 「內層最多 $n$ 次」只給出上界 $O(n^2)$；要寫 $\Theta(n^2)$ 還得證明下界，而這個下界不成立：
+$i$ 越大，內層跑得越少。 完整的答案：固定 $i$ 時，$j$ 依序是 $i, 2i, 3i, \ldots$，只要 $j \le n$
+就執行一次第 4 行，所以執行 $\lfloor n/i \rfloor$ 次。 總次數
+\[
+S(n) = \sum_{i=1}^{n} \left\lfloor \frac{n}{i} \right\rfloor .
+\]
+\textbf{上界}：$\lfloor n/i \rfloor \le n/i$，所以 $S(n) \le n H_n \le n(\ln n + 1)$（$H_n$ 的上下界見
+定理~\ref{thm:mth-harmonic}）。 \textbf{下界}：$\lfloor n/i \rfloor > n/i - 1$，所以
+$S(n) > n H_n - n \ge n\bigl(\ln(n + 1) - 1\bigr) \ge \frac{n}{2} \ln(n + 1)$，最後一步在
+$n \ge 7$ 時成立（$\ln 8 > 2$）。 因此 $S(n) = \Theta(n \lg n)$（$\ln$ 和 $\lg$ 只差常數倍）。
+\textbf{驗算}：$n = 6$ 時 $S(6) = 6 + 3 + 2 + 1 + 1 + 1 = 14$，手數一次也是 $14$ 次。
+
+\item 只有一半的不變量。 「$A[1..i-1]$ 都是負數」推不出結論：它沒有說後面 $A[i..n]$ 裡沒有負數，
+所以回傳的 $i - 1$ 不一定是負數的個數；它也沒有說陣列裡還是原來那些數。 維持那一步也沒有交代
+交換到第 $j$ 格的原 $A[i]$ 是什麼。 完整的證明：
+
+\textbf{不變量}：第 3 行每次檢查 $j$ 時，(a) $A$ 是原陣列的一個排列；(b) $A[1..i-1]$ 都是負數；
+(c) $A[i..j-1]$ 都不是負數。
+
+\textbf{初始}：$i = j = 1$，兩段都是空的，(b)、(c) 成立；陣列沒動過，(a) 成立。
+
+\textbf{維持}：若 $A[j] \ge 0$，不做事，$A[i..j]$ 都不是負數，$j$ 加一後 (c) 成立。 若
+$A[j] < 0$，交換 $A[i]$ 和 $A[j]$：$i < j$ 時原來的 $A[i]$ 屬於 $A[i..j-1]$，由 (c) 不是負數，換到
+第 $j$ 格；$i = j$ 時是自己和自己交換。 兩種情形下，交換後 $A[i]$ 是負數、$A[i+1..j]$ 都不是負
+數，第 6 行 $i$ 加一、$j$ 加一後 (b)、(c) 成立。 只做了交換，(a) 成立。
+
+\textbf{結束}：迴圈在 $j = n + 1$ 時停下。 代入不變量：$A[1..i-1]$ 都是負數，$A[i..n]$ 都不是
+負數，所以負數全部在前面，而且恰好有 $i - 1$ 個，正是第 7 行的回傳值；由 (a)，它們是原來那些數。
 \end{enumerate}

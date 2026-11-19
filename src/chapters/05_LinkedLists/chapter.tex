@@ -374,7 +374,7 @@ int main(void)
 單上。 重複報名、取消不存在的學號都在這裡擋掉。
 \item 程式最後一直刪第一個節點，直到名單變空，所有節點都釋放了。 \texttt{drop} 先
 把 \texttt{dead->next} 接好才 \texttt{free(dead)}；順序反過來，就是讀了已經釋放的記
-憶體，AddressSanitizer 會直接報錯。
+憶體，AddressSanitizer（《C 程式設計基礎》第~19~章 19.5 節）會直接報錯。
 \end{itemize}
 
 下表是加入 $160$ 時 \texttt{find\_link} 的過程（這時名單是 $115, 207, 342$）。
@@ -406,7 +406,7 @@ $207$。 每次操作最多走過整條名單，所以 $n$ 個人的名單每次
 串列改成記住頭節點 $h$，真正的第一個元素是 $h.\mathit{next}$；空串列時
 $h.\mathit{next} = \NIL$，但 $h$ 本身一直存在。 有了它，每個資料節點前面都有一個
 節點，\proc{List-Insert-After} 和 \proc{List-Delete-After} 的 $p$ 永遠不是 \NIL，
-虛擬碼~\ref{alg:ll-insert} 第 2 到 5 行的特殊情況可以整段刪掉，只剩兩行指定。
+虛擬碼~\ref{alg:ll-insert} 第 2--5 行的特殊情況可以整段刪掉，只剩兩行指定。
 
 \begin{center}
 \begin{tikzpicture}
@@ -902,29 +902,27 @@ $m$ 次合計 $O(m^2 n)$。
 $\mathit{val}$，以及兩個指標 $\mathit{right}$（同一列的下一個非零元素）和
 $\mathit{down}$（同一行的下一個非零元素）。 每一列有一個列頭節點，把這一列的非零元
 素依行號串成一條環狀串列；每一行也有一個行頭節點，把這一行的非零元素依列號串成環。
-一個節點同時在一條「橫的」串列和一條「直的」串列上，所以叫做正交。 下圖是
-\[
-M = \begin{pmatrix}
+一個節點同時在一條「橫的」串列和一條「直的」串列上，所以叫做正交。 下圖左邊是矩陣
+$M$，右邊是它的正交串列。
+
+\begin{center}
+$M = \begin{pmatrix}
 0 & 0 & 3 & 0 \\
 8 & 0 & 0 & 0 \\
 0 & 0 & 0 & 0 \\
 0 & 6 & 0 & 2
-\end{pmatrix}
-\]
-的正交串列。
-
-\begin{center}
-\begin{tikzpicture}[
+\end{pmatrix}$\hspace{1.2cm}%
+\begin{tikzpicture}[baseline=(current bounding box.center),
     hd/.style={draw=black!60, fill=black!8, minimum width=0.8cm, minimum height=0.6cm, font=\small},
     en/.style={draw=coreStroke, fill=coreFill, minimum width=1.25cm, minimum height=0.6cm, font=\scriptsize},
     lnk/.style={-{Stealth[length=1.6mm]}, thick, draw=black!70},
 ]
 \foreach \j in {1,...,4} { \node[hd] (C\j) at (\j*1.9,0) {C\j}; }
-\foreach \i in {1,...,4} { \node[hd] (R\i) at (0,-\i*1.1) {R\i}; }
-\node[en] (e13) at (3*1.9,-1*1.1) {1,3 \quad 3};
-\node[en] (e21) at (1*1.9,-2*1.1) {2,1 \quad 8};
-\node[en] (e42) at (2*1.9,-4*1.1) {4,2 \quad 6};
-\node[en] (e44) at (4*1.9,-4*1.1) {4,4 \quad 2};
+\foreach \i in {1,...,4} { \node[hd] (R\i) at (0,-\i*0.95) {R\i}; }
+\node[en] (e13) at (3*1.9,-1*0.95) {1,3 \quad 3};
+\node[en] (e21) at (1*1.9,-2*0.95) {2,1 \quad 8};
+\node[en] (e42) at (2*1.9,-4*0.95) {4,2 \quad 6};
+\node[en] (e44) at (4*1.9,-4*0.95) {4,4 \quad 2};
 % right 指標（同一列）
 \draw[lnk] (R1) -- (e13);
 \draw[lnk] (R2) -- (e21);
@@ -972,7 +970,7 @@ $\mathit{key}[\,]$、$\mathit{next}[\,]$，要你用陣列模擬串列。 這時
 list），開頭記在 $\mathit{avail}$。 要節點就從這條串列的最前面拿一個，還節點就放回
 最前面，兩者都是 $\Theta(1)$。 可用空間串列其實就是一個堆疊（第~6~章）。
 
-\begin{pseudo}[label=alg:ll-getnode]{從可用空間串列拿一個節點}
+\begin{pseudo}[label=alg:ll-getnode, unbreakable]{從可用空間串列拿一個節點}
 \Function{Get-Node}{}
     \If{$\mathit{avail} = \NIL$}
         \State \Error{沒有可用的節點}
@@ -1018,9 +1016,8 @@ $\mathit{next}[\,] = \langle 1, 2, 3, 4, -1 \rangle$，串列是空的（$\mathi
 \end{tabular}
 \end{center}
 
-最後的陣列是
-
 \begin{center}
+最後的陣列是\quad
 \begin{tabular}{cccccc}
 \toprule
 編號 & 0 & 1 & 2 & 3 & 4 \\
@@ -1055,6 +1052,7 @@ $\mathit{avail}$ 各走一次，寫出兩條串列，例如「串列：$4, 3, 2,
 $\mathit{avail}$ 前面，$\Theta(k)$。 環狀串列記的正是最後一個節點，所以可以
 $\Theta(1)$ 做完：
 
+\enlargethispage{\baselineskip}% 讓整個虛擬碼框留在同一頁
 \begin{pseudo}[label=alg:ll-ring-erase]{把整個環還給可用空間串列}
 \Procedure{Ring-Erase}{$R$}
     \If{$R.\mathit{last} \ne \NIL$}
@@ -1086,7 +1084,7 @@ $\mathit{avail}$ 從環的第一個節點開始。 做完之後，原本環上�
 做法是從頭一個一個拆下來，放到另一條串列 $d$ 的最前面。 拆之前要先記住下一個節點，
 因為改掉 $h.\mathit{next}$ 之後就找不到它了。
 
-\begin{pseudo}[label=alg:ll-reverse]{就地反轉}
+\begin{pseudo}[label=alg:ll-reverse, unbreakable]{就地反轉}
 \Function{List-Reverse}{$h$} \Comment{$h$ 指向第一個節點}
     \State $d \gets \NIL$ \Comment{已經反轉好的一段}
     \While{$h \ne \NIL$}

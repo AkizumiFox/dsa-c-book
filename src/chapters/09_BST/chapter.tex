@@ -65,7 +65,8 @@ $5$ 的右子節點是 $8$，$8$ 的左子節點是 $4$，每一對父子都沒�
 這一章假設鍵值都不相同，重複的鍵值在插入時忽略，和《C 程式設計基礎》的約定一樣。
 真的要存重複的鍵值，常見的做法是在節點裡多記一個「出現次數」，或是把鍵值換成
 「鍵值＋序號」這種不會重複的組合（第~\ref{sec:bst-rank}~節的例子會用到）。 有些課
-本允許相等的鍵值放在右邊，定義裡的 $>$ 改成 $\ge$；考卷上遇到時，照題目的規定。
+本允許鍵值相等，例如 CLRS 的定義是左子樹 $\le$、右子樹 $\ge$，插入時相等的鍵值往
+右走；考卷上遇到時，照題目的規定。
 
 \textbf{深度}和\textbf{高度}照第~7~章的定義：深度數邊，根的深度是 $0$，節點的深度是
 它到根的路徑上有幾條邊；高度數節點，樹高 $h$ 是樹的層數，也就是最大深度加 $1$。 只有
@@ -115,7 +116,9 @@ $\Theta(n)$。
 \NIL 子樹（第~7~章），合計 $\Theta(n)$。
 \end{proof}
 
-反過來也成立：一棵二元樹的中序走訪如果是遞增的，它就是二元搜尋樹。 所以「檢查一棵
+反過來也成立：一棵二元樹的中序走訪如果是遞增的，它就是二元搜尋樹。 理由：中序走訪
+裡，$x$ 左子樹的每個節點都排在 $x$ 前面，右子樹的都排在 $x$ 後面；序列遞增，前面的
+就比 $x.\mathit{key}$ 小，後面的就比它大，正好是定義~\ref{def:bst}。 所以「檢查一棵
 樹是不是 BST」可以只做一次中序走訪，看每個鍵值是否比前一個大。
 
 \subsection{搜尋}
@@ -178,19 +181,28 @@ $\Theta(n)$。
 $h$ 個節點，時間 $O(h)$，$h$ 是樹高。 下表是在圖~\ref{fig:bst-T} 上搜尋 $46$ 和 $60$ 的過程。
 
 \begin{center}
-\begin{tabular}{cccl}
+\begin{tabular}[t]{ccl}
 \toprule
-搜尋 & 第幾次比較 & $x.\mathit{key}$ & 結果 \\
+\multicolumn{3}{c}{搜尋 $46$} \\
 \midrule
-$46$ & 1 & 52 & $46 < 52$，往左 \\
-     & 2 & 27 & $46 > 27$，往右 \\
-     & 3 & 40 & $46 > 40$，往右 \\
-     & 4 & 46 & 相等，找到 \\
+次 & $x.\mathit{key}$ & 結果 \\
 \midrule
-$60$ & 1 & 52 & $60 > 52$，往右 \\
-     & 2 & 74 & $60 < 74$，往左 \\
-     & 3 & 63 & $60 < 63$，往左 \\
-     & 4 & 58 & $60 > 58$，往右，$x = \NIL$，找不到 \\
+1 & 52 & $46 < 52$，往左 \\
+2 & 27 & $46 > 27$，往右 \\
+3 & 40 & $46 > 40$，往右 \\
+4 & 46 & 相等，找到 \\
+\bottomrule
+\end{tabular}\hspace{1.5em}%
+\begin{tabular}[t]{ccl}
+\toprule
+\multicolumn{3}{c}{搜尋 $60$} \\
+\midrule
+次 & $x.\mathit{key}$ & 結果 \\
+\midrule
+1 & 52 & $60 > 52$，往右 \\
+2 & 74 & $60 < 74$，往左 \\
+3 & 63 & $60 < 63$，往左 \\
+4 & 58 & $60 > 58$，往右，$x = \NIL$，找不到 \\
 \bottomrule
 \end{tabular}
 \end{center}
@@ -377,10 +389,10 @@ $z$ 的位置。 走的時候讓 $y$ 跟在 $x$ 後面一層，$x$ 變成 \NIL �
 定義~\ref{def:bst}：$z$ 走過的每個節點，$z$ 都放在正確的那一邊。 走過的節點最多
 $h$ 個（$h$ 是插入前的樹高），時間 $O(h)$。 節點有父指標時，在第 10 行之前加一行 $z.p \gets y$。
 
-第~\ref{sec:bst-query}~節的例子就是對空樹依序插入 $52,\allowbreak 27,\allowbreak 74,\allowbreak 15,\allowbreak 40,\allowbreak 63,\allowbreak 88,\allowbreak 33,\allowbreak 46,\allowbreak 58,\allowbreak 70,\allowbreak 95,\allowbreak 36$。 考卷上常要求寫出每一次插入的比較過程，下表一列寫一個鍵值。
+第~\ref{sec:bst-query}~節的例子就是對空樹依序插入 $52,\allowbreak 27,\allowbreak 74,\allowbreak 15,\allowbreak 40,\allowbreak 63,\allowbreak 88,\allowbreak 33,\allowbreak 46,\allowbreak 58,\allowbreak 70,\allowbreak 95,\allowbreak 36$。 考卷上常要求寫出每一次插入的比較過程，下表一列寫一個鍵值，左半接著右半。
 
 \begin{center}
-\begin{tabular}{cll}
+\begin{tabular}[t]{cll}
 \toprule
 插入 & 比較過的節點 & 接在 \\
 \midrule
@@ -391,6 +403,12 @@ $h$ 個（$h$ 是插入前的樹高），時間 $O(h)$。 節點有父指標時�
 40 & 52, 27 & 27 的右邊 \\
 63 & 52, 74 & 74 的左邊 \\
 88 & 52, 74 & 74 的右邊 \\
+\bottomrule
+\end{tabular}\hspace{1.5em}%
+\begin{tabular}[t]{cll}
+\toprule
+插入 & 比較過的節點 & 接在 \\
+\midrule
 33 & 52, 27, 40 & 40 的左邊 \\
 46 & 52, 27, 40 & 40 的右邊 \\
 58 & 52, 74, 63 & 63 的左邊 \\
@@ -561,7 +579,7 @@ $40$。
 有左子節點，走第 9 行，不會再進入情況 3。 被拿掉的節點（第 9、11 行回傳之後的 $x$）
 由呼叫的程式釋放。
 
-時間：第 4 到 7 行沿著一條路徑往下找 $k$；找到之後，情況 3 再從 $x$ 往下走到 $s$，
+時間：第 4--7 行沿著一條路徑往下找 $k$；找到之後，情況 3 再從 $x$ 往下走到 $s$，
 第 15 行的遞迴走的也是這一段路。 全部都在從根往下的一條路徑上，時間 $O(h)$。
 
 \begin{cbookrecap}[第~14~章、第~15~章、第~19~章 19.10、19.11、19.15 節]
@@ -605,7 +623,8 @@ Node **find_link(Node **root, int key)
 {
     Node **link = root;
     while (*link != NULL && (*link)->key != key)
-        link = key < (*link)->key ? &(*link)->left : &(*link)->right;
+        link = key < (*link)->key ? &(*link)->left
+                                  : &(*link)->right;
     return link;
 }
 
@@ -646,11 +665,11 @@ int erase(Node **root, int key)
     Node *z = *link;
     if (z == NULL)
         return 0;
-    if (z->left == NULL) {              // 沒有左子：右子樹頂上來
+    if (z->left == NULL) {          // 沒有左子：右子樹頂上來
         *link = z->right;
-    } else if (z->right == NULL) {      // 只有左子：左子樹頂上來
+    } else if (z->right == NULL) {  // 只有左子：左子樹頂上來
         *link = z->left;
-    } else {                            // 兩個子節點：用後繼 s 取代 z
+    } else {                        // 兩個子：後繼 s 取代 z
         Node **slink = &z->right;
         while ((*slink)->left != NULL)
             slink = &(*slink)->left;
@@ -693,7 +712,8 @@ void free_tree(Node *x)         // 後序：先釋放兩棵子樹，再釋放自
 int main(void)
 {
     Node *root = NULL;
-    int join[] = {52, 27, 74, 15, 40, 63, 88, 33, 46, 58, 70, 95, 36};
+    int join[] = {52, 27, 74, 15, 40, 63, 88,
+                  33, 46, 58, 70, 95, 36};
     int ask[] = {46, 27, 60, 95}, quit[] = {46, 88, 27, 74};
     for (int i = 0; i < 13; i++)
         if (insert(&root, join[i]) < 0)
@@ -702,8 +722,8 @@ int main(void)
     printf("\n");
     for (int i = 0; i < 4; i++) {
         const Node *s = successor(root, ask[i]);
-        printf("%d %s, next ", ask[i],
-               *find_link(&root, ask[i]) != NULL ? "found" : "missing");
+        int found = *find_link(&root, ask[i]) != NULL;
+        printf("%d %s, next ", ask[i], found ? "found" : "missing");
         if (s != NULL)
             printf("%d\n", s->key);
         else
@@ -724,7 +744,7 @@ int main(void)
 程式有三個地方要說明：
 
 \begin{itemize}
-\item \texttt{erase} 的前兩個分支對應虛擬碼的第 8 到 11 行，\texttt{*link} 可能是
+\item \texttt{erase} 的前兩個分支對應虛擬碼的第 8--11 行，\texttt{*link} 可能是
 \texttt{root} 本身，所以刪根的時候也不用另外處理。
 \item 情況 3 的兩個子情況（後繼在深處、後繼就是右子節點）用的是同一段程式。 刪除
 $74$ 時，\texttt{slink} 一開始就是 \texttt{\&z->right}，迴圈一次都沒跑；
@@ -739,8 +759,9 @@ $74$ 時，\texttt{slink} 一開始就是 \texttt{\&z->right}，迴圈一次都�
 
 \begin{examnote}
 刪除題先判斷節點有幾個子節點，寫出是哪一種情況；兩個子節點時寫出用的是後繼還是前
-驅，以及它是誰。 題目沒有指定時，選一種並寫明，整題都用同一種。 答案畫完整棵樹，不
-要只畫改到的那一塊，最後用中序走訪檢查一次是否仍然遞增。
+驅，以及它是誰。 題目沒有指定時，選一種並寫明，整題都用同一種。 CLRS 也用後繼，但
+搬的是節點本身（接指標），畫出來的樹和本章用後繼的結果相同。 答案畫完整棵樹，不要只
+畫改到的那一塊，最後用中序走訪檢查一次是否仍然遞增。
 \end{examnote}
 
 \section{高度：最壞情況與隨機插入}
@@ -848,9 +869,12 @@ $j$ 的深度等於它的祖先個數。 用第~1~章計算插入排序平均情
 = \left(\frac12 + \cdots + \frac1j\right) + \left(\frac12 + \cdots + \frac{1}{n-j+1}\right) \\
 &= H_j + H_{n-j+1} - 2,
 \end{align*}
-其中 $H_m = 1 + \frac12 + \cdots + \frac1m$ 是第~1~章的調和數，$H_m \le \ln m + 1$。 所以每個
-鍵值的期望深度都不超過 $2 \ln n$。 對 $j$ 加總，用 $\sum_{j=1}^{n} H_j = (n+1)H_n - n$，
-得到全部節點的期望深度總和是 $2(n+1)H_n - 4n$，平均深度是
+其中 $H_m = 1 + \frac12 + \cdots + \frac1m$ 是第~1~章的調和數，$H_m \le \ln m + 1$。 代
+進去，$H_j + H_{n-j+1} - 2 \le \ln j + \ln(n-j+1) \le 2 \ln n$，所以每個鍵值的期望深度
+都不超過 $2 \ln n$。 對 $j$ 加總，用附錄~A 定理~\ref{thm:mth-harmonic} 的
+$\sum_{j=1}^{n} H_j = (n+1)H_n - n$（$\frac1i$ 出現在 $H_i, \ldots, H_n$ 裡，共
+$n - i + 1$ 次），兩組和各是 $(n+1)H_n - n$，得到全部節點的期望深度總和是
+$2\bigl((n+1)H_n - n\bigr) - 2n = 2(n+1)H_n - 4n$，平均深度是
 \[
 2\left(1 + \frac1n\right) H_n - 4 \approx 2 \ln n \approx 1.39 \lg n.
 \]
@@ -1049,15 +1073,18 @@ int insert(Node **root, int key)
 {
     Node **link = root;                 // 第一趟：確定 key 不在樹裡
     while (*link != NULL && (*link)->key != key)
-        link = key < (*link)->key ? &(*link)->left : &(*link)->right;
+        link = key < (*link)->key ? &(*link)->left
+                                  : &(*link)->right;
     if (*link != NULL)
         return 0;
     Node *z = malloc(sizeof *z);
     if (z == NULL)
         return -1;
-    for (link = root; *link != NULL; ) { // 第二趟：經過的子樹都多一個
+    // 第二趟：經過的子樹都多一個節點
+    for (link = root; *link != NULL; ) {
         (*link)->size++;
-        link = key < (*link)->key ? &(*link)->left : &(*link)->right;
+        link = key < (*link)->key ? &(*link)->left
+                                  : &(*link)->right;
     }
     z->key = key;
     z->size = 1;
@@ -1110,7 +1137,8 @@ void free_tree(Node *x)
 int main(void)
 {
     Node *root = NULL;
-    int finish[] = {212, 187, 245, 166, 199, 230, 271, 158, 193, 238};
+    int finish[] = {212, 187, 245, 166, 199,
+                    230, 271, 158, 193, 238};
     int ks[] = {1, 6, 7, 11}, keys[] = {199, 240, 150};
     for (int i = 0; i < 10; i++)
         if (insert(&root, finish[i]) < 0)
@@ -1402,9 +1430,14 @@ $i = 1, \ldots, h$ 加起來最多 $2^h - 1$ 個。
 \end{tabular}
 \end{center}
 
-\item 刪除 $80$：兩個子節點，後繼是 $93$ 子樹的最小值 $88$（葉節點），得到
-$61(40(12(-,25),47(43,55)),88(70,93))$。 刪除 $61$：後繼是右子樹 $\{88, 70, 93\}$ 的
-最小值 $70$（葉節點），得到 $70(40(12(-,25),47(43,55)),88(-,93))$。
+\item 刪除 $80$：兩個子節點，後繼是 $93$ 子樹的最小值 $88$（葉節點）。 刪除 $61$：
+後繼是右子樹 $\{88, 70, 93\}$ 的最小值 $70$（葉節點）。 兩步之後的樹：
+\begin{center}
+\begin{tabular}{ll}
+刪 $80$ 之後 & $61(40(12(-,25),47(43,55)),88(70,93))$ \\
+刪 $61$ 之後 & $70(40(12(-,25),47(43,55)),88(-,93))$
+\end{tabular}
+\end{center}
 \end{enumerate}
 
 \item
@@ -1484,7 +1517,7 @@ $m = 0$：$x = \NIL$，回傳 \NIL，成立。
 $m \ge 1$，分情況。 (i) $k < x.\mathit{key}$：由歸納假設，第 5 行之後左子樹是 BST，
 鍵值是原本的左子樹拿掉 $k$，仍然都比 $x.\mathit{key}$ 小；右子樹沒動；所以整棵仍是
 BST，鍵值少了 $k$（$k$ 不在樹裡時不變）。 (ii) $k > x.\mathit{key}$：對稱。
-(iii) $k = x.\mathit{key}$ 而且至少一個子樹是空的（第 8 到 11 行）：回傳另一棵子樹，
+(iii) $k = x.\mathit{key}$ 而且至少一個子樹是空的（第 8--11 行）：回傳另一棵子樹，
 它本來就是 BST，鍵值恰好是原本的集合拿掉 $k$。 (iv) 兩個子樹都不空：$s$ 是右子樹的
 最小值。 第 14 行之後 $x.\mathit{key} = s.\mathit{key}$；由歸納假設，第 15 行之後右
 子樹是 BST，鍵值是原本的右子樹拿掉 $s.\mathit{key}$，剩下的都比 $s.\mathit{key}$
@@ -1495,7 +1528,7 @@ $x.\mathit{key}$ 小。 因此 $x$ 仍滿足 BST 性質。 鍵值集合：$k$ �
 \item
 \begin{enumerate}
 \item 和 \proc{Successor-Of-Key} 對稱，往右走時記下候選：
-\begin{pseudo}{觀念題 8 的解答}
+\begin{pseudo}[unbreakable]{觀念題 8 的解答}
 \Function{Tree-Floor}{$T, k$}
     \State $f \gets \NIL$
     \State $x \gets T.\mathit{root}$

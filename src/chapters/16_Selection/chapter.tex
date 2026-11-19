@@ -3,19 +3,19 @@
 
 % 本章的圖共用的樣式
 \tikzset{
-    outcell/.style={cell, fill=black!7, text=black!40, draw=black!25},
-    sc/.style={draw=black!55, minimum width=0.53cm, minimum height=0.56cm, inner sep=0pt, font=\ttfamily\scriptsize},
-    scout/.style={sc, fill=black!7, text=black!40, draw=black!25},
-    scmed/.style={sc, draw=optStroke, thick, fill=optFill},
-    scpiv/.style={sc, draw=memStroke, thick, fill=memFill},
-    tt/.style={draw=black!55, rounded corners=2pt, minimum width=0.62cm, minimum height=0.55cm, inner sep=0pt, font=\ttfamily\small, fill=white},
-    ttw/.style={tt, draw=memStroke, thick, fill=memFill},
-    tto/.style={tt, draw=optStroke, thick, fill=optFill},
-    te/.style={draw=black!50},
-    colc/.style={draw=black!45, minimum width=0.8cm, minimum height=0.55cm, inner sep=0pt, font=\ttfamily\small},
-    colle/.style={colc, fill=coreFill, draw=coreStroke},
-    colge/.style={colc, fill=greenFill, draw=greenStroke},
-    colx/.style={colc, fill=memFill, draw=memStroke, very thick},
+    sel-outcell/.style={cell, fill=black!7, text=black!40, draw=black!25},
+    sel-sc/.style={draw=black!55, minimum width=0.53cm, minimum height=0.56cm, inner sep=0pt, font=\ttfamily\scriptsize},
+    sel-scout/.style={sel-sc, fill=black!7, text=black!40, draw=black!25},
+    sel-scmed/.style={sel-sc, draw=optStroke, thick, fill=optFill},
+    sel-scpiv/.style={sel-sc, draw=memStroke, thick, fill=memFill},
+    sel-tt/.style={draw=black!55, rounded corners=2pt, minimum width=0.62cm, minimum height=0.55cm, inner sep=0pt, font=\ttfamily\small, fill=white},
+    sel-ttw/.style={sel-tt, draw=memStroke, thick, fill=memFill},
+    sel-tto/.style={sel-tt, draw=optStroke, thick, fill=optFill},
+    sel-te/.style={draw=black!50},
+    sel-colc/.style={draw=black!45, minimum width=0.8cm, minimum height=0.55cm, inner sep=0pt, font=\ttfamily\small},
+    sel-colle/.style={sel-colc, fill=coreFill, draw=coreStroke},
+    sel-colge/.style={sel-colc, fill=greenFill, draw=greenStroke},
+    sel-colx/.style={sel-colc, fill=memFill, draw=memStroke, very thick},
 }
 % 分割追蹤的一列：\selrow{y}{說明}{數值}{p}{r}{q}；p..r 以外的格子是灰的，q 是橘色
 \newcommand{\selrow}[6]{%
@@ -24,9 +24,9 @@
         \ifnum\k=#6\relax
             \node[hlcell, minimum width=0.78cm, minimum height=0.7cm] at (\k*0.82, #1) {\v};
         \else\ifnum\k<#4\relax
-            \node[outcell, minimum width=0.78cm, minimum height=0.7cm] at (\k*0.82, #1) {\v};
+            \node[sel-outcell, minimum width=0.78cm, minimum height=0.7cm] at (\k*0.82, #1) {\v};
         \else\ifnum\k>#5\relax
-            \node[outcell, minimum width=0.78cm, minimum height=0.7cm] at (\k*0.82, #1) {\v};
+            \node[sel-outcell, minimum width=0.78cm, minimum height=0.7cm] at (\k*0.82, #1) {\v};
         \else
             \node[cell, minimum width=0.78cm, minimum height=0.7cm] at (\k*0.82, #1) {\v};
         \fi\fi\fi
@@ -47,7 +47,7 @@ $O(n)$ 時間內解決一般情形的演算法。 第一個每次隨機挑一個
 這一章用到第~1~章的插入排序和期望值、第~2~章的代換法、第~12~章的指示變數；C 程式
 用到《C 程式設計基礎》第~15~章的遞迴和第~19~章的 \texttt{malloc}、\texttt{free}。
 
-\section{第 \texorpdfstring{$i$}{i} 小、最大與最小}
+\section{第~\texorpdfstring{$i$}{i}~小、最大與最小}
 \label{sec:sel-minmax}
 
 $n$ 個數由小到大排好以後，排在第 $i$ 個的數叫做第 $i$ 小的數，也叫第 $i$ 個
@@ -187,51 +187,51 @@ $\lceil \lg n \rceil$ 輪），所以這些人最多 $\lceil \lg n \rceil$ 個�
 
 \begin{center}
 \begin{tikzpicture}[x=1cm, y=0.95cm]
-\node[tt] (L1) at (0.000,0.00) {47};
-\node[tt] (L2) at (1.050,0.00) {65};
-\node[tto] (L3) at (2.100,0.00) {88};
-\node[ttw] (L4) at (3.150,0.00) {91};
-\node[tt] (L5) at (4.200,0.00) {38};
-\node[tt] (L6) at (5.250,0.00) {72};
-\node[tt] (L7) at (6.300,0.00) {56};
-\node[tt] (L8) at (7.350,0.00) {83};
-\node[tt] (L9) at (8.400,0.00) {60};
-\node[tt] (L10) at (9.450,0.00) {79};
-\node[tt] (L11) at (10.500,0.00) {74};
-\node[tto] (R1_1) at (0.525,1.00) {65};
-\node[ttw] (R1_2) at (2.625,1.00) {91};
-\node[tt] (R1_3) at (4.725,1.00) {72};
-\node[tt] (R1_4) at (6.825,1.00) {83};
-\node[tt] (R1_5) at (8.925,1.00) {79};
-\node[tt] (R1_6) at (10.500,1.00) {74};
-\node[ttw] (R2_1) at (1.575,2.00) {91};
-\node[tto] (R2_2) at (5.775,2.00) {83};
-\node[tt] (R2_3) at (9.713,2.00) {79};
-\node[ttw] (R3_1) at (3.675,3.00) {91};
-\node[tto] (R3_2) at (9.713,3.00) {79};
-\node[ttw] (R4_1) at (6.694,4.00) {91};
-\draw[te] (R1_1) -- (L1);
-\draw[te] (R1_1) -- (L2);
-\draw[te] (R1_2) -- (L3);
-\draw[te] (R1_2) -- (L4);
-\draw[te] (R1_3) -- (L5);
-\draw[te] (R1_3) -- (L6);
-\draw[te] (R1_4) -- (L7);
-\draw[te] (R1_4) -- (L8);
-\draw[te] (R1_5) -- (L9);
-\draw[te] (R1_5) -- (L10);
-\draw[te] (R1_6) -- (L11);
-\draw[te] (R2_1) -- (R1_1);
-\draw[te] (R2_1) -- (R1_2);
-\draw[te] (R2_2) -- (R1_3);
-\draw[te] (R2_2) -- (R1_4);
-\draw[te] (R2_3) -- (R1_5);
-\draw[te] (R2_3) -- (R1_6);
-\draw[te] (R3_1) -- (R2_1);
-\draw[te] (R3_1) -- (R2_2);
-\draw[te] (R3_2) -- (R2_3);
-\draw[te] (R4_1) -- (R3_1);
-\draw[te] (R4_1) -- (R3_2);
+\node[sel-tt] (L1) at (0.000,0.00) {47};
+\node[sel-tt] (L2) at (1.050,0.00) {65};
+\node[sel-tto] (L3) at (2.100,0.00) {88};
+\node[sel-ttw] (L4) at (3.150,0.00) {91};
+\node[sel-tt] (L5) at (4.200,0.00) {38};
+\node[sel-tt] (L6) at (5.250,0.00) {72};
+\node[sel-tt] (L7) at (6.300,0.00) {56};
+\node[sel-tt] (L8) at (7.350,0.00) {83};
+\node[sel-tt] (L9) at (8.400,0.00) {60};
+\node[sel-tt] (L10) at (9.450,0.00) {79};
+\node[sel-tt] (L11) at (10.500,0.00) {74};
+\node[sel-tto] (R1_1) at (0.525,1.00) {65};
+\node[sel-ttw] (R1_2) at (2.625,1.00) {91};
+\node[sel-tt] (R1_3) at (4.725,1.00) {72};
+\node[sel-tt] (R1_4) at (6.825,1.00) {83};
+\node[sel-tt] (R1_5) at (8.925,1.00) {79};
+\node[sel-tt] (R1_6) at (10.500,1.00) {74};
+\node[sel-ttw] (R2_1) at (1.575,2.00) {91};
+\node[sel-tto] (R2_2) at (5.775,2.00) {83};
+\node[sel-tt] (R2_3) at (9.713,2.00) {79};
+\node[sel-ttw] (R3_1) at (3.675,3.00) {91};
+\node[sel-tto] (R3_2) at (9.713,3.00) {79};
+\node[sel-ttw] (R4_1) at (6.694,4.00) {91};
+\draw[sel-te] (R1_1) -- (L1);
+\draw[sel-te] (R1_1) -- (L2);
+\draw[sel-te] (R1_2) -- (L3);
+\draw[sel-te] (R1_2) -- (L4);
+\draw[sel-te] (R1_3) -- (L5);
+\draw[sel-te] (R1_3) -- (L6);
+\draw[sel-te] (R1_4) -- (L7);
+\draw[sel-te] (R1_4) -- (L8);
+\draw[sel-te] (R1_5) -- (L9);
+\draw[sel-te] (R1_5) -- (L10);
+\draw[sel-te] (R1_6) -- (L11);
+\draw[sel-te] (R2_1) -- (R1_1);
+\draw[sel-te] (R2_1) -- (R1_2);
+\draw[sel-te] (R2_2) -- (R1_3);
+\draw[sel-te] (R2_2) -- (R1_4);
+\draw[sel-te] (R2_3) -- (R1_5);
+\draw[sel-te] (R2_3) -- (R1_6);
+\draw[sel-te] (R3_1) -- (R2_1);
+\draw[sel-te] (R3_1) -- (R2_2);
+\draw[sel-te] (R3_2) -- (R2_3);
+\draw[sel-te] (R4_1) -- (R3_1);
+\draw[sel-te] (R4_1) -- (R3_2);
 \foreach \t/\lab in {0/參賽, 1/第 1 輪, 2/第 2 輪, 3/第 3 輪, 4/第 4 輪} {
     \node[anchor=east, font=\small] at (-0.5, \t) {\lab};
 }
@@ -298,7 +298,7 @@ $c \ge \lceil \lg n \rceil$，比較次數至少 $n + \lceil \lg n \rceil - 2$�
 碼~\ref{alg:so-lomuto}）以 $A[r]$ 為基準，結束時 $A[p..q-1]$ 都 $\le A[q]$，$A[q+1..r]$
 都 $> A[q]$，回傳 $q$；過程中基準和其他 $r - p$ 個數各比一次。
 \proc{Randomized-Partition}（虛擬碼~\ref{alg:so-rand}）先把 $A[p..r]$ 裡隨機挑的一個數
-換到 $A[r]$，再做 Lomuto 分割。 $\proc{Random}(p, r)$ 傳回 $p$ 到 $r$ 之間的一個整數，
+換到 $A[r]$，再做 Lomuto 分割。 \proc{Random}$(p, r)$ 傳回 $p$ 到 $r$ 之間的一個整數，
 每個整數的機率都一樣，每次呼叫彼此獨立。
 
 \begin{pseudo}[label=alg:sel-rselect]{隨機化選擇}
@@ -306,7 +306,7 @@ $c \ge \lceil \lg n \rceil$，比較次數至少 $n + \lceil \lg n \rceil - 2$�
     \If{$p = r$}
         \State \Return $A[p]$ \Comment{只剩一個數，$i$ 一定是 $1$}
     \EndIf
-    \State $q \gets \Call{Randomized-Partition}{A, p, r}$
+    \State $q \gets$ \Call{Randomized-Partition}{$A, p, r$}
     \State $k \gets q - p + 1$ \Comment{基準在 $A[p..r]$ 裡是第 $k$ 小}
     \If{$i = k$}
         \State \Return $A[q]$
@@ -318,7 +318,7 @@ $c \ge \lceil \lg n \rceil$，比較次數至少 $n + \lceil \lg n \rceil - 2$�
 \EndFunction
 \end{pseudo}
 
-呼叫 $\proc{Randomized-Select}(A, 1, n, i)$ 找整個陣列第 $i$ 小的數。 往右邊找時，左
+呼叫 \proc{Randomized-Select}$(A, 1, n, i)$ 找整個陣列第 $i$ 小的數。 往右邊找時，左
 邊的 $k$ 個數（包括基準）都比答案小，所以在右邊要找的是第 $i - k$ 小，這是第 11 行
 最容易漏掉的地方。 往左邊找時名次不變。
 
@@ -525,7 +525,8 @@ static unsigned long long state = 20261119ULL;
 int random_between(int p, int r)            // p..r 之間的一個整數
 {
     state = state * 6364136223846793005ULL + 1442695040888963407ULL;
-    unsigned x = (unsigned)(state >> 33);   // 低位元的週期短，取高位元
+    // 低位元的週期短，取高位元
+    unsigned x = (unsigned)(state >> 33);
     return p + (int)(x % (unsigned)(r - p + 1));
 }
 
@@ -579,18 +580,21 @@ double expected_cmp(int n, int k)
 
 int main(void)
 {
-    int score[] = {59, 46, 47, 80, 64, 90, 62, 96, 73, 58, 79, 44, 54};
+    int score[] = {59, 46, 47, 80, 64, 90, 62, 96, 73, 58, 79,
+                   44, 54};
     int med = randomized_select(score, 0, 12, 7);
     printf("median = %d, comparisons = %lld\n", med, ncmp);
 
     // 1001 個不同的數，同一個輸入跑 2000 次，看平均比較次數。
     int N = 1001, T = 2000, ks[] = {1, 251, 501};
-    int *base = malloc(N * sizeof *base), *b = malloc(N * sizeof *b);
+    int *base = malloc(N * sizeof *base);
+    int *b = malloc(N * sizeof *b);
     if (base == NULL || b == NULL)
         return 1;
     for (int j = 0; j < N; j++)
         base[j] = j + 1;
-    for (int j = N - 1; j > 0; j--)         // 洗牌，得到 1..N 的一個排列
+    // 洗牌，得到 1..N 的一個排列
+    for (int j = N - 1; j > 0; j--)
         swap(&base[j], &base[random_between(0, j)]);
     printf("k average formula 4n\n");
     for (int q = 0; q < 3; q++) {
@@ -645,7 +649,7 @@ $M[1..g]$。
 迴。
 \end{enumerate}
 
-\begin{pseudo}[label=alg:sel-mom]{中位數的中位數}
+\begin{pseudo}[label=alg:sel-mom, float=!tp]{中位數的中位數}
 \Function{Select}{$A, p, r, i$}
     \State $n \gets r - p + 1$
     \If{$n \le 5$}
@@ -660,8 +664,8 @@ $M[1..g]$。
         \State 用插入排序把 $A[\ell..h]$ 排好
         \State $M[j] \gets A[\lfloor (\ell + h)/2 \rfloor]$ \Comment{這一組的（下）中位數}
     \EndFor
-    \State $x \gets \Call{Select}{M, 1, g, \lceil g/2 \rceil}$
-    \State $q \gets \Call{Partition-Around}{A, p, r, x}$
+    \State $x \gets$ \Call{Select}{$M, 1, g, \lceil g/2 \rceil$}
+    \State $q \gets$ \Call{Partition-Around}{$A, p, r, x$}
     \State $k \gets q - p + 1$
     \If{$i = k$}
         \State \Return $A[q]$
@@ -671,6 +675,7 @@ $M[1..g]$。
         \State \Return \Call{Select}{$A, q + 1, r, i - k$}
     \EndIf
 \EndFunction
+\Statex
 \Function{Partition-Around}{$A, p, r, x$}
     \State 找出 $A[p..r]$ 裡等於 $x$ 的位置 $j$
     \State 交換 $A[j]$ 和 $A[r]$
@@ -691,37 +696,38 @@ $M[1..g]$。
 數：它們所在的那一欄的中位數 $\le x$，而它們又 $\le$ 那一欄的中位數，所以都 $\le x$。
 同理，右上方綠色的數都 $\ge x$。 不管其他數怎麼排，這兩塊都保證存在。
 
-\begin{center}
+\begin{figure}[tbp]
+\centering
 \begin{tikzpicture}
-\node[colle] at (0.00,0.00) {16};
-\node[colle] at (0.00,0.62) {27};
-\node[colle] at (0.00,1.24) {31};
-\node[colc] at (0.00,1.86) {70};
-\node[colc] at (0.00,2.48) {87};
+\node[sel-colle] at (0.00,0.00) {16};
+\node[sel-colle] at (0.00,0.62) {27};
+\node[sel-colle] at (0.00,1.24) {31};
+\node[sel-colc] at (0.00,1.86) {70};
+\node[sel-colc] at (0.00,2.48) {87};
 \node[idxlbl] at (0.00,-0.55) {第 4 組};
-\node[colle] at (0.95,0.00) {13};
-\node[colle] at (0.95,0.62) {30};
-\node[colle] at (0.95,1.24) {35};
-\node[colc] at (0.95,1.86) {66};
-\node[colc] at (0.95,2.48) {85};
+\node[sel-colle] at (0.95,0.00) {13};
+\node[sel-colle] at (0.95,0.62) {30};
+\node[sel-colle] at (0.95,1.24) {35};
+\node[sel-colc] at (0.95,1.86) {66};
+\node[sel-colc] at (0.95,2.48) {85};
 \node[idxlbl] at (0.95,-0.55) {第 2 組};
-\node[colle] at (1.90,0.00) {15};
-\node[colle] at (1.90,0.62) {33};
-\node[colx] at (1.90,1.24) {38};
-\node[colge] at (1.90,1.86) {88};
-\node[colge] at (1.90,2.48) {98};
+\node[sel-colle] at (1.90,0.00) {15};
+\node[sel-colle] at (1.90,0.62) {33};
+\node[sel-colx] at (1.90,1.24) {38};
+\node[sel-colge] at (1.90,1.86) {88};
+\node[sel-colge] at (1.90,2.48) {98};
 \node[idxlbl] at (1.90,-0.55) {第 3 組};
-\node[colc] at (2.85,0.00) {24};
-\node[colc] at (2.85,0.62) {34};
-\node[colge] at (2.85,1.24) {50};
-\node[colge] at (2.85,1.86) {71};
-\node[colge] at (2.85,2.48) {86};
+\node[sel-colc] at (2.85,0.00) {24};
+\node[sel-colc] at (2.85,0.62) {34};
+\node[sel-colge] at (2.85,1.24) {50};
+\node[sel-colge] at (2.85,1.86) {71};
+\node[sel-colge] at (2.85,2.48) {86};
 \node[idxlbl] at (2.85,-0.55) {第 5 組};
-\node[colc] at (3.80,0.00) {44};
-\node[colc] at (3.80,0.62) {48};
-\node[colge] at (3.80,1.24) {80};
-\node[colge] at (3.80,1.86) {89};
-\node[colge] at (3.80,2.48) {91};
+\node[sel-colc] at (3.80,0.00) {44};
+\node[sel-colc] at (3.80,0.62) {48};
+\node[sel-colge] at (3.80,1.24) {80};
+\node[sel-colge] at (3.80,1.86) {89};
+\node[sel-colge] at (3.80,2.48) {91};
 \node[idxlbl] at (3.80,-0.55) {第 1 組};
 \draw[diagarrow] (-0.85,-0.2) -- node[left, font=\scriptsize, align=center] {由小\\到大} (-0.85,2.7);
 \draw[diagarrow] (-0.4,3.25) -- node[above, font=\scriptsize] {中位數由小到大} (4.2,3.25);
@@ -730,7 +736,7 @@ $M[1..g]$。
 的順序依中位數排（演算法本身不搬欄，這只是為了看清楚）。 $x = 38$（橘色）。 藍色的
 $8$ 個數一定 $< x$，綠色的 $8$ 個數一定 $> x$；白色的數可能在 $x$ 的任何一邊。}
 \label{fig:sel-mom-cols}
-\end{center}
+\end{figure}
 
 \begin{lemma}
 \label{lem:sel-mom-split}
@@ -831,171 +837,171 @@ $A = \langle 48, 89, 80, 91, 44, 13, 35, 30, 85, 66, 98, 33, 38, 88, 15, 70, 87,
 \begin{center}
 \begin{tikzpicture}
 \node[anchor=east, font=\small] at (0.25,0.00) {原始};
-\node[sc] at (0.55,0.00) {48};
-\node[sc] at (1.10,0.00) {89};
-\node[sc] at (1.65,0.00) {80};
-\node[sc] at (2.20,0.00) {91};
-\node[sc] at (2.75,0.00) {44};
-\node[sc] at (3.30,0.00) {13};
-\node[sc] at (3.85,0.00) {35};
-\node[sc] at (4.40,0.00) {30};
-\node[sc] at (4.95,0.00) {85};
-\node[sc] at (5.50,0.00) {66};
-\node[sc] at (6.05,0.00) {98};
-\node[sc] at (6.60,0.00) {33};
-\node[sc] at (7.15,0.00) {38};
-\node[sc] at (7.70,0.00) {88};
-\node[sc] at (8.25,0.00) {15};
-\node[sc] at (8.80,0.00) {70};
-\node[sc] at (9.35,0.00) {87};
-\node[sc] at (9.90,0.00) {31};
-\node[sc] at (10.45,0.00) {16};
-\node[sc] at (11.00,0.00) {27};
-\node[sc] at (11.55,0.00) {24};
-\node[sc] at (12.10,0.00) {50};
-\node[sc] at (12.65,0.00) {86};
-\node[sc] at (13.20,0.00) {71};
-\node[sc] at (13.75,0.00) {34};
+\node[sel-sc] at (0.55,0.00) {48};
+\node[sel-sc] at (1.10,0.00) {89};
+\node[sel-sc] at (1.65,0.00) {80};
+\node[sel-sc] at (2.20,0.00) {91};
+\node[sel-sc] at (2.75,0.00) {44};
+\node[sel-sc] at (3.30,0.00) {13};
+\node[sel-sc] at (3.85,0.00) {35};
+\node[sel-sc] at (4.40,0.00) {30};
+\node[sel-sc] at (4.95,0.00) {85};
+\node[sel-sc] at (5.50,0.00) {66};
+\node[sel-sc] at (6.05,0.00) {98};
+\node[sel-sc] at (6.60,0.00) {33};
+\node[sel-sc] at (7.15,0.00) {38};
+\node[sel-sc] at (7.70,0.00) {88};
+\node[sel-sc] at (8.25,0.00) {15};
+\node[sel-sc] at (8.80,0.00) {70};
+\node[sel-sc] at (9.35,0.00) {87};
+\node[sel-sc] at (9.90,0.00) {31};
+\node[sel-sc] at (10.45,0.00) {16};
+\node[sel-sc] at (11.00,0.00) {27};
+\node[sel-sc] at (11.55,0.00) {24};
+\node[sel-sc] at (12.10,0.00) {50};
+\node[sel-sc] at (12.65,0.00) {86};
+\node[sel-sc] at (13.20,0.00) {71};
+\node[sel-sc] at (13.75,0.00) {34};
 \draw[very thick, black!80] (3.025,-0.36) -- (3.025,0.36);
 \draw[very thick, black!80] (5.775,-0.36) -- (5.775,0.36);
 \draw[very thick, black!80] (8.525,-0.36) -- (8.525,0.36);
 \draw[very thick, black!80] (11.275,-0.36) -- (11.275,0.36);
 \node[anchor=east, font=\small] at (0.25,-0.95) {各組排好};
-\node[sc] at (0.55,-0.95) {44};
-\node[sc] at (1.10,-0.95) {48};
-\node[scmed] at (1.65,-0.95) {80};
-\node[sc] at (2.20,-0.95) {89};
-\node[sc] at (2.75,-0.95) {91};
-\node[sc] at (3.30,-0.95) {13};
-\node[sc] at (3.85,-0.95) {30};
-\node[scmed] at (4.40,-0.95) {35};
-\node[sc] at (4.95,-0.95) {66};
-\node[sc] at (5.50,-0.95) {85};
-\node[sc] at (6.05,-0.95) {15};
-\node[sc] at (6.60,-0.95) {33};
-\node[scpiv] at (7.15,-0.95) {38};
-\node[sc] at (7.70,-0.95) {88};
-\node[sc] at (8.25,-0.95) {98};
-\node[sc] at (8.80,-0.95) {16};
-\node[sc] at (9.35,-0.95) {27};
-\node[scmed] at (9.90,-0.95) {31};
-\node[sc] at (10.45,-0.95) {70};
-\node[sc] at (11.00,-0.95) {87};
-\node[sc] at (11.55,-0.95) {24};
-\node[sc] at (12.10,-0.95) {34};
-\node[scmed] at (12.65,-0.95) {50};
-\node[sc] at (13.20,-0.95) {71};
-\node[sc] at (13.75,-0.95) {86};
+\node[sel-sc] at (0.55,-0.95) {44};
+\node[sel-sc] at (1.10,-0.95) {48};
+\node[sel-scmed] at (1.65,-0.95) {80};
+\node[sel-sc] at (2.20,-0.95) {89};
+\node[sel-sc] at (2.75,-0.95) {91};
+\node[sel-sc] at (3.30,-0.95) {13};
+\node[sel-sc] at (3.85,-0.95) {30};
+\node[sel-scmed] at (4.40,-0.95) {35};
+\node[sel-sc] at (4.95,-0.95) {66};
+\node[sel-sc] at (5.50,-0.95) {85};
+\node[sel-sc] at (6.05,-0.95) {15};
+\node[sel-sc] at (6.60,-0.95) {33};
+\node[sel-scpiv] at (7.15,-0.95) {38};
+\node[sel-sc] at (7.70,-0.95) {88};
+\node[sel-sc] at (8.25,-0.95) {98};
+\node[sel-sc] at (8.80,-0.95) {16};
+\node[sel-sc] at (9.35,-0.95) {27};
+\node[sel-scmed] at (9.90,-0.95) {31};
+\node[sel-sc] at (10.45,-0.95) {70};
+\node[sel-sc] at (11.00,-0.95) {87};
+\node[sel-sc] at (11.55,-0.95) {24};
+\node[sel-sc] at (12.10,-0.95) {34};
+\node[sel-scmed] at (12.65,-0.95) {50};
+\node[sel-sc] at (13.20,-0.95) {71};
+\node[sel-sc] at (13.75,-0.95) {86};
 \draw[very thick, black!80] (3.025,-1.31) -- (3.025,-0.59);
 \draw[very thick, black!80] (5.775,-1.31) -- (5.775,-0.59);
 \draw[very thick, black!80] (8.525,-1.31) -- (8.525,-0.59);
 \draw[very thick, black!80] (11.275,-1.31) -- (11.275,-0.59);
 \node[anchor=east, font=\small] at (0.25,-1.90) {對 38 分割};
-\node[sc] at (0.55,-1.90) {13};
-\node[sc] at (1.10,-1.90) {30};
-\node[sc] at (1.65,-1.90) {35};
-\node[sc] at (2.20,-1.90) {15};
-\node[sc] at (2.75,-1.90) {33};
-\node[sc] at (3.30,-1.90) {16};
-\node[sc] at (3.85,-1.90) {27};
-\node[sc] at (4.40,-1.90) {31};
-\node[sc] at (4.95,-1.90) {24};
-\node[sc] at (5.50,-1.90) {34};
-\node[scpiv] at (6.05,-1.90) {38};
-\node[sc] at (6.60,-1.90) {91};
-\node[sc] at (7.15,-1.90) {86};
-\node[sc] at (7.70,-1.90) {88};
-\node[sc] at (8.25,-1.90) {98};
-\node[sc] at (8.80,-1.90) {44};
-\node[sc] at (9.35,-1.90) {48};
-\node[sc] at (9.90,-1.90) {80};
-\node[sc] at (10.45,-1.90) {70};
-\node[sc] at (11.00,-1.90) {87};
-\node[sc] at (11.55,-1.90) {66};
-\node[sc] at (12.10,-1.90) {85};
-\node[sc] at (12.65,-1.90) {50};
-\node[sc] at (13.20,-1.90) {71};
-\node[sc] at (13.75,-1.90) {89};
+\node[sel-sc] at (0.55,-1.90) {13};
+\node[sel-sc] at (1.10,-1.90) {30};
+\node[sel-sc] at (1.65,-1.90) {35};
+\node[sel-sc] at (2.20,-1.90) {15};
+\node[sel-sc] at (2.75,-1.90) {33};
+\node[sel-sc] at (3.30,-1.90) {16};
+\node[sel-sc] at (3.85,-1.90) {27};
+\node[sel-sc] at (4.40,-1.90) {31};
+\node[sel-sc] at (4.95,-1.90) {24};
+\node[sel-sc] at (5.50,-1.90) {34};
+\node[sel-scpiv] at (6.05,-1.90) {38};
+\node[sel-sc] at (6.60,-1.90) {91};
+\node[sel-sc] at (7.15,-1.90) {86};
+\node[sel-sc] at (7.70,-1.90) {88};
+\node[sel-sc] at (8.25,-1.90) {98};
+\node[sel-sc] at (8.80,-1.90) {44};
+\node[sel-sc] at (9.35,-1.90) {48};
+\node[sel-sc] at (9.90,-1.90) {80};
+\node[sel-sc] at (10.45,-1.90) {70};
+\node[sel-sc] at (11.00,-1.90) {87};
+\node[sel-sc] at (11.55,-1.90) {66};
+\node[sel-sc] at (12.10,-1.90) {85};
+\node[sel-sc] at (12.65,-1.90) {50};
+\node[sel-sc] at (13.20,-1.90) {71};
+\node[sel-sc] at (13.75,-1.90) {89};
 \node[anchor=east, font=\small] at (0.25,-2.85) {各組排好};
-\node[scout] at (0.55,-2.85) {13};
-\node[scout] at (1.10,-2.85) {30};
-\node[scout] at (1.65,-2.85) {35};
-\node[scout] at (2.20,-2.85) {15};
-\node[scout] at (2.75,-2.85) {33};
-\node[scout] at (3.30,-2.85) {16};
-\node[scout] at (3.85,-2.85) {27};
-\node[scout] at (4.40,-2.85) {31};
-\node[scout] at (4.95,-2.85) {24};
-\node[scout] at (5.50,-2.85) {34};
-\node[scout] at (6.05,-2.85) {38};
-\node[sc] at (6.60,-2.85) {44};
-\node[sc] at (7.15,-2.85) {86};
-\node[scmed] at (7.70,-2.85) {88};
-\node[sc] at (8.25,-2.85) {91};
-\node[sc] at (8.80,-2.85) {98};
-\node[sc] at (9.35,-2.85) {48};
-\node[sc] at (9.90,-2.85) {66};
-\node[scmed] at (10.45,-2.85) {70};
-\node[sc] at (11.00,-2.85) {80};
-\node[sc] at (11.55,-2.85) {87};
-\node[sc] at (12.10,-2.85) {50};
-\node[scpiv] at (12.65,-2.85) {71};
-\node[sc] at (13.20,-2.85) {85};
-\node[sc] at (13.75,-2.85) {89};
+\node[sel-scout] at (0.55,-2.85) {13};
+\node[sel-scout] at (1.10,-2.85) {30};
+\node[sel-scout] at (1.65,-2.85) {35};
+\node[sel-scout] at (2.20,-2.85) {15};
+\node[sel-scout] at (2.75,-2.85) {33};
+\node[sel-scout] at (3.30,-2.85) {16};
+\node[sel-scout] at (3.85,-2.85) {27};
+\node[sel-scout] at (4.40,-2.85) {31};
+\node[sel-scout] at (4.95,-2.85) {24};
+\node[sel-scout] at (5.50,-2.85) {34};
+\node[sel-scout] at (6.05,-2.85) {38};
+\node[sel-sc] at (6.60,-2.85) {44};
+\node[sel-sc] at (7.15,-2.85) {86};
+\node[sel-scmed] at (7.70,-2.85) {88};
+\node[sel-sc] at (8.25,-2.85) {91};
+\node[sel-sc] at (8.80,-2.85) {98};
+\node[sel-sc] at (9.35,-2.85) {48};
+\node[sel-sc] at (9.90,-2.85) {66};
+\node[sel-scmed] at (10.45,-2.85) {70};
+\node[sel-sc] at (11.00,-2.85) {80};
+\node[sel-sc] at (11.55,-2.85) {87};
+\node[sel-sc] at (12.10,-2.85) {50};
+\node[sel-scpiv] at (12.65,-2.85) {71};
+\node[sel-sc] at (13.20,-2.85) {85};
+\node[sel-sc] at (13.75,-2.85) {89};
 \draw[very thick, black!80] (9.075,-3.21) -- (9.075,-2.49);
 \draw[very thick, black!80] (11.825,-3.21) -- (11.825,-2.49);
 \node[anchor=east, font=\small] at (0.25,-3.80) {對 71 分割};
-\node[scout] at (0.55,-3.80) {13};
-\node[scout] at (1.10,-3.80) {30};
-\node[scout] at (1.65,-3.80) {35};
-\node[scout] at (2.20,-3.80) {15};
-\node[scout] at (2.75,-3.80) {33};
-\node[scout] at (3.30,-3.80) {16};
-\node[scout] at (3.85,-3.80) {27};
-\node[scout] at (4.40,-3.80) {31};
-\node[scout] at (4.95,-3.80) {24};
-\node[scout] at (5.50,-3.80) {34};
-\node[scout] at (6.05,-3.80) {38};
-\node[sc] at (6.60,-3.80) {44};
-\node[sc] at (7.15,-3.80) {48};
-\node[sc] at (7.70,-3.80) {66};
-\node[sc] at (8.25,-3.80) {70};
-\node[sc] at (8.80,-3.80) {50};
-\node[scpiv] at (9.35,-3.80) {71};
-\node[sc] at (9.90,-3.80) {88};
-\node[sc] at (10.45,-3.80) {91};
-\node[sc] at (11.00,-3.80) {80};
-\node[sc] at (11.55,-3.80) {87};
-\node[sc] at (12.10,-3.80) {98};
-\node[sc] at (12.65,-3.80) {89};
-\node[sc] at (13.20,-3.80) {85};
-\node[sc] at (13.75,-3.80) {86};
+\node[sel-scout] at (0.55,-3.80) {13};
+\node[sel-scout] at (1.10,-3.80) {30};
+\node[sel-scout] at (1.65,-3.80) {35};
+\node[sel-scout] at (2.20,-3.80) {15};
+\node[sel-scout] at (2.75,-3.80) {33};
+\node[sel-scout] at (3.30,-3.80) {16};
+\node[sel-scout] at (3.85,-3.80) {27};
+\node[sel-scout] at (4.40,-3.80) {31};
+\node[sel-scout] at (4.95,-3.80) {24};
+\node[sel-scout] at (5.50,-3.80) {34};
+\node[sel-scout] at (6.05,-3.80) {38};
+\node[sel-sc] at (6.60,-3.80) {44};
+\node[sel-sc] at (7.15,-3.80) {48};
+\node[sel-sc] at (7.70,-3.80) {66};
+\node[sel-sc] at (8.25,-3.80) {70};
+\node[sel-sc] at (8.80,-3.80) {50};
+\node[sel-scpiv] at (9.35,-3.80) {71};
+\node[sel-sc] at (9.90,-3.80) {88};
+\node[sel-sc] at (10.45,-3.80) {91};
+\node[sel-sc] at (11.00,-3.80) {80};
+\node[sel-sc] at (11.55,-3.80) {87};
+\node[sel-sc] at (12.10,-3.80) {98};
+\node[sel-sc] at (12.65,-3.80) {89};
+\node[sel-sc] at (13.20,-3.80) {85};
+\node[sel-sc] at (13.75,-3.80) {86};
 \node[anchor=east, font=\small] at (0.25,-4.75) {排好 $A[12..16]$};
-\node[scout] at (0.55,-4.75) {13};
-\node[scout] at (1.10,-4.75) {30};
-\node[scout] at (1.65,-4.75) {35};
-\node[scout] at (2.20,-4.75) {15};
-\node[scout] at (2.75,-4.75) {33};
-\node[scout] at (3.30,-4.75) {16};
-\node[scout] at (3.85,-4.75) {27};
-\node[scout] at (4.40,-4.75) {31};
-\node[scout] at (4.95,-4.75) {24};
-\node[scout] at (5.50,-4.75) {34};
-\node[scout] at (6.05,-4.75) {38};
-\node[sc] at (6.60,-4.75) {44};
-\node[scpiv] at (7.15,-4.75) {48};
-\node[sc] at (7.70,-4.75) {50};
-\node[sc] at (8.25,-4.75) {66};
-\node[sc] at (8.80,-4.75) {70};
-\node[scout] at (9.35,-4.75) {71};
-\node[scout] at (9.90,-4.75) {88};
-\node[scout] at (10.45,-4.75) {91};
-\node[scout] at (11.00,-4.75) {80};
-\node[scout] at (11.55,-4.75) {87};
-\node[scout] at (12.10,-4.75) {98};
-\node[scout] at (12.65,-4.75) {89};
-\node[scout] at (13.20,-4.75) {85};
-\node[scout] at (13.75,-4.75) {86};
+\node[sel-scout] at (0.55,-4.75) {13};
+\node[sel-scout] at (1.10,-4.75) {30};
+\node[sel-scout] at (1.65,-4.75) {35};
+\node[sel-scout] at (2.20,-4.75) {15};
+\node[sel-scout] at (2.75,-4.75) {33};
+\node[sel-scout] at (3.30,-4.75) {16};
+\node[sel-scout] at (3.85,-4.75) {27};
+\node[sel-scout] at (4.40,-4.75) {31};
+\node[sel-scout] at (4.95,-4.75) {24};
+\node[sel-scout] at (5.50,-4.75) {34};
+\node[sel-scout] at (6.05,-4.75) {38};
+\node[sel-sc] at (6.60,-4.75) {44};
+\node[sel-scpiv] at (7.15,-4.75) {48};
+\node[sel-sc] at (7.70,-4.75) {50};
+\node[sel-sc] at (8.25,-4.75) {66};
+\node[sel-sc] at (8.80,-4.75) {70};
+\node[sel-scout] at (9.35,-4.75) {71};
+\node[sel-scout] at (9.90,-4.75) {88};
+\node[sel-scout] at (10.45,-4.75) {91};
+\node[sel-scout] at (11.00,-4.75) {80};
+\node[sel-scout] at (11.55,-4.75) {87};
+\node[sel-scout] at (12.10,-4.75) {98};
+\node[sel-scout] at (12.65,-4.75) {89};
+\node[sel-scout] at (13.20,-4.75) {85};
+\node[sel-scout] at (13.75,-4.75) {86};
 \foreach \k in {1,...,25} { \node[idxlbl] at (\k*0.55, -5.35) {\k}; }
 \end{tikzpicture}
 \diagcaption{\proc{Select} 找 $25$ 個數的第 $13$ 小。 第一層 $x = 38$，往右；第二層
@@ -1067,7 +1073,8 @@ int select_mom(int *a, int p, int r, int i, int d)
     int n = r - p + 1;
     if (n <= 5) {
         insertion_sort(a, p, r);
-        printf("d=%d n=%d i=%d base -> %d\n", d, n, i, a[p + i - 1]);
+        printf("d=%d n=%d i=%d base -> %d\n",
+               d, n, i, a[p + i - 1]);
         return a[p + i - 1];
     }
     int g = (n + 4) / 5;
@@ -1077,7 +1084,7 @@ int select_mom(int *a, int p, int r, int i, int d)
     for (int j = 0; j < g; j++) {
         int l = p + 5 * j, h = l + 4 < r ? l + 4 : r;
         insertion_sort(a, l, h);
-        m[j] = a[(l + h) / 2];                  // 這一組的（下）中位數
+        m[j] = a[(l + h) / 2];      // 這一組的（下）中位數
     }
     printf("d=%d n=%d i=%d medians", d, n, i);
     for (int j = 0; j < g; j++)

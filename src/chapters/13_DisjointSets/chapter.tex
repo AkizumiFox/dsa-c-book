@@ -75,36 +75,7 @@
 列裡每個元素 $x$ 除了往下一個的指標 $x.\mathit{next}$，還多一個指回集合物件的指標
 $x.\mathit{set}$。 代表就是串列的第一個元素（圖~\ref{fig:ds-list}）。
 
-\begin{center}
-\begin{tikzpicture}[x=1cm, y=1cm]
-\node[lset] (sa) at (1.4, 1.25) {$\mathit{head}\ \ \mathit{tail}\ \ \mathit{size}=3$};
-\node[lnode] (a4) at (0, 0) {4};
-\node[lnode] (a9) at (1.4, 0) {9};
-\node[lnode] (a2) at (2.8, 0) {2};
-\node[font=\small] (an) at (3.9, 0) {\NIL};
-\draw[lptr] (a4) -- (a9);
-\draw[lptr] (a9) -- (a2);
-\draw[lptr] (a2) -- (an);
-\foreach \v in {a4, a9, a2} { \draw[lrep] (\v.north) -- (\v.north |- sa.south); }
-\node[plab] at (1.4, -0.85) {集合 $\{4, 9, 2\}$，代表是 $4$};
-\begin{scope}[xshift=6.2cm]
-\node[lset] (sb) at (0.7, 1.25) {$\mathit{head}\ \ \mathit{tail}\ \ \mathit{size}=2$};
-\node[lnode] (b6) at (0, 0) {6};
-\node[lnode] (b1) at (1.4, 0) {1};
-\node[font=\small] (bn) at (2.5, 0) {\NIL};
-\draw[lptr] (b6) -- (b1);
-\draw[lptr] (b1) -- (bn);
-\foreach \v in {b6, b1} { \draw[lrep] (\v.north) -- (\v.north |- sb.south); }
-\node[plab] at (0.7, -0.85) {集合 $\{6, 1\}$，代表是 $6$};
-\end{scope}
-\end{tikzpicture}
-\diagcaption{用串列表示兩個集合。 實線是 $\mathit{next}$，虛線是每個元素指回集合物件
-的 $\mathit{set}$。 \proc{Find-Set}$(2)$ 沿虛線找到集合物件，再讀 $\mathit{head}$，
-得到 $4$。}
-\label{fig:ds-list}
-\end{center}
-
-\begin{pseudo}[label=alg:ds-list]{串列表示，加權合併}
+\begin{pseudo}[label=alg:ds-list, unbreakable]{串列表示，加權合併}
 \Procedure{Make-Set}{$x$}
     \State 建立集合物件 $S$；$S.\mathit{head} \gets x$，$S.\mathit{tail} \gets x$，$S.\mathit{size} \gets 1$
     \State $x.\mathit{set} \gets S$；$x.\mathit{next} \gets \NIL$
@@ -132,6 +103,38 @@ $x.\mathit{set}$。 代表就是串列的第一個元素（圖~\ref{fig:ds-list}
     \State 釋放集合物件 $T$
 \EndProcedure
 \end{pseudo}
+
+\begin{center}
+\begin{minipage}{\linewidth}
+\centering
+\begin{tikzpicture}[x=1cm, y=1cm]
+\node[lset] (sa) at (1.4, 1.25) {$\mathit{head}\ \ \mathit{tail}\ \ \mathit{size}=3$};
+\node[lnode] (a4) at (0, 0) {4};
+\node[lnode] (a9) at (1.4, 0) {9};
+\node[lnode] (a2) at (2.8, 0) {2};
+\node[font=\small] (an) at (3.9, 0) {\NIL};
+\draw[lptr] (a4) -- (a9);
+\draw[lptr] (a9) -- (a2);
+\draw[lptr] (a2) -- (an);
+\foreach \v in {a4, a9, a2} { \draw[lrep] (\v.north) -- (\v.north |- sa.south); }
+\node[plab] at (1.4, -0.85) {集合 $\{4, 9, 2\}$，代表是 $4$};
+\begin{scope}[xshift=6.2cm]
+\node[lset] (sb) at (0.7, 1.25) {$\mathit{head}\ \ \mathit{tail}\ \ \mathit{size}=2$};
+\node[lnode] (b6) at (0, 0) {6};
+\node[lnode] (b1) at (1.4, 0) {1};
+\node[font=\small] (bn) at (2.5, 0) {\NIL};
+\draw[lptr] (b6) -- (b1);
+\draw[lptr] (b1) -- (bn);
+\foreach \v in {b6, b1} { \draw[lrep] (\v.north) -- (\v.north |- sb.south); }
+\node[plab] at (0.7, -0.85) {集合 $\{6, 1\}$，代表是 $6$};
+\end{scope}
+\end{tikzpicture}
+\diagcaption{用串列表示兩個集合。 實線是 $\mathit{next}$，虛線是每個元素指回集合物件
+的 $\mathit{set}$。 \proc{Find-Set}$(2)$ 沿虛線找到集合物件，再讀 $\mathit{head}$，
+得到 $4$。}
+\label{fig:ds-list}
+\end{minipage}
+\end{center}
 
 \proc{Make-Set} 和 \proc{Find-Set} 都是 $O(1)$。 \proc{Union} 把 $T$ 整條接到 $S$ 的
 尾巴，接上去只要改兩個指標（第 13--14 行），貴的是第 16--18 行：$T$ 的每個元素都要把
@@ -178,7 +181,7 @@ $O(m + n \lg n)$。
 它的父節點 $p[x]$，根就是代表，根的父節點設成自己。 第~7~章說過，一個陣列
 $p[1..n]$ 就能存下整個森林。
 
-\begin{pseudo}[label=alg:ds-naive]{森林表示，不用任何技巧}
+\begin{pseudo}[label=alg:ds-naive, unbreakable]{森林表示，不用任何技巧}
 \Procedure{Make-Set}{$x$}
     \State $p[x] \gets x$
 \EndProcedure
@@ -189,8 +192,8 @@ $p[1..n]$ 就能存下整個森林。
     \State \Return $x$
 \EndFunction
 \Procedure{Union}{$x, y$}
-    \State $r_x \gets \Call{Find-Set}{x}$
-    \State $r_y \gets \Call{Find-Set}{y}$
+    \State $r_x \gets$ \Call{Find-Set}{$x$}
+    \State $r_y \gets$ \Call{Find-Set}{$y$}
     \If{$r_x \ne r_y$}
         \State $p[r_y] \gets r_x$ \Comment{$y$ 的根接到 $x$ 的根底下}
     \EndIf
@@ -216,8 +219,8 @@ $p[1..n]$ 就能存下整個森林。
 
 \begin{pseudo}[label=alg:ds-size]{依大小合併（\proc{Make-Set}$(x)$ 另外設 $\mathit{size}[x] \gets 1$）}
 \Procedure{Union}{$x, y$}
-    \State $r_x \gets \Call{Find-Set}{x}$
-    \State $r_y \gets \Call{Find-Set}{y}$
+    \State $r_x \gets$ \Call{Find-Set}{$x$}
+    \State $r_y \gets$ \Call{Find-Set}{$y$}
     \If{$r_x = r_y$}
         \State \Return
     \EndIf
@@ -249,8 +252,8 @@ $0$（這棵樹的高度是 $1$）。
 
 \begin{pseudo}[label=alg:ds-rank]{依秩合併（\proc{Make-Set}$(x)$ 另外設 $\mathit{rank}[x] \gets 0$）}
 \Procedure{Union}{$x, y$}
-    \State $r_x \gets \Call{Find-Set}{x}$
-    \State $r_y \gets \Call{Find-Set}{y}$
+    \State $r_x \gets$ \Call{Find-Set}{$x$}
+    \State $r_y \gets$ \Call{Find-Set}{$y$}
     \If{$r_x = r_y$}
         \State \Return
     \EndIf
@@ -295,7 +298,7 @@ CLRS 和許多考卷用「邊數」定義高度，單一節點的高度是 $0$�
 \begin{pseudo}[label=alg:ds-find-rec]{路徑壓縮（遞迴）}
 \Function{Find-Set}{$x$}
     \If{$p[x] \ne x$}
-        \State $p[x] \gets \Call{Find-Set}{p[x]}$
+        \State $p[x] \gets$ \Call{Find-Set}{$p[x]$}
     \EndIf
     \State \Return $p[x]$
 \EndFunction
@@ -335,7 +338,7 @@ CLRS 和許多考卷用「邊數」定義高度，單一節點的高度是 $0$�
 跳到原本的父節點。
 \end{itemize}
 
-\begin{pseudo}[label=alg:ds-find-onepass]{只走一趟的兩種變形}
+\begin{pseudo}[label=alg:ds-find-onepass, unbreakable]{只走一趟的兩種變形}
 \Function{Find-Halving}{$x$}
     \While{$p[x] \ne x$}
         \State $p[x] \gets p[p[x]]$
@@ -564,8 +567,8 @@ $5$ 底下。 這一步改了兩格：$p[8]$ 來自壓縮，$p[9]$ 來自合併�
 追蹤題通常會規定：(1) 一樣大（或秩相同）時誰當根；(2) \proc{Union}$(x, y)$ 裡的
 \proc{Find-Set} 要不要壓縮；(3) 陣列的格式。 有些課本讓根的格子存\textbf{負的節點數}
 （例如 $p[1] = -4$ 表示 $1$ 是根、這棵樹有 $4$ 個節點），不另外開 $\mathit{size}$
-陣列；照這種寫法，上表第 6 步之後是 $-4, 1, 1, 3, -4, 5, 5, 7, -1, -1$。 這一系的課本
-把依大小合併叫\textbf{加權規則}（weighting rule），把路徑壓縮叫\textbf{塌陷規則}
+陣列；照這種寫法，上表第 6 步之後是 $-4, 1, 1, 3, -4, 5, 5, 7, -1, -1$。 用這種寫法的課本
+（例如延伸閱讀裡 Horowitz 等人的書）把依大小合併叫\textbf{加權規則}（weighting rule），把路徑壓縮叫\textbf{塌陷規則}
 （collapsing rule）。 題目沒有規定時，在答案開頭寫清楚自己的約定，再開始畫。
 \end{examnote}
 
@@ -697,8 +700,8 @@ $8$ 個節點的例子第一次找 $8$ 的時候。 各種做法整理如下。
 \toprule
 做法 & 單次最壞 & $m$ 個操作的總時間 \\
 \midrule
-串列，不加權 & \proc{Find} $O(1)$，\proc{Union} $O(n)$ & $\Theta(n^2)$ 做得到（$m = 2n - 1$） \\
-串列，加權合併 & \proc{Find} $O(1)$，\proc{Union} $O(n)$ & $O(m + n \lg n)$ \\
+串列，不加權 & \proc{Find-Set} $O(1)$，\proc{Union} $O(n)$ & $\Theta(n^2)$ 做得到（$m = 2n - 1$） \\
+串列，加權合併 & \proc{Find-Set} $O(1)$，\proc{Union} $O(n)$ & $O(m + n \lg n)$ \\
 森林，不用技巧 & $O(n)$ & $O(mn)$ \\
 依大小或依秩合併 & $O(\lg n)$ & $O(m \lg n)$ \\
 只用路徑壓縮 & $O(n)$ & 見上面第二點 \\

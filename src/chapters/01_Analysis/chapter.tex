@@ -228,6 +228,9 @@ $M$ 個位元組的記憶體，\texttt{calloc} 把它們設成 $0$ 也要時間�
 一樣不算右邊 \\
 空指標 & \NIL & \texttt{NULL} \\
 物件的欄位 & $x.\mathit{key}$，$x$ 是指向物件的指標 & \texttt{x->key} \\
+程序名稱 & \proc{Insertion-Sort}$(A, n)$，名稱用小型大寫 & \texttt{insertion\_sort(a, n)} \\
+回傳 & \textbf{return} $x$ & \texttt{return x;} \\
+註解 & 寫在行尾，以 // 開頭 & \texttt{//} 或 \texttt{/* */} \\
 區塊 & 用縮排表示，不寫 \textbf{end} & 用大括號 \\
 \bottomrule
 \end{tabular}
@@ -243,6 +246,8 @@ $\lceil a / b \rceil$。 C 程式要自己注意溢位，會超過 \texttt{int} 
 \texttt{long long}。
 \item 虛擬碼可以寫一句中文代替一段細節，例如「建立陣列 $\mathit{seen}[0..M-1]$，
 每一格都設成 \FALSE」，只要那一句的成本清楚。
+\item 好幾個字母的變數名稱用斜體整個寫出，例如 $\mathit{key}$、$\mathit{seen}$，指的是一
+個變數，不是幾個字母相乘。
 \item $\lg n$ 表示 $\log_2 n$，$\ln n$ 表示自然對數。
 \end{itemize}
 
@@ -322,6 +327,11 @@ $i$ & $\mathit{key}$ & 比較 & 挪動 & 停下的原因 & 這一輪之後 \\
 考卷上的追蹤題，通常要求寫出「每一輪之後」的陣列，像上表最右欄那樣一輪一列。 先
 看清楚題目要的是每一輪之後，還是每一次交換、挪動之後，兩者的列數不同。 題目問
 比較次數時，記得 $j$ 走到 $0$ 那一次不算比較。
+
+有的課本把 $\mathit{key}$ 先放進 $A[0]$ 當\textbf{哨兵}（sentinel），迴圈條件只寫
+$A[j] > \mathit{key}$，省掉 $j \ge 1$ 的檢查。 這個版本裡 $j$ 走到 $0$ 時會和哨兵比
+一次，所以第 $i$ 輪最多比 $i$ 次；上面的例子照這個版本數，比較次數是 $15$，不是
+$13$。 題目給了虛擬碼時，照題目的版本數。
 \end{examnote}
 
 \subsection{C 程式}
@@ -511,8 +521,8 @@ $A[i-1], A[i-2], \ldots$ 之中比 $\mathit{key}$ 大的數依序往右挪一格
 \end{examnote}
 
 不變量要選得剛好：太弱推不出結論，太強維持不住。 例如只寫「$A[1..i-1]$ 排好了」，
-少了「是原本的那些數」，那麼一個把整個陣列都改成 $0$ 的程式也滿足它。 觀念題第 11 題
-的二分搜尋、第~14~章快速排序的分割（partition）都會再用到這個工具。
+少了「是原本的那些數」，那麼一個把整個陣列都改成 $0$ 的程式也滿足它。
+觀念題第~\ref{ana-q-lower-bound}~題的二分搜尋、第~14~章快速排序的分割（partition）都會再用到這個工具。
 
 \section{漸近符號}
 \label{sec:ana-notation}
@@ -664,7 +674,10 @@ $f(n)$ 都比 $c\,g(n)$ 小。 例如 $2n = o(n^2)$：給定 $c$，取 $n_0 > 2/
 \end{theorem}
 
 第 2 點的理由：$n$ 夠大以後 $f(n)/g(n)$ 落在 $[L/2, 2L]$ 之間，取 $c_1 = L/2$、
-$c_2 = 2L$。 第 1、3 點直接是極限的定義。
+$c_2 = 2L$。 第 1 點：極限是 $0$ 的意思是，對每一個 $c > 0$，$n$ 夠大以後
+$f(n)/g(n) < c$，這正是 $o$ 的定義；取 $c = 1$ 就得到 $O$。 如果又有
+$f(n) \ge c' g(n)$（$c' > 0$），比值會一直不小於 $c'$，不可能趨近 $0$，所以
+$f(n) \ne \Omega(g(n))$。 第 3 點的理由相同，大小對調。
 
 要注意這個定理只有一個方向：極限不存在時，什麼都不能說，要回到定義。 例如
 \[
@@ -787,6 +800,11 @@ $\Theta(r^m)$，由最後一項決定。
 
 \subsection{由慢到快}
 
+圖~\ref{fig:ana-growth} 畫出 $n \le 20$ 時幾個常見函數的大小，下表再列出 $n$ 更大時
+的值。 在一般的電腦上，一秒大約能做 $10^8$ 到 $10^9$ 個基本運算。 對照下表，
+$n = 10^6$ 時 $n \lg n$ 的演算法一瞬間就跑完，$n^2$ 要十幾分鐘到幾個小時，指數的演
+算法連 $n = 100$ 都跑不完。 演算法課關心的，主要就是能不能從表的下半部換到上半部。
+
 \begin{center}
 \begin{tikzpicture}[x=0.42cm, y=0.075cm]
 \begin{scope}
@@ -829,10 +847,6 @@ $n!$ & $3.6 \times 10^6$ & 約 $10^{2568}$ & 約 $10^{5565709}$ & 枚舉所有�
 \bottomrule
 \end{tabular}
 \end{center}
-
-在一般的電腦上，一秒大約能做 $10^8$ 到 $10^9$ 個基本運算。 對照上表，$n = 10^6$ 時
-$n \lg n$ 的演算法一瞬間就跑完，$n^2$ 要十幾分鐘到幾個小時，指數的演算法連 $n = 100$
-都跑不完。 演算法課關心的，主要就是能不能從表的下半部換到上半部。
 
 \section{分析程式片段}
 \label{sec:ana-fragments}
@@ -1023,10 +1037,10 @@ $n$ 很小時，可以把 $n!$ 種排列全部列出來，直接驗證這個公�
 
 int perm[MAXN];
 int used[MAXN];
-long long total;        // 所有排列的搬移次數總和
+long long total;        // 所有排列的挪動次數總和
 long long count;        // 排列個數
 
-// 插入排序搬移的次數，等於 a[0..n-1] 裡 i < j 且 a[i] > a[j] 的對數。
+// 插入排序挪動的次數，等於 a[0..n-1] 裡 i < j 且 a[i] > a[j] 的對數。
 // 這裡直接把插入排序跑一次來數，不用這個性質。
 long long shifts(const int *src, int n)
 {
@@ -1139,7 +1153,8 @@ int main(void)
         int digits = 0;
         for (long long t = xs[k]; t > 0; t /= 10)
             digits++;
-        printf("%lld %d %s %lld\n", xs[k], digits, p ? "yes" : "no", steps);
+        printf("%lld %d %s %lld\n", xs[k], digits,
+               p ? "yes" : "no", steps);
     }
     return 0;
 }
@@ -1163,7 +1178,7 @@ RAM 模型假設一個字組放得下 $n$ 這個量級的數，所以排序 $n$ 
 \label{sec:ana-pitfalls}
 
 \begin{center}
-\begin{tabular}{p{0.24\linewidth}p{0.50\linewidth}p{0.16\linewidth}}
+\begin{tabular}{>{\raggedright\arraybackslash}p{0.24\linewidth}>{\raggedright\arraybackslash}p{0.50\linewidth}p{0.16\linewidth}}
 \toprule
 錯誤 & 例子 & 見 \\
 \midrule
@@ -1245,30 +1260,30 @@ n^{1.5},\quad n^{\lg 3},\quad (\lg n)^{\lg n},\quad 2^{\lg n},\quad \lg(n!),\qua
 \item （證明）用定義~\ref{def:little-o} 或定理~\ref{thm:limit} 證明
 $n \lg n = o(n^{1.1})$，並說明為什麼 $n^{1.1} \ne O(n \lg n)$。
 
-\item （追蹤）用插入排序（虛擬碼~\ref{alg:insertion}）排序
+\item \label{ana-q-trace}（追蹤）用插入排序（虛擬碼~\ref{alg:insertion}）排序
 $\langle 50, 20, 40, 10, 70, 30, 60 \rangle$。 寫出外層迴圈每一輪之後的陣列，以及
 $A[j] > \mathit{key}$ 的總比較次數和總挪動次數。
 
 \item （計算）插入排序排一個長度 $n$、有 $k$ 個逆序對的陣列。 證明比較次數
 （只數 $A[j] > \mathit{key}$）等於 $k + (n - 1) - z$，其中 $z$ 是「$\mathit{key}$
-被放到第 $1$ 格」的輪數。 用第 9 題的結果驗證這個公式。
+被放到第 $1$ 格」的輪數。 用第~\ref{ana-q-trace}~題的結果驗證這個公式。
 
-\item （證明）下面的程序在已經由小到大排好的 $A[1..n]$ 裡，回傳第一個大於等於
+\item \label{ana-q-lower-bound}（證明）下面的程序在已經由小到大排好的 $A[1..n]$ 裡，回傳第一個大於等於
 $x$ 的位置；全部都小於 $x$ 時回傳 $n + 1$。 寫出 \textbf{while} 迴圈的不變量，用
 它證明程序正確，並說明迴圈一定會停。
-\begin{pseudo}{第一個大於等於 $x$ 的位置}
+\begin{pseudo}[unbreakable]{第一個大於等於 $x$ 的位置}
 \Function{Lower-Bound}{$A, n, x$}
-    \State $lo \gets 1$
-    \State $hi \gets n + 1$
-    \While{$lo < hi$}
-        \State $mid \gets \lfloor (lo + hi) / 2 \rfloor$
-        \If{$A[mid] < x$}
-            \State $lo \gets mid + 1$
+    \State $\mathit{lo} \gets 1$
+    \State $\mathit{hi} \gets n + 1$
+    \While{$\mathit{lo} < \mathit{hi}$}
+        \State $\mathit{mid} \gets \lfloor (\mathit{lo} + \mathit{hi}) / 2 \rfloor$
+        \If{$A[\mathit{mid}] < x$}
+            \State $\mathit{lo} \gets \mathit{mid} + 1$
         \Else
-            \State $hi \gets mid$
+            \State $\mathit{hi} \gets \mathit{mid}$
         \EndIf
     \EndWhile
-    \State \Return $lo$
+    \State \Return $\mathit{lo}$
 \EndFunction
 \end{pseudo}
 
@@ -1421,32 +1436,38 @@ $i$ & 比較 & 挪動 & 這一輪之後 \\
 \bottomrule
 \end{tabular}
 \end{center}
-可以把範例~\ref{ex:insertion-count} 的輸入改成 \texttt{1}、\texttt{7}、
-\texttt{50 20 40 10 70 30 60} 驗證，程式印出 \texttt{comparisons = 13, shifts = 9}。
+驗證的方法：把範例~\ref{ex:insertion-count} 的輸入改成三行
+\texttt{1}、\texttt{7}、\texttt{50 20 40 10 70 30 60}，程式印出
+\texttt{comparisons = 13, shifts = 9}。
 
 \item 第 $i$ 輪挪動 $s_i$ 次。 如果這一輪因為某個 $A[j] \le \mathit{key}$ 而停下，
 比較了 $s_i + 1$ 次；如果因為 $j = 0$ 停下（$\mathit{key}$ 放到第 $1$ 格），最後那
 次沒有比較，比較了 $s_i$ 次。 把 $n - 1$ 輪加起來：比較次數 $= \sum s_i + (n - 1) - z
-= k + (n - 1) - z$，因為挪動總次數等於逆序對個數 $k$。 第 9 題 $k = 9$、$n = 7$，
+= k + (n - 1) - z$，因為挪動總次數等於逆序對個數 $k$。 第~\ref{ana-q-trace}~題
+$k = 9$、$n = 7$，
 $\mathit{key}$ 被放到第 $1$ 格的是 $i = 2$（20）和 $i = 4$（10），$z = 2$，
 $9 + 6 - 2 = 13$，和表上一樣。
 
-\item 不變量：每次檢查 \textbf{while} 條件時，$1 \le lo \le hi \le n + 1$，而且
-$A[1..lo-1]$ 的每個數都小於 $x$，$A[hi..n]$ 的每個數都大於等於 $x$。
+\item 不變量：每次檢查 \textbf{while} 條件時，$1 \le \mathit{lo} \le \mathit{hi} \le
+n + 1$，而且 $A[1..\mathit{lo}-1]$ 的每個數都小於 $x$，$A[\mathit{hi}..n]$ 的每個數都
+大於等於 $x$。
 
-初始：$lo = 1$、$hi = n + 1$，兩段都是空的，成立。
+初始：$\mathit{lo} = 1$、$\mathit{hi} = n + 1$，兩段都是空的，成立。
 
-維持：$lo < hi$ 時 $lo \le mid < hi$，所以 $A[mid]$ 存在。 若 $A[mid] < x$，因為陣
-列排好了，$A[lo..mid]$ 都小於 $x$，設 $lo \gets mid + 1$ 後第一段仍然都小於 $x$，而
-且 $lo \le hi$。 否則 $A[mid] \ge x$，$A[mid..n]$ 都大於等於 $x$，設 $hi \gets mid$
-後第二段仍然成立，而且 $lo \le mid = hi$。
+維持：$\mathit{lo} < \mathit{hi}$ 時 $\mathit{lo} \le \mathit{mid} < \mathit{hi}$，所以
+$A[\mathit{mid}]$ 存在。 若 $A[\mathit{mid}] < x$，因為陣列排好了，
+$A[\mathit{lo}..\mathit{mid}]$ 都小於 $x$，設 $\mathit{lo} \gets \mathit{mid} + 1$ 後第
+一段仍然都小於 $x$，而且 $\mathit{lo} \le \mathit{hi}$。 否則 $A[\mathit{mid}] \ge x$，
+$A[\mathit{mid}..n]$ 都大於等於 $x$，設 $\mathit{hi} \gets \mathit{mid}$ 後第二段仍然
+成立，而且 $\mathit{lo} \le \mathit{mid} = \mathit{hi}$。
 
-結束：迴圈停在 $lo = hi$。 這時 $A[1..lo-1]$ 都小於 $x$、$A[lo..n]$ 都大於等於
-$x$，所以 $lo$ 正是第一個大於等於 $x$ 的位置（$lo = n + 1$ 表示全部都小於 $x$）。
+結束：迴圈停在 $\mathit{lo} = \mathit{hi}$。 這時 $A[1..\mathit{lo}-1]$ 都小於 $x$、
+$A[\mathit{lo}..n]$ 都大於等於 $x$，所以 $\mathit{lo}$ 正是第一個大於等於 $x$ 的位置
+（$\mathit{lo} = n + 1$ 表示全部都小於 $x$）。
 
-會停：每一輪 $hi - lo$ 都嚴格變小（$lo$ 變成 $mid + 1 > lo$，或 $hi$ 變成
-$mid < hi$），而它是非負整數，所以有限輪後一定變成 $0$。 每一輪大約減半，共
-$\Theta(\lg n)$ 輪。
+會停：每一輪 $\mathit{hi} - \mathit{lo}$ 都嚴格變小（$\mathit{lo}$ 變成
+$\mathit{mid} + 1 > \mathit{lo}$，或 $\mathit{hi}$ 變成 $\mathit{mid} < \mathit{hi}$），
+而它是非負整數，所以有限輪後一定變成 $0$。 每一輪大約減半，共 $\Theta(\lg n)$ 輪。
 
 \item (B)。 $x$ 在第 $k$ 個位置時比較 $k$ 次，平均
 $\frac{1}{n}\sum_{k=1}^{n} k = \frac{n+1}{2}$。

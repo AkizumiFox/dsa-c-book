@@ -119,7 +119,8 @@ $\log_3(n + 1) \le h \le \lg(n + 1)$。
 樹。 藍底是剛插入的鍵，綠底是剛移動（上升、下降、借來）的鍵，橘框是鍵太多或太少的
 節點；本章其他的圖也用同樣的顏色。 沒有分裂的插入合併成一張。
 
-\begin{center}
+\begin{figure}[tbp]
+\centering
 \begin{tikzpicture}[baseline=(current bounding box.north), mwk/.append style={minimum width=0.5cm, minimum height=0.42cm}]
 \node[mwk,mwkN] at (0.25,0) {47};
 \node[mwk,mwkN] at (0.75,0) {82};
@@ -276,7 +277,7 @@ $\log_3(n + 1) \le h \le \lg(n + 1)$。
 $\{15, 29\}$ 溢位，(h) 分裂後 $29$ 上升，根變成三個鍵，又溢位；(i) 根分裂，$47$ 成為
 新的根，高度從 $2$ 變成 $3$。}
 \label{fig:mw-23-ins}
-\end{center}
+\end{figure}
 
 (h) 到 (i) 是\textbf{連鎖分裂}：一次插入可能讓從葉子到根路上的每個節點都分裂，但每層
 最多分裂一次，所以插入的時間是 $O(h) = O(\lg n)$。
@@ -494,6 +495,10 @@ $\log_4(n + 1) \le h \le \lg(n + 1)$。
 （top-down）的插入：從根往下走的路上，遇到 4-節點就先把它分裂，中間的鍵
 （$3$ 個鍵的第 $2$ 個）送進父節點。 父節點在上一步已經處理過，不會是 4-節點，放得
 下。 走到葉子時，葉子一定不是 4-節點，直接放進去就好，不用再往回走。
+
+虛擬碼裡 $T.\mathit{root}$ 是樹根，$x.c[i]$ 是節點 $x$ 由左往右數的第 $i$ 個子節點；
+$x.c[i]$ 有 $3$ 個鍵就是 4-節點。 第~\ref{sec:mw-btree}~節寫 B 樹的虛擬碼時，會把節點的欄位
+完整列出來。
 
 \begin{pseudo}[label=alg:mw-234-insert]{2-3-4 樹由上而下的插入（樹不是空的）}
 \Procedure{Insert-234}{$T, k$}
@@ -918,8 +923,10 @@ $h = 1$ 時右邊是 $1$，也成立。 兩個不等式分別取對數，得到 
 圖~\ref{fig:mw-b-ins}(o) 那棵 $5$ 階 B 樹有 $17$ 個鍵、高度 $3$，正好是
 $2 \cdot 3^2 - 1 = 17$。 上界也可以達到：每個節點都放滿 $m - 1$ 個鍵。
 
-$m$ 是常數時，兩邊都是 $\Theta(\log n)$。 但底數差很多：$m = 200$ 時下界的底數是
-$200$，上界的底數是 $100$，高度大約只有二元樹的 $1/6.6$（$\lg 100 \approx 6.6$）。 B 樹
+$m$ 是常數時，兩邊都是 $\Theta(\log n)$。 但底數差很多：$m = 200$ 時，高度下界
+$\log_m(n+1)$ 的底數是 $200$，上界 $1 + \log_c \frac{n+1}{2}$ 的底數是 $c = 100$。
+$\log_{100} n = \lg n / \lg 100$，所以最壞的高度也只有平衡二元樹的 $1/6.6$ 左右
+（$\lg 100 \approx 6.6$）。 B 樹
 的好處就在這裡。
 
 \begin{examnote}
@@ -946,7 +953,7 @@ $3^6 = 729$ 不行，所以 $h - 1 \le 5$，$h \le 6$。 答案是 $5$ 或 $6$�
 $x.\mathit{key}[1..x.n]$，內部節點有 $x.n + 1$ 個子指標 $x.c[1..x.n+1]$，
 $x.\mathit{leaf}$ 表示是不是葉子。
 
-\begin{pseudo}[label=alg:mw-search]{在以 $x$ 為根的子樹裡找 $k$，回傳節點和位置}
+\begin{pseudo}[label=alg:mw-search, unbreakable]{在以 $x$ 為根的子樹裡找 $k$，回傳節點和位置}
 \Function{B-Tree-Search}{$x, k$}
     \State $i \gets 1$
     \While{$i \le x.n$ \AND $k > x.\mathit{key}[i]$}
@@ -982,7 +989,8 @@ $k_1 < k_2 < \cdots < k_m$，令 $p = \lceil m/2 \rceil$：
 
 虛擬碼用遞迴寫：\proc{Insert-Down} 把 $k$ 插進 $x$ 的子樹，如果 $x$ 因此分裂，就把
 「上升的鍵」和「分出來的右半節點」交回給呼叫它的父節點。 節點的陣列要多留一格，讓它
-可以暫時放 $m$ 個鍵。
+可以暫時放 $m$ 個鍵。 下面依序是最上層的 \proc{B-Tree-Insert}、分裂一個節點的
+\proc{Split}，最後是 \proc{Insert-Down}。
 
 \begin{pseudo}[label=alg:mw-insert]{B 樹的插入}
 \Procedure{B-Tree-Insert}{$T, k$}
@@ -999,7 +1007,20 @@ $k_1 < k_2 < \cdots < k_m$，令 $p = \lceil m/2 \rceil$：
 \EndProcedure
 \end{pseudo}
 
-\begin{pseudo}[label=alg:mw-insdown]{把 $k$ 插進 $x$ 的子樹；$x$ 分裂時回傳上升的鍵和新的右半節點}
+\begin{pseudo}[label=alg:mw-split]{分裂有 $m$ 個鍵的節點 $x$}
+\Function{Split}{$x$}
+    \State $p \gets \lceil m/2 \rceil$
+    \State $r \gets$ 新節點，$r.\mathit{leaf} \gets x.\mathit{leaf}$
+    \State $r.\mathit{key}[1..m-p] \gets x.\mathit{key}[p+1..m]$
+    \If{$x$ 不是葉子}
+        \State $r.c[1..m-p+1] \gets x.c[p+1..m+1]$
+    \EndIf
+    \State $r.n \gets m - p$，$x.n \gets p - 1$
+    \State \Return $(x.\mathit{key}[p], r)$
+\EndFunction
+\end{pseudo}
+
+\begin{pseudo}[label=alg:mw-insdown, unbreakable]{把 $k$ 插進 $x$ 的子樹；$x$ 分裂時回傳上升的鍵和新的右半節點}
 \Function{Insert-Down}{$x, k$}
     \State $i \gets 1$
     \While{$i \le x.n$ \AND $k > x.\mathit{key}[i]$}
@@ -1023,24 +1044,11 @@ $k_1 < k_2 < \cdots < k_m$，令 $p = \lceil m/2 \rceil$：
 \EndFunction
 \end{pseudo}
 
-\begin{pseudo}[label=alg:mw-split]{分裂有 $m$ 個鍵的節點 $x$}
-\Function{Split}{$x$}
-    \State $p \gets \lceil m/2 \rceil$
-    \State $r \gets$ 新節點，$r.\mathit{leaf} \gets x.\mathit{leaf}$
-    \State $r.\mathit{key}[1..m-p] \gets x.\mathit{key}[p+1..m]$
-    \If{$x$ 不是葉子}
-        \State $r.c[1..m-p+1] \gets x.c[p+1..m+1]$
-    \EndIf
-    \State $r.n \gets m - p$，$x.n \gets p - 1$
-    \State \Return $(x.\mathit{key}[p], r)$
-\EndFunction
-\end{pseudo}
-
-\proc{Insert-Down} 第 3 行找到 $k$ 該去的位置；葉節點就在第 6 行放進去，內部節點就在第
+\proc{Insert-Down} 第 3 行找到 $k$ 該去的位置；葉節點在第 6 行放進去，內部節點在第
 9 行往下遞迴，下面分裂時在第 12、13 行把上升的鍵 $u$ 和右半節點 $r$ 接進來。 第 14
-行檢查自己有沒有溢位，溢位就在第 16 行分裂。 \proc{Split} 的第 5、6 行：內部節點分裂時，右邊的 $m - p$
-個鍵帶著它們周圍的 $m - p + 1$ 個子指標一起搬走，左邊留下 $p - 1$ 個鍵和 $p$ 個子
-指標，加起來剛好是原本的 $m + 1$ 個。
+行檢查溢位，溢位就在第 16 行分裂。 \proc{Split} 的第 5、6 行：內部節點分裂時，右邊的 $m - p$
+個鍵帶著周圍的 $m - p + 1$ 個子指標搬走，左邊留下 $p - 1$ 個鍵和 $p$ 個子
+指標，子指標合計 $m + 1$ 個。
 
 \textbf{成本。} 往下走 $h$ 層，回程每層最多分裂一次，每次分裂搬 $O(m)$ 個鍵和指標，
 讀寫磁碟 $O(h)$ 次，CPU 時間 $O(mh) = O(m \log_c n)$。 分裂其實很少：每次分裂多出一
@@ -1054,7 +1062,8 @@ $k_1 < k_2 < \cdots < k_m$，令 $p = \lceil m/2 \rceil$：
 的 $5$ 階 B 樹。 每個節點最多 $4$ 個鍵，放到第 $5$ 個就溢位，分裂時第 $3$ 個鍵
 （$p = 3$）上升，左右各留 $2$ 個。
 
-\begin{center}
+\begin{figure}[tbp]
+\centering
 \begin{tikzpicture}[baseline=(current bounding box.north), mwk/.append style={minimum width=0.46cm, minimum height=0.42cm}]
 \node[mwk,mwkN] at (0.23,0) {40};
 \node[mwk,mwkN] at (0.69,0) {56};
@@ -1323,23 +1332,23 @@ $k_1 < k_2 < \cdots < k_m$，令 $p = \lceil m/2 \rceil$：
 併成一張。 (m) 到 (o) 是連鎖分裂：葉子分裂後 $48$ 上升，根變成 $5$ 個鍵，再分裂一
 次，$48$ 又上升成為新的根。}
 \label{fig:mw-b-ins}
-\end{center}
+\end{figure}
 
 有分裂的插入是 $29, 23, 16, 72, 47$ 這五次，一共分裂六次：插入 $47$ 是連鎖分裂，兩次
 上升的都是 $48$，它先從葉子升到根，剛好又是根裡的第 $3$ 個鍵。
 
 \begin{examnote}
 B 樹的追蹤題，每次分裂（或借、合併）都要畫出整棵樹，並寫出哪個節點溢位或不足、哪個
-鍵上升或下降。 規則有選擇的地方，答案開頭先寫一句你用的約定：偶數階溢位時上升第
+鍵上升或下降。 題目沒指定的規則，在答案開頭寫一句你用的約定：偶數階溢位時上升第
 $m/2$ 個還是第 $m/2 + 1$ 個鍵；刪除內部節點的鍵用後繼還是前驅；先向哪一邊的兄弟借、
-和哪一邊合併。 題目有指定就照題目。 畫完檢查三件事：每個節點的鍵數在範圍內、所有葉
-子同層、由左到右讀出來是排好的。
+和哪一邊合併。 畫完檢查三件事：鍵數都在範圍內、葉子都同層、由左到
+右讀出來是排好的。
 \end{examnote}
 
 \subsection{C 程式}
 \label{sec:mw-c}
 
-C 程式照虛擬碼~\ref{alg:mw-insert} 到 \ref{alg:mw-split} 寫，階數用 \texttt{M} 固定成
+C 程式照虛擬碼~\ref{alg:mw-insert} 到 \ref{alg:mw-insdown} 寫，階數用 \texttt{M} 固定成
 $5$，陣列從 $0$ 開始。 \texttt{key} 開 \texttt{M} 格，比上限多一格，給溢位時暫放。
 \texttt{insert\_down} 回傳分裂出來的右半節點（沒有分裂時是 \texttt{NULL}），上升的
 鍵透過指標參數 \texttt{up} 帶回；遞迴呼叫時把 \texttt{\&k} 當成 \texttt{up} 傳下去，
@@ -1579,7 +1588,7 @@ $\ell$ 個鍵，向它借；都沒有就合併，有右兄弟和右兄弟合併�
 \EndProcedure
 \end{pseudo}
 
-\begin{pseudo}[label=alg:mw-fix]{$x.c[i]$ 的鍵太少：借或合併}
+\begin{pseudo}[label=alg:mw-fix, unbreakable]{$x.c[i]$ 的鍵太少：借或合併}
 \Procedure{Fix-Child}{$x, i$}
     \State $\ell \gets \lceil m/2 \rceil - 1$
     \If{$i \le x.n$ \AND $x.c[i+1].n > \ell$} \Comment{向右兄弟借}
@@ -1587,7 +1596,7 @@ $\ell$ 個鍵，向它借；都沒有就合併，有右兄弟和右兄弟合併�
         \State $x.c[i+1]$ 最小的鍵移上來，當新的 $x.\mathit{key}[i]$
         \State $x.c[i+1]$ 最左的子指標（如果有）移到 $x.c[i]$ 的最右邊
     \ElsIf{$i > 1$ \AND $x.c[i-1].n > \ell$} \Comment{向左兄弟借}
-        \State 第 4 到 6 行左右對調：$x.\mathit{key}[i-1]$ 下來，$x.c[i-1]$ 最大的鍵上去
+        \State 第 4--6 行左右對調：$x.\mathit{key}[i-1]$ 下來，$x.c[i-1]$ 最大的鍵上去
     \Else \Comment{合併}
         \If{$i > x.n$}
             \State $i \gets i - 1$ \Comment{沒有右兄弟，改和左兄弟合併}

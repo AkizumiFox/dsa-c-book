@@ -108,11 +108,11 @@ $1$）不算合理的編碼，它會把長度灌大成 $x$，第~\ref{sec:npc-ps
 \begin{pseudo}[label=alg:npc-find-clique]{用決策版本找出最大團}
 \Function{Find-Clique}{$G$}
     \State $k \gets n$
-    \While{\proc{Clique}$(G, k)$ 回答「否」}
+    \While{\Call{Clique}{$G, k$} 回答「否」}
         \State $k \gets k - 1$
     \EndWhile
     \For{$v \gets 1$ \To $n$}
-        \If{\proc{Clique}$(G - v, k)$ 回答「是」}
+        \If{\Call{Clique}{$G - v, k$} 回答「是」}
             \State $G \gets G - v$ \Comment{不用 $v$ 也有大小 $k$ 的團}
         \EndIf
     \EndFor
@@ -121,7 +121,7 @@ $1$）不算合理的編碼，它會把長度灌大成 $x$，第~\ref{sec:npc-ps
 \end{pseudo}
 
 $G - v$ 表示刪掉頂點 $v$ 和它關聯的邊。 第 3、4 行從 $n$ 往下試，停下時 $k$ 就是最大團的大小（至
-少有一個頂點時，$k = 1$ 一定回答「是」）。 第 5 到 7 行一個一個試著刪頂點，刪掉之後還有大小 $k$
+少有一個頂點時，$k = 1$ 一定回答「是」）。 第 5--7 行一個一個試著刪頂點，刪掉之後還有大小 $k$
 的團就真的刪掉。
 
 \begin{whybox}[剩下的頂點恰好是一個團]
@@ -173,7 +173,7 @@ $V$ 都回答「否」，不會被騙。
 認」，和找答案要花多久是兩回事。
 
 \begin{center}
-\begin{tabular}{p{0.2\linewidth}p{0.3\linewidth}p{0.4\linewidth}}
+\begin{tabular}{>{\raggedright\arraybackslash}p{0.3\linewidth}>{\raggedright\arraybackslash}p{0.22\linewidth}>{\raggedright\arraybackslash}p{0.38\linewidth}}
 \toprule
 問題 & 憑證 & 驗證 \\
 \midrule
@@ -213,9 +213,9 @@ $V$ 都回答「否」，不會被騙。
 \EndFunction
 \end{pseudo}
 
-第 5 到 8 行確認 $c$ 是 $1..n$ 的一個排列，第 9 到 12 行確認相鄰兩個頂點（含最後一個接回第一個）
+第 5--8 行確認 $c$ 是 $1..n$ 的一個排列，第 9--12 行確認相鄰兩個頂點（含最後一個接回第一個）
 之間都有邊。 兩個迴圈各 $n$ 輪，用鄰接矩陣查邊是 $O(1)$，總共 $\Theta(n)$。 $G$ 有哈密頓環時，把
-環上的頂點照順序列出來就是一個會通過的憑證；$G$ 沒有哈密頓環時，任何通過第 5 到 12 行的序列都會
+環上的頂點照順序列出來就是一個會通過的憑證；$G$ 沒有哈密頓環時，任何通過第 5--12 行的序列都會
 是一個哈密頓環，不存在，所以不管給什麼都回答 \FALSE。
 
 \subsection{P 和 NP 的關係}
@@ -271,7 +271,7 @@ x \text{ 是 } A \text{ 的是實例} \iff f(x) \text{ 是 } B \text{ 的是實�
 \]
 \end{definition}
 
-\begin{center}
+\begin{center}\begin{minipage}{\linewidth}\centering
 \begin{tikzpicture}[x=1cm, y=1cm]
 \node[npc-box] (f) at (2.4, 0) {$f$\\[-1pt]{\footnotesize 多項式時間}};
 \node[npc-box] (b) at (6.4, 0) {解 $B$ 的\\[-1pt]演算法};
@@ -288,7 +288,7 @@ x \text{ 是 } A \text{ 的是實例} \iff f(x) \text{ 是 } B \text{ 的是實�
 \diagcaption{歸約 $A \le_{\mathrm{p}} B$：先用 $f$ 把 $x$ 改寫成 $B$ 的實例，再交給解 $B$ 的演算
 法，它的答案就是 $x$ 的答案。}
 \label{fig:npc-reduce}
-\end{center}
+\end{minipage}\end{center}
 
 定義裡的「$\iff$」有兩個方向，證明一個歸約時兩個都要證：
 
@@ -376,7 +376,7 @@ $V - S$ 是頂點覆蓋矛盾。 所以 $S$ 裡任兩點都不相鄰。
 $V - S = \{2, 3, 5\}$ 是頂點覆蓋（橘色）：七條邊每一條都碰到 $2$、$3$、$5$ 之一。 右邊的
 $\overline{G}$ 有 $\binom{6}{2} - 7 = 8$ 條邊，$\{1, 4, 6\}$ 在裡面兩兩相鄰，是一個團。
 
-\begin{center}
+\begin{center}\begin{minipage}{\linewidth}\centering
 \begin{tikzpicture}[x=1cm, y=1cm]
 \begin{scope}
 \node[npc-vA] (a1) at (0, 0.8) {1};
@@ -405,7 +405,7 @@ $\overline{G}$ 有 $\binom{6}{2} - 7 = 8$ 條邊，$\{1, 4, 6\}$ 在裡面兩兩
 \diagcaption{左：$G$ 的獨立集 $\{1, 4, 6\}$（藍）和頂點覆蓋 $\{2, 3, 5\}$（橘）。 右：補圖
 $\overline{G}$（頂點位置重新排過，比較好看出結構），粗線是團 $\{1, 4, 6\}$。}
 \label{fig:npc-is-vc}
-\end{center}
+\end{minipage}\end{center}
 
 由引理~\ref{lem:npc-complement} 立刻得到兩個歸約：
 
@@ -455,7 +455,7 @@ $\mathrm{P} \ne \mathrm{NP}$，則沒有任何 NP 完備問題在 P 裡。
 十年來，成千上萬個 NP 完備問題都沒有人找到多項式時間演算法，這是大家相信 $\mathrm{P} \ne \mathrm{NP}$
 的主要理由。
 
-\begin{center}
+\begin{center}\begin{minipage}{\linewidth}\centering
 \begin{tikzpicture}[x=1cm, y=1cm]
 \begin{scope}
 \clip (0, 0) ellipse (2.9 and 1.55);
@@ -473,7 +473,7 @@ $\mathrm{P} \ne \mathrm{NP}$，則沒有任何 NP 完備問題在 P 裡。
 \diagcaption{假設 $\mathrm{P} \ne \mathrm{NP}$ 時的關係。 NP 完備是 NP 和 NP 難的交集；NP 難的問題不
 一定在 NP 裡。}
 \label{fig:npc-classes}
-\end{center}
+\end{minipage}\end{center}
 
 圖~\ref{fig:npc-classes} 是一般相信的樣子。 如果 $\mathrm{P} = \mathrm{NP}$，圖會整個塌掉：P、NP 和
 NP 完備幾乎是同一個集合（只差「永遠回答是」和「永遠回答否」這兩個沒有否實例或沒有是實例的問題，
@@ -564,7 +564,7 @@ $\varphi_x$。 $y$ 的位元是公式裡的自由變數：有某個 $y$ 讓 $V$ 
 
 圖~\ref{fig:npc-chain} 是本節要證明的歸約。 實線箭頭在本章證明，虛線箭頭的結論本書只敘述，不給證明。
 
-\begin{center}
+\begin{center}\begin{minipage}{\linewidth}\centering
 \begin{tikzpicture}[x=1cm, y=1cm]
 \node[npc-pbox] (sat) at (0, 0.6) {SAT};
 \node[npc-pbox] (s3) at (2.0, 0.6) {3-SAT};
@@ -593,7 +593,7 @@ $\varphi_x$。 $y$ 的位元是公式裡的自由變數：有某個 $y$ 讓 $V$ 
 \end{tikzpicture}
 \diagcaption{本章的歸約鏈。 箭頭 $A \to B$ 表示 $A \le_{\mathrm{p}} B$；實線在本章證明，虛線只敘述結論。}
 \label{fig:npc-chain}
-\end{center}
+\end{minipage}\end{center}
 
 \subsection{SAT 歸約到 3-SAT}
 \label{sec:npc-sat-3sat}
@@ -606,7 +606,8 @@ $\varphi_x$。 $y$ 的位元是公式裡的自由變數：有某個 $y$ 讓 $V$ 
 \npcP{3-SAT} 是 \npcP{SAT} 的特殊情形，驗證方法相同，所以在 NP 裡。 下面證明 $\npcP{SAT} \le_{\mathrm{p}}
 \npcP{3-SAT}$：把每個子句換成一組恰好三個文字的子句，換的時候加入新的變數。 先做一個簡單的整理：一
 個子句裡重複的文字只留一個；同時含有 $x$ 和 $\neg x$ 的子句一定為真，直接刪掉（全部刪光的話，輸出
-一個固定可以滿足的 3-CNF 公式）。 然後對每個子句 $C = (\ell_1 \vee \cdots \vee \ell_r)$，依長度 $r$
+一個固定可以滿足的 3-CNF 公式）；反過來，如果有空的子句（$r = 0$，一個文字都沒有），公式不可能滿足，
+直接輸出一個固定不能滿足的 3-CNF 公式，例如範例~\ref{ex:npc-sat-is} 的第二組輸入（八個子句）。 然後對每個子句 $C = (\ell_1 \vee \cdots \vee \ell_r)$，依長度 $r$
 換成：
 
 \begin{itemize}
@@ -734,7 +735,7 @@ x_4) \wedge (\neg x_1 \vee \neg x_4 \vee \neg x_5)
 $8$ 條矛盾邊（$x_1$ 出現兩次、$\neg x_1$ 出現兩次，在外圈連成四條；$x_2$、$x_3$、$x_4$、$x_5$ 各一
 條，在內圈）。
 
-\begin{center}
+\begin{center}\begin{minipage}{\linewidth}\centering
 \begin{tikzpicture}[x=0.95cm, y=0.95cm]
 \node[npc-lsel] (s00) at (-0.6,4.6) {$x_1$};
 \node[npc-l] (s01) at (0.8,4.1) {$\neg x_2$};
@@ -768,7 +769,7 @@ $8$ 條矛盾邊（$x_1$ 出現兩次、$\neg x_1$ 出現兩次，在外圈連�
 \diagcaption{$\varphi$ 歸約出來的圖。 實線是三角形的邊，橘色虛線是矛盾邊；藍色的四個頂點是對應指
 派 $x = (1, 1, 0, 0, 0)$ 的獨立集。}
 \label{fig:npc-sat-is}
-\end{center}
+\end{minipage}\end{center}
 
 ($\Rightarrow$) 方向：指派 $x = (1, 1, 0, 0, 0)$ 滿足 $\varphi$。 每個子句挑第一個為真的文字：$C_1$
 挑 $x_1$，$C_2$ 的 $\neg x_1$ 為假、挑 $x_2$，$C_3$ 挑 $x_1$，$C_4$ 的 $\neg x_1$ 為假、挑 $\neg x_4$。
@@ -1220,6 +1221,10 @@ CLRS 第 34.5.3 節（從頂點覆蓋歸約）或 Sipser 第 7.5 節（從 3-SAT
 旅行推銷員問題的決策版本 \npcP{TSP}：給 $n$ 個城市，兩兩之間的成本 $c(i, j) = c(j, i)$ 是非負整數，以
 及門檻 $B$，有沒有一條經過每個城市恰好一次、回到起點、總成本不超過 $B$ 的路線（巡迴）？
 
+% 頁面剩不到八行就換頁，避免定理的敘述和證明分在兩頁
+\par\penalty-100
+\begingroup\dimen0=8\baselineskip \dimen2=\pagegoal \advance\dimen2 by -\pagetotal
+\ifdim\dimen0>\dimen2 \ifdim\dimen2>0pt \vfil\fi \break\fi\endgroup
 \begin{theorem}
 \label{thm:npc-tsp}
 \npcP{TSP} 是 NP 完備的。
@@ -1251,7 +1256,7 @@ j)$。 也就是說，即使限制成本滿足三角不等式（第~29~章的「
 \textbf{例子}。 圖~\ref{fig:npc-ham} 左邊的 $H_1$ 有哈密頓環 $1 \to 2 \to 5 \to 3 \to 4 \to 1$（粗線）。
 歸約出的成本矩陣如下，這條巡迴的成本是 $1 + 1 + 1 + 1 + 1 = 5 = B$，回答「是」。
 
-\begin{center}
+\begin{center}\begin{minipage}{\linewidth}\centering
 \begin{tikzpicture}[x=1cm, y=1cm]
 \begin{scope}
 \node[npc-v] (h1) at (90:1.35) {1};
@@ -1277,7 +1282,7 @@ j)$。 也就是說，即使限制成本滿足三角不等式（第~29~章的「
 \end{tikzpicture}
 \diagcaption{$H_1$ 有哈密頓環（粗線）；$H_2$ 沒有，因為頂點 $3$ 是割點。}
 \label{fig:npc-ham}
-\end{center}
+\end{minipage}\end{center}
 
 \begin{center}
 \begin{tabular}{c|ccccc}
@@ -1317,8 +1322,7 @@ NP 完備 & 相近但在 P 裡 \\
 \midrule
 \npcP{3-SAT}：每個子句三個文字 & 2-SAT：每個子句兩個文字（第~23~章，強連通元件） \\
 \npcP{3-COLOR}：三種顏色著色（第~20~章的 $m$ 著色，$m \ge 3$）& 兩種顏色著色，就是判斷二分圖（第~21~章）\\
-\npcP{HAM-CYCLE}：每個\textbf{頂點}恰好經過一次 & 歐拉環：每條\textbf{邊}恰好經過一次（連通且每個頂點
-度數都是偶數） \\
+\npcP{HAM-CYCLE}：每個\textbf{頂點}恰好經過一次 & 歐拉迴路：每條\textbf{邊}恰好經過一次（有邊的頂點彼此連通、度數都是偶數；頂點可以重複） \\
 \npcP{LONGEST-PATH}：最長簡單路徑 & 最短路徑（第~25~章）；DAG 上的最長路徑（第~22~章） \\
 \npcP{IND-SET}：一般圖的最大獨立集 & 樹上的最大獨立集（樹形動態規劃）\\
 \npcP{SUBSET-SUM}、\npcP{KNAPSACK} & 分數背包（第~19~章，貪心）\\

@@ -787,7 +787,7 @@ $3 \times 9 + 3 = 30 < 42$，省得不多；$1000 \times 1000$ 有 $5000$ 個非
 $15003$ 對 $10^6$。
 
 \textbf{讀一格}。 三元組依（列, 行）排好，讀 $A[i, j]$ 可以在三元組陣列上做二分搜
-尋（第~17~章），$O(\lg t)$；找不到就是 $0$。 \textbf{寫一格}比較麻煩：把一個 $0$
+尋（第~2~章用過它的遞迴版，第~17~章細講），$O(\lg t)$；找不到就是 $0$。 \textbf{寫一格}比較麻煩：把一個 $0$
 改成非零，要插入一個三元組，後面的全部往後挪；把非零改成 $0$ 要刪除，後面的往前
 挪。 最壞 $\Theta(t)$。 矩陣常常要改時，第~\ref{sec:ll-poly}~節的正交串列比較適合；這一節
 處理的是建好之後只讀的矩陣。
@@ -835,7 +835,9 @@ $\Theta(n \cdot t)$。 非零元素少時還好，但 $t$ 接近 $mn$ 時是 $\T
 用兩個長度 $n$ 的陣列：$\mathit{cnt}[c]$ 是 $A$ 的第 $c$ 行有幾個非零元素，
 $\mathit{start}[c]$ 是結果第 $c$ 列下一個要放的位置。 第 $c$ 列前面是第 $0$ 到第
 $c - 1$ 列，所以一開始 $\mathit{start}[c] = \mathit{cnt}[0] + \cdots +
-\mathit{cnt}[c - 1]$。
+\mathit{cnt}[c - 1]$。 這種「前面幾格的和」叫\textbf{前綴和}（prefix sum），不用每
+一格重新加一次：$\mathit{start}[c] = \mathit{start}[c - 1] + \mathit{cnt}[c - 1]$，
+由左往右一格一格算，全部只要 $n - 1$ 次加法。
 
 \begin{pseudo}[label=alg:arr-fast-transpose]{快速轉置}
 \Function{Fast-Transpose}{$A$}
@@ -913,13 +915,13 @@ A.\mathit{cols}$，額外空間 $\Theta(n)$。
 $c$ 行）應該占 $B[\mathit{start}[c] .. \mathit{start}[c] + \mathit{cnt}[c] - 1]$ 這
 一段，各段互不重疊、剛好鋪滿 $B[0..t-1]$。
 
-第 9 到 12 行的迴圈每遇到一個行號是 $c$ 的三元組，就放進這一段裡下一個空位，所以
+第 9--12 行的迴圈每遇到一個行號是 $c$ 的三元組，就放進這一段裡下一個空位，所以
 第 $c$ 段依序收到 $A$ 的第 $c$ 行的 $\mathit{cnt}[c]$ 個元素，不會超出這一段。 它們
 被處理的順序是在 $A$ 裡出現的順序；$A$ 依列排好，所以這些元素的列號遞增，放進 $B$
 之後就是同一列裡行號遞增。 因此 $B$ 依（列, 行）排好，而且每個 $(i, j, v)$ 都變成
 了 $(j, i, v)$，$B = A^{\mathsf T}$。
 
-時間：第 3 行和第 7、8 行各 $\Theta(n)$，第 4、5 行和第 9 到 12 行各 $\Theta(t)$，共
+時間：第 3 行和第 7、8 行各 $\Theta(n)$，第 4、5 行和第 9--12 行各 $\Theta(t)$，共
 $\Theta(n + t)$。 額外的陣列是 $\mathit{cnt}$ 和 $\mathit{start}$，各 $n$ 格。
 \end{proof}
 
@@ -964,25 +966,10 @@ $B$ 的第 $j$ 行散在各處。 所以先把 $B$ 快速轉置成 $B^{\mathsf T
 要找到每一列在三元組陣列裡的範圍，先算每一列的起點 $\mathit{rs}[i]$，做法和快速轉
 置的 $\mathit{start}$ 一樣，只是多留一格 $\mathit{rs}[m] = t$ 當結尾：第 $i$ 列是
 $T[\mathit{rs}[i] .. \mathit{rs}[i + 1] - 1]$，空的列 $\mathit{rs}[i] =
-\mathit{rs}[i + 1]$。
+\mathit{rs}[i + 1]$。 算起點的 \proc{Row-Starts} 寫在相乘的虛擬碼後面（虛擬
+碼~\ref{alg:arr-row-starts}）。
 
-\begin{pseudo}[label=alg:arr-row-starts]{每一列的起點}
-\Function{Row-Starts}{$M$}
-    \State 建立陣列 $\mathit{rs}[0..M.\mathit{rows}]$，每一格設成 $0$
-    \For{$p \gets 0$ \To $M.t - 1$}
-        \State $\mathit{rs}[M.T[p].\mathit{row} + 1] \gets \mathit{rs}[M.T[p].\mathit{row} + 1] + 1$
-    \EndFor
-    \For{$i \gets 1$ \To $M.\mathit{rows}$}
-        \State $\mathit{rs}[i] \gets \mathit{rs}[i] + \mathit{rs}[i - 1]$
-    \EndFor
-    \State \Return $\mathit{rs}$
-\EndFunction
-\end{pseudo}
-
-第 4 行把第 $i$ 列的個數記在 $\mathit{rs}[i + 1]$，往後挪了一格，第 5、6 行的前綴
-和做完，$\mathit{rs}[i]$ 就是第 $0$ 到 $i - 1$ 列的總個數。
-
-\begin{pseudo}[label=alg:arr-sparse-mul]{稀疏矩陣相乘}
+\begin{pseudo}[label=alg:arr-sparse-mul, unbreakable]{稀疏矩陣相乘}
 \Function{Sparse-Multiply}{$A, B$} \Comment{$A$ 是 $m \times n$，$B$ 是 $n \times r$}
     \State $B' \gets \Call{Fast-Transpose}{B}$
     \State $\mathit{ra} \gets \Call{Row-Starts}{A}$；$\mathit{rb} \gets \Call{Row-Starts}{B'}$
@@ -1012,6 +999,22 @@ $T[\mathit{rs}[i] .. \mathit{rs}[i + 1] - 1]$，空的列 $\mathit{rs}[i] =
 $B'$ 的第 $j$ 列的三元組是 $(j, k, B[k, j])$，所以第 9、11 行比的 $B'.T[q].\mathit{col}$
 是 $B$ 原本的列號 $k$。 $i$、$j$ 都由小到大，$C$ 的三元組自然依（列, 行）排好。 第
 16 行只存非零的和：兩個非零的乘積可能剛好互相抵消，$C[i, j]$ 是 $0$ 就不存。
+
+\begin{pseudo}[label=alg:arr-row-starts, unbreakable]{每一列的起點}
+\Function{Row-Starts}{$M$}
+    \State 建立陣列 $\mathit{rs}[0..M.\mathit{rows}]$，每一格設成 $0$
+    \For{$p \gets 0$ \To $M.t - 1$}
+        \State $\mathit{rs}[M.T[p].\mathit{row} + 1] \gets \mathit{rs}[M.T[p].\mathit{row} + 1] + 1$
+    \EndFor
+    \For{$i \gets 1$ \To $M.\mathit{rows}$}
+        \State $\mathit{rs}[i] \gets \mathit{rs}[i] + \mathit{rs}[i - 1]$
+    \EndFor
+    \State \Return $\mathit{rs}$
+\EndFunction
+\end{pseudo}
+
+第 4 行把第 $i$ 列的個數記在 $\mathit{rs}[i + 1]$，往後挪了一格，第 5、6 行的前綴
+和做完，$\mathit{rs}[i]$ 就是第 $0$ 到 $i - 1$ 列的總個數。
 
 \textbf{手算追蹤}。 用一組小的例子：
 \[
@@ -1261,8 +1264,9 @@ $6$ 格，非零項陣列要 $12$ 格。 和稀疏矩陣一樣，非零項陣列
 \begin{examnote}
 表示法的約定先看清楚再動手。 係數陣列的第一個數是常數項還是最高次項，題目各有不
 同（本章和大部分 Aki-Judge 的題目是由低次到高次，但也有由高次寫到常數項的）。 稀疏
-矩陣的三元組陣列，有些課本把第 $0$ 格拿來存（列數, 行數, 非零個數），真正的三元組
-從第 $1$ 格開始；這時快速轉置的起點陣列也從 $1$ 開始算，追蹤表上的每個位置都比本
+矩陣的三元組陣列，有些課本（例如 Horowitz 等人的 \textit{Fundamentals of Data
+Structures in C}）把第 $0$ 格拿來存（列數, 行數, 非零個數），真正的三元組從第 $1$
+格開始；這時快速轉置的起點陣列也從 $1$ 開始算，追蹤表上的每個位置都比本
 章多 $1$。
 \end{examnote}
 
@@ -1646,7 +1650,7 @@ $40$ 個非零項。
 \item 「稀疏矩陣轉置」規定的輸出順序不是排好的順序，照題目做就好。 寫完之後，可以
 自己改成輸出依（列, 行）排好的結果，用快速轉置再寫一次。
 \item 「稀疏列的內積」用一個指標陣列記每一列的開頭，作用和 \proc{Row-Starts} 的
-$\mathit{rs}$ 一樣；兩列的內積就是 \proc{Sparse-Multiply} 第 8 到 15 行的合併。
+$\mathit{rs}$ 一樣；兩列的內積就是 \proc{Sparse-Multiply} 第 8--15 行的合併。
 \item 「逐列累加的稀疏矩陣乘積」用的是第~\ref{sec:arr-sparse}~節最後提到的另一種乘
 法。 資料量大，每一列都把長度 $r$ 的累加陣列整個清空會太慢，要想辦法只清用過的位置。
 \item 「多項式長除法」的係數由最高次寫到常數項，和本章相反。 除式的最高次係數是

@@ -11,7 +11,7 @@
 %%%%%%%%%%%%
 % Settings %
 %%%%%%%%%%%%
-% 本書虛擬碼的慣例（第 1 章 1.3 節會對讀者說明一次）：
+% 本書虛擬碼的慣例（第 1 章 1.2 節會對讀者說明一次）：
 %   - 程序名稱用小型大寫，例如 \textproc{Insertion-Sort}；
 %   - 指定用 \gets（←），比較相等用 =，和 C 的 = / == 分開；
 %   - 陣列從 1 開始編號，A[1..n]；
@@ -31,10 +31,14 @@
 \algnewcommand\DownTo{\textbf{downto}\space}
 \algnewcommand\Break{\textbf{break}}
 \algnewcommand\Error[1]{\textbf{error} ``#1''}
-\algnewcommand\AND{\textbf{ and }}
-\algnewcommand\OR{\textbf{ or }}
+\algnewcommand\AND{\textbf{and}}  % 前後的空白由原始碼提供，自帶空白會變成兩格
+\algnewcommand\OR{\textbf{or}}
 \algnewcommand\NIL{\textsc{nil}}
 \algnewcommand\TRUE{\textsc{true}}
+% DFS 的三種顏色（第 21 章起用到，放在這裡單章編譯也找得到）
+\providecommand{\gtrwhite}{\textsc{white}}
+\providecommand{\gtrgray}{\textsc{gray}}
+\providecommand{\gtrblack}{\textsc{black}}
 \algnewcommand\FALSE{\textsc{false}}
 % 行內提到程序名稱：\proc{Insertion-Sort}
 \newcommand{\proc}[1]{\textproc{#1}}

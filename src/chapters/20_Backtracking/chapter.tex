@@ -117,7 +117,7 @@ $x_1, \ldots, x_k$，如果可以確定它不管怎麼往下補都不會成為�
 全部產生完，再從活節點裡挑下一個 E-節點。 兩種方法搜尋的是同一棵樹，差別在節點展開的順
 序。
 
-\begin{pseudo}[label=alg:bk-generic]{回溯的骨架}
+\begin{pseudo}[label=alg:bk-generic, unbreakable]{回溯的骨架}
 \Procedure{Backtrack}{$k$}
     \For{$x_k$ 的每一個候選值 $c$，依固定的順序}
         \If{\Call{Promising}{$x_1, \ldots, x_{k-1}, c$}}
@@ -178,7 +178,7 @@ $k + c$ 的範圍是 $2$ 到 $2n$，$k - c + n$ 的範圍是 $1$ 到 $2n - 1$，
 上打叉的，是第 4 行的對角線檢查沒有通過、產生之後馬上變成死節點的節點；橘色是答案節點。
 
 \begin{center}
-\begin{tikzpicture}[x=1cm,y=1cm]
+\begin{tikzpicture}[x=1.35cm,y=1.05cm]
 \node[bt-n] (q1) at (3.681,0.0) {1};
 \node[bt-n] (q2) at (1.662,-1.05) {2};
 \node[bt-dead] (q3) at (0.0,-2.1) {3};
@@ -284,11 +284,11 @@ static void place(Search *s, int r)
     int n = s->n;
     for (int c = 0; c < n; c++) {
         if (s->used[c]) {
-            continue;                       // 排列樹裡沒有這個子節點
+            continue;               // 排列樹裡沒有這個子節點
         }
-        s->nodes++;                         // 產生節點 (r, c)
+        s->nodes++;                 // 產生節點 (r, c)
         if (s->d1[r + c] || s->d2[r - c + n - 1]) {
-            continue;                       // 對角線上已經有皇后：剪掉
+            continue;               // 對角線上已經有皇后：剪掉
         }
         s->col[r] = c;
         s->used[c] = s->d1[r + c] = s->d2[r - c + n - 1] = 1;
@@ -300,7 +300,8 @@ static void place(Search *s, int r)
             }
             s->first_at = s->nodes;
         }
-        s->used[c] = s->d1[r + c] = s->d2[r - c + n - 1] = 0;   // 撤銷
+        // 撤銷
+        s->used[c] = s->d1[r + c] = s->d2[r - c + n - 1] = 0;
     }
 }
 
@@ -308,25 +309,29 @@ int main(void)
 {
     int n;
     while (scanf("%d", &n) == 1 && n >= 1 && n <= 16) {
-        Search s = {n, malloc(n * sizeof(int)), malloc(n * sizeof(int)),
-                    calloc(n, 1), calloc(2 * n - 1, 1), calloc(2 * n - 1, 1), 1, 0, 0};
+        Search s = {n, malloc(n * sizeof(int)),
+                    malloc(n * sizeof(int)), calloc(n, 1),
+                    calloc(2 * n - 1, 1), calloc(2 * n - 1, 1),
+                    1, 0, 0};
         if (s.col && s.first && s.used && s.d1 && s.d2) {
             place(&s, 0);
-            printf("n = %d: %lld solutions, %lld nodes\n", n, s.solutions, s.nodes);
+            printf("n = %d: %lld solutions, %lld nodes\n",
+                   n, s.solutions, s.nodes);
             if (s.solutions > 0) {
-                printf("first solution at node %lld:", s.first_at);
+                printf("first at node %lld:", s.first_at);
                 for (int i = 0; i < n; i++) {
-                    printf(" %d", s.first[i] + 1);     // 印成從 1 起算的欄號
+                    printf(" %d", s.first[i] + 1);  // 欄號從 1 起算
                 }
                 printf("\n");
             }
         }
-        free(s.col); free(s.first); free(s.used); free(s.d1); free(s.d2);
+        free(s.col); free(s.first); free(s.used);
+        free(s.d1); free(s.d2);
     }
     return 0;
 }
 \end{example}
-\iosample{4 8}{n = 4: 2 solutions, 33 nodes \\ first solution at node 16: 2 4 1 3 \\ n = 8: 92 solutions, 5509 nodes \\ first solution at node 337: 1 5 8 6 3 7 2 4}
+\iosample{4 8}{n = 4: 2 solutions, 33 nodes \\ first at node 16: 2 4 1 3 \\ n = 8: 92 solutions, 5509 nodes \\ first at node 337: 1 5 8 6 3 7 2 4}
 
 $n = 4$ 第一組解在第 $16$ 個節點，和圖~\ref{fig:bk-4queens} 一致；搜尋完整棵樹一共產生
 $33$ 個節點，找到 $2$ 組解。 下表把 $n = 4$ 到 $8$ 的節點數和兩種狀態空間樹的大小放在一
@@ -398,7 +403,10 @@ $w_{n+1} = \infty$。
 $x_k$；橘色方框是答案節點，裡面只寫湊到的和。
 
 \begin{center}
-\begin{tikzpicture}[x=1cm,y=1cm]
+\begin{tikzpicture}[x=1.75cm,y=1.05cm,
+    bt-sbox/.append style={font=\scriptsize, minimum width=1.0cm, minimum height=0.5cm},
+    bt-sans/.append style={font=\scriptsize},
+    bt-num/.append style={font=\scriptsize}, bt-el/.append style={font=\scriptsize}]
 \node[bt-sbox, label={[bt-num]left:1}] (s1) at (3.038,0.0) {0,53};
 \node[bt-sbox, label={[bt-num]left:2}] (s2) at (1.013,-1.0) {4,49};
 \node[bt-sbox, label={[bt-num]left:3}] (s3) at (0.0,-2.0) {10,43};
@@ -480,7 +488,8 @@ typedef struct {
 } SubsetSearch;
 
 // 正在決定 w[k]；sum 是已選的和，rest = w[k] + ... + w[n-1]
-static void sum_of_subsets(SubsetSearch *s, long long sum, int k, long long rest)
+static void sum_of_subsets(SubsetSearch *s, long long sum, int k,
+                           long long rest)
 {
     long long *w = s->w;
     s->nodes++;
@@ -499,7 +508,8 @@ static void sum_of_subsets(SubsetSearch *s, long long sum, int k, long long rest
         sum_of_subsets(s, sum + w[k], k + 1, rest - w[k]);
     }
     s->x[k] = 0;                                // 撤銷
-    if (k + 1 < s->n && sum + rest - w[k] >= s->m && sum + w[k + 1] <= s->m) {
+    if (k + 1 < s->n && sum + rest - w[k] >= s->m
+        && sum + w[k + 1] <= s->m) {
         sum_of_subsets(s, sum, k + 1, rest - w[k]);
     }
 }
@@ -511,13 +521,15 @@ int main(void)
     if (scanf("%d %lld", &n, &m) != 2 || n < 1) {
         return 1;
     }
-    SubsetSearch s = {n, m, malloc(n * sizeof(long long)), 0, 0, calloc(n, 1)};
+    SubsetSearch s = {n, m, malloc(n * sizeof(long long)), 0, 0,
+                      calloc(n, 1)};
     if (s.w == NULL || s.x == NULL) {
         free(s.w); free(s.x);
         return 1;
     }
     for (int i = 0; i < n; i++) {               // 輸入要由小到大
-        if (scanf("%lld", &s.w[i]) != 1 || s.w[i] <= 0 || (i > 0 && s.w[i] < s.w[i - 1])) {
+        if (scanf("%lld", &s.w[i]) != 1 || s.w[i] <= 0
+            || (i > 0 && s.w[i] < s.w[i - 1])) {
             free(s.w); free(s.x);
             return 1;
         }
@@ -656,7 +668,8 @@ $U$，保證這棵子樹裡每一個解的值都不超過 $U$，那麼 $U \le \m
 \subsection{0/1 背包的回溯}
 
 $n$ 個物品，第 $i$ 個價值 $p_i$、重量 $w_i$，背包容量 $W$，要選一些物品使總重不超過 $W$、
-總價值最大。 先把物品依 $p_i / w_i$ 由大到小排好。 回溯的節點記錄已決定前 $k$ 個物品時的總
+總價值最大。 第~18、19~章把價值寫成 $v_i$；這一章照分支限界課本的習慣寫成 $p_i$（profit），
+因為 $v$ 要留給樹上的節點。 先把物品依 $p_i / w_i$ 由大到小排好。 回溯的節點記錄已決定前 $k$ 個物品時的總
 價值 $P$ 和總重 $\mathit{Wt}$；每一個節點本身就是一個合法的解（後面的物品都不拿），所以
 只要沒超重，就拿 $P$ 去更新 $\mathit{best}$。
 
@@ -821,7 +834,7 @@ E-節點先產生全部的子節點，和回溯的深度優先不完全相同，
 再展開。
 
 \begin{pseudo}[label=alg:bk-lc]{最小成本分支限界（求最小值）}
-\Procedure{LC-Search}{}
+\Function{LC-Search}{}
     \State $\mathit{upper} \gets \infty$；把根放進活節點集合 $L$
     \While{$L$ 不是空的}
         \State $E \gets L$ 裡 $\hat c$ 最小的節點（一樣小時取編號小的），從 $L$ 移除
@@ -840,7 +853,7 @@ E-節點先產生全部的子節點，和回溯的深度優先不完全相同，
         \EndFor
     \EndWhile
     \State \Return $\mathit{upper}$
-\EndProcedure
+\EndFunction
 \end{pseudo}
 
 第 4 行改成「取最早放進 $L$ 的節點」就是 FIFO，改成「取最晚放進 $L$ 的節點」就是 LIFO，
@@ -867,7 +880,7 @@ $b$。 根是節點 1。
 \end{enumerate}
 
 \begin{pseudo}[label=alg:bk-knap-bb]{0/1 背包的最佳優先分支限界}
-\Procedure{Knapsack-BB}{}
+\Function{Knapsack-BB}{}
     \State 物品依 $p_i / w_i$ 由大到小排好；$\mathit{best} \gets 0$
     \State 根 $\gets (k = 0, P = 0, \mathit{Wt} = 0)$，$\mathit{root}.b \gets \Call{Bound}{0, 0, 0}$，放進優先佇列 $Q$
     \While{$Q$ 不是空的}
@@ -888,7 +901,7 @@ $b$。 根是節點 1。
         \EndIf
     \EndWhile
     \State \Return $\mathit{best}$
-\EndProcedure
+\EndFunction
 \end{pseudo}
 
 \subsubsection{手算追蹤}
@@ -941,7 +954,7 @@ E-節點 & 子節點 & $P$ & $\mathit{Wt}$ & $b$ & $\mathit{best}$ & 結果 \\
 \end{center}
 
 \begin{center}
-\begin{tikzpicture}[x=1cm,y=1cm]
+\begin{tikzpicture}[x=1.3cm,y=1.05cm]
 \node[bt-kexp, label={[bt-num]left:1}, label={[bt-ord]above right:1}] (k1) at (7.0,0.0) {0,0\\[-1pt]71};
 \node[bt-kexp, label={[bt-num]left:2}, label={[bt-ord]above right:2}] (k2) at (4.4,-1.4) {27,3\\[-1pt]71};
 \node[bt-kdead, label={[bt-num]left:3}] (k3) at (9.6,-1.4) {0,0\\[-1pt]47};
@@ -1016,17 +1029,17 @@ LIFO 在這裡先往「不拿」的方向衝，找到的 $\mathit{best}$ 很差�
 \subsubsection{C 程式}
 
 活節點放在一個用 \texttt{realloc} 加倍的陣列裡，每次掃過一遍挑出上界最大的（一樣大時取編號
-小的），挑出來的位置用最後一個節點補上。 每次挑選要 $O(\text{活節點數})$，活節點多的時候改用
-第~8~章的堆積，挑選就只要 $O(\lg n)$。 每個節點用一個 \texttt{unsigned long} 的位元記錄拿了
+小的），挑出來的位置用最後一個節點補上。 每次挑選要 $O(\ell)$，$\ell$ 是當時的活節點數；活節點多的時
+候改用第~8~章的堆積，挑選就只要 $O(\lg \ell)$。 每個節點用一個 \texttt{unsigned long} 的位元記錄拿了
 哪些物品，不必另外存父節點。 輸入的物品要先依 $p_i / w_i$ 由大到小排好；物品資料讀入後不再
-改，放在檔案範圍的陣列。 程式印出每一個 E-節點和最後被丟掉的節點。
+改，放在檔案範圍的陣列。 程式印出每一個 E-節點的 $P$、$\mathit{Wt}$、$b$，以及最後被丟掉的節點。
 
 \begin{example}[label=ex:bk-knapsack-bb]{c}{(knapsack\_bb.c) 0/1 背包的最佳優先分支限界}
 #include <stdio.h>
 #include <stdlib.h>
 
 typedef struct {
-    int id, level, profit, weight;  // 編號、已決定幾個物品、價值、重量
+    int id, level, profit, weight;  // 編號、已決定幾個、價值、重量
     double bound;                   // 子樹的價值上界
     unsigned long take;             // 第 i 個位元：拿了第 i 個物品
 } Node;
@@ -1052,12 +1065,14 @@ static int add(List *q, Node v)
     return 1;
 }
 
-static Node take_best(List *q)      // 上界大的優先，一樣大時編號小的優先
+// 取出上界最大的節點；上界一樣大時取編號小的
+static Node take_best(List *q)
 {
     int b = 0;
     for (int i = 1; i < q->size; i++) {
         Node *x = &q->a[i], *y = &q->a[b];
-        if (x->bound > y->bound || (x->bound == y->bound && x->id < y->id)) {
+        if (x->bound > y->bound
+            || (x->bound == y->bound && x->id < y->id)) {
             b = i;
         }
     }
@@ -1068,7 +1083,8 @@ static Node take_best(List *q)      // 上界大的優先，一樣大時編號�
 
 static int n, cap, p[30], w[30];    // 物品已依 p/w 由大到小排好
 
-static double bound(int level, int profit, int weight)     // 分數背包上界
+// 分數背包上界
+static double bound(int level, int profit, int weight)
 {
     double b = profit;
     int room = cap - weight;
@@ -1099,13 +1115,15 @@ int main(void)
     while (ok && q.size > 0) {
         Node v = take_best(&q);
         if (v.bound <= best) {
-            printf("drop %d (bound %g)\n", v.id, v.bound);
+            printf("drop %d: b=%g\n", v.id, v.bound);
             continue;
         }
-        printf("expand %d: profit %d, weight %d, bound %g\n", v.id, v.profit, v.weight, v.bound);
-        for (int t = 1; t >= 0 && ok; t--) {            // 先拿，再不拿
+        printf("expand %d: P=%d Wt=%d b=%g\n",
+               v.id, v.profit, v.weight, v.bound);
+        for (int t = 1; t >= 0 && ok; t--) {    // 先拿，再不拿
             int k = v.level;
-            Node u = {++count, k + 1, v.profit + t * p[k], v.weight + t * w[k], 0,
+            Node u = {++count, k + 1, v.profit + t * p[k],
+                      v.weight + t * w[k], 0,
                       v.take | (unsigned long)t << k};
             if (u.weight > cap) {
                 continue;                               // 超重
@@ -1131,7 +1149,7 @@ int main(void)
     return ok ? 0 : 1;
 }
 \end{example}
-\iosample{4 13 \\ 27 3 \\ 12 2 \\ 20 4 \\ 15 5}{expand 1: profit 0, weight 0, bound 71 \\ expand 2: profit 27, weight 3, bound 71 \\ expand 4: profit 39, weight 5, bound 71 \\ expand 6: profit 59, weight 9, bound 71 \\ expand 5: profit 27, weight 3, bound 62 \\ expand 10: profit 47, weight 7, bound 62 \\ drop 3 (bound 47) \\ best 62, items: 1 3 4 \\ nodes generated: 13}
+\iosample{4 13 \\ 27 3 \\ 12 2 \\ 20 4 \\ 15 5}{expand 1: P=0 Wt=0 b=71 \\ expand 2: P=27 Wt=3 b=71 \\ expand 4: P=39 Wt=5 b=71 \\ expand 6: P=59 Wt=9 b=71 \\ expand 5: P=27 Wt=3 b=62 \\ expand 10: P=47 Wt=7 b=62 \\ drop 3: b=47 \\ best 62, items: 1 3 4 \\ nodes generated: 13}
 
 E-節點的順序 1、2、4、6、5、10 和手算表一樣。 上界是 \texttt{double}，用 \texttt{\%g} 印，
 整數就印成整數。 \texttt{bound} 裡 \texttt{p * room} 先用整數乘好再除，真正的上界是整數時算出
@@ -1293,7 +1311,7 @@ $1 \to 3 \to 2 \to 5 \to 4 \to 1$ 的成本 $4 + 3 + 16 + 24 + 10 = 57$，$\math
 些矩陣來。
 
 \begin{center}
-\begin{tikzpicture}[x=1cm,y=1cm]
+\begin{tikzpicture}[x=1.4cm,y=1cm]
 \node[bt-texp, label={[bt-cost]right:50}, label={[bt-ord]above right:1}] (t1) at (5.175,0.0) {1};
 \node[bt-texp, label={[bt-cost]right:53}, label={[bt-ord]above right:4}] (t2) at (1.15,-1.25) {2};
 \node[bt-texp, label={[bt-cost]right:50}, label={[bt-ord]above right:2}] (t3) at (5.462,-1.25) {3};
@@ -1472,7 +1490,8 @@ $(20, 5)$。 寫出每一個產生的節點的 $P$、$\mathit{Wt}$、$b$，E-節
 選到時也算一次 E-節點（它沒有子節點）。 分別寫出 FIFO、LIFO、LC（取 $\hat c$ 最小，一樣小時
 取先產生的）三種分支限界的前 $7$ 個 E-節點。
 \begin{center}
-\begin{tikzpicture}[x=1cm,y=1cm]
+\begin{tikzpicture}[x=1.6cm,y=1cm,
+    bt-sbox/.append style={font=\scriptsize, minimum width=1.0cm, minimum height=0.5cm}]
 \node[bt-sbox] (a1) at (2.969,0.0) {A\,10};
 \node[bt-sbox] (a2) at (0.475,-1.0) {B\,14};
 \node[bt-sbox] (a3) at (3.087,-1.0) {C\,12};
@@ -1673,10 +1692,25 @@ B。
 n\}$。 隱式限制：$x_2, \ldots, x_n$ 互不相同；$\{x_{k-1}, x_k\}$ 是邊；$\{x_n, x_1\}$ 也是邊。
 界限函數在放 $x_k = v$ 時檢查 $v$ 還沒用過、和 $x_{k-1}$ 相鄰；$k = n$ 時另外檢查 $v$ 和頂點
 1 相鄰。
-寫成和 \proc{Queens} 一樣的形狀：\proc{Hamiltonian}$(k)$ 對 $v = 2, \ldots, n$，若 $v$ 沒用過
-而且和 $x_{k-1}$ 相鄰，就設 $x_k \gets v$、標記 $v$ 用過；$k = n$ 時再檢查 $v$ 和頂點 1 相鄰才
-輸出，否則呼叫 \proc{Hamiltonian}$(k + 1)$；回來後把 $v$ 標回沒用過。 呼叫 \proc{Hamiltonian}$(2)$。 固定從頂點 1 出發之後，同一個環還會以兩個方向各被找到一次
-（$1 \to a \to \cdots \to b \to 1$ 和 $1 \to b \to \cdots \to a \to 1$）。 輸出前多檢查
+寫成和 \proc{Queens} 一樣的形狀。 先設 $x_1 \gets 1$、把頂點 1 標成用過，再呼叫
+\proc{Hamiltonian}$(2)$：
+\begin{pseudo}[unbreakable]{觀念題 9 的解答}
+\Procedure{Hamiltonian}{$k$}
+    \For{$v \gets 2$ \To $n$}
+        \If{$\mathit{used}[v] = \FALSE$ \AND $\{x_{k-1}, v\} \in E$}
+            \State $x_k \gets v$；$\mathit{used}[v] \gets \TRUE$
+            \If{$k < n$}
+                \State \Call{Hamiltonian}{$k + 1$}
+            \ElsIf{$\{v, 1\} \in E$ \AND $x_2 < x_n$}
+                \State 輸出 $(x_1, \ldots, x_n)$
+            \EndIf
+            \State $\mathit{used}[v] \gets \FALSE$ \Comment{撤銷}
+        \EndIf
+    \EndFor
+\EndProcedure
+\end{pseudo}
+第 3 行就是界限函數。 固定從頂點 1 出發之後，同一個環還會以兩個方向各被找到一次
+（$1 \to a \to \cdots \to b \to 1$ 和 $1 \to b \to \cdots \to a \to 1$）；第 7 行多檢查
 $x_2 < x_n$，每個環就只出現一次。 還可以加一個界限：每個還沒用過的頂點 $u$ 在環上需要一個前
 一站和一個下一站，前一站只能是還沒用過的頂點或目前的尾端 $x_k$，下一站只能是還沒用過的頂點
 或頂點 1；所以 $u$ 在「還沒用過的頂點、$x_k$、頂點 1」之中的鄰居如果少於兩個，就可以剪掉。

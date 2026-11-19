@@ -306,7 +306,7 @@ $P$ 不同，可以直接跳過；但 $t_s \equiv p$ 不保證相同，可能只
 同一個值，也就是第~12~章的\textbf{碰撞}。 雜湊值相等叫\textbf{命中}（hit），命中了
 但字串其實不同，叫\textbf{偽命中}（spurious hit）。 所以命中之後還要逐字確認一次。
 
-\begin{pseudo}[label=alg:stm-rk]{Rabin--Karp 比對，$\bmod$ 的結果一律在 $0$ 到 $q - 1$}
+\begin{pseudo}[label=alg:stm-rk, before upper={\csname @itempenalty\endcsname=10000\relax}]{Rabin--Karp 比對，$\bmod$ 的結果一律在 $0$ 到 $q - 1$}
 \Procedure{Rabin-Karp}{$T, P, n, m, d, q$}
     \State $h \gets d^{m-1} \bmod q$
     \State $p \gets 0$
@@ -315,7 +315,8 @@ $P$ 不同，可以直接跳過；但 $t_s \equiv p$ 不保證相同，可能只
         \State $p \gets (d \cdot p + P[i]) \bmod q$
         \State $t \gets (d \cdot t + T[i]) \bmod q$
     \EndFor
-    \For{$s \gets 0$ \To $n - m$}
+    \csname @itempenalty\endcsname=0\relax % 前處理和比對之間是唯一可以換頁的地方
+    \For{$s \gets 0$ \To $n - m$} \csname @itempenalty\endcsname=10000\relax
         \If{$p = t$} \Comment{命中}
             \If{$P[1..m] = T[s + 1 .. s + m]$} \Comment{逐字確認}
                 \State 輸出 $s$
@@ -1079,7 +1080,7 @@ $2m + 2n$ 是更寬一點的上界。
 對照。
 \begin{center}
 \small
-\begin{tabular}{p{0.17\linewidth}p{0.42\linewidth}l}
+\begin{tabular}{>{\raggedright\arraybackslash}p{0.21\linewidth}>{\raggedright\arraybackslash}p{0.39\linewidth}l}
 \toprule
 寫法 & 定義 & 值 \\
 \midrule
@@ -1212,7 +1213,7 @@ KMP & $\Theta(m)$ & $\Theta(n)$ & $\Theta(n)$ & $\Theta(m)$ \\
 失敗函數的定義混用 & 題目要 Horowitz 的 $f$（從 $-1$ 開始），卻寫了 $\pi$；或把
 $\pi$ 的編號從 $0$ 開始，整排差一格 & 第~\ref{sec:stm-kmp}~節 \\
 失配時退錯格 & 虛擬碼寫成 $q \gets \pi[q - 1]$；C 從 $0$ 編號卻寫
-\texttt{q = pi[q]} & 第~\ref{sec:stm-kmp}~節 \\
+\mbox{\texttt{q = pi[q]}} & 第~\ref{sec:stm-kmp}~節 \\
 \textbf{while} 寫成 \textbf{if} & 只退一次就去比 $P[q + 1]$，$i = 20$ 那一步會停在
 $q = 2$ 而不是 $0$，之後的結果全錯 & 圖~\ref{fig:stm-kmp-align} \\
 找到之後把 $q$ 設成 $0$ & $P = \mathtt{AACAACAAAC}$ 在 $\mathtt{AACAACAAACAACAAAC}$

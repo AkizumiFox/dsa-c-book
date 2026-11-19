@@ -170,9 +170,11 @@ int main(void)
             cost = multipop(&s, x);
         }
         total += cost;
-        printf("%d %s %d: cost %d, size %d\n", i, op, x, cost, s.size);
+        printf("%d %s %d: cost %d, size %d\n",
+               i, op, x, cost, s.size);
     }
-    printf("total %lld, pushes %d, 2n = %d\n", total, pushes, 2 * n);
+    printf("total %lld, pushes %d, 2n = %d\n",
+           total, pushes, 2 * n);
     free(s.data);
     return 0;
 }
@@ -273,8 +275,8 @@ int increment(int *bit)
         flips++;
         i++;
     }
-    if (i < K) {                       // 第一個 0 變成 1（溢位時沒有這一步）
-        bit[i] = 1;
+    if (i < K) {                       // 溢位時沒有這一步
+        bit[i] = 1;                    // 第一個 0 變成 1
         flips++;
     }
     return flips;
@@ -299,8 +301,8 @@ int main(void)
     for (int step = 1; step <= 8; step++) {
         int f = increment(bit);
         total += f;
-        printf("%d %d%d%d%d %d %lld\n", step, bit[3], bit[2], bit[1], bit[0],
-               f, total);
+        printf("%d %d%d%d%d %d %lld\n", step,
+               bit[3], bit[2], bit[1], bit[0], f, total);
     }
 
     // 第二部分：從 0 開始加 n 次，總翻轉次數和 2n 比較
@@ -320,7 +322,8 @@ int main(void)
     long long per_bit[K] = {0};
     for (int step = 0; step < 1000; step++) {
         int f = increment(bit);
-        for (int i = 0; i < f; i++) {   // 沒有溢位時，翻的正是第 0 到第 f-1 位
+        // 沒有溢位時，翻的正是第 0 到第 f-1 位
+        for (int i = 0; i < f; i++) {
             per_bit[i]++;
         }
     }
@@ -338,8 +341,8 @@ int main(void)
 C 程式的陣列從 $0$ 開始，\texttt{bit[j]} 對應虛擬碼的 $A[j + 1]$，所以它翻了
 $\lfloor n / 2^j \rfloor$ 次。 第三部分的 $1000, 500, 250, \ldots, 1$ 正是
 $\lfloor 1000 / 2^j \rfloor$，加起來 $1994$。 總數都比 $2n$ 少一點點：$2000 - 1994
-= 6$，而 $1000$ 的二進位 $1111101000$ 剛好有 $6$ 個 $1$。 這不是巧合，觀念題第 11
-題請你證明。
+= 6$，而 $1000$ 的二進位 $1111101000$ 剛好有 $6$ 個 $1$。 這不是巧合，
+觀念題第~\ref{amo-q-bits}~題請你證明。
 
 \begin{examnote}
 題目問「平攤成本」或「平攤時間複雜度」時，答案要針對\textbf{任意一串} $n$ 次操作的
@@ -506,7 +509,7 @@ $i$ & 之後的值 & $c_i$ & $\Phi(D_i) = b_i$ & $\Phi(D_i) - \Phi(D_{i-1})$ & $
 
 計數器不從 $0$ 開始時，$\Phi(D_0) = b_0$ 不是 $0$。 這時不能直接說總成本不超過
 $2n$，要用定理~\ref{thm:potential} 的等式：總成本 $= \sum \hat{c}_i - b_n + b_0 \le
-2n + b_0$。 一開始有幾個 $1$，總成本最多就多出幾。 觀念題第 2 題有一個例子。
+2n + b_0$。 一開始有幾個 $1$，總成本最多就多出幾。 觀念題第~\ref{amo-q-counter}~題有一個例子。
 
 \subsection{三種方法的比較}
 
@@ -639,7 +642,7 @@ d \left( 1 + 2 + \cdots + \frac{n}{d} \right) \approx \frac{n^2}{2d} = \Theta(n^
 $d$ 是常數時平攤成本是 $\Theta(n)$，不是常數。 這是等差級數，和最後一項的平方同一
 級。 乘以一個固定的倍數 $r > 1$ 時，容量是等比級數，搬動總數和最後一項同一級，平攤
 成本才是常數。 $r$ 不一定要是 $2$：$r$ 越大，搬動越少，但陣列可能有更大的比例是空
-的（剛擴充完只用了大約 $1/r$）。 觀念題第 3、4 題分別算這兩種情形。
+的（剛擴充完只用了大約 $1/r$）。 觀念題第~\ref{amo-q-triple}~題和第~\ref{amo-q-add4}~題分別算這兩種情形。
 
 \subsection{也會變小：為什麼縮到 1/4 才減半}
 
@@ -687,40 +690,53 @@ $0$，所以永遠是 $0$ 或 $2$ 的次方。
 
 \begin{proof}
 令 $\Phi = |2 \cdot \mathit{num} - \mathit{cap}|$。 一開始 $\Phi = 0$，而且絕對值不
-會是負的。 證明每一種情況都有 $\hat{c}_i \le 3$。 以下 $c$ 是操作之前的容量。
+會是負的。 證明每一種情況都有 $\hat{c}_i \le 3$。 以下 $m$ 是操作之前的容量。
 
 \textbf{加入、不擴充}：$c_i = 1$。 $2 \cdot \mathit{num}$ 加 $2$，絕對值最多變大 $2$，
 $\hat{c}_i \le 3$。
 
-\textbf{加入、擴充}：$c = 0$ 時 $c_i = 1$，$\Phi$ 從 $0$ 變成 $|2 - 1| = 1$，
-$\hat{c}_i = 2$。 $c \ge 1$ 時原本 $\mathit{num} = c$，$c_i = c + 1$，$\Phi$ 從
-$|2c - c| = c$ 變成 $|2(c + 1) - 2c| = 2$，$\hat{c}_i = (c + 1) + 2 - c = 3$。
+\textbf{加入、擴充}：$m = 0$ 時 $c_i = 1$，$\Phi$ 從 $0$ 變成 $|2 - 1| = 1$，
+$\hat{c}_i = 2$。 $m \ge 1$ 時原本 $\mathit{num} = m$，$c_i = m + 1$，$\Phi$ 從
+$|2m - m| = m$ 變成 $|2(m + 1) - 2m| = 2$，$\hat{c}_i = (m + 1) + 2 - m = 3$。
 
 以下是刪除，設刪除之後剩 $r$ 個（$r = \mathit{num} - 1$）。
 
 \textbf{刪除之後變空}（$r = 0$）：$c_i = 1$，不用搬，$\Phi$ 變成 $0$，
 $\hat{c}_i = 1 - \Phi_{\text{之前}} \le 1$。
 
-\textbf{刪除、不縮小}（$r \ge 1$ 且 $4r \ge c$）：$c_i = 1$，$2 \cdot \mathit{num}$
+\textbf{刪除、不縮小}（$r \ge 1$ 且 $4r \ge m$）：$c_i = 1$，$2 \cdot \mathit{num}$
 減 $2$，絕對值最多變大 $2$，$\hat{c}_i \le 3$。
 
-\textbf{刪除、縮小}（$r \ge 1$ 且 $4r < c$）：因為 $c > 4r \ge 4$ 而 $c$ 是 $2$ 的
-次方，$c \ge 8$。 實際成本是刪除的 $1$ 加上搬 $r$ 個，$c_i = 1 + r$。 縮小之後
-$2r < c/2$，所以 $\Phi_{\text{之後}} = c/2 - 2r$。 刪除之前有 $r + 1$ 個，
-$2(r + 1) < c/2 + 2 \le c$，所以 $\Phi_{\text{之前}} = c - 2r - 2$。
+\textbf{刪除、縮小}（$r \ge 1$ 且 $4r < m$）：因為 $m > 4r \ge 4$ 而 $m$ 是 $2$ 的
+次方，$m \ge 8$。 實際成本是刪除的 $1$ 加上搬 $r$ 個，$c_i = 1 + r$。 縮小之後容量
+是 $m/2$，而 $2r < m/2$，所以 $\Phi_{\text{之後}} = m/2 - 2r$。 刪除之前有 $r + 1$
+個，$2(r + 1) < m/2 + 2 \le m$，所以 $\Phi_{\text{之前}} = m - 2r - 2$。
 \[
-\hat{c}_i = (1 + r) + \left(\frac{c}{2} - 2r\right) - (c - 2r - 2)
-= 3 + r - \frac{c}{2} < 3 + \frac{c}{4} - \frac{c}{2} < 3.
+\hat{c}_i = (1 + r) + \left(\frac{m}{2} - 2r\right) - (m - 2r - 2)
+= 3 + r - \frac{m}{2} < 3 + \frac{m}{4} - \frac{m}{2} < 3.
 \]
 
 每一種情況都有 $\hat{c}_i \le 3$，由定理~\ref{thm:potential}，總成本不超過 $3n$。
 
 記憶體的部分對操作次數做歸納。 一開始 $\mathit{num} = 0$，不用檢查。 加入不擴充時
-$\mathit{num}$ 變大，不等式仍然成立；擴充時 $\mathit{cap}$ 變成 $2c$、$\mathit{num}$
-變成 $c + 1$（或從 $0$ 變成容量 $1$、$1$ 個），成立。 刪除不縮小時，$4r \ge c$ 正是要
-的不等式。 刪除而縮小時，由歸納假設，刪除之前 $4(r + 1) \ge c$，所以 $4r \ge c - 4
-\ge c/2$（因為 $c \ge 8$），縮小後的容量 $c/2$ 不超過 $4r$。
+$\mathit{num}$ 變大，不等式仍然成立；擴充時 $\mathit{cap}$ 變成 $2m$、$\mathit{num}$
+變成 $m + 1$（或從 $0$ 變成容量 $1$、$1$ 個），成立。 刪除不縮小時，$4r \ge m$ 正是要
+的不等式。 刪除而縮小時，由歸納假設，刪除之前 $4(r + 1) \ge m$，所以 $4r \ge m - 4
+\ge m/2$（因為 $m \ge 8$），縮小後的容量 $m/2$ 不超過 $4r$。
 \end{proof}
+
+\begin{examnote}
+Cormen 等的 \textit{Introduction to Algorithms}（CLRS）證明同一個結論時，位能分兩段：
+陣列至少半滿時用 $2 \cdot \mathit{num} - \mathit{cap}$，不到半滿時用
+$\mathit{cap}/2 - \mathit{num}$，後一段是本章 $|2 \cdot \mathit{num} - \mathit{cap}|$
+的一半，所以算出來的 $\hat{c}_i$ 和本章不完全一樣。 兩種都對，作答時寫清楚用的是哪一個
+$\Phi$，再逐種情況代。
+
+動態陣列的追蹤題，每一列寫出操作之後的 $\mathit{num}$、$\mathit{cap}$ 和這次的實際
+成本，換容量的那一列另外註明搬了幾個，像下面的表那樣。 先確認題目的規則：容量從 $0$
+還是 $1$ 開始、縮小的條件是「少於」還是「不超過」四分之一、判斷是在刪除之前還是之後，
+這些細節會改變換容量的時間點。
+\end{examnote}
 
 用 $9$ 次加入、$7$ 次刪除追蹤一次。 表裡的 $\mathit{num}$、$\mathit{cap}$、$\Phi$ 都
 是操作之後的值，一開始三個都是 $0$。
@@ -750,13 +766,6 @@ $i$ & 操作 & $\mathit{num}$ & $\mathit{cap}$ & $c_i$ & $\Phi$ & $\hat{c}_i$ \\
 第 15 次刪除後剩 $3$ 個，$4 \cdot 3 < 16$，縮成 $8$，搬 $3$ 個，實際成本 $4$。 它的
 平攤成本是負的，因為它用掉了第 11 到 14 次刪除存下來的位能。 驗算：
 $\sum c_i = 38 - \Phi(D_{16}) + \Phi(D_0) = 38 - 4 + 0 = 34$。
-
-\begin{examnote}
-動態陣列的追蹤題，每一列寫出操作之後的 $\mathit{num}$、$\mathit{cap}$ 和這次的實際
-成本，換容量的那一列另外註明搬了幾個。 先確認題目的規則：容量從 $0$ 還是 $1$ 開始、
-縮小的條件是「少於」還是「不超過」四分之一、判斷是在刪除之前還是之後，這些細節會改
-變換容量的時間點。
-\end{examnote}
 
 \subsection{C 實作}
 
@@ -808,7 +817,8 @@ int da_resize(DynArray *a, int new_cap)
         a->data = NULL;
     } else {
         int *tmp = realloc(a->data, new_cap * sizeof *tmp);
-        if (tmp == NULL) {              // 失敗時 a->data 仍然有效，不要蓋掉
+        // 失敗時 a->data 仍然有效，不要蓋掉
+        if (tmp == NULL) {
             return 0;
         }
         a->data = tmp;
@@ -821,7 +831,8 @@ int da_resize(DynArray *a, int new_cap)
 
 int da_push(DynArray *a, int x)
 {
-    if (a->num == a->cap) {             // 滿了：加倍（容量 0 時變成 1）
+    // 滿了：加倍（容量 0 時變成 1）
+    if (a->num == a->cap) {
         if (!da_resize(a, a->cap == 0 ? 1 : 2 * a->cap)) {
             return 0;
         }
@@ -839,7 +850,8 @@ int da_pop(DynArray *a)
     if (a->num == 0) {                  // 空了就整塊還回去
         da_resize(a, 0);
     } else if (a->num * a->shrink_den < a->cap) {
-        da_resize(a, a->cap / 2);      // 縮小失敗也沒關係，舊的那塊還能用
+        // 縮小失敗也沒關係，舊的那塊還能用
+        da_resize(a, a->cap / 2);
     }
     return x;
 }
@@ -858,7 +870,8 @@ int main(void)
                 return 1;
             }
         }
-        printf("%d %lld %.3f %d\n", ns[k], a.cost, (double)a.cost / ns[k], a.cap);
+        printf("%d %lld %.3f %d\n", ns[k], a.cost,
+               (double)a.cost / ns[k], a.cap);
         free(a.data);
     }
 
@@ -888,7 +901,8 @@ int main(void)
             return 1;
         }
         printf("1/%d %lld %d\n", dens[k], a.cost, a.resizes);
-        while (a.num > 0) {             // 全部 pop 掉，最後整塊還回去
+        // 全部 pop 掉，最後整塊還回去
+        while (a.num > 0) {
             da_pop(&a);
         }
         printf("after popping all: num %d, cap %d\n", a.num, a.cap);
@@ -912,7 +926,7 @@ $1025 + 1 + 1024 + 1 = 2051$，$1000$ 輪是 $2{,}051{,}000$。 門檻是四分�
 \label{sec:amo-pitfalls}
 
 \begin{center}
-\begin{tabular}{p{0.26\linewidth}p{0.48\linewidth}p{0.16\linewidth}}
+\begin{tabular}{>{\raggedright\arraybackslash}p{0.26\linewidth}>{\raggedright\arraybackslash}p{0.48\linewidth}p{0.16\linewidth}}
 \toprule
 錯誤 & 例子 & 見 \\
 \midrule
@@ -924,14 +938,14 @@ $\Theta(n)$ & 第~\ref{sec:amo-aggregate}、\ref{sec:amo-dynarray}~節 \\
 $O(nk)$ 是對的上界，但不緊 & 第~\ref{sec:amo-counter}~節 \\
 記帳法沒有證明存款不會變負 & 只寫「\proc{Push} 收 $2$」，沒有說明每個元素身上都有
 $1$ & 第~\ref{sec:amo-accounting}~節 \\
-位能函數沒檢查 $\Phi(D_i) \ge \Phi(D_0)$ & 選了會變負的 $\Phi$，或計數器不從 $0$ 開始
+沒檢查 $\Phi(D_i) \ge \Phi(D_0)$ & 選了會變負的 $\Phi$，或計數器不從 $0$ 開始
 時忘了加 $b_0$ & 第~\ref{sec:amo-potential}~節 \\
-特殊情況漏算 & 只算了不擴充的加入，沒算擴充、溢位、縮小那一次 &
+特殊情況漏算 & 只算一般情況，漏了擴充、溢位、縮小 &
 第~\ref{sec:amo-potential}、\ref{sec:amo-dynarray}~節 \\
 擴充時加固定的量 & 每次多 $100$ 格，以為平攤仍是 $O(1)$ & 第~\ref{sec:amo-dynarray}~節 \\
 縮小的門檻設在一半 & 剛好在邊界來回加入刪除，每次都換容量 &
 第~\ref{sec:amo-dynarray}~節 \\
-\texttt{p = realloc(p, ...)} & 失敗時原本的位址被 \texttt{NULL} 蓋掉，記憶體漏掉 &
+\texttt{p = realloc(p, ...)} & 失敗時位址被 \texttt{NULL} 蓋掉，記憶體漏掉 &
 第~\ref{sec:amo-dynarray}~節 \\
 \bottomrule
 \end{tabular}
@@ -953,11 +967,11 @@ $1$ & 第~\ref{sec:amo-accounting}~節 \\
 \item 記帳法裡，某一次操作的平攤成本可以比它的實際成本小。
 \end{enumerate}
 
-\item （追蹤）一個 $6$ 位元的計數器目前是 $001011$。 連續做 $6$ 次 \proc{Increment}，
+\item \label{amo-q-counter}（追蹤）一個 $6$ 位元的計數器目前是 $001011$。 連續做 $6$ 次 \proc{Increment}，
 寫出每一次之後的值和翻轉的位元數，求總數。 再用位能 $\Phi = $ 計數器裡 $1$ 的個數，
 驗證定理~\ref{thm:potential} 的等式。
 
-\item （計算）動態陣列一開始容量 $1$、沒有元素，放滿時把容量變成原來的 $3$ 倍（不
+\item \label{amo-q-triple}（計算）動態陣列一開始容量 $1$、沒有元素，放滿時把容量變成原來的 $3$ 倍（不
 縮小）。 成本照第~\ref{sec:amo-dynarray}~節的方式計算。
 \begin{enumerate}
 \item 連續放入 $82$ 個元素，總成本是多少？ 最後的容量是多少？
@@ -965,7 +979,7 @@ $1$ & 第~\ref{sec:amo-accounting}~節 \\
 \item 和加倍比，這個做法在空間上的缺點是什麼？
 \end{enumerate}
 
-\item （計算）動態陣列一開始容量 $4$，放滿時容量加 $4$（$4, 8, 12, \ldots$）。 連續
+\item \label{amo-q-add4}（計算）動態陣列一開始容量 $4$，放滿時容量加 $4$（$4, 8, 12, \ldots$）。 連續
 放入 $40$ 個元素總共搬動幾次？ 對 $n = 4m$ 寫出搬動總數的公式，並說明每次放入的
 平攤成本是 $\Theta(n)$。
 
@@ -998,7 +1012,7 @@ $\mathit{num} = 5$、$\mathit{cap} = 8$。 依序做 $4$ 次刪除、$5$ 次加�
 \item 放滿時變成 $3$ 倍；刪除後少於九分之一時變成三分之一。
 \end{enumerate}
 
-\item （證明）一個集合用陣列存。 \proc{Insert} 放在已用部分的尾端，成本 $1$（假設
+\item \label{amo-q-compact}（證明）一個集合用陣列存。 \proc{Insert} 放在已用部分的尾端，成本 $1$（假設
 陣列夠大）。 \proc{Delete} 給定位置，只把那一格標成「已刪除」，成本 $1$；標完之後，
 如果已刪除的格數超過已用格數的一半，就做一次\textbf{整理}：從頭掃過已用的 $u$ 格，
 把沒刪除的往前搬，成本 $u$，整理完沒有已刪除的格子。 用位能
@@ -1008,7 +1022,7 @@ $\Phi = 2 \times (\text{已刪除的格數})$ 證明每種操作的平攤成本�
 小})$，得到 \proc{Push} 的平攤成本是 $1 + (-1) = 0$，於是說「$n$ 次 \proc{Push} 的
 總成本是 $0$」。 錯在哪裡？
 
-\item （證明）$k$ 位元計數器從 $0$ 開始做 $n$ 次 \proc{Increment}，$n < 2^k$。 證明翻轉
+\item \label{amo-q-bits}（證明）$k$ 位元計數器從 $0$ 開始做 $n$ 次 \proc{Increment}，$n < 2^k$。 證明翻轉
 的位元總數剛好是 $2n - b(n)$，其中 $b(n)$ 是 $n$ 的二進位裡 $1$ 的個數。 用
 範例~\ref{ex:counter-flips} 的輸出驗證 $n = 16$ 和 $n = 10^6$。
 \end{enumerate}

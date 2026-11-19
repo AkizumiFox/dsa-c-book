@@ -214,7 +214,7 @@ $h_1 > h_2 > \cdots > h_t = 1$，依序對每個 $h_s$ 做一次 $h_s$ 排序。
 要是 $1$，這一趟就是普通的插入排序，所以不管前面的增量怎麼選，結果一定是排好的；前面
 幾趟只影響速度。
 
-\begin{pseudo}[label=alg:so-shell]{Shell 排序，增量是 $H[1..t]$，$H[t] = 1$}
+\begin{pseudo}[label=alg:so-shell, unbreakable]{Shell 排序，增量是 $H[1..t]$，$H[t] = 1$}
 \Procedure{Shell-Sort}{$A, n, H, t$}
     \For{$s \gets 1$ \To $t$}
         \State $h \gets H[s]$
@@ -321,7 +321,7 @@ $2{,}100{,}223$ 次還多，Knuth 的序列只比了 $45{,}532$ 次。 Shell 排
 
 \subsection{合併兩段排好的子陣列}
 
-第~5~章第~\ref{sec:ll-ops}~節合併過兩條排好的串列（虛擬碼~\ref{alg:ll-merge}）。 陣列版的想法一樣，兩邊
+第~\ref{sec:ll-ops}~節合併過兩條排好的串列（虛擬碼~\ref{alg:ll-merge}）。 陣列版的想法一樣，兩邊
 各一個指標，每次取比較小的那個；不同的是陣列不能直接把節點接過去，所以先把
 $A[p..r]$ 抄到暫存陣列 $B$，再一個一個寫回 $A$。
 
@@ -617,7 +617,10 @@ void merge_sort_bu(int *a, int *b)
 {
     for (int w = 1; w < n; w *= 2) {
         for (int lo = 0; lo + w < n; lo += 2 * w) {
-            int hi = lo + 2 * w - 1 < n - 1 ? lo + 2 * w - 1 : n - 1;
+            int hi = lo + 2 * w - 1;
+            if (hi > n - 1) {           // 最後一段可能不足長度
+                hi = n - 1;
+            }
             merge(a, b, lo, lo + w - 1, hi);
         }
         printf("w=%d", w);
@@ -630,7 +633,8 @@ int main(void)
     if (scanf("%d", &n) != 1 || n <= 0) {
         return 1;
     }
-    int *src = malloc(3 * n * sizeof *src);     // 原始資料、a、b 共用一塊
+    // 原始資料、a、b 共用一塊記憶體
+    int *src = malloc(3 * n * sizeof *src);
     if (src == NULL) {
         return 1;
     }
@@ -1289,7 +1293,8 @@ void shell_sort(Rec *a, int n)          // 增量 n/2, n/4, ..., 1
     }
 }
 
-// 快速排序排 a[0..n-1]。遞迴時用指標算術：a + k 是從 a[k] 開始的子陣列。
+// 快速排序排 a[0..n-1]。
+// 遞迴時用指標算術：a + k 是從 a[k] 開始的子陣列。
 void quick_lomuto(Rec *a, int n)        // 基準是 a[n-1]
 {
     if (n > 1) {
@@ -1354,8 +1359,10 @@ int main(void)
 {
     const char *name[] = {"selection", "insertion", "shell",
                           "lomuto", "hoare", "heap"};
-    void (*sorter[])(Rec *, int) = {selection_sort, insertion_sort,
-                                    shell_sort, quick_lomuto, quick_hoare, heap_sort};
+    void (*sorter[])(Rec *, int) = {
+        selection_sort, insertion_sort, shell_sort,
+        quick_lomuto, quick_hoare, heap_sort
+    };
     Rec src[MAXN], a[MAXN];
     int n;
     if (scanf("%d", &n) != 1 || n <= 0 || n > MAXN) {
@@ -1374,7 +1381,8 @@ int main(void)
         printf("%s:", name[k]);
         for (int i = 0; i < n; i++) {
             printf(" %d:%d", a[i].score, a[i].id);
-            if (i > 0 && a[i].score == a[i - 1].score && a[i].id < a[i - 1].id) {
+            if (i > 0 && a[i].score == a[i - 1].score
+                    && a[i].id < a[i - 1].id) {
                 same = 0;
             }
         }
@@ -1442,6 +1450,10 @@ $h = 1$ & 4 & 8 & 19 & 27 & 36 & 43 & 54 & 71 & 92 \\
 \end{tabular}
 \end{center}
 
+下一張表的第一欄，快速排序是這次分割的範圍；第二欄，Lomuto 是基準 $x$，Hoare 是基準
+$x$ 和回傳的 $j$，堆積排序是那一次下沉交換幾次。 粗體是 Lomuto 這一次歸位的基準，灰色
+是堆積排序已經排好、不在堆積裡的格子。
+
 \begin{center}
 \footnotesize
 \begin{tabular}{ll*{8}{c}}
@@ -1455,14 +1467,14 @@ $w = 1$ & & 36 & 71 & 19 & 54 & 8 & 92 & 27 & 43 \\
 $w = 2$ & & 19 & 36 & 54 & 71 & 8 & 27 & 43 & 92 \\
 $w = 4$ & & 8 & 19 & 27 & 36 & 43 & 54 & 71 & 92 \\
 \midrule
-\multicolumn{10}{l}{\textbf{快速排序}，Lomuto（第一欄：範圍；第二欄：基準 $x$；粗體：歸位的基準）} \\
+\multicolumn{10}{l}{\textbf{快速排序}，Lomuto} \\
 $[1..8]$ & 27 & 19 & 8 & \textbf{27} & 54 & 71 & 92 & 43 & 36 \\
 $[1..2]$ & 8 & \textbf{8} & 19 & 27 & 54 & 71 & 92 & 43 & 36 \\
 $[4..8]$ & 36 & 8 & 19 & 27 & \textbf{36} & 71 & 92 & 43 & 54 \\
 $[5..8]$ & 54 & 8 & 19 & 27 & 36 & 43 & \textbf{54} & 71 & 92 \\
 $[7..8]$ & 92 & 8 & 19 & 27 & 36 & 43 & 54 & 71 & \textbf{92} \\
 \midrule
-\multicolumn{10}{l}{\textbf{快速排序}，Hoare（第二欄：基準 $x$ 和回傳的 $j$）} \\
+\multicolumn{10}{l}{\textbf{快速排序}，Hoare} \\
 $[1..8]$ & 36，3 & 27 & 8 & 19 & 54 & 71 & 92 & 43 & 36 \\
 $[1..3]$ & 27，2 & 19 & 8 & 27 & 54 & 71 & 92 & 43 & 36 \\
 $[1..2]$ & 19，1 & 8 & 19 & 27 & 54 & 71 & 92 & 43 & 36 \\
@@ -1471,7 +1483,7 @@ $[4..5]$ & 36，4 & 8 & 19 & 27 & 36 & 43 & 92 & 71 & 54 \\
 $[6..8]$ & 92，7 & 8 & 19 & 27 & 36 & 43 & 54 & 71 & 92 \\
 $[6..7]$ & 54，6 & 8 & 19 & 27 & 36 & 43 & 54 & 71 & 92 \\
 \midrule
-\multicolumn{10}{l}{\textbf{堆積排序}（第二欄：下沉時交換幾次；灰色：已排好）} \\
+\multicolumn{10}{l}{\textbf{堆積排序}} \\
 建堆積 & & 92 & 71 & 43 & 54 & 8 & 19 & 36 & 27 \\
 取出 92 & 2 & 71 & 54 & 43 & 27 & 8 & 19 & 36 & \sofin{92} \\
 取出 71 & 1 & 54 & 36 & 43 & 27 & 8 & 19 & \sofin{71} & \sofin{92} \\
@@ -1550,7 +1562,8 @@ int cmp_size(const void *p, const void *q)
 
 // 用比較函式做插入排序。把錯的比較函式交給 qsort 是未定義行為，
 // 所以示範時用自己寫的排序，結果才固定。
-void insertion_sort(long long *a, int n, int (*cmp)(const void *, const void *))
+void insertion_sort(long long *a, int n,
+                    int (*cmp)(const void *, const void *))
 {
     for (int i = 1; i < n; i++) {
         long long key = a[i];
@@ -1568,10 +1581,13 @@ int main(void)
     long long c[3] = {0, 1500000000LL, 3000000000LL};
     for (int i = 0; i < 3; i++) {       // 三個數兩兩比較
         int j = (i + 1) % 3;
-        printf("bad(%lld, %lld) = %d\n", c[i], c[j], cmp_size_bad(&c[i], &c[j]));
+        printf("bad(%lld, %lld) = %d\n", c[i], c[j],
+               cmp_size_bad(&c[i], &c[j]));
     }
-    long long a[] = {52000000, 3500000000LL, 1200, 2300000000LL, 640000};
-    long long b[] = {52000000, 3500000000LL, 1200, 2300000000LL, 640000};
+    long long a[] = {52000000, 3500000000LL, 1200,
+                     2300000000LL, 640000};
+    long long b[] = {52000000, 3500000000LL, 1200,
+                     2300000000LL, 640000};
     int n = sizeof a / sizeof a[0];
     insertion_sort(a, n, cmp_size_bad);
     qsort(b, n, sizeof b[0], cmp_size);

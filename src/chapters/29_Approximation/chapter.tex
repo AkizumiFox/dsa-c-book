@@ -156,13 +156,22 @@ $\le k$ 的頂點覆蓋」）是 NP 完備的，所以除非 P $=$ NP，最小�
 \subsection{手算追蹤}
 
 圖~\ref{fig:apx-vc} 左邊的圖有 $n = 8$ 個路口、$m = 10$ 條巷子。 邊表依字典順序排好：
-$(1,2), (1,3), (2,3), (2,4), (3,4), (4,5), (4,6), (5,7), (6,7), (7,8)$。
+$(1,2), (1,3), (2,3), (2,4), (3,4), (4,5), (4,6), (5,7), (6,7), (7,8)$。 下表一條邊一列，結果畫
+在圖~\ref{fig:apx-vc} 的左半。
 
-\begin{center}
-\begin{tabular}{clc}
+\begingroup
+\setlength{\LTpre}{\medskipamount}\setlength{\LTpost}{\medskipamount}
+\begin{longtable}{clc}
 \toprule
 邊 & 動作 & $C$ \\
 \midrule
+\endfirsthead
+\toprule
+邊 & 動作 & $C$ \\
+\midrule
+\endhead
+\bottomrule
+\endlastfoot
 $(1, 2)$ & 兩端都不在 $C$，選中 & $\{1, 2\}$ \\
 $(1, 3)$ & $1 \in C$，已蓋住 & \\
 $(2, 3)$ & 已蓋住 & \\
@@ -171,16 +180,15 @@ $(3, 4)$ & 兩端都不在 $C$，選中 & $\{1, 2, 3, 4\}$ \\
 $(4, 5)$、$(4, 6)$ & 已蓋住 & \\
 $(5, 7)$ & 兩端都不在 $C$，選中 & $\{1, 2, 3, 4, 5, 7\}$ \\
 $(6, 7)$、$(7, 8)$ & 已蓋住 & \\
-\bottomrule
-\end{tabular}
-\end{center}
+\end{longtable}
+\endgroup
 
 演算法排了 $6$ 個人。 最少要幾個？ 三角形 $1, 2, 3$ 的三條邊，一個頂點最多蓋兩條，所以
 $\{1, 2, 3\}$ 裡至少要選兩個；$4, 5, 7, 6$ 圍成一個四邊形，四條邊也至少要兩個頂點才蓋得住。
 兩組頂點沒有重疊，所以 $C^* \ge 4$；$\{1, 2, 4, 7\}$ 是大小 $4$ 的頂點覆蓋（右圖），$C^* = 4$。
 這個例子 $C / C^* = 1.5$。
 
-\begin{center}
+\begin{center}\begin{minipage}{\linewidth}\centering
 \begin{tikzpicture}[x=1cm, y=1cm]
 \begin{scope}
 \node[apx-vC] (a1) at (0, 0) {1};
@@ -214,7 +222,7 @@ $\{1, 2, 3\}$ 裡至少要選兩個；$4, 5, 7, 6$ 圍成一個四邊形，四�
 \diagcaption{左：虛擬碼~\ref{alg:apx-vc} 的結果，粗的橘色邊是被選中的三條邊，藍色頂點在 $C$ 裡。
 右：最小頂點覆蓋（綠色）。}
 \label{fig:apx-vc}
-\end{center}
+\end{minipage}\end{center}
 
 \subsection{為什麼是 2-近似}
 
@@ -446,25 +454,27 @@ $c(T) \le c(H^*)$。
 訪}（第~7~章）；刪掉一個重複的頂點，等於從它前一個點直接走到它後一個點，由三角不等式成本不會
 變大。
 
-\begin{pseudo}[label=alg:apx-tsp]{度量 TSP 的 $2$-近似}
+\begin{pseudo}[label=alg:apx-tsp, before upper={\csname @itempenalty\endcsname=10000\relax}]{度量 TSP 的 $2$-近似}
 \Function{Approx-TSP-Tour}{$G, c$}
     \State $r \gets 1$ \Comment{任選一個頂點當根}
-    \State $T \gets$ 以 $r$ 為根的最小生成樹 \Comment{第~24~章的 Prim}
+    \State $T \gets$ 以 $r$ 為根的最小生成樹 \Comment{陣列版 Prim，虛擬碼~\ref{alg:mst-prim-array}}
     \State $L \gets$ 空串列
     \State \Call{Preorder}{$T, r, L$}
     \State \Return 依 $L$ 的順序走過每個頂點，最後回到 $r$
 \EndFunction
-\Statex
-\Function{Preorder}{$T, u, L$}
+\Statex \csname @itempenalty\endcsname=0\relax % 兩個程序之間是唯一可以換頁的地方
+\Procedure{Preorder}{$T, u, L$} \csname @itempenalty\endcsname=10000\relax
     \State 把 $u$ 接在 $L$ 的尾端
     \For{$u$ 在 $T$ 裡的每一個子節點 $v$} \Comment{編號由小到大}
         \State \Call{Preorder}{$T, v, L$}
     \EndFor
-\EndFunction
+\EndProcedure
 \end{pseudo}
 
-完全圖有 $m = n(n-1)/2$ 條邊，第 3 行用陣列版的 Prim（不用堆積）是 $\Theta(n^2)$，前序走訪
-$\Theta(n)$，總時間 $\Theta(n^2)$，和輸入（成本矩陣）的大小同階。
+\proc{Preorder} 和第~7~章的 \proc{Preorder}（虛擬碼~\ref{alg:bt-walks}）一樣，只是 $T$ 的節點可以
+有很多個子節點，而且把頂點接到串列 $L$ 的尾端，不是印出來。 完全圖有 $m = n(n-1)/2$ 條邊，第 3
+行用陣列版的 Prim（不用堆積）是 $\Theta(n^2)$，前序走訪 $\Theta(n)$，總時間 $\Theta(n^2)$，和
+輸入（成本矩陣）的大小同階。
 
 \begin{theorem}
 \label{thm:apx-tsp}
@@ -535,7 +545,7 @@ c(T) = 17 \;\le\; c(H^*) = 24 \;\le\; c(H) = 32 \;\le\; 2c(T) = 34 ,
 \]
 比值 $32 / 24 \approx 1.33$。 注意證明用的是 $c(H) \le 2c(T)$，不需要知道 $24$ 這個數。
 
-\begin{center}
+\begin{center}\begin{minipage}{\linewidth}\centering
 \begin{tikzpicture}[x=0.55cm, y=0.55cm]
 \foreach \k/\ttl in {0/最小生成樹 $T$（$17$）, 1/近似路線 $H$（$32$）, 2/最佳路線 $H^*$（$24$）} {
     \begin{scope}[xshift=\k*5.06cm]
@@ -561,7 +571,7 @@ c(T) = 17 \;\le\; c(H^*) = 24 \;\le\; c(H) = 32 \;\le\; 2c(T) = 34 ,
 \end{tikzpicture}
 \diagcaption{七個收件點。 圖上畫的是直線，實際的成本是曼哈頓距離（沿著格線走）。}
 \label{fig:apx-tsp}
-\end{center}
+\end{minipage}\end{center}
 
 \begin{examnote}
 追蹤題寫出三樣東西：最小生成樹的邊（和用哪個演算法、從哪個點開始）、前序走訪的順序（子節點依什麼
@@ -603,7 +613,7 @@ c(H) = \underbrace{1}_{1 \to 2} + \underbrace{2(k - 1)}_{\text{葉到葉}} + \un
 \frac{c(H)}{c(H^*)} = \frac{2k}{k + 2} \;\longrightarrow\; 2 \qquad (k \to \infty).
 \]
 
-\begin{center}
+\begin{center}\begin{minipage}{\linewidth}\centering
 \begin{tikzpicture}[x=1cm, y=1cm]
 \foreach \k/\ttl in {0/$T$ 和成本 $1$ 的葉間邊, 1/近似路線（$12$）, 2/最佳路線（$8$）} {
     \begin{scope}[xshift=\k*4.6cm]
@@ -629,10 +639,10 @@ c(H) = \underbrace{1}_{1 \to 2} + \underbrace{2(k - 1)}_{\text{葉到葉}} + \un
 \diagcaption{$k = 6$ 的緊例子。 左圖畫出的邊成本是 $1$，沒畫出的是 $2$。 近似路線有五段葉到葉、
 成本都是 $2$；最佳路線只有 $6 \to 7$ 一段成本 $2$。}
 \label{fig:apx-tsp-tight}
-\end{center}
+\end{minipage}\end{center}
 
 $2$ 不是度量 TSP 最好的近似比。 Christofides（1976）把演算法改成：在 $T$ 裡度數是奇數的頂點之間
-加一組成本最小的完美匹配，讓每個頂點的度數都變成偶數，再走一條經過每條邊一次的路線（歐拉迴路），
+加一組成本最小的完美匹配（第~26~章），讓每個頂點的度數都變成偶數，再走一條經過每條邊一次的路線（歐拉迴路），
 最後抄捷徑。 他證明這樣的成本不超過 $1.5\,c(H^*)$。 這個 $1.5$ 保持了四十多年，2021 年 Karlin、
 Klein 與 Oveis Gharan 才用隨機的方法把它改進了一個極小的量。 本書不證明這些結果。
 

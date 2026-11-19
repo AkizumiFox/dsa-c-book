@@ -137,7 +137,7 @@ $a$ 到 $e$；邊上的數字是每晚最多能載的板數。 圖 (b) 是其中
 \draw[flw-a] (Me) -- node[flw-c] {6/9} (Mt);
 \node[flw-t] at (3.45, -2.45) {(b) 一個流 $f_1$，$|f_1| = 16$};
 \end{scope}
-\end{tikzpicture}
+\end{tikzpicture}\par\nopagebreak
 \diagcaption{章首的物流網路（單位：板）。 (a) 每條邊的容量。 (b) 一個流 $f_1$，每條邊標
 「流量$/$容量」。 第~\ref{sec:flw-ek-trace}~節會看到，它就是 Edmonds--Karp 做完三輪之後
 的流。}
@@ -151,9 +151,10 @@ $10 + 6$。 第~\ref{sec:flw-mfmc}~節會證明這一定成立：流的值等於
 個流還不是最大的：第~\ref{sec:flw-ek}~節會算出這張網路的最大流是 $21$。
 
 \begin{examnote}
-有些課本用另一種定義：$f(u, v)$ 代表「淨流量」，要求 $f(u, v) = -f(v, u)$（斜對稱），
-守恆寫成 $\sum_{v} f(u, v) = 0$，反方向的流量會出現負數。 兩種定義算出的最大流值相同，
-剩餘容量的公式和表格裡的數字卻不一樣。 作答前先看題目用的是哪一種，照題目的寫法填表；
+有些課本（例如 CLRS 第 2 版）用另一種定義：$f(u, v)$ 代表「淨流量」，要求
+$f(u, v) = -f(v, u)$（斜對稱），守恆寫成 $\sum_{v} f(u, v) = 0$。 兩種定義的最大流值相同，
+剩餘容量也相同，差在寫法：淨流量的定義下，剩餘容量只用一個式子 $c_f(u, v) = c(u, v) - f(u, v)$，
+流量表裡反方向的格子會出現負數。 作答前先看題目用的是哪一種，照題目的寫法填表；
 題目沒有說明時，用本書的寫法（流量都不是負數），並在答案開頭寫一句「$f(u, v)$ 表示邊
 $(u, v)$ 上的流量」。
 \end{examnote}
@@ -209,7 +210,7 @@ $s_i$ 所有出邊的容量和。 這和第~\ref{sec:gtr-multi-source}~節多起
 \draw[flw-a] (bo) -- (w);
 \node[flw-t] at (2.9, -1.9) {(b) 頂點 $b$ 的容量 $k$};
 \end{scope}
-\end{tikzpicture}
+\end{tikzpicture}\par\nopagebreak
 \diagcaption{兩種轉換。 (a) $u$、$v$ 之間兩個方向都有邊，把 $v \to u$ 換成經過新頂點
 $x$ 的兩條邊。 (b) 把頂點拆成兩個，中間的邊（粗線）就是頂點的容量。}
 \label{fig:flw-model}
@@ -272,7 +273,7 @@ $x \to t$，而 $y$ 少掉的那一板由 $s \to y$ 補上。 只會往前加的
 \draw[flw-a] (ky) -- node[flw-c] {2/2} (kt);
 \node[flw-t] at (2, -1.85) {(c) 增廣之後，$|f| = 3$};
 \end{scope}
-\end{tikzpicture}
+\end{tikzpicture}\par\nopagebreak
 \diagcaption{只會往前加會卡住的例子。 (a) 先沿 $s \to x \to y \to t$ 送 $2$，之後每條路
 徑都有一條滿的邊。 (b) 這個流的剩餘網路，虛線是反向邊；紅色的路徑經過反向邊
 $y \to x$。 (c) 沿紅色路徑送 $1$ 之後的流。}
@@ -432,7 +433,7 @@ $s \to v \to u \to t$，其中 $v \to u$ 是反向邊，把剛剛送的那 $1$ �
 \draw[flw-a] (u) -- node[flw-c] {1} (v);
 \draw[flw-a] (u) -- node[flw-c] {100} (t);
 \draw[flw-a] (v) -- node[flw-c] {100} (t);
-\end{tikzpicture}
+\end{tikzpicture}\par\nopagebreak
 \diagcaption{兩條路徑輪流經過中間那條容量 $1$ 的邊，Ford--Fulkerson 要增廣 $200$ 次；BFS
 找最短的路徑只要 $2$ 次。}
 \label{fig:flw-bad}
@@ -460,13 +461,13 @@ $c_f(v, u)$ 加 $b$。 這一個規則同時處理了順向邊和反向邊：送
 量，退回的量變成順方向可以再送的量。
 
 \begin{pseudo}[label=alg:flw-ek]{Edmonds--Karp（用剩餘容量寫）}
-\Procedure{Edmonds-Karp}{$G, s, t$}
+\Function{Edmonds-Karp}{$G, s, t$}
     \For{每一對頂點 $u, v$}
         \State $c_f(u, v) \gets c(u, v)$
     \EndFor
     \State $\mathit{val} \gets 0$
     \While{\TRUE}
-        \State 在 $G_f$ 上從 $s$ 做 \Call{BFS}{}，只走 $c_f(u, v) > 0$ 的邊，得到 $\pi$
+        \State \Call{BFS}{$G_f, s$}，只走 $c_f(u, v) > 0$ 的邊，得到 $\pi$
         \If{$t$ 沒有被發現}
             \State \Return $\mathit{val}$
         \EndIf
@@ -483,11 +484,11 @@ $c_f(v, u)$ 加 $b$。 這一個規則同時處理了順向邊和反向邊：送
         \EndWhile
         \State $\mathit{val} \gets \mathit{val} + b$
     \EndWhile
-\EndProcedure
+\EndFunction
 \end{pseudo}
 
 第 6 行的 BFS 就是虛擬碼~\ref{alg:gtr-bfs}，只是「$v$ 是 $u$ 的鄰居」換成「$c_f(u, v) > 0$」。
-第 9 到 12 行沿著前驅 $\pi$ 從 $t$ 走回 $s$，求瓶頸；第 13 到 17 行再走一次，更新剩餘容
+第 9--12 行沿著前驅 $\pi$ 從 $t$ 走回 $s$，求瓶頸；第 13--17 行再走一次，更新剩餘容
 量。 結束後，每條邊的流量是 $f(u, v) = c(u, v) - c_f(u, v)$，$(u, v) \in E$。
 
 \textbf{鄰居的順序。} 剩餘網路裡可能有好幾條一樣短的增廣路徑，BFS 找到哪一條，要看鄰居
@@ -673,7 +674,7 @@ $c_f(v, u)$ 加 $b$。 這一個規則同時處理了順向邊和反向邊：送
 \draw[flw-a, flw-rev] (R5t) -- node[flw-c] {9} (R5e);
 \node[flw-t] at (3.45, -2.45) {(f) 結束：走不到 $t$};
 \end{scope}
-\end{tikzpicture}
+\end{tikzpicture}\par\nopagebreak
 \diagcaption{物流網路上 Edmonds--Karp 每一輪開始時的剩餘網路 $G_f$。 實線是順向邊，虛線是
 反向邊，數字是剩餘容量；兩個方向都有剩餘容量時畫成兩條弧線。 (f) 的藍色頂點是從 $s$ 還走得
 到的頂點。}
@@ -726,7 +727,7 @@ $3, 3, 3, 3, 6, \infty$。 下一小節會證明這件事一定成立，它就�
 \draw[flw-a] (Zd) -- node[flw-c] {0/2} (Ze);
 \draw[flw-a] (Zd) -- node[flw-c] {12/12} (Zt);
 \draw[flw-a, flw-cut] (Ze) -- node[flw-c] {9/9} (Zt);
-\end{tikzpicture}
+\end{tikzpicture}\par\nopagebreak
 \diagcaption{Edmonds--Karp 求出的最大流，$|f| = 21$。 藍色的 $S = \{s, b, c, e\}$ 是最後的
 剩餘網路裡從 $s$ 走得到的頂點，橘色的四條邊從 $S$ 指向 $T = \{a, d, t\}$，全部是滿的。}
 \label{fig:flw-final}
@@ -777,7 +778,7 @@ $u$ 的距離在 $G_{f'}$ 裡比 $v$ 小，由 $v$ 的取法，$u$ 的距離沒�
 
 \begin{theorem}
 \label{thm:flw-ek}
-Edmonds--Karp 演算法最多增廣 $nm$ 次（更精確地說，$O(nm)$ 次），時間是 $O(nm^2)$。
+Edmonds--Karp 演算法最多增廣 $nm$ 次，時間是 $O(nm^2)$。
 \end{theorem}
 
 \begin{proof}
@@ -1032,7 +1033,7 @@ $x_4$ & $y_2$ \\
 \draw[flw-m] (Bx4) -- (By2);
 \node[flw-t] at (1.2, -2.75) {(b) 最大匹配};
 \end{scope}
-\end{tikzpicture}
+\end{tikzpicture}\par\nopagebreak
 \diagcaption{助教分配的二分圖，粗紅線是匹配。 (a) 依序讓 $x_1, x_2, x_3$ 挑第一堂沒人帶的課，
 $x_4$ 沒課可帶；這個匹配不能再加邊。 (b) 四條邊的最大匹配。}
 \label{fig:flw-ta}
@@ -1193,7 +1194,7 @@ $t$。 BFS 從 $x_4$ 只能走到 $y_2$，再沿反向邊回到 $y_2$ 現在的�
 \draw[flw-a] (Qy5) -- (Qt);
 \node[flw-t] at (1.2, -2.75) {(b) 第 4 輪的剩餘網路};
 \end{scope}
-\end{tikzpicture}
+\end{tikzpicture}\par\nopagebreak
 \diagcaption{(a) 助教分配轉成的流網路 $G'$，邊的方向一律是 $s \to L \to R \to t$。 (b) 前三
 輪做完之後的剩餘網路，虛線是反向邊（已匹配的邊和用掉的 $s \to x$、$y \to t$）；紅色是第 4
 輪的增廣路徑，在 $L$、$R$ 之間來回，交替走未匹配的邊和已匹配的邊。}
@@ -1312,8 +1313,8 @@ $c(u, v) - c_f(u, v)$，只印正的：兩個方向互相抵消後，只有一�
 \end{cbookrecap}
 
 輸入有好幾張網路，一直讀到檔案結束。 每張網路第一行是 $n$、$m$，第二行是 $n$ 個頂點的名
-字（最多三個字元，第一個是 $s$、最後一個是 $t$），接著 $m$ 行各一條邊和容量；同一對頂點
-重複出現時容量相加。 每一輪印一列：BFS 求出的距離（依頂點的順序，走不到印 \texttt{-}）、
+字（最多三個字元，第一個是 $s$、最後一個是 $t$），接著是 $m$ 條邊，每條寫成兩個頂點的名字
+和容量，一行可以寫好幾條；同一對頂點重複出現時容量相加。 每一輪印一列：BFS 求出的距離（依頂點的順序，走不到印 \texttt{-}）、
 增廣路徑、瓶頸和增廣之後的值。 最後印出有流的邊和最小割。 輸入的三張網路依序是物流網
 路、一張有反平行邊的小網路，以及助教分配的 $G'$。
 
@@ -1398,7 +1399,7 @@ long edmonds_karp(Network *g, int *dist, int *pi, int *queue)
         printf(" | s");
         while (len > 0)
             printf(" %s", g->name[queue[--len]]);
-        printf(" | +%d = %ld\n", b, value);
+        printf(" | +%d=%ld\n", b, value);
     }
 }
 
@@ -1418,22 +1419,21 @@ void report(const Network *g, const int *dist)
         }
     if (k % 3 != 0)
         printf("\n");
-    long c = 0;
+    long c = 0;                                   // 割的容量 c(S, T)
+    for (int u = 0; u < n; u++)
+        for (int v = 0; v < n; v++)
+            if (dist[u] != -1 && dist[v] == -1)   // u 在 S、v 在 T
+                c += CAP(g, u, v);
     printf("min cut S = {s");
     for (int v = 1; v < n; v++)
         if (dist[v] != -1)
             printf(" %s", g->name[v]);
-    printf("}\ncut edges:");
-    for (int u = 0; u < n; u++) {
-        if (dist[u] == -1)                        // u 不在 S 裡
-            continue;
+    printf("}, capacity %ld\ncut edges:", c);
+    for (int u = 0; u < n; u++)
         for (int v = 0; v < n; v++)
-            if (dist[v] == -1 && CAP(g, u, v) > 0) {
+            if (dist[u] != -1 && dist[v] == -1 && CAP(g, u, v) > 0)
                 printf(" %s->%s", g->name[u], g->name[v]);
-                c += CAP(g, u, v);
-            }
-    }
-    printf(" = %ld\n", c);
+    printf("\n");
 }
 
 int main(void)
@@ -1472,7 +1472,7 @@ int main(void)
     return 0;
 }
 \end{example}
-\iosample{7 11 \\ s a b c d e t \\ s a 5 \\ s b 11 \\ s c 7 \\ b a 2 \\ a d 12 \\ b d 5 \\ b e 6 \\ c e 7 \\ d e 2 \\ d t 12 \\ e t 9 \\ 4 6 \\ s u v t \\ s u 3 \\ s v 2 \\ u v 6 \\ v u 4 \\ u t 2 \\ v t 3 \\ 11 18 \\ s x1 x2 x3 x4 y1 y2 y3 y4 y5 t \\ s x1 1 \\ s x2 1 \\ s x3 1 \\ s x4 1 \\ x1 y3 1 \\ x1 y5 1 \\ x2 y1 1 \\ x2 y2 1 \\ x2 y4 1 \\ x2 y5 1 \\ x3 y1 1 \\ x3 y2 1 \\ x4 y2 1 \\ y1 t 1 \\ y2 t 1 \\ y3 t 1 \\ y4 t 1 \\ y5 t 1}{network 1 \\ 0 1 1 1 2 2 3 | s a d t | +5 = 5 \\ 0 2 1 1 2 2 3 | s b d t | +5 = 10 \\ 0 2 1 1 3 2 3 | s b e t | +6 = 16 \\ 0 4 3 1 4 2 3 | s c e t | +3 = 19 \\ 0 4 3 1 5 2 6 | s c e b a d t | +2 = 21 \\ 0 - 3 1 - 2 - | no path \\ max flow 21 \\ s->a 5/5, s->b 11/11, s->c 5/7 \\ a->d 7/12, b->a 2/2, b->d 5/5 \\ b->e 4/6, c->e 5/7, d->t 12/12 \\ e->t 9/9 \\ min cut S = \{s b c e\} \\ cut edges: s->a b->a b->d e->t = 21 \\ network 2 \\ 0 1 1 2 | s u t | +2 = 2 \\ 0 1 1 2 | s v t | +2 = 4 \\ 0 1 2 3 | s u v t | +1 = 5 \\ 0 - - - | no path \\ max flow 5 \\ s->u 3/3, s->v 2/2, u->v 1/6 \\ u->t 2/2, v->t 3/3 \\ min cut S = \{s\} \\ cut edges: s->u s->v = 5 \\ network 3 \\ 0 1 1 1 1 2 2 2 2 2 3 | s x1 y3 t | +1 = 1 \\ 0 5 1 1 1 2 2 4 2 2 3 | s x2 y1 t | +1 = 2 \\ 0 5 3 1 1 2 2 4 4 4 3 | s x3 y2 t | +1 = 3 \\ 0 9 5 3 1 4 2 8 6 6 7 | s x4 y2 x3 y1 x2 y4 t | +1 = 4 \\ 0 - - - - - - - - - - | no path \\ max flow 4 \\ s->x1 1/1, s->x2 1/1, s->x3 1/1 \\ s->x4 1/1, x1->y3 1/1, x2->y4 1/1 \\ x3->y1 1/1, x4->y2 1/1, y1->t 1/1 \\ y2->t 1/1, y3->t 1/1, y4->t 1/1 \\ min cut S = \{s\} \\ cut edges: s->x1 s->x2 s->x3 s->x4 = 4}
+\iosample{7 11 \\ s a b c d e t \\ s a 5 s b 11 s c 7 \\ b a 2 a d 12 b d 5 \\ b e 6 c e 7 d e 2 \\ d t 12 e t 9 \\ 4 6 \\ s u v t \\ s u 3 s v 2 u v 6 \\ v u 4 u t 2 v t 3 \\ 11 18 \\ s x1 x2 x3 x4 y1 y2 y3 y4 y5 t \\ s x1 1 s x2 1 s x3 1 \\ s x4 1 x1 y3 1 x1 y5 1 \\ x2 y1 1 x2 y2 1 x2 y4 1 \\ x2 y5 1 x3 y1 1 x3 y2 1 \\ x4 y2 1 y1 t 1 y2 t 1 \\ y3 t 1 y4 t 1 y5 t 1}{network 1 \\ 0 1 1 1 2 2 3 | s a d t | +5=5 \\ 0 2 1 1 2 2 3 | s b d t | +5=10 \\ 0 2 1 1 3 2 3 | s b e t | +6=16 \\ 0 4 3 1 4 2 3 | s c e t | +3=19 \\ 0 4 3 1 5 2 6 | s c e b a d t | +2=21 \\ 0 - 3 1 - 2 - | no path \\ max flow 21 \\ s->a 5/5, s->b 11/11, s->c 5/7 \\ a->d 7/12, b->a 2/2, b->d 5/5 \\ b->e 4/6, c->e 5/7, d->t 12/12 \\ e->t 9/9 \\ min cut S = \{s b c e\}, capacity 21 \\ cut edges: s->a b->a b->d e->t \\ network 2 \\ 0 1 1 2 | s u t | +2=2 \\ 0 1 1 2 | s v t | +2=4 \\ 0 1 2 3 | s u v t | +1=5 \\ 0 - - - | no path \\ max flow 5 \\ s->u 3/3, s->v 2/2, u->v 1/6 \\ u->t 2/2, v->t 3/3 \\ min cut S = \{s\}, capacity 5 \\ cut edges: s->u s->v \\ network 3 \\ 0 1 1 1 1 2 2 2 2 2 3 | s x1 y3 t | +1=1 \\ 0 5 1 1 1 2 2 4 2 2 3 | s x2 y1 t | +1=2 \\ 0 5 3 1 1 2 2 4 4 4 3 | s x3 y2 t | +1=3 \\ 0 9 5 3 1 4 2 8 6 6 7 | s x4 y2 x3 y1 x2 y4 t | +1=4 \\ 0 - - - - - - - - - - | no path \\ max flow 4 \\ s->x1 1/1, s->x2 1/1, s->x3 1/1 \\ s->x4 1/1, x1->y3 1/1, x2->y4 1/1 \\ x3->y1 1/1, x4->y2 1/1, y1->t 1/1 \\ y2->t 1/1, y3->t 1/1, y4->t 1/1 \\ min cut S = \{s\}, capacity 4 \\ cut edges: s->x1 s->x2 s->x3 s->x4}
 
 第一張網路的前六列和第~\ref{sec:flw-ek-trace}~節的表逐列相同，最後一列距離是 \texttt{-}
 的頂點就是 $T$；流量那四列是圖~\ref{fig:flw-final}（沒有流的 $d \to e$ 不印），最後兩列是
@@ -1563,7 +1563,7 @@ $x \to y$、最後加 $y \to t$。 弧接在串列尾端，輸入的邊依 $(x, 
 
 \begin{center}
 \small
-\begin{tabular}{p{0.27\linewidth}p{0.48\linewidth}p{0.15\linewidth}}
+\begin{tabular}{>{\raggedright\arraybackslash}p{0.27\linewidth}>{\raggedright\arraybackslash}p{0.48\linewidth}>{\raggedright\arraybackslash}p{0.15\linewidth}}
 \toprule
 錯誤 & 例子 & 見 \\
 \midrule

@@ -74,6 +74,8 @@ $\binom{5}{2} = 10$，樹上剛好有 $10$ 個回傳 $1$ 的葉節點，因為�
 重算一遍。
 
 \begin{center}
+\begin{minipage}{\linewidth}
+\centering
 \begin{tikzpicture}[x=1.32cm, y=1.05cm]
 \node[dp-call] (b0) at (3.69,0) {$5,2$};
 \node[dp-call] (b1) at (0.88,-1) {$4,1$};
@@ -117,6 +119,7 @@ $\binom{5}{2} = 10$，樹上剛好有 $10$ 個回傳 $1$ 的葉節點，因為�
 行時，橘色的兩個節點是「這組參數之前算過了」的呼叫；虛線灰色的 $6$ 個節點是它們底下的
 重算。 下一小節的記憶化會在橘色節點直接查表，灰色的呼叫都不會發生。}
 \label{fig:dp-binom-tree}
+\end{minipage}
 \end{center}
 
 \begin{theorem}
@@ -180,6 +183,8 @@ $n = 5$、$k = 2$ 時是 $13$，正好是圖~\ref{fig:dp-binom-tree} 裡白色�
 次。 記憶化的呼叫次數等於 $1$ 加上子問題圖的邊數。
 
 \begin{center}
+\begin{minipage}{\linewidth}
+\centering
 \begin{tikzpicture}[x=1.45cm, y=1.0cm]
 \node[dp-base] (g10) at (2.00,-4) {$1,0$};
 \node[dp-base] (g11) at (3.00,-4) {$1,1$};
@@ -208,6 +213,7 @@ $n = 5$、$k = 2$ 時是 $13$，正好是圖~\ref{fig:dp-binom-tree} 裡白色�
 \diagcaption{$\binom{5}{2}$ 的子問題圖：$11$ 個不同的子問題，灰底的是邊界（直接回傳
 $1$），$6$ 個白色的各有兩條邊，共 $12$ 條邊。 它沒有環，是一個有向無環圖。}
 \label{fig:dp-binom-dag}
+\end{minipage}
 \end{center}
 
 \subsection{由下而上：填表}
@@ -453,7 +459,9 @@ $[1,6]$ & $k=1$：$0+516+6\cdot10\cdot4=756$；$k=2$：$180+396+6\cdot3\cdot4=\m
 （同一條對角線上的格子鏈長相同）；橘框的是等一下還原括號時會用到的格子。
 
 \begin{center}
-\begin{tikzpicture}[x=1.05cm, y=0.62cm]
+\begin{minipage}{\linewidth}
+\centering
+\begin{tikzpicture}[x=1.05cm, y=0.62cm, baseline=(current bounding box.north)]
 \node[font=\small] at (3.50,1.15) {$m[i,j]$};
 \node[dp-hd] at (1,0.35) {$j=1$};
 \node[dp-hd] at (2,0.35) {$2$};
@@ -488,7 +496,7 @@ $[1,6]$ & $k=1$：$0+516+6\cdot10\cdot4=756$；$k=2$：$180+396+6\cdot3\cdot4=\m
 \node[dp-cd1, minimum width=1.05cm] at (6,-4.5) {160};
 \node[dp-hd, anchor=east] at (0.45,-5.5) {$6$};
 \node[dp-cd0, minimum width=1.05cm] at (6,-5.5) {0};
-\end{tikzpicture}\hspace{0.8cm}\begin{tikzpicture}[x=0.8cm, y=0.62cm]
+\end{tikzpicture}\hspace{0.8cm}\begin{tikzpicture}[x=0.8cm, y=0.62cm, baseline=(current bounding box.north)]
 \node[font=\small] at (3.00,1.15) {$s[i,j]$};
 \node[dp-hd] at (1,0.35) {$j=2$};
 \node[dp-hd] at (2,0.35) {$3$};
@@ -519,6 +527,7 @@ $[1,6]$ & $k=1$：$0+516+6\cdot10\cdot4=756$；$k=2$：$180+396+6\cdot3\cdot4=\m
 \diagcaption{$\langle 6, 10, 3, 12, 5, 8, 4 \rangle$ 的 $m$ 表和 $s$ 表。 $m[1, 6] = 648$ 是答
 案。 橘框是 \proc{Print-Parens} 走過的格子：$[1,6]$、$[1,2]$、$[3,6]$、$[3,5]$、$[3,4]$。}
 \label{fig:dp-mc-tables}
+\end{minipage}
 \end{center}
 
 從表裡還可以看出幾件事：
@@ -768,6 +777,8 @@ $X = \texttt{PALETTE}$（$m = 7$），$Y = \texttt{PLANET}$（$n = 6$）。 列�
 一列一列由左往右填。
 
 \begin{center}
+\begin{minipage}{\linewidth}
+\centering
 \begin{tikzpicture}[x=0.98cm, y=0.66cm]
 \node[dp-hd] at (0,1) {$j$};
 \node[dp-hd] at (-1,0) {$i$};
@@ -860,6 +871,7 @@ $X = \texttt{PALETTE}$（$m = 7$），$Y = \texttt{PLANET}$（$n = 6$）。 列�
 邊界。 從右下角 $c[7, 6] = 4$ 沿箭頭走回左上，經過的格子加框；粉紅色的是 $\nwarrow$，也就
 是被選進 LCS 的字元：\texttt{P}、\texttt{A}、\texttt{E}、\texttt{T}。}
 \label{fig:dp-lcs-table}
+\end{minipage}
 \end{center}
 
 看幾格是怎麼來的：
@@ -937,7 +949,7 @@ $\lfloor m/2 \rfloor$ 列的哪一格，再對左上、右下兩塊分治。 時
 換成虛擬碼~\ref{alg:dp-lcs-two-rows} 的兩列即可。 字串的第 $i$ 個字元在 C 裡是 \texttt{x[i - 1]}，表的索引仍然從 $0$ 開始，第 $0$
 列、第 $0$ 欄是邊界。
 
-\begin{example}[label=ex:dp-lcs]{c}{(lcs.c) LCS 的完整表與只留兩列}
+\begin{example}[label=ex:dp-lcs]{c}{(lcs.c) LCS 的填表與還原}
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -988,12 +1000,12 @@ int main(void)
     static char x[MAXLEN + 1], y[MAXLEN + 1], z[MAXLEN + 1];
     while (scanf("%1000s %1000s", x, y) == 2) {
         int len = lcs(x, y, z);
-        printf("%s %s: length %d, LCS = %s\n", x, y, len, z);
+        printf("length %d: %s\n", len, z);
     }
     return 0;
 }
 \end{example}
-\iosample{PALETTE PLANET \\ PLANET PALETTE \\ SUBSEQUENCE CONSEQUENCES}{PALETTE PLANET: length 4, LCS = PAET \\ PLANET PALETTE: length 4, LCS = PLET \\ SUBSEQUENCE CONSEQUENCES: length 8, LCS = SEQUENCE}
+\iosample{PALETTE PLANET \\ PLANET PALETTE \\ SUBSEQUENCE CONSEQUENCES}{length 4: PAET \\ length 4: PLET \\ length 8: SEQUENCE}
 
 第二組把兩個字串對調，長度一樣是 $4$，還原出來的卻是 \texttt{PLET}：對調之後列和欄互換，
 「平手取上」變成了原本的「平手取左」。 第三組說明 LCS 不必是連續的一段：
@@ -1054,6 +1066,8 @@ $k_{i+1}$ 之間的詞（例如 $q_3$ 數的是 \texttt{goto} 和 \texttt{int} �
 全部試一遍是指數時間。
 
 \begin{center}
+\begin{minipage}{\linewidth}
+\centering
 \begin{tikzpicture}[x=0.62cm, y=0.95cm, baseline=(current bounding box.north)]
 \node[dp-ext] (gd0) at (0,-2) {$d_0$};
 \node[dp-key] (gk1) at (1,-1) {\texttt{char}};
@@ -1105,6 +1119,7 @@ $k_{i+1}$ 之間的詞（例如 $q_3$ 數的是 \texttt{goto} 和 \texttt{int} �
 根：先挑 \texttt{for}（$10$ 次），右邊再挑 \texttt{int}。 (b) 最佳的樹，根是
 \texttt{int}，只出現 $8$ 次。}
 \label{fig:dp-obst-trees}
+\end{minipage}
 \end{center}
 
 直覺的做法是讓最常查的鍵當根。 圖~\ref{fig:dp-obst-trees}(a) 這樣做，成本 $113$；(b) 的
@@ -1215,7 +1230,9 @@ $(1,5)$ & 50 & $r=1$：$0+86+50=136$；$r=2$：$9+54+50=113$；$r=3$：$32+36+50
 }
 
 \begin{center}
-\begin{tikzpicture}[x=0.85cm, y=0.62cm]
+\begin{minipage}{\linewidth}
+\centering
+\begin{tikzpicture}[x=0.85cm, y=0.62cm, baseline=(current bounding box.north)]
 \node[font=\small] at (3.50,1.15) {$e[i,j]$};
 \node[dp-hd] at (1,0.35) {$j=0$};
 \node[dp-hd] at (2,0.35) {$1$};
@@ -1250,7 +1267,7 @@ $(1,5)$ & 50 & $r=1$：$0+86+50=136$；$r=2$：$9+54+50=113$；$r=3$：$32+36+50
 \node[dp-cd0, minimum width=0.85cm] at (6,-4.5) {15};
 \node[dp-hd, anchor=east] at (0.45,-5.5) {$6$};
 \node[dp-c0, minimum width=0.85cm] at (6,-5.5) {0};
-\end{tikzpicture}\hspace{0.8cm}\begin{tikzpicture}[x=0.8cm, y=0.62cm]
+\end{tikzpicture}\hspace{0.8cm}\begin{tikzpicture}[x=0.8cm, y=0.62cm, baseline=(current bounding box.north)]
 \node[font=\small] at (3.00,1.15) {$\mathit{root}[i,j]$};
 \node[dp-hd] at (1,0.35) {$j=1$};
 \node[dp-hd] at (2,0.35) {$2$};
@@ -1281,6 +1298,7 @@ $(1,5)$ & 50 & $r=1$：$0+86+50=136$；$r=2$：$9+54+50=113$；$r=3$：$32+36+50
 \diagcaption{$e$ 和 $\mathit{root}$ 兩張表（$w$ 的值見上表第二欄）。 灰底的是 $j = i - 1$ 的空樹，底色深淺交錯的是不
 同長度的區間。 答案是 $e[1, 5] = 109$。}
 \label{fig:dp-obst-tables}
+\end{minipage}
 \end{center}
 
 \textbf{由 root 表建樹}：$\mathit{root}[1, 5] = 4$，根是 $k_4 = \texttt{int}$；左邊是
@@ -1294,8 +1312,13 @@ $k_1..k_3$，$\mathit{root}[1, 3] = 2$，根是 \texttt{for}，它的左右各�
 \[
 \mathit{root}[i, j - 1] \le \mathit{root}[i, j] \le \mathit{root}[i + 1, j] ,
 \]
-所以第 10 行的 $r$ 只要從 $\mathit{root}[i, j-1]$ 試到 $\mathit{root}[i+1, j]$。 同一條對角
-線上，這些範圍的長度加起來會前後相消，總共是 $O(n)$，所以總時間降到 $\Theta(n^2)$。 例如 $e[1, 5]$ 只要試
+所以第 10 行的 $r$ 只要從 $\mathit{root}[i, j-1]$ 試到 $\mathit{root}[i+1, j]$，共
+$\mathit{root}[i+1, j] - \mathit{root}[i, j-1] + 1$ 個。 固定區間長度 $\ell$，把 $i = 1, 2,
+\ldots, n - \ell + 1$ 這些個數加起來（$j = i + \ell - 1$ 跟著 $i$ 變）：第 $i$ 項加的
+$\mathit{root}[i+1, j]$，正好是第 $i + 1$ 項減的 $\mathit{root}[(i+1), (j+1) - 1]$，兩兩抵銷，最
+後只剩 $\mathit{root}[n - \ell + 2, n] - \mathit{root}[1, \ell - 1]$ 和 $n - \ell + 1$ 個 $1$，不超過
+$n + (n - \ell + 1) \le 2n$。 每個 $\ell$ 是 $O(n)$，$n$ 個 $\ell$ 合起來，總時間
+降到 $\Theta(n^2)$。 例如 $e[1, 5]$ 只要試
 $r = \mathit{root}[1, 4] = 2$ 到 $\mathit{root}[2, 5] = 4$ 這三個。
 
 \begin{examnote}
@@ -1303,8 +1326,8 @@ $r = \mathit{root}[1, 4] = 2$ 到 $\mathit{root}[2, 5] = 4$ 這三個。
 加一，外部節點的成本是深度，所以空樹 $e[i, i-1] = 0$。 CLRS 把走到外部節點也算一次，外部
 節點的成本是深度加一，所以它的 $e[i, i-1] = q_{i-1}$，每一格的 $e$ 都比本書多
 $q_{i-1} + q_i + \cdots + q_j$；本節的例子照 CLRS 的成本模型是 $109 + 19 = 128$。 另一種常見
-的寫法用 $c(i, j)$ 表示 $a_{i+1}, \ldots, a_j$ 這一段，$c(i, i) = 0$、$w(i, i) = q_i$，數法
-和本書相同，只是索引差一。 幾種成本模型的 $\mathit{root}$ 表和最佳樹都一樣（相差的是一個和
+的寫法（例如 Horowitz、Sahni 等人的 \textit{Computer Algorithms}）用 $c(i, j)$ 表示
+$a_{i+1}, \ldots, a_j$ 這一段，$c(i, i) = 0$、$w(i, i) = q_i$，數法和本書相同，只是索引差一。 幾種成本模型的 $\mathit{root}$ 表和最佳樹都一樣（相差的是一個和
 樹的形狀無關的常數），但 $e$ 的數值不同，答案要照題目的定義寫，必要時寫一句「依題意，查
 不到時不計走到外部節點那一步」。
 \end{examnote}
@@ -1395,6 +1418,8 @@ K[i - 1, c], & i \ge 1 \text{ 且 } w_i > c, \\
 \label{sec:dp-knapsack-trace}
 
 \begin{center}
+\begin{minipage}{\linewidth}
+\centering
 \begin{tikzpicture}[x=0.72cm, y=0.6cm]
 \node[dp-hd, anchor=east] at (-0.5,0.9) {$c$};
 \node[dp-hd] at (0,0.9) {0};
@@ -1484,6 +1509,7 @@ K[i - 1, c], & i \ge 1 \text{ 且 } w_i > c, \\
 \diagcaption{專題例子的 $K$ 表。 列左邊的括號是 $(w_i, v_i)$。 從 $K[5, 10] = 30$ 往上還原，
 經過的格子加框；粉紅色的格子和上一列不同，表示拿了那一列的物品：功能 4、2、1。}
 \label{fig:dp-knapsack-table}
+\end{minipage}
 \end{center}
 
 幾格是這樣算的：
@@ -1712,6 +1738,8 @@ $x_i = y_j$ 時三項還是要一起比；不過可以證明這時取左上角�
 時間和空間都是 $\Theta(mn)$；只要距離的話，同樣可以只留兩列。
 
 \begin{center}
+\begin{minipage}{\linewidth}
+\centering
 \begin{tikzpicture}[x=0.78cm, y=0.6cm]
 \node[dp-hd] at (0,1.55) {0};
 \node[dp-hd] at (1,1.55) {1};
@@ -1811,6 +1839,7 @@ $x_i = y_j$ 時三項還是要一起比；不過可以證明這時取左上角�
 \diagcaption{\texttt{PARTNER}（列）改成 \texttt{PRINTER}（欄）的 $D$ 表，答案 $D[7, 7] = 3$。
 加框的是還原時走過的格子。}
 \label{fig:dp-edit-table}
+\end{minipage}
 \end{center}
 
 \textbf{還原。} 從 $[m, n]$ 往回走，每一步看這一格的值是由哪一項得到的，依序檢查：左上（相同
@@ -2159,8 +2188,10 @@ d_{ij}^{(k)} = \min\bigl( d_{ij}^{(k-1)},\ d_{ik}^{(k-1)} + d_{kj}^{(k-1)} \bigr
 子問題是獨立的；這正是「沒有負環」這個條件的作用。
 
 子問題有 $n^3$ 個，每個 $O(1)$，時間 $\Theta(n^3)$。 第 $k$ 層只用到第 $k - 1$ 層，而且第 $k$
-層的第 $k$ 列、第 $k$ 欄和第 $k - 1$ 層相同（$d_{kk}^{(k-1)} = 0$），所以可以只用一個矩陣就地
-更新，空間 $\Theta(n^2)$。 這就是 \textbf{Floyd--Warshall 演算法}：
+層的第 $k$ 列、第 $k$ 欄和第 $k - 1$ 層相同：以第 $k$ 欄為例，$d_{kk}^{(k-1)} = 0$，所以
+$d_{ik}^{(k)} = \min\bigl(d_{ik}^{(k-1)},\ d_{ik}^{(k-1)} + 0\bigr) = d_{ik}^{(k-1)}$，第 $k$ 列同理。
+第 $k$ 層要讀的只有第 $k$ 列、第 $k$ 欄，它們在這一層不會變，所以可以只用一個矩陣就地更新，
+空間 $\Theta(n^2)$。 這就是 \textbf{Floyd--Warshall 演算法}：
 
 \begin{pseudo}[label=alg:dp-fw]{Floyd--Warshall（就地更新）}
 \Function{Floyd-Warshall}{$W, n$}
@@ -2195,16 +2226,17 @@ D^{(3)} = \begin{pmatrix} 0 & 4 & 7 & \mathbf{5} \\ \mathbf{9} & 0 & 3 & \mathbf
 7 + (-2)$，也就是 $1 \to 2 \to 3 \to 4$。 $D^{(4)}$ 的 $d_{31} = 3$ 是 $3 \to 4 \to 1$，比直接
 的邊 $6$ 短。 每一層都有格子變小，最後一層就是答案。
 
-子問題也可以改成「最多用 $m$ 條邊」：$\ell_{ij}^{(m)} = \min_{t} \bigl(\ell_{it}^{(m-1)} +
-w_{tj}\bigr)$，看最後一條邊從哪個點 $t$ 走進 $j$。 要算到 $m = n - 1$，每層 $\Theta(n^3)$，共
-$\Theta(n^4)$；它的形狀和矩陣乘法一樣，用重複平方可以降到 $\Theta(n^3 \lg n)$。 同一個問題，
+子問題也可以改成「最多用 $k$ 條邊」（這裡的 $k$ 是邊數，不是中間點的編號）：
+$\ell_{ij}^{(k)} = \min_{t} \bigl(\ell_{it}^{(k-1)} + w_{tj}\bigr)$，看最後一條邊從哪個點 $t$
+走進 $j$。 要算到 $k = n - 1$，每層 $\Theta(n^3)$，共 $\Theta(n^4)$；它的形狀和矩陣乘法一樣，
+用第~\ref{sec:dc-power}~節快速冪的反覆平方可以降到 $\Theta(n^3 \lg n)$。 同一個問題，
 子問題選得不同，時間可以差很多，第~25~章會比較這幾種做法。
 
 \subsection{本章的 DP 整理}
 
 \begin{center}
 \small
-\begin{tabular}{p{0.15\linewidth}p{0.27\linewidth}ccp{0.17\linewidth}}
+\begin{tabular}{>{\raggedright\arraybackslash}p{0.2\linewidth}>{\raggedright\arraybackslash}p{0.22\linewidth}cc>{\raggedright\arraybackslash}p{0.22\linewidth}}
 \toprule
 問題 & 子問題 & 子問題數 & 每個的選擇 & 時間 \\
 \midrule
@@ -2229,11 +2261,11 @@ Floyd--Warshall & 中間點限 $\{1..k\}$ & $\Theta(n^3)$ & $2$ & $\Theta(n^3)$ 
 \section{本章常見錯誤}
 \label{sec:dp-pitfalls}
 
-\begin{center}
-\begin{tabular}{p{0.25\linewidth}p{0.50\linewidth}p{0.15\linewidth}}
+\begin{longtable}{p{0.25\linewidth}p{0.48\linewidth}>{\raggedright\arraybackslash}p{0.17\linewidth}}
 \toprule
 錯誤 & 例子 & 見 \\
 \midrule
+\endhead
 沒有定義表格的一格 & 只寫遞迴式，沒寫 $c[i, j]$ 代表什麼，或邊界漏寫 &
 第~\ref{sec:dp-steps}~節 \\
 記憶化的記號和答案撞在一起 & 用 $0$ 表示「還沒算過」，但子問題的答案本來就可能是 $0$，於
@@ -2257,8 +2289,7 @@ LIS 的答案 & 答案寫成 $L[n]$，不是 $\max_i L[i]$；把最後的 tail �
 第~\ref{sec:dp-lis-fast}~節 \\
 Floyd--Warshall 的迴圈順序 & 把 $k$ 放在最內層 & 第~\ref{sec:dp-apsp}~節 \\
 \bottomrule
-\end{tabular}
-\end{center}
+\end{longtable}
 
 \section{觀念題}
 \label{sec:dp-exercises}
@@ -2348,7 +2379,7 @@ $f_3(h)$ & 0 & 4 & 6 & 7 & 8 \\
 \begin{enumerate}
 \item 有向無環圖上，從 $s$ 到 $t$ 邊數最多的路徑。
 \item 一般有向圖上，從 $s$ 到 $t$ 邊數最多的簡單路徑。
-\item 帶權有向圖上，從 $s$ 到 $t$、恰好走 $m$ 條邊（點可以重複）的最小權重走法。
+\item 帶權有向圖上，從 $s$ 到 $t$、恰好走 $k$ 條邊（點可以重複）的最小權重走法。
 \end{enumerate}
 \end{enumerate}
 
@@ -2436,7 +2467,8 @@ Subsequences''，\textit{Communications of the ACM} 18(6)，1975：只用線性�
 來說，兩者的上界相同。 (b) 錯：是擬多項式。 (c) 錯：$m[i, j]$ 要用到第 $i$ 列左邊的所有
 格子和第 $j$ 欄下面的所有格子，散在很多列，只留兩列不夠。 (d) 對：第 $k$ 輪要用到的
 $D[i, k]$、$D[k, j]$ 必須已經是「中間點在 $\{1..k-1\}$」的最短值。 (e) 錯：最佳子結構只保證
-遞迴式寫得出來，子問題可能有指數多個，例如旅行推銷員問題的子問題是「走過的點的集合」。
+遞迴式寫得出來，子問題可能有指數多個，例如旅行推銷員問題（第~20~章：每個城市走一次再回到起點的最短路
+線）用動態規劃時，子問題要記住「走過的點的集合」，有 $2^n$ 種。
 (f) 錯：長度不變，但平手規則的方向跟著對調，還原出來的可能不同，範例~\ref{ex:dp-lcs} 的前兩
 組就是例子。
 
@@ -2590,7 +2622,7 @@ $G[3, t]$ & 0 & 5 & 9 & 12 & 16 \\
 科分 $2$ 小時；剩 $G[1, 1]$，第 $1$ 科分 $1$ 小時。 最高 $16$ 分（$5 + 7 + 4$）。 一般情況有
 $n(T+1)$ 格，每格最多試 $T + 1$ 個 $h$，時間 $\Theta(nT^2)$。 這也是擬多項式（$T$ 是數值）。
 
-\item
+\item 四個矩陣如下，粗體是這一層變小的格子。
 {\small
 \[
 D^{(0)} = \begin{pmatrix} 0 & 5 & 4 \\ 2 & 0 & -3 \\ 4 & \infty & 0 \end{pmatrix},\;
@@ -2605,7 +2637,7 @@ $d_{21}^{(3)} = -3 + 4$（$2 \to 3 \to 1$）。
 \item (a)、(c) 有，(b) 沒有。 (a)：有向無環圖上的路徑一定是簡單的。 若最長路徑經過 $v$，把
 $s \leadsto v$ 那段換成更長的一段，接上 $v \leadsto t$ 那段後如果重複經過某個點 $u$，就表示
 $u$ 能走到 $v$、$v$ 又能走到 $u$，形成環，矛盾；所以剪下貼上成立，可以依拓樸順序做 DP（第~22~
-章）。 (b)：第~\ref{sec:dp-substructure}~節的三角形就是反例。 (c)：恰好 $m$ 條邊的最佳走法，
-去掉最後一條邊 $(u, t)$ 後，一定是恰好 $m - 1$ 條邊到 $u$ 的最佳走法；點可以重複，兩段不會互
+章）。 (b)：第~\ref{sec:dp-substructure}~節的三角形就是反例。 (c)：恰好 $k$ 條邊的最佳走法，
+去掉最後一條邊 $(u, t)$ 後，一定是恰好 $k - 1$ 條邊到 $u$ 的最佳走法；點可以重複，兩段不會互
 相限制。 這就是第~\ref{sec:dp-apsp}~節「限制邊數」的子問題。
 \end{enumerate}

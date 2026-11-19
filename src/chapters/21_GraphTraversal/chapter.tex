@@ -23,10 +23,7 @@
     gtr-ptr/.style={-{Stealth[length=1.8mm]}, draw=black!70},
     gtr-iv/.style={draw=coreStroke, fill=coreFill, rounded corners=1pt},
 }
-% 虛擬碼裡的三種顏色
-\newcommand{\gtrwhite}{\textsc{white}}
-\newcommand{\gtrgray}{\textsc{gray}}
-\newcommand{\gtrblack}{\textsc{black}}
+% 虛擬碼裡的三種顏色 \gtrwhite、\gtrgray、\gtrblack 定義在 sleek-pseudo.sty
 % 鄰接串列的一列：\gtradjrow{y}{頂點}{鄰居串列（逗號分開，空的寫 {}）}
 \newcommand{\gtradjrow}[3]{%
     \node[gtr-cell, minimum width=0.7cm] (h#2) at (0, #1) {#2};
@@ -269,7 +266,7 @@ $n$ 個頂點、$m$ 條邊的無向圖至少有 $n - m$ 個連通元件，而且
 \item $u$、$v$ 原本在不同元件：兩個元件併成一個，元件數減一。
 \end{itemize}
 每條邊最多讓元件數減一，所以最後至少剩 $n - m$ 個。 剛好剩 $n - m$ 個，等於說每條邊都
-屬於第二種情形。 如果某條邊屬於第一種，最後的圖顯然有環；反過來，如果最後的圖有環，看
+屬於第二種情形。 如果某條邊屬於第一種，加入它的時候就形成了一個環，之後只加邊不刪邊，最後的圖仍然有這個環；反過來，如果最後的圖有環，看
 這個環上最後加入的那條邊 $(u, v)$，加入它的時候，環上其他的邊已經把 $u$、$v$ 連起來
 了，它屬於第一種情形。
 \end{proof}
@@ -596,10 +593,10 @@ $\pi[v]$ 是 $v$ 是被哪一個頂點發現的，叫 $v$ 的\textbf{前驅}（p
 \EndProcedure
 \end{pseudo}
 
-第 2、3 行把所有頂點設成白色。 第 4 到 7 行把起點塗成灰色、距離設成 $0$、放進佇
+第 2、3 行把所有頂點設成白色。 第 4--7 行把起點塗成灰色、距離設成 $0$、放進佇
 列。 主迴圈每一輪從佇列前端拿出一個頂點 $u$（第 9 行），依序檢查它的每個鄰居 $v$：
 $v$ 是白色，表示第一次看到它，就塗成灰色，距離比 $u$ 多 $1$，記下是 $u$ 發現它的，放
-到佇列尾端（第 11 到 15 行）。 灰色或黑色的鄰居已經發現過了，什麼都不做。 $u$ 的鄰居
+到佇列尾端（第 11--15 行）。 灰色或黑色的鄰居已經發現過了，什麼都不做。 $u$ 的鄰居
 全部看完後塗成黑色（第 16 行）。
 
 只有第 11 行會看顏色，而且只分「白」和「不是白」，所以灰和黑其實可以合併成一種「已發
@@ -702,10 +699,10 @@ $3, 2$，$4$ 就會由 $3$ 發現），但每個頂點的 $d$ 不會變，因為
 
 \subsection{時間}
 
-第 2、3 行花 $\Theta(n)$。 頂點只有在白色時才會被放進佇列（第 11 到 15 行），放進去就變
+第 2、3 行花 $\Theta(n)$。 頂點只有在白色時才會被放進佇列（第 11--15 行），放進去就變
 成灰色，不會再變回白色，所以每個頂點最多進佇列一次、出佇列一次，佇列操作共 $O(n)$
 次，每次 $\Theta(1)$。 每個頂點出佇列時把它的串列掃一遍，所有串列的長度加起來是 $m$
-（有向）或 $2m$（無向），所以第 10 到 15 行總共執行 $O(m)$ 次。 合起來，用鄰接串列時
+（有向）或 $2m$（無向），所以第 10--15 行總共執行 $O(m)$ 次。 合起來，用鄰接串列時
 BFS 的時間是 $O(n + m)$，空間是 $O(n)$（顏色、$d$、$\pi$ 和佇列）。 這是第~3~章聚合法
 的典型用法：某一輪的工作量可能很多，但把全部的工作量加起來只有這麼多。
 
@@ -731,7 +728,7 @@ $\pi[v]$ 的最短路徑接上邊 $(\pi[v], v)$，就是一條從 $s$ 到 $v$ �
 需要三個小事實。
 
 \textbf{(a) 走一條邊，距離最多加一。} 若 $(u, v) \in E$，則 $\delta(s, v) \le \delta(s, u)
-+ 1$。 $u$ 到不了時右邊是 $\infty$，顯然成立；否則從 $s$ 到 $u$ 的最短路徑再走 $(u, v)$，
++ 1$。 $u$ 到不了時右邊是 $\infty$，不等式自動成立；否則從 $s$ 到 $u$ 的最短路徑再走 $(u, v)$，
 就是一條長度 $\delta(s, u) + 1$ 的路徑到 $v$。
 
 \textbf{(b) $d$ 不會比真正的距離小。} 每個頂點的 $d$ 只在被發現時設定一次。 $d[s] = 0
@@ -937,8 +934,8 @@ DFS 森林有兩棵樹：$A$ 為根的樹包含 $A$ 到 $E$，$F$ 為根的樹�
 \subsection{時間}
 
 \proc{DFS-Visit} 只在頂點是白色時被呼叫（第 7、15 行），一進去就把它塗灰（第 11 行），
-所以每個頂點剛好被呼叫一次。 每次呼叫把自己的串列掃一遍，第 12 到 15 行總共執行
-$\sum_u |\mathit{Adj}[u]| = \Theta(m)$ 次（無向圖是 $2m$）。 加上第 2 到 7 行的
+所以每個頂點剛好被呼叫一次。 每次呼叫把自己的串列掃一遍，第 12--15 行總共執行
+$\sum_u |\mathit{Adj}[u]| = \Theta(m)$ 次（無向圖是 $2m$）。 加上第 2--7 行的
 $\Theta(n)$，DFS 的時間是 $\Theta(n + m)$。 和 BFS 一樣是聚合分析；用鄰接矩陣則是
 $\Theta(n^2)$。
 
@@ -1092,7 +1089,7 @@ $18$ 萬個頂點的鏈上就當掉了，每層大約用掉 $48$ 個位元組。
 
 把它和虛擬碼~\ref{alg:gtr-dfs} 對照：遞迴版「呼叫 \proc{DFS-Visit}$(G, v)$」變成第 11 到
 14 行的「設好 $v$ 再推進堆疊」；遞迴版的 \textbf{for} 迴圈在 $u$ 的串列上前進一步，變成第 8、
-9 行把 $\mathit{next}[u]$ 往後移一格；遞迴版返回前的第 16 到 18 行，變成第 16、17 行的 pop
+9 行把 $\mathit{next}[u]$ 往後移一格；遞迴版返回前的第 16--18 行，變成第 16、17 行的 pop
 和完成。 每一輪迴圈只看堆疊頂端的那一個頂點，而頂端永遠是遞迴版「正在執行」的那一層，所以兩個
 版本發現和完成頂點的順序完全相同，$d$、$f$、$\pi$ 一樣。 堆疊最多 $n$ 個頂點，每一輪要嘛
 看掉一條邊、要嘛完成一個頂點，總共 $\Theta(n + m)$ 輪。 外層的 \proc{DFS} 不用改，把第 7
@@ -1587,7 +1584,8 @@ void graph_free(Graph *g)
     free(g);
 }
 
-// 頂點的名字：大寫字母 A, B, ... 或數字 1, 2, ...；程式裡一律是 0..n-1。
+// 頂點的名字：大寫字母 A, B, ... 或數字 1, 2, ...
+// 程式裡一律是 0..n-1。
 int letters = 0;
 
 int read_vertex(int n, int *v)
@@ -1600,7 +1598,8 @@ int read_vertex(int n, int *v)
     return *v >= 0 && *v < n;
 }
 
-void put(int v)                 // 印一個空白和頂點的名字；-1 印成 NIL
+// 印一個空白和頂點的名字；-1 印成 NIL
+void put(int v)
 {
     if (v < 0)
         printf(" NIL");
@@ -1787,8 +1786,8 @@ int main(void)
     // 第一張圖（G1）：從 s 做 BFS、印出到 t 的路徑；再找連通元件。
     Graph *g = read_graph();
     int s, t, bu = -1, bv = -1;
-    if (g == NULL || !read_vertex(g->n, &s) || !read_vertex(g->n, &t)
-        || !setup(g->n))
+    if (g == NULL || !read_vertex(g->n, &s)
+        || !read_vertex(g->n, &t) || !setup(g->n))
         return 1;
     int *q = malloc(g->n * sizeof *q);
     if (q == NULL)
@@ -1818,7 +1817,7 @@ int main(void)
         printf("bipartite: no, edge");
         put(bu);
         put(bv);
-        printf(" joins two vertices at distance %d\n", d[bu]);
+        printf(", d = %d\n", d[bu]);
     }
     free(color);
     free(q);
@@ -1860,7 +1859,9 @@ int main(void)
         if (!graph_add_edge(g, i, i + 1))
             return 1;
     int deepest = dfs_iter(g, 0, stack, cur);
-    printf("chain: n = %d, f[1] = %d, deepest stack = %d\n", n, f[0], deepest);
+    printf("chain: n = %d\n", n);
+    printf("chain: f[1] = %d\n", f[0]);
+    printf("chain: deepest stack = %d\n", deepest);
     free(stack);
     free(cur);
     free(color);
@@ -1868,7 +1869,7 @@ int main(void)
     return 0;
 }
 \end{example}
-\iosample{10 11 0 \\ 1 2 \\ 1 3 \\ 2 4 \\ 3 4 \\ 3 5 \\ 4 6 \\ 5 6 \\ 5 7 \\ 6 7 \\ 8 9 \\ 9 10 \\ 1 7 \\ 8 13 1 \\ A B \\ A D \\ A E \\ B C \\ B E \\ C A \\ D C \\ E D \\ F G \\ F H \\ G C \\ G H \\ H F}{dequeue 1 -> 2 3 | queue 2 3 \\ dequeue 2 -> 4 | queue 3 4 \\ dequeue 3 -> 5 | queue 4 5 \\ dequeue 4 -> 6 | queue 5 6 \\ dequeue 5 -> 7 | queue 6 7 \\ dequeue 6 -> | queue 7 \\ dequeue 7 -> | queue (empty) \\ d: 0 1 1 2 2 3 3 inf inf inf \\ pi: NIL 1 1 2 3 4 5 NIL NIL NIL \\ path: 1 3 5 7 \\ component 1: 1 2 3 4 5 6 7 \\ component 2: 8 9 10 \\ bipartite: no, edge 6 7 joins two vertices at distance 3 \\ edge A B tree \\ edge B C tree \\ edge C A back \\ edge B E tree \\ edge E D tree \\ edge D C cross \\ edge A D forward \\ edge A E forward \\ edge F G tree \\ edge G C cross \\ edge G H tree \\ edge H F back \\ edge F H forward \\ d: 1 2 3 6 5 11 12 13 \\ f: 10 9 4 7 8 16 15 14 \\ pi: NIL A B E B NIL F G \\ cycle: yes \\ iterative d: 1 2 3 6 5 11 12 13 \\ iterative f: 10 9 4 7 8 16 15 14 \\ chain: n = 1000000, f[1] = 2000000, deepest stack = 1000000}
+\iosample{10 11 0 \\ 1 2 \\ 1 3 \\ 2 4 \\ 3 4 \\ 3 5 \\ 4 6 \\ 5 6 \\ 5 7 \\ 6 7 \\ 8 9 \\ 9 10 \\ 1 7 \\ 8 13 1 \\ A B \\ A D \\ A E \\ B C \\ B E \\ C A \\ D C \\ E D \\ F G \\ F H \\ G C \\ G H \\ H F}{dequeue 1 -> 2 3 | queue 2 3 \\ dequeue 2 -> 4 | queue 3 4 \\ dequeue 3 -> 5 | queue 4 5 \\ dequeue 4 -> 6 | queue 5 6 \\ dequeue 5 -> 7 | queue 6 7 \\ dequeue 6 -> | queue 7 \\ dequeue 7 -> | queue (empty) \\ d: 0 1 1 2 2 3 3 inf inf inf \\ pi: NIL 1 1 2 3 4 5 NIL NIL NIL \\ path: 1 3 5 7 \\ component 1: 1 2 3 4 5 6 7 \\ component 2: 8 9 10 \\ bipartite: no, edge 6 7, d = 3 \\ edge A B tree \\ edge B C tree \\ edge C A back \\ edge B E tree \\ edge E D tree \\ edge D C cross \\ edge A D forward \\ edge A E forward \\ edge F G tree \\ edge G C cross \\ edge G H tree \\ edge H F back \\ edge F H forward \\ d: 1 2 3 6 5 11 12 13 \\ f: 10 9 4 7 8 16 15 14 \\ pi: NIL A B E B NIL F G \\ cycle: yes \\ iterative d: 1 2 3 6 5 11 12 13 \\ iterative f: 10 9 4 7 8 16 15 14 \\ chain: n = 1000000 \\ chain: f[1] = 2000000 \\ chain: deepest stack = 1000000}
 
 對照前面的手算：\texttt{dequeue} 那七列就是第~\ref{sec:gtr-bfs-trace}~節的佇列表，\texttt{d}、
 \texttt{pi} 兩列是那裡的結果表；\texttt{component} 兩列是 $G_1$ 的兩個連通元件，每一列依 BFS
@@ -1876,7 +1877,7 @@ int main(void)
 \texttt{edge} 那十三列和第~\ref{sec:gtr-class}~節的分類表逐列相同，接著的 \texttt{d}、\texttt{f}、
 \texttt{pi} 是第~\ref{sec:gtr-dfs-trace}~節的表，迴圈版印出的兩列和遞迴版一樣。
 
-最後一列是 $10^6$ 個頂點的鏈 $1 \to 2 \to \cdots \to 10^6$。 迴圈版的堆疊最深 $10^6$ 層，用
+最後三列是 $10^6$ 個頂點的鏈 $1 \to 2 \to \cdots \to 10^6$。 迴圈版的堆疊最深 $10^6$ 層，用
 的是 \texttt{malloc} 要來的 $4 \times 10^6$ 位元組；起點最晚完成，$f = 2n$。 同一條鏈交給
 \texttt{dfs\_visit}，程式會在遞迴到十幾萬層時當掉。
 
