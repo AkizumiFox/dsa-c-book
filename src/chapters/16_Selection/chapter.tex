@@ -1,0 +1,1388 @@
+\chapter{選擇問題}
+\label{ch:selection}
+
+% 本章的圖共用的樣式
+\tikzset{
+    outcell/.style={cell, fill=black!7, text=black!40, draw=black!25},
+    sc/.style={draw=black!55, minimum width=0.53cm, minimum height=0.56cm, inner sep=0pt, font=\ttfamily\scriptsize},
+    scout/.style={sc, fill=black!7, text=black!40, draw=black!25},
+    scmed/.style={sc, draw=optStroke, thick, fill=optFill},
+    scpiv/.style={sc, draw=memStroke, thick, fill=memFill},
+    tt/.style={draw=black!55, rounded corners=2pt, minimum width=0.62cm, minimum height=0.55cm, inner sep=0pt, font=\ttfamily\small, fill=white},
+    ttw/.style={tt, draw=memStroke, thick, fill=memFill},
+    tto/.style={tt, draw=optStroke, thick, fill=optFill},
+    te/.style={draw=black!50},
+    colc/.style={draw=black!45, minimum width=0.8cm, minimum height=0.55cm, inner sep=0pt, font=\ttfamily\small},
+    colle/.style={colc, fill=coreFill, draw=coreStroke},
+    colge/.style={colc, fill=greenFill, draw=greenStroke},
+    colx/.style={colc, fill=memFill, draw=memStroke, very thick},
+}
+% 分割追蹤的一列：\selrow{y}{說明}{數值}{p}{r}{q}；p..r 以外的格子是灰的，q 是橘色
+\newcommand{\selrow}[6]{%
+    \node[anchor=east, font=\small] at (0.35, #1) {#2};
+    \foreach \v [count=\k] in {#3} {
+        \ifnum\k=#6\relax
+            \node[hlcell, minimum width=0.78cm, minimum height=0.7cm] at (\k*0.82, #1) {\v};
+        \else\ifnum\k<#4\relax
+            \node[outcell, minimum width=0.78cm, minimum height=0.7cm] at (\k*0.82, #1) {\v};
+        \else\ifnum\k>#5\relax
+            \node[outcell, minimum width=0.78cm, minimum height=0.7cm] at (\k*0.82, #1) {\v};
+        \else
+            \node[cell, minimum width=0.78cm, minimum height=0.7cm] at (\k*0.82, #1) {\v};
+        \fi\fi\fi
+    }
+}
+
+期中考改完，老師請助教公布全班三百零一位同學成績的中位數，順便公布最高分和最低分。
+助教的第一個念頭是把成績排序，再拿正中間那一個。 只要一個數，卻把三百多個數全部排
+好，是不是做了太多事？ 最高分和最低分一起找，最少要比幾次？ 往下讀之前，先估計一
+下。
+
+這一章講\textbf{選擇問題}：從 $n$ 個數裡找出第 $i$ 小的那一個。 先看 $i = 1$、
+$i = n$ 這兩個最簡單的情形，算出同時找最大和最小、找第二大最少要比幾次；再講兩個在
+$O(n)$ 時間內解決一般情形的演算法。 第一個每次隨機挑一個數把陣列分成兩邊，只往其中
+一邊找，期望時間是線性；第二個用「中位數的中位數」挑分割的基準，最壞情況也是線性。
+兩個演算法都建立在第~14~章快速排序的分割（partition）上。
+
+這一章用到第~1~章的插入排序和期望值、第~2~章的代換法、第~12~章的指示變數；C 程式
+用到《C 程式設計基礎》第~15~章的遞迴和第~19~章的 \texttt{malloc}、\texttt{free}。
+
+\section{第 \texorpdfstring{$i$}{i} 小、最大與最小}
+\label{sec:sel-minmax}
+
+$n$ 個數由小到大排好以後，排在第 $i$ 個的數叫做第 $i$ 小的數，也叫第 $i$ 個
+\textbf{順序統計量}（order statistic）。 第 $1$ 小是最小值，第 $n$ 小是最大值。
+\textbf{中位數}（median）是正中間的那一個：$n$ 是奇數時是第 $(n+1)/2$ 小；$n$ 是偶
+數時中間有兩個，第 $n/2$ 小叫\textbf{下中位數}，第 $n/2 + 1$ 小叫\textbf{上中位數}。
+這本書說「中位數」時一律指下中位數，也就是第 $\lfloor (n+1)/2 \rfloor$ 小，$n$ 是奇
+數時兩種說法一樣。 統計課在 $n$ 是偶數時取兩個中間數的平均，那是另一個定義，在演算
+法裡不用，因為平均值不一定是輸入裡的數。
+
+\textbf{選擇問題}（selection problem）：輸入 $n$ 個數和一個整數 $i$，$1 \le i \le n$，
+輸出第 $i$ 小的數。 為了敘述方便，這一章的分析都假設 $n$ 個數互不相同。 有重複時，
+把每個數換成（數值，原本的位置）這一對，先比數值、數值一樣再比位置，就變成互不相同
+了；演算法本身大多不用改，第~\ref{sec:sel-random}~節最後會說明哪裡要小心。
+
+最直接的做法是先排序再取第 $i$ 個，要 $\Theta(n \lg n)$ 的時間。 也可以用第~8~章的
+堆積：由下而上建最小堆積花 $O(n)$，再取出 $i$ 次最小值，每次 $O(\lg n)$，共
+$O(n + i \lg n)$；$i$ 很小時很快，但找中位數時還是 $\Theta(n \lg n)$。 這一章的目標
+是對任何 $i$ 都做到 $O(n)$。
+
+這一章跟第~15~章一樣，只數「兩個輸入元素之間的比較」：演算法只能透過比較得知元素的
+大小，比較次數就是成本。 迴圈變數、名次之間的比較不算。
+
+\subsection{找最大值：\texorpdfstring{$n - 1$}{n - 1} 次，而且不能更少}
+
+從左到右掃一次，記住目前看過最大的數，每個新的數和它比一次，共比 $n - 1$ 次。 這已
+經是最少了。 把每一次比較想成一場比賽，大的贏、小的輸。 如果演算法結束時，除了它回
+答的最大值 $m$ 之外，還有一個數 $y$ 一場都沒輸過，那麼把 $y$ 改成比所有數都大，所有
+比較的結果都不會變（$y$ 每一場都是贏的，改大了還是贏），演算法卻還是回答 $m$，答錯
+了。 所以除了最大值，其他 $n - 1$ 個數每個都至少要輸一場；一次比較只產生一個輸家，
+至少要比 $n - 1$ 次。
+
+\subsection{同時找最大和最小}
+
+分開找要 $2(n - 1)$ 次。 可以省下大約四分之一：把數兩個兩個一組，先讓同一組的兩個
+數比一次，小的那個才有資格當最小值，大的那個才有資格當最大值，所以小的只和目前的最
+小值比，大的只和目前的最大值比。 每兩個數花 $3$ 次比較，而不是 $4$ 次。
+
+開頭要看 $n$ 的奇偶。 $n$ 是奇數時，第一個數同時當作目前的最小和最大，剩下的偶數個
+兩兩一組；$n$ 是偶數時，前兩個數先比一次決定最小和最大，剩下的兩兩一組。
+
+\begin{pseudo}[label=alg:sel-minmax]{同時找最小和最大}
+\Function{Min-Max}{$A, n$}
+    \If{$n$ 是奇數}
+        \State $\mathit{lo} \gets A[1]$；$\mathit{hi} \gets A[1]$；$s \gets 2$
+    \Else
+        \State 比較 $A[1]$、$A[2]$，小的給 $\mathit{lo}$、大的給 $\mathit{hi}$；$s \gets 3$
+    \EndIf
+    \For{$j \gets s$ \To $n - 1$，每次加 $2$}
+        \State 比較 $A[j]$、$A[j + 1]$，小的給 $u$、大的給 $v$
+        \If{$u < \mathit{lo}$}
+            \State $\mathit{lo} \gets u$
+        \EndIf
+        \If{$v > \mathit{hi}$}
+            \State $\mathit{hi} \gets v$
+        \EndIf
+    \EndFor
+    \State \Return $(\mathit{lo}, \mathit{hi})$
+\EndFunction
+\end{pseudo}
+
+\begin{theorem}
+\label{thm:sel-minmax}
+$n \ge 1$ 時，\proc{Min-Max} 剛好比較 $\lceil 3n/2 \rceil - 2$ 次。
+\end{theorem}
+
+\begin{proof}
+第 6 行的迴圈每一輪處理 $A[j]$、$A[j+1]$ 兩個數，比較 $3$ 次（第 7、8、10 行）。
+
+$n$ 是奇數：第 3 行不比較，迴圈處理 $A[2..n]$ 的 $(n - 1)/2$ 組，共
+$3(n-1)/2$ 次。 而 $\lceil 3n/2 \rceil = (3n + 1)/2$，所以
+$\lceil 3n/2 \rceil - 2 = (3n - 3)/2 = 3(n-1)/2$，相等。
+
+$n$ 是偶數：第 5 行比較 $1$ 次，迴圈處理 $A[3..n]$ 的 $(n-2)/2$ 組，共
+$1 + 3(n-2)/2 = 3n/2 - 2 = \lceil 3n/2 \rceil - 2$ 次。
+
+正確性：迴圈每一輪開始時，$\mathit{lo}$ 和 $\mathit{hi}$ 是 $A[1..j-1]$ 的最小值和最
+大值（初始時 $j = s$，第 2--5 行正好處理了 $A[1..s-1]$）。 一輪裡，$A[j]$ 和
+$A[j+1]$ 之中較大的 $v$ 不可能是新的最小值（$u$ 比它小），較小的 $u$ 也不可能是新的
+最大值，所以只要拿 $u$ 更新最小值、$v$ 更新最大值，不變量就維持到 $j + 2$。 迴圈結
+束時 $j = n + 1$，$\mathit{lo}$、$\mathit{hi}$ 是整個陣列的最小和最大。
+\end{proof}
+
+這個次數也是最少的：任何只用比較的演算法，在最壞情況下都至少要比
+$\lceil 3n/2 \rceil - 2$ 次。 證明用的是\textbf{對手論證}（adversary argument）：想像
+有一個對手在演算法執行時才決定輸入，每次演算法要比較兩個數，對手就挑一個對演算法最
+不利、但和之前的回答不矛盾的結果。 只要對手能逼演算法比很多次，就證明了在最壞情況
+下一定要比這麼多次，因為對手回答完所有比較之後，一定能寫出一組和這些回答一致的實際
+數值，這組數值就是那個「最壞的輸入」。
+
+\begin{whybox}[同時找最大最小的下界]
+用前面「每一場比賽」的說法。 演算法結束時，除了最大值之外的 $n - 1$ 個數，每個都必
+須輸過至少一場；除了最小值之外的 $n - 1$ 個數，每個都必須贏過至少一場（理由和找最
+大值時一樣：一個從沒贏過的數可以被改成比所有數都小）。 把「某個數輸過」「某個數贏
+過」各算一條\textbf{消息}，演算法總共要收集至少 $2n - 2$ 條消息。
+
+把每個數分成四種狀態：沒比過（N）、只贏過（W）、只輸過（L）、贏過也輸過（B）。 對
+手這樣回答：
+\begin{itemize}
+\item N 對 N：隨便回答，兩個數分別變成 W 和 L，得到 $2$ 條消息。
+\item N 對 W：W 贏；N 對 L：L 輸；N 對 B：N 贏。 都只有原本是 N 的那個數得到 $1$ 條
+新消息。
+\item W 對 W：其中一個輸，變成 B，$1$ 條。 L 對 L：其中一個贏，變成 B，$1$ 條。
+\item W 對 L：W 贏；W 或 L 對 B：W 贏、L 輸；B 對 B：照目前定好的數值回答。 都沒有新
+消息。
+\end{itemize}
+這些回答不會互相矛盾：對手隨時可以把只贏過的數改得比所有數都大、把只輸過的數改得比
+所有數都小，而不影響之前的結果，上面每一條規則都只用到這兩種修改。
+
+只有 N 對 N 的比較能一次得到 $2$ 條消息，而每個數只會當一次 N，所以這種比較最多
+$\lfloor n/2 \rfloor$ 次，其他比較每次最多 $1$ 條消息。 要收集 $2n - 2$ 條，比較次數
+至少
+\[
+\left\lfloor \frac{n}{2} \right\rfloor + \left(2n - 2 - 2\left\lfloor \frac{n}{2} \right\rfloor\right)
+= 2n - 2 - \left\lfloor \frac{n}{2} \right\rfloor
+= \left\lceil \frac{3n}{2} \right\rceil - 2 .
+\]
+最後一步用到 $2n - \lfloor n/2 \rfloor = \lceil 3n/2 \rceil$。
+\end{whybox}
+
+\subsection{找第二大：錦標賽}
+
+第二大的數只輸給最大的那一個，所以它一定\textbf{直接}和最大值比過：如果它從沒和最大
+值比過，又被判定不是最大，它一定輸給了某個別的數，那個數比它大，它就不是第二大了。
+（演算法也必須確認它不是最大，所以它一定至少輸過一場。）
+
+這引出\textbf{錦標賽}（tournament）的做法：
+
+\begin{enumerate}
+\item 把 $n$ 個數兩兩配對比賽，贏的晉級；人數是奇數時，最後一個人輪空，直接晉級。
+一直比到剩下一個人，就是最大值。 每場比賽淘汰一個人，共 $n - 1$ 場。
+\item 第二大一定在「直接輸給冠軍的人」裡面。 冠軍每一輪最多比一場，總共
+$\lceil \lg n \rceil$ 輪（每一輪人數變成 $\lceil m/2 \rceil$，從 $n$ 變到 $1$ 要
+$\lceil \lg n \rceil$ 輪），所以這些人最多 $\lceil \lg n \rceil$ 個，在他們之中找最大，
+最多比 $\lceil \lg n \rceil - 1$ 次。
+\end{enumerate}
+
+\begin{center}
+\begin{tikzpicture}[x=1cm, y=0.95cm]
+\node[tt] (L1) at (0.000,0.00) {47};
+\node[tt] (L2) at (1.050,0.00) {65};
+\node[tto] (L3) at (2.100,0.00) {88};
+\node[ttw] (L4) at (3.150,0.00) {91};
+\node[tt] (L5) at (4.200,0.00) {38};
+\node[tt] (L6) at (5.250,0.00) {72};
+\node[tt] (L7) at (6.300,0.00) {56};
+\node[tt] (L8) at (7.350,0.00) {83};
+\node[tt] (L9) at (8.400,0.00) {60};
+\node[tt] (L10) at (9.450,0.00) {79};
+\node[tt] (L11) at (10.500,0.00) {74};
+\node[tto] (R1_1) at (0.525,1.00) {65};
+\node[ttw] (R1_2) at (2.625,1.00) {91};
+\node[tt] (R1_3) at (4.725,1.00) {72};
+\node[tt] (R1_4) at (6.825,1.00) {83};
+\node[tt] (R1_5) at (8.925,1.00) {79};
+\node[tt] (R1_6) at (10.500,1.00) {74};
+\node[ttw] (R2_1) at (1.575,2.00) {91};
+\node[tto] (R2_2) at (5.775,2.00) {83};
+\node[tt] (R2_3) at (9.713,2.00) {79};
+\node[ttw] (R3_1) at (3.675,3.00) {91};
+\node[tto] (R3_2) at (9.713,3.00) {79};
+\node[ttw] (R4_1) at (6.694,4.00) {91};
+\draw[te] (R1_1) -- (L1);
+\draw[te] (R1_1) -- (L2);
+\draw[te] (R1_2) -- (L3);
+\draw[te] (R1_2) -- (L4);
+\draw[te] (R1_3) -- (L5);
+\draw[te] (R1_3) -- (L6);
+\draw[te] (R1_4) -- (L7);
+\draw[te] (R1_4) -- (L8);
+\draw[te] (R1_5) -- (L9);
+\draw[te] (R1_5) -- (L10);
+\draw[te] (R1_6) -- (L11);
+\draw[te] (R2_1) -- (R1_1);
+\draw[te] (R2_1) -- (R1_2);
+\draw[te] (R2_2) -- (R1_3);
+\draw[te] (R2_2) -- (R1_4);
+\draw[te] (R2_3) -- (R1_5);
+\draw[te] (R2_3) -- (R1_6);
+\draw[te] (R3_1) -- (R2_1);
+\draw[te] (R3_1) -- (R2_2);
+\draw[te] (R3_2) -- (R2_3);
+\draw[te] (R4_1) -- (R3_1);
+\draw[te] (R4_1) -- (R3_2);
+\foreach \t/\lab in {0/參賽, 1/第 1 輪, 2/第 2 輪, 3/第 3 輪, 4/第 4 輪} {
+    \node[anchor=east, font=\small] at (-0.5, \t) {\lab};
+}
+\end{tikzpicture}
+\diagcaption{$11$ 個數的錦標賽，每個節點寫的是那場比賽的贏家，只有一個子節點的是輪
+空。 橘色是冠軍 $91$ 走過的路，粉紅色是直接輸給它的四個數 $88, 65, 83, 79$。 決賽輸
+給冠軍的 $79$ 不是第二大，第一輪就輸給冠軍的 $88$ 才是。}
+\label{fig:sel-tournament}
+\end{center}
+
+\begin{theorem}
+\label{thm:sel-second}
+$n \ge 2$ 時，錦標賽在最壞情況下用 $n + \lceil \lg n \rceil - 2$ 次比較找出第二大的數。
+\end{theorem}
+
+\begin{proof}
+第一步 $n - 1$ 次。 第二步：冠軍在每一輪不是比一場就是輪空，最多
+$\lceil \lg n \rceil$ 輪，所以直接輸給它的人 $c \le \lceil \lg n \rceil$ 個；在 $c$ 個
+數裡找最大要 $c - 1$ 次。 合計不超過 $n - 1 + \lceil \lg n \rceil - 1$。 正確性就是
+本小節開頭的論證：第二大在這 $c$ 個人裡面，而這 $c$ 個人都比冠軍小，其中最大的就是
+第二大。
+\end{proof}
+
+圖~\ref{fig:sel-tournament} 的 $11$ 個數：第一步比 $5 + 3 + 1 + 1 = 10$ 場，冠軍比了
+$4$ 場，四個人裡找最大再比 $3$ 次，共 $13 = 11 + \lceil \lg 11 \rceil - 2$ 次。 冠軍
+輪空的次數多時，比較會更少（觀念題第~\ref{sel-q-tour}~題）。
+
+這個次數在最壞情況下也是最少的。 下面只寫證明的骨架。
+
+\begin{whybox}[找第二大的下界（骨架）]
+任何找第二大的演算法，除了最大和第二大，其他 $n - 2$ 個數都要輸給某個不是最大值的
+數（否則它可能是第二大）；再加上第二大本身要輸給最大值。 設最大值總共直接打敗了
+$c$ 個數。 這 $c$ 個數裡，除了第二大以外的 $c - 1$ 個，都還要再輸一場給別人，所以
+「輸」的總場數至少是 $(n - 1) + (c - 1)$，每場比較只有一個輸家，比較次數至少
+$n + c - 2$。
+
+接著用對手論證逼 $c \ge \lceil \lg n \rceil$。 對手給每個數一個權重，一開始都是 $1$。
+兩個都沒輸過的數比賽時，權重大的贏，贏家把輸家的權重加到自己身上，輸家的權重變成
+$0$；有一方輸過時，讓沒輸過的那一方贏；兩方都輸過時，回答任何和之前一致的結果。 權
+重的總和一直是 $n$，最後全部集中在最大值身上。 最大值每贏一個權重為正的對手，自己
+的權重最多變成兩倍（對手的權重不比它大），從 $1$ 變成 $n$ 至少要贏
+$\lceil \lg n \rceil$ 場，而且每一場的對手都不一樣（輸過的數權重是 $0$）。 所以
+$c \ge \lceil \lg n \rceil$，比較次數至少 $n + \lceil \lg n \rceil - 2$。
+\end{whybox}
+
+\begin{examnote}
+錦標賽的題目，答案要畫出整棵比賽樹（輪空的人照題目的規則處理，沒有說明時讓最後一個
+人輪空），標出冠軍一路打敗的人，再在他們之中找最大。 常見的錯是直接拿決賽的輸家當
+第二大，圖~\ref{fig:sel-tournament} 就是反例。 比較次數要分開寫「找冠軍」和「在候選
+人中找最大」兩部分。
+\end{examnote}
+
+
+\section{隨機化選擇}
+\label{sec:sel-random}
+
+一般的 $i$ 要怎麼找？ 第~14~章的快速排序先挑一個\textbf{樞紐}（pivot），把比它小的
+放左邊、比它大的放右邊，再兩邊各自遞迴排序。 分割完之後，樞紐所在的位置 $q$ 就是它
+排序後的位置：左邊有 $q - p$ 個數比它小。 找第 $i$ 小時只需要知道答案在哪一邊，只往
+那一邊遞迴，另一邊丟掉不管。 這個想法是 Hoare 在 1961 年提出的，常叫做
+\textbf{快速選擇}（quickselect）。
+
+分割用第~\ref{sec:so-quick}~節的 Lomuto 分割（虛擬碼~\ref{alg:so-lomuto}），這裡重抄一次，方便對照追蹤的每一步。
+\proc{Lomuto-Partition} 以 $A[r]$ 為樞紐，結束時 $A[p..q-1]$ 都 $\le A[q]$，$A[q+1..r]$ 都
+$> A[q]$，回傳 $q$；過程中樞紐和其他 $r - p$ 個數各比一次。
+\proc{Randomized-Partition} 先把 $A[p..r]$ 裡隨機挑的一個數換到 $A[r]$，再分割。
+$\proc{Random}(p, r)$ 傳回 $p$ 到 $r$ 之間的一個整數，每個整數的機率都一樣，每次呼叫
+彼此獨立。
+
+\begin{pseudo}[label=alg:sel-partition]{Lomuto 分割與隨機分割（同虛擬碼~\ref{alg:so-lomuto}）}
+\Function{Lomuto-Partition}{$A, p, r$}
+    \State $x \gets A[r]$
+    \State $i \gets p$
+    \For{$j \gets p$ \To $r - 1$}
+        \If{$A[j] \le x$}
+            \State 交換 $A[i]$ 和 $A[j]$
+            \State $i \gets i + 1$
+        \EndIf
+    \EndFor
+    \State 交換 $A[i]$ 和 $A[r]$
+    \State \Return $i$
+\EndFunction
+\Function{Randomized-Partition}{$A, p, r$}
+    \State $i \gets \Call{Random}{p, r}$
+    \State 交換 $A[r]$ 和 $A[i]$
+    \State \Return \Call{Lomuto-Partition}{$A, p, r$}
+\EndFunction
+\end{pseudo}
+
+\begin{pseudo}[label=alg:sel-rselect]{隨機化選擇}
+\Function{Randomized-Select}{$A, p, r, i$}
+    \If{$p = r$}
+        \State \Return $A[p]$ \Comment{只剩一個數，$i$ 一定是 $1$}
+    \EndIf
+    \State $q \gets \Call{Randomized-Partition}{A, p, r}$
+    \State $k \gets q - p + 1$ \Comment{樞紐在 $A[p..r]$ 裡是第 $k$ 小}
+    \If{$i = k$}
+        \State \Return $A[q]$
+    \ElsIf{$i < k$}
+        \State \Return \Call{Randomized-Select}{$A, p, q - 1, i$}
+    \Else
+        \State \Return \Call{Randomized-Select}{$A, q + 1, r, i - k$}
+    \EndIf
+\EndFunction
+\end{pseudo}
+
+呼叫 $\proc{Randomized-Select}(A, 1, n, i)$ 找整個陣列第 $i$ 小的數。 往右邊找時，左
+邊的 $k$ 個數（包括樞紐）都比答案小，所以在右邊要找的是第 $i - k$ 小，這是第 11 行
+最容易漏掉的地方。 往左邊找時名次不變。
+
+\textbf{正確性}對 $n = r - p + 1$ 用強歸納法（觀念題第~\ref{sel-q-correct}~題）。 關
+鍵是分割之後 $A[q]$ 前面恰好有 $k - 1$ 個數，而且都比它小（互不相同的假設下），後面
+的都比它大，所以 $A[q]$ 是第 $k$ 小；$i < k$ 時答案在左邊、名次還是 $i$，$i > k$ 時
+答案在右邊、名次是 $i - k$。 遞迴呼叫的範圍不會是空的：$i < k$ 時左邊有
+$k - 1 \ge i \ge 1$ 個數，$i > k$ 時右邊有 $n - k \ge i - k \ge 1$ 個數。
+
+\subsection{手算追蹤：成績的中位數}
+\label{sec:sel-trace}
+
+考卷上的選擇題通常不用隨機，而是規定樞紐「固定取最後一個」，答案才唯一。 這相當於
+把第 4 行的 \proc{Randomized-Partition} 換成 \proc{Lomuto-Partition}。 下面用這個版本，找
+$13$ 位同學成績的中位數，也就是第 $7$ 小。
+
+\begin{center}
+\begin{tikzpicture}
+\selrow{0.00}{開始}{59,46,47,80,64,90,62,96,73,58,79,44,54}{1}{13}{0}
+\selrow{-0.85}{第 1 次}{46,47,44,54,64,90,62,96,73,58,79,59,80}{1}{13}{4}
+\selrow{-1.70}{第 2 次}{46,47,44,54,64,62,73,58,79,59,80,96,90}{5}{13}{11}
+\selrow{-2.55}{第 3 次}{46,47,44,54,58,59,73,64,79,62,80,96,90}{5}{10}{6}
+\selrow{-3.40}{第 4 次}{46,47,44,54,58,59,62,64,79,73,80,96,90}{7}{10}{7}
+\foreach \k in {1,...,13} { \node[idxlbl] at (\k*0.82, -4.05) {\k}; }
+\end{tikzpicture}
+\diagcaption{樞紐固定取最後一個，找 $13$ 個成績的第 $7$ 小。 每一列是那一次
+\proc{Lomuto-Partition} 之後的陣列：白色格子是這一次分割的範圍 $A[p..r]$，橘色是樞紐最後的位
+置 $q$，灰色是已經丟掉、不會再看的部分。}
+\label{fig:sel-score-trace}
+\end{center}
+
+\begin{center}
+\begin{tabular}{cccccccl}
+\toprule
+次 & $p$ & $r$ & $i$ & 樞紐 $A[r]$ & $q$ & $k$ & 下一步 \\
+\midrule
+1 & 1 & 13 & 7 & 54 & 4 & 4 & $i > k$：往右，$i \gets 7 - 4 = 3$ \\
+2 & 5 & 13 & 3 & 80 & 11 & 7 & $i < k$：往左，$i$ 不變 \\
+3 & 5 & 10 & 3 & 59 & 6 & 2 & $i > k$：往右，$i \gets 3 - 2 = 1$ \\
+4 & 7 & 10 & 1 & 62 & 7 & 1 & $i = k$：回傳 $62$ \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+以第 2 次為例：範圍 $A[5..13]$ 的樞紐是 $80$，比它小的有 $6$ 個，$80$ 落在第 $11$ 格，是
+這個範圍的第 $k = 11 - 5 + 1 = 7$ 小；要找的是第 $3$ 小，所以往左邊 $A[5..10]$ 找，名次
+不變。 第 1 次往右時，左邊連同樞紐的 $4$ 個數都比答案小，名次從 $7$ 變成 $3$。
+
+驗算：排好的成績是 $44, 46, 47, 54, 58, 59, 62, 64, 73, 79, 80, 90, 96$，第 $7$ 個是
+$62$。 四次分割分別比了 $12, 8, 5, 3$ 次，共 $28$ 次；用插入排序整個排好，這組資料要
+比 $49$ 次（可以用第~1~章插入排序的程式驗證）。
+
+\begin{examnote}
+選擇的追蹤題，每次分割寫一列：分割之後的整個陣列、這次的範圍 $p..r$、樞紐、$q$、
+$k = q - p + 1$，以及往哪邊走、新的 $i$。 往右走時 $i$ 要減掉 $k$，往左走時不變，閱卷
+時這一欄最容易看出有沒有懂。 題目如果規定別的分割方法（例如第~14~章的 Hoare 分割，
+或取第一個當樞紐），陣列的樣子會不同，照題目規定的分割來做。 名次 $i$ 從 $1$ 開始還
+是從 $0$ 開始、中位數取上還是取下，也先看題目的定義。
+\end{examnote}
+
+\subsection{最壞情況}
+
+每次都挑到範圍裡最大的數當樞紐，而要找的是最小值，範圍每次只少一個數，比較次數是
+$(n-1) + (n-2) + \cdots + 1 = n(n-1)/2$，最壞情況是 $\Theta(n^2)$。 固定取最後一個當
+樞紐時，已經由小到大排好的陣列找最小值就是這種情況。 隨機挑樞紐時，沒有哪一個輸入
+一定會這樣，要連續好幾次都運氣很差才會發生（觀念題第~\ref{sel-q-worst}~題）。 下面證
+明平均起來是線性的。
+
+\subsection{期望時間是線性的}
+
+先說清楚「期望」對什麼取。 這裡的輸入是固定的（任何一組 $n$ 個互不相同的數、任何
+一個 $i$），隨機性只來自 \proc{Random} 的結果。 所以下面的結論對\textbf{每一個}輸入
+都成立，不需要假設輸入是隨機排列的；這和第~1~章插入排序的平均情況不一樣，那裡是對
+所有輸入取平均。
+
+\begin{theorem}
+\label{thm:sel-rselect}
+對 $n$ 個互不相同的數和任何 $i$，\proc{Randomized-Select} 的期望執行時間是
+$\Theta(n)$。
+\end{theorem}
+
+\begin{proof}
+下界：第一次分割就要看過全部 $n$ 個數，所以至少 $\Omega(n)$。
+
+上界。 令 $T(n)$ 是所有大小為 $n$ 的輸入、所有 $i$ 之中，期望執行時間的最大值；再令
+$U(n) = \max_{1 \le m \le n} T(m)$，$U(0) = 0$。 $U$ 是不遞減的，而且
+$T(n) \le U(n)$。 取常數 $a$ 使得對 $A[p..r]$ 做一次分割、加上遞迴呼叫以外的其他工作，
+都不超過 $a n$（$n = r - p + 1 \ge 2$）；$U(1) = T(1)$ 是常數 $b$。
+
+$n \ge 2$ 時，樞紐是範圍內每一個數的機率都是 $1/n$，所以它在範圍內是第 $k$ 小的機率
+也是 $1/n$，$k = 1, \ldots, n$。 已知樞紐是第 $k$ 小時，接下來最多遞迴一次，範圍大
+小是 $k - 1$ 或 $n - k$，之後用到的隨機數是新的，所以這部分的期望時間不超過
+$U(\max(k - 1, n - k))$。 對 $k$ 取平均：
+\[
+T(n) \le a n + \frac{1}{n} \sum_{k=1}^{n} U(\max(k - 1, n - k)).
+\]
+$k$ 從 $1$ 跑到 $n$ 時，$\max(k - 1, n - k)$ 取到 $\lfloor n/2 \rfloor, \ldots, n-1$
+裡的值，每個值最多出現兩次，所以
+\[
+T(n) \le a n + \frac{2}{n} \sum_{m=\lfloor n/2 \rfloor}^{n-1} U(m).
+\]
+
+用代換法（第~2~章 2.2 節）證明：取 $c = \max(4a, b)$，所有 $n \ge 1$ 都有
+$U(n) \le cn$。 $n = 1$ 時 $U(1) = b \le c$。 設 $n \ge 2$，比 $n$ 小的都成立。 先估
+計和：
+\[
+\sum_{m=\lfloor n/2 \rfloor}^{n-1} m
+= \frac{n(n-1)}{2} - \frac{(\lfloor n/2 \rfloor - 1)\lfloor n/2 \rfloor}{2}
+\le \frac{n(n-1)}{2} - \frac{(n-3)(n-1)}{8}
+= \frac{3(n^2 - 1)}{8} < \frac{3n^2}{8},
+\]
+中間用到 $\lfloor n/2 \rfloor \ge (n-1)/2$，以及 $t(t-1)$ 在 $t \ge 1$ 時隨 $t$ 遞增。
+代進去：
+\[
+T(n) \le a n + \frac{2c}{n} \cdot \frac{3n^2}{8} = \frac{3}{4} c n + a n \le c n,
+\]
+最後一步用到 $c \ge 4a$。 再加上 $U(n - 1) \le c(n-1) \le cn$，得到
+$U(n) = \max(U(n-1), T(n)) \le cn$。 所以期望時間 $T(n) \le U(n) = O(n)$。
+\end{proof}
+
+證明裡要的是 $U(n) \le cn$ 這個\textbf{同一個} $c$，推出來的是
+$\frac{3}{4}cn + an$，多出來的 $an$ 剛好被省下的 $\frac{1}{4}cn$ 吸收。 這就是第~2~章
+提醒過的「歸納步驟要推出同一個常數」。 直覺上，樞紐落在中間一半的機率是 $1/2$，落
+在那裡時範圍至少縮成 $3/4$；平均兩次分割就有一次「好的」，總工作量是一個公比小於
+$1$ 的等比級數。
+
+\subsection{比較次數算到常數}
+
+上面的證明只說是 $O(n)$。 用第~12~章 12.2 節的指示變數，可以把期望比較次數直接寫
+成一個和，再算出常數。
+
+\begin{theorem}
+\label{thm:sel-rselect-cmp}
+把 $n$ 個互不相同的數由小到大記作 $z_1 < z_2 < \cdots < z_n$。
+\proc{Randomized-Select} 找第 $i$ 小時，期望比較次數是
+\[
+E_n(i) = \sum_{1 \le a < b \le n} \frac{2}{\max(b, i) - \min(a, i) + 1},
+\]
+而且 $E_n(i) < 4n$。
+\end{theorem}
+
+\begin{whybox}[期望比較次數]
+比較只發生在分割時，樞紐和範圍裡的其他數各比一次；當過樞紐的數之後就不在任何範圍
+裡了，所以每一對 $z_a, z_b$ 最多比一次。 令 $X_{ab}$ 是「$z_a$ 和 $z_b$ 比過」的指
+示變數，總比較次數是 $\sum_{a<b} X_{ab}$，期望值是 $\sum_{a<b} \Pr[X_{ab} = 1]$。
+
+固定 $a < b$，令 $Z$ 是名次從 $\min(a, i)$ 到 $\max(b, i)$ 的那些數，共
+$\max(b, i) - \min(a, i) + 1$ 個；$Z$ 同時包含 $z_a$、$z_b$ 和答案 $z_i$。
+\begin{itemize}
+\item 還沒有 $Z$ 裡的數被選成樞紐時，$Z$ 整個都在目前的範圍裡：一個 $Z$ 以外的樞紐
+不是比 $Z$ 全部小，就是比 $Z$ 全部大，而演算法留下的是含有 $z_i$ 的那一邊，也就是
+含有整個 $Z$ 的那一邊。
+\item 所以第一個落在 $Z$ 裡的樞紐，在 $Z$ 的每個數上機率都一樣，是 $z_a$ 或 $z_b$ 的
+機率是 $2/|Z|$。 是的話，$z_a$、$z_b$ 這時都在範圍裡，比了一次。
+\item 如果它是 $Z$ 裡的其他數 $z_c$：$a < c < b$ 時，$z_a$ 和 $z_b$ 被分到兩邊（或
+$c = i$，演算法直接結束），以後不會再比；$c$ 在 $a$、$b$ 的範圍外時，$c$ 夾在 $i$ 和
+這一對之間（或 $c = i$），留下的那一邊含有 $z_i$ 而不含 $z_a$、$z_b$，也不會再比。
+\end{itemize}
+所以 $\Pr[X_{ab} = 1] = 2/(\max(b,i) - \min(a,i) + 1)$，加起來就是 $E_n(i)$。
+
+上界分三種 $(a, b)$ 估計：
+\begin{itemize}
+\item $a \le i \le b$：分母是 $b - a + 1 = L$。 長度為 $L$、包含 $i$ 的區間最多 $L$ 個，
+每個貢獻 $2/L$，所以長度 $L$ 的總貢獻不超過 $2$；$L = 2, \ldots, n$，合計不超過
+$2(n - 1)$。
+\item $i < a < b$：分母是 $b - i + 1$。 固定 $b$，$a$ 有 $b - i - 1$ 種，貢獻
+$2(b - i - 1)/(b - i + 1) < 2$；$b$ 最多 $n - i$ 種，合計小於 $2(n - i)$。
+\item $a < b < i$：同理，合計小於 $2(i - 1)$。
+\end{itemize}
+三項加起來小於 $2(n-1) + 2(n-i) + 2(i-1) < 4n$。
+\end{whybox}
+
+找最小值（$i = 1$）時，這個和可以算出來是 $2n - 2H_n$（觀念題第~\ref{sel-q-min}~題），
+比直接掃一次的 $n - 1$ 多了將近一倍：隨機選擇不是用來找最大最小的。 找中位數時和最
+大，$n$ 很大時大約是 $3.39n$。 下面的程式實際跑一次，和公式對照。
+
+\subsection{C 程式}
+
+C 標準函式庫的 \texttt{rand} 在不同的系統上產生的數列不一樣，書上印的輸出就對不起來。
+所以程式自己寫一個\textbf{線性同餘產生器}（linear congruential generator，LCG）：
+$s \gets s \cdot M + C \bmod 2^{64}$，$M$、$C$ 是固定的常數，種子 $s$ 一開始固定，
+每次執行產生的數列都一樣。 LCG 的低位元週期很短，所以取高位元當結果。
+\texttt{random\_between(p, r)} 用取餘數把結果縮到 $p..r$，會有一點點不均勻（《C 程式
+設計基礎》第~18~章講的模偏差），範圍遠小於 $2^{31}$ 時可以忽略。
+
+\begin{cbookrecap}[第~13~章 13.1、13.5 節，第~18~章 18.8 節]
+有號整數溢位是未定義行為；\texttt{unsigned} 型別的運算保證是模 $2^n$，所以 LCG 的乘
+法和加法要用 \texttt{unsigned long long}，溢位就是我們要的「模 $2^{64}$」。 寫在函式
+外面的 \texttt{static} 變數只在這個檔案裡看得到，而且整個程式執行期間都存在，適合存
+產生器的狀態。 \texttt{rand()} 的數列由實作決定，換一台機器就可能不同。
+\end{cbookrecap}
+
+程式先用隨機分割找第~\ref{sec:sel-trace}~節那 $13$ 個成績的中位數；再拿 $1001$ 個不同的數，同一
+個輸入跑 $2000$ 次，算三個名次的平均比較次數，和定理~\ref{thm:sel-rselect-cmp} 的公式
+比較。 \texttt{ncmp} 只在分割的迴圈裡加一，正好是元素之間的比較次數。
+
+\begin{example}[label=ex:sel-rselect]{c}{(rselect.c) 隨機化選擇與期望比較次數}
+#include <stdio.h>
+#include <stdlib.h>
+
+// 自己寫的線性同餘產生器（LCG），種子固定，每次執行的結果都一樣。
+static unsigned long long state = 20261119ULL;
+
+int random_between(int p, int r)            // p..r 之間的一個整數
+{
+    state = state * 6364136223846793005ULL + 1442695040888963407ULL;
+    unsigned x = (unsigned)(state >> 33);   // 低位元的週期短，取高位元
+    return p + (int)(x % (unsigned)(r - p + 1));
+}
+
+long long ncmp;                             // 元素之間的比較次數
+
+void swap(int *x, int *y)
+{
+    int t = *x;
+    *x = *y;
+    *y = t;
+}
+
+// 隨機挑一個數換到 a[r] 當樞紐，做 Lomuto 分割，回傳樞紐最後的位置。
+int randomized_partition(int *a, int p, int r)
+{
+    swap(&a[r], &a[random_between(p, r)]);
+    int x = a[r], i = p - 1;
+    for (int j = p; j < r; j++) {
+        ncmp++;
+        if (a[j] <= x)
+            swap(&a[++i], &a[j]);
+    }
+    swap(&a[i + 1], &a[r]);
+    return i + 1;
+}
+
+// 回傳 a[p..r] 裡第 i 小的數，1 <= i <= r - p + 1。
+int randomized_select(int *a, int p, int r, int i)
+{
+    if (p == r)
+        return a[p];
+    int q = randomized_partition(a, p, r);
+    int k = q - p + 1;
+    if (i == k)
+        return a[q];
+    else if (i < k)
+        return randomized_select(a, p, q - 1, i);
+    else
+        return randomized_select(a, q + 1, r, i - k);
+}
+
+// 定理的公式：n 個不同的數找第 k 小時的期望比較次數。
+double expected_cmp(int n, int k)
+{
+    double s = 0;
+    for (int a = 1; a <= n; a++)
+        for (int b = a + 1; b <= n; b++)
+            s += 2.0 / ((b > k ? b : k) - (a < k ? a : k) + 1);
+    return s;
+}
+
+int main(void)
+{
+    int score[] = {59, 46, 47, 80, 64, 90, 62, 96, 73, 58, 79, 44, 54};
+    int med = randomized_select(score, 0, 12, 7);
+    printf("median = %d, comparisons = %lld\n", med, ncmp);
+
+    // 1001 個不同的數，同一個輸入跑 2000 次，看平均比較次數。
+    int N = 1001, T = 2000, ks[] = {1, 251, 501};
+    int *base = malloc(N * sizeof *base), *b = malloc(N * sizeof *b);
+    if (base == NULL || b == NULL)
+        return 1;
+    for (int j = 0; j < N; j++)
+        base[j] = j + 1;
+    for (int j = N - 1; j > 0; j--)         // 洗牌，得到 1..N 的一個排列
+        swap(&base[j], &base[random_between(0, j)]);
+    printf("k average formula 4n\n");
+    for (int q = 0; q < 3; q++) {
+        long long total = 0;
+        for (int t = 0; t < T; t++) {
+            for (int j = 0; j < N; j++)
+                b[j] = base[j];
+            ncmp = 0;
+            if (randomized_select(b, 0, N - 1, ks[q]) != ks[q])
+                printf("WRONG\n");
+            total += ncmp;
+        }
+        printf("%d %.1f %.1f %d\n", ks[q], (double)total / T,
+               expected_cmp(N, ks[q]), 4 * N);
+    }
+    free(base);
+    free(b);
+    return 0;
+}
+\end{example}
+\iosample{}{median = 62, comparisons = 22 \\ k average formula 4n \\ 1 1980.5 1987.0 4004 \\ 251 3055.8 3079.8 4004 \\ 501 3349.0 3339.7 4004}
+
+同一組成績，隨機挑樞紐這一次比了 $22$ 次，比固定取最後一個的 $28$ 次少；換一個種子
+結果會不同，但答案一定是 $62$。 實驗的部分，$2000$ 次的平均和公式差不到百分之一，三
+個名次都小於 $4n$；名次越靠中間，比較越多，中位數大約是 $3.34n$。
+
+\subsection{有重複的數時}
+
+前面的分析假設數互不相同。 \proc{Randomized-Select} 遇到重複的數仍然回傳正確的答
+案（分割後左邊都 $\le$ 樞紐、右邊都 $>$ 樞紐，論證照樣成立），但時間可能變差。 最極
+端的是 $n$ 個數全部一樣：Lomuto 分割每次都把樞紐放到範圍的最後一格，找中位數要
+$\Theta(n^2)$，隨機挑樞紐也沒有用。 解法是改成\textbf{三路分割}，把範圍分成小於、
+等於、大於樞紐三段，$i$ 落在等於那一段就直接回傳（觀念題第~\ref{sel-q-dup}~題）。
+
+\section{中位數的中位數：最壞情況線性}
+\label{sec:sel-mom}
+
+隨機化選擇的期望是線性，最壞還是 $\Theta(n^2)$。 1973 年 Blum、Floyd、Pratt、Rivest、
+Tarjan 給了一個最壞情況也是 $O(n)$ 的演算法。 前一節的論證已經指出關鍵：只要樞紐保
+證不太靠兩端，每次都能丟掉固定比例的數，總工作量就是公比小於 $1$ 的等比級數。 問題
+是怎麼不靠運氣、又只花線性時間，就挑到這樣的樞紐。
+
+做法如下（$n \le 5$ 時直接排序）：
+
+\begin{enumerate}
+\item 把 $A[p..r]$ 從左到右每 $5$ 個分成一組，最後一組可能不滿 $5$ 個，共
+$g = \lceil n/5 \rceil$ 組。
+\item 每組用插入排序排好，取出每組的中位數（不滿的那組取下中位數），放進新陣列
+$M[1..g]$。
+\item \textbf{遞迴}找出 $M$ 的中位數 $x$，這就是「中位數的中位數」。
+\item 用 $x$ 當樞紐分割 $A[p..r]$，接下來和 \proc{Randomized-Select} 一樣，只往一邊遞
+迴。
+\end{enumerate}
+
+\begin{pseudo}[label=alg:sel-mom]{中位數的中位數}
+\Function{Select}{$A, p, r, i$}
+    \State $n \gets r - p + 1$
+    \If{$n \le 5$}
+        \State 用插入排序把 $A[p..r]$ 排好
+        \State \Return $A[p + i - 1]$
+    \EndIf
+    \State $g \gets \lceil n/5 \rceil$
+    \State 建立陣列 $M[1..g]$
+    \For{$j \gets 1$ \To $g$}
+        \State $\ell \gets p + 5(j - 1)$
+        \State $h \gets \min(\ell + 4, r)$
+        \State 用插入排序把 $A[\ell..h]$ 排好
+        \State $M[j] \gets A[\lfloor (\ell + h)/2 \rfloor]$ \Comment{這一組的（下）中位數}
+    \EndFor
+    \State $x \gets \Call{Select}{M, 1, g, \lceil g/2 \rceil}$
+    \State $q \gets \Call{Partition-Around}{A, p, r, x}$
+    \State $k \gets q - p + 1$
+    \If{$i = k$}
+        \State \Return $A[q]$
+    \ElsIf{$i < k$}
+        \State \Return \Call{Select}{$A, p, q - 1, i$}
+    \Else
+        \State \Return \Call{Select}{$A, q + 1, r, i - k$}
+    \EndIf
+\EndFunction
+\Function{Partition-Around}{$A, p, r, x$}
+    \State 找出 $A[p..r]$ 裡等於 $x$ 的位置 $j$
+    \State 交換 $A[j]$ 和 $A[r]$
+    \State \Return \Call{Lomuto-Partition}{$A, p, r$}
+\EndFunction
+\end{pseudo}
+
+一組 $h - \ell + 1$ 個數排好之後，下中位數在第 $\lceil (h - \ell + 1)/2 \rceil$ 個，
+位置是 $\ell + \lfloor (h - \ell)/2 \rfloor = \lfloor (\ell + h)/2 \rfloor$，這就是第
+12 行。 第 13 行對 $M$ 遞迴，$M$ 只有 $\lceil n/5 \rceil$ 個數；第 14 行花 $O(n)$
+找到 $x$ 的位置，再交給 Lomuto 分割。 第 4、11 行排的都是不超過 $5$ 個數，每次比較
+不超過 $10$ 次。
+
+\subsection{\texorpdfstring{$x$}{x} 保證不靠兩端}
+
+把每一組排好、立起來當成一欄，小的在下、大的在上，再把各欄依照中位數由小到大排好，
+如圖~\ref{fig:sel-mom-cols}。 中間那一列是各組的中位數，$x$ 在正中間。 左下方藍色的
+數：它們所在的那一欄的中位數 $\le x$，而它們又 $\le$ 那一欄的中位數，所以都 $\le x$。
+同理，右上方綠色的數都 $\ge x$。 不管其他數怎麼排，這兩塊都保證存在。
+
+\begin{center}
+\begin{tikzpicture}
+\node[colle] at (0.00,0.00) {16};
+\node[colle] at (0.00,0.62) {27};
+\node[colle] at (0.00,1.24) {31};
+\node[colc] at (0.00,1.86) {70};
+\node[colc] at (0.00,2.48) {87};
+\node[idxlbl] at (0.00,-0.55) {第 4 組};
+\node[colle] at (0.95,0.00) {13};
+\node[colle] at (0.95,0.62) {30};
+\node[colle] at (0.95,1.24) {35};
+\node[colc] at (0.95,1.86) {66};
+\node[colc] at (0.95,2.48) {85};
+\node[idxlbl] at (0.95,-0.55) {第 2 組};
+\node[colle] at (1.90,0.00) {15};
+\node[colle] at (1.90,0.62) {33};
+\node[colx] at (1.90,1.24) {38};
+\node[colge] at (1.90,1.86) {88};
+\node[colge] at (1.90,2.48) {98};
+\node[idxlbl] at (1.90,-0.55) {第 3 組};
+\node[colc] at (2.85,0.00) {24};
+\node[colc] at (2.85,0.62) {34};
+\node[colge] at (2.85,1.24) {50};
+\node[colge] at (2.85,1.86) {71};
+\node[colge] at (2.85,2.48) {86};
+\node[idxlbl] at (2.85,-0.55) {第 5 組};
+\node[colc] at (3.80,0.00) {44};
+\node[colc] at (3.80,0.62) {48};
+\node[colge] at (3.80,1.24) {80};
+\node[colge] at (3.80,1.86) {89};
+\node[colge] at (3.80,2.48) {91};
+\node[idxlbl] at (3.80,-0.55) {第 1 組};
+\draw[diagarrow] (-0.85,-0.2) -- node[left, font=\scriptsize, align=center] {由小\\到大} (-0.85,2.7);
+\draw[diagarrow] (-0.4,3.25) -- node[above, font=\scriptsize] {中位數由小到大} (4.2,3.25);
+\end{tikzpicture}
+\diagcaption{第~\ref{sec:sel-mom-trace}~節第一層的 $25$ 個數。 每一欄是排好的一組，欄
+的順序依中位數排（演算法本身不搬欄，這只是為了看清楚）。 $x = 38$（橘色）。 藍色的
+$8$ 個數一定 $< x$，綠色的 $8$ 個數一定 $> x$；白色的數可能在 $x$ 的任何一邊。}
+\label{fig:sel-mom-cols}
+\end{center}
+
+\begin{lemma}
+\label{lem:sel-mom-split}
+設 $n \ge 6$，$n$ 個數互不相同。 \proc{Select} 第 14 行分割之後，$x$ 的左邊和右邊各有不超
+過 $7n/10 + 2$ 個數。 所以第 19 行或第 21 行遞迴的範圍不超過 $7n/10 + 2$。
+\end{lemma}
+
+\begin{proof}
+$g = \lceil n/5 \rceil$，$x$ 是 $g$ 個組中位數裡第 $\lceil g/2 \rceil$ 小的。 只有最後
+一組可能不滿。
+
+數 $\ge x$ 的數。 中位數 $\ge x$ 的組有 $g - \lceil g/2 \rceil + 1 = \lfloor g/2 \rfloor + 1$
+組（包括 $x$ 自己那組）。 滿的一組裡，中位數和比它大的兩個數，共 $3$ 個都 $\ge x$。
+不滿的那組有 $s$ 個數（$1 \le s \le 4$），$\ge$ 下中位數的有 $s - \lceil s/2 \rceil + 1$
+個，至少 $1$ 個，比 $3$ 最多少 $2$。 所以 $\ge x$ 的數至少
+$3(\lfloor g/2 \rfloor + 1) - 2 = 3\lfloor g/2 \rfloor + 1$ 個，$x$ 左邊（$< x$）的數
+最多
+\[
+n - 3\left\lfloor \frac{g}{2} \right\rfloor - 1
+\le n - 3 \cdot \frac{g - 1}{2} - 1
+\le n - \frac{3}{2}\left(\frac{n}{5} - 1\right) - 1
+= \frac{7n}{10} + \frac{1}{2}.
+\]
+
+數 $\le x$ 的數。 中位數 $\le x$ 的組有 $\lceil g/2 \rceil$ 組，滿的組各貢獻 $3$ 個，
+不滿的組至少 $\lceil s/2 \rceil \ge 1$ 個，一樣最多少 $2$。 所以 $\le x$ 的至少
+$3\lceil g/2 \rceil - 2$ 個，$x$ 右邊的數最多
+\[
+n - 3\left\lceil \frac{g}{2} \right\rceil + 2 \le n - \frac{3n}{10} + 2 = \frac{7n}{10} + 2,
+\]
+用到 $\lceil g/2 \rceil \ge g/2 \ge n/10$。 兩邊都不超過 $7n/10 + 2$。
+\end{proof}
+
+圖~\ref{fig:sel-mom-cols} 的例子：$n = 25$，引理保證每一邊不超過 $19$ 個；實際上藍色
+和綠色各 $8$ 個，連同 $x$ 自己，每一邊都保證有 $9$ 個數不在那一邊，所以每一邊不超過
+$25 - 9 = 16$ 個。
+
+\subsection{最壞情況是線性的}
+
+\begin{theorem}
+\label{thm:sel-mom}
+對 $n$ 個互不相同的數，\proc{Select} 的最壞執行時間是 $O(n)$。
+\end{theorem}
+
+\begin{proof}
+令 $T(n)$ 是大小為 $n$ 的所有輸入、所有 $i$ 之中最長的執行時間。 第 13 行的遞迴大小
+是 $\lceil n/5 \rceil$；分組、排各組、找 $x$ 的位置、分割，合計不超過 $an$（$a$ 是常
+數）；由引理，第 19、21 行最多一次遞迴，大小不超過 $7n/10 + 2$。 所以 $n \ge 6$ 時
+\[
+T(n) \le T(\lceil n/5 \rceil) + T(m) + an, \qquad m \le \frac{7n}{10} + 2,
+\]
+沒有遞迴（$i = k$）時 $T(m)$ 那一項不出現。 兩個遞迴的大小都比 $n$ 小（引理證明裡的
+兩個上界 $n - 3\lfloor g/2 \rfloor - 1$、$n - 3\lceil g/2 \rceil + 2$ 都小於 $n$），所以
+演算法一定會停，每個 $T(n)$ 都是有限的。
+
+用代換法證明存在常數 $c$，所有 $n \ge 1$ 都有 $T(n) \le cn$。 $n \ge 60$ 時對兩個遞
+迴用歸納假設：
+\[
+T(n) \le c\left(\frac{n}{5} + 1\right) + c\left(\frac{7n}{10} + 2\right) + an
+= \frac{9}{10}cn + 3c + an.
+\]
+要這個 $\le cn$，等於要 $\frac{c}{10}(n - 30) \ge an$。 $n \ge 60$ 時
+$n - 30 \ge n/2$，左邊至少 $\frac{c}{20} n$，只要 $c \ge 20a$ 就成立。
+
+$1 \le n < 60$ 的有限多個 $n$，$T(n)$ 都不超過某個常數 $B$，取 $c \ge B$ 就有
+$T(n) \le B \le cn$。 所以 $c = \max(20a, B)$ 時，對所有 $n$ 都成立，$T(n) = O(n)$。
+\end{proof}
+
+證明能過，是因為兩個遞迴的大小加起來是 $\frac{n}{5} + \frac{7n}{10} = \frac{9n}{10}$：
+用第~2~章 2.3 節的遞迴樹來看，每往下一層總工作量最多是上一層的 $9/10$，各層加起來是
+公比 $9/10$ 的等比級數。 門檻 $60$ 只是讓常數好算。
+
+\subsection{為什麼是 5 個一組}
+
+\textbf{3 個一組}：$\ge x$ 的數大約只有 $2 \cdot \frac{g}{2} = \frac{n}{3}$ 個，往下
+遞迴的那一邊可能有 $\frac{2n}{3}$ 個，遞迴式變成
+\[
+T(n) \le T(n/3) + T(2n/3) + an.
+\]
+$\frac{1}{3} + \frac{2}{3} = 1$，每一層的工作量都不會變少。 代換法試 $T(n) \le cn$
+會得到 $cn + an$，永遠多一個 $an$，常數再大也證不過；這個遞迴式的解是
+$\Theta(n \lg n)$（第~2~章 2.3 節「不平衡的樹」，把 $1/4 : 3/4$ 換成 $1/3 : 2/3$）。
+所以用這個分析，$3$ 個一組只能保證 $O(n \lg n)$。
+
+\textbf{7 個一組}：每組貢獻 $4$ 個，$\ge x$ 的數大約 $4 \cdot \frac{g}{2} = \frac{2n}{7}$
+個，往下遞迴的一邊大約 $\frac{5n}{7}$，遞迴式是 $T(n/7) + T(5n/7) + an$，
+$\frac{1}{7} + \frac{5}{7} = \frac{6}{7} < 1$，一樣是線性。 組越大，找 $x$ 的遞迴越
+小，但每組排序的成本越高；$5$ 是能讓兩個比例加起來小於 $1$ 的最小奇數。
+
+\subsection{手算追蹤：25 個數}
+\label{sec:sel-mom-trace}
+
+$A = \langle 48, 89, 80, 91, 44, 13, 35, 30, 85, 66, 98, 33, 38, 88, 15, 70, 87, 31,
+16, 27, 24, 50, 86, 71, 34 \rangle$，找中位數，也就是第 $13$ 小。 下圖每一列是一個階
+段之後的陣列，粗線是組的分界，粉紅色是各組的中位數，橘色是這一層的 $x$（或最後的答
+案），灰色是已經丟掉的部分。
+
+\begin{center}
+\begin{tikzpicture}
+\node[anchor=east, font=\small] at (0.25,0.00) {原始};
+\node[sc] at (0.55,0.00) {48};
+\node[sc] at (1.10,0.00) {89};
+\node[sc] at (1.65,0.00) {80};
+\node[sc] at (2.20,0.00) {91};
+\node[sc] at (2.75,0.00) {44};
+\node[sc] at (3.30,0.00) {13};
+\node[sc] at (3.85,0.00) {35};
+\node[sc] at (4.40,0.00) {30};
+\node[sc] at (4.95,0.00) {85};
+\node[sc] at (5.50,0.00) {66};
+\node[sc] at (6.05,0.00) {98};
+\node[sc] at (6.60,0.00) {33};
+\node[sc] at (7.15,0.00) {38};
+\node[sc] at (7.70,0.00) {88};
+\node[sc] at (8.25,0.00) {15};
+\node[sc] at (8.80,0.00) {70};
+\node[sc] at (9.35,0.00) {87};
+\node[sc] at (9.90,0.00) {31};
+\node[sc] at (10.45,0.00) {16};
+\node[sc] at (11.00,0.00) {27};
+\node[sc] at (11.55,0.00) {24};
+\node[sc] at (12.10,0.00) {50};
+\node[sc] at (12.65,0.00) {86};
+\node[sc] at (13.20,0.00) {71};
+\node[sc] at (13.75,0.00) {34};
+\draw[very thick, black!80] (3.025,-0.36) -- (3.025,0.36);
+\draw[very thick, black!80] (5.775,-0.36) -- (5.775,0.36);
+\draw[very thick, black!80] (8.525,-0.36) -- (8.525,0.36);
+\draw[very thick, black!80] (11.275,-0.36) -- (11.275,0.36);
+\node[anchor=east, font=\small] at (0.25,-0.95) {各組排好};
+\node[sc] at (0.55,-0.95) {44};
+\node[sc] at (1.10,-0.95) {48};
+\node[scmed] at (1.65,-0.95) {80};
+\node[sc] at (2.20,-0.95) {89};
+\node[sc] at (2.75,-0.95) {91};
+\node[sc] at (3.30,-0.95) {13};
+\node[sc] at (3.85,-0.95) {30};
+\node[scmed] at (4.40,-0.95) {35};
+\node[sc] at (4.95,-0.95) {66};
+\node[sc] at (5.50,-0.95) {85};
+\node[sc] at (6.05,-0.95) {15};
+\node[sc] at (6.60,-0.95) {33};
+\node[scpiv] at (7.15,-0.95) {38};
+\node[sc] at (7.70,-0.95) {88};
+\node[sc] at (8.25,-0.95) {98};
+\node[sc] at (8.80,-0.95) {16};
+\node[sc] at (9.35,-0.95) {27};
+\node[scmed] at (9.90,-0.95) {31};
+\node[sc] at (10.45,-0.95) {70};
+\node[sc] at (11.00,-0.95) {87};
+\node[sc] at (11.55,-0.95) {24};
+\node[sc] at (12.10,-0.95) {34};
+\node[scmed] at (12.65,-0.95) {50};
+\node[sc] at (13.20,-0.95) {71};
+\node[sc] at (13.75,-0.95) {86};
+\draw[very thick, black!80] (3.025,-1.31) -- (3.025,-0.59);
+\draw[very thick, black!80] (5.775,-1.31) -- (5.775,-0.59);
+\draw[very thick, black!80] (8.525,-1.31) -- (8.525,-0.59);
+\draw[very thick, black!80] (11.275,-1.31) -- (11.275,-0.59);
+\node[anchor=east, font=\small] at (0.25,-1.90) {對 38 分割};
+\node[sc] at (0.55,-1.90) {13};
+\node[sc] at (1.10,-1.90) {30};
+\node[sc] at (1.65,-1.90) {35};
+\node[sc] at (2.20,-1.90) {15};
+\node[sc] at (2.75,-1.90) {33};
+\node[sc] at (3.30,-1.90) {16};
+\node[sc] at (3.85,-1.90) {27};
+\node[sc] at (4.40,-1.90) {31};
+\node[sc] at (4.95,-1.90) {24};
+\node[sc] at (5.50,-1.90) {34};
+\node[scpiv] at (6.05,-1.90) {38};
+\node[sc] at (6.60,-1.90) {91};
+\node[sc] at (7.15,-1.90) {86};
+\node[sc] at (7.70,-1.90) {88};
+\node[sc] at (8.25,-1.90) {98};
+\node[sc] at (8.80,-1.90) {44};
+\node[sc] at (9.35,-1.90) {48};
+\node[sc] at (9.90,-1.90) {80};
+\node[sc] at (10.45,-1.90) {70};
+\node[sc] at (11.00,-1.90) {87};
+\node[sc] at (11.55,-1.90) {66};
+\node[sc] at (12.10,-1.90) {85};
+\node[sc] at (12.65,-1.90) {50};
+\node[sc] at (13.20,-1.90) {71};
+\node[sc] at (13.75,-1.90) {89};
+\node[anchor=east, font=\small] at (0.25,-2.85) {各組排好};
+\node[scout] at (0.55,-2.85) {13};
+\node[scout] at (1.10,-2.85) {30};
+\node[scout] at (1.65,-2.85) {35};
+\node[scout] at (2.20,-2.85) {15};
+\node[scout] at (2.75,-2.85) {33};
+\node[scout] at (3.30,-2.85) {16};
+\node[scout] at (3.85,-2.85) {27};
+\node[scout] at (4.40,-2.85) {31};
+\node[scout] at (4.95,-2.85) {24};
+\node[scout] at (5.50,-2.85) {34};
+\node[scout] at (6.05,-2.85) {38};
+\node[sc] at (6.60,-2.85) {44};
+\node[sc] at (7.15,-2.85) {86};
+\node[scmed] at (7.70,-2.85) {88};
+\node[sc] at (8.25,-2.85) {91};
+\node[sc] at (8.80,-2.85) {98};
+\node[sc] at (9.35,-2.85) {48};
+\node[sc] at (9.90,-2.85) {66};
+\node[scmed] at (10.45,-2.85) {70};
+\node[sc] at (11.00,-2.85) {80};
+\node[sc] at (11.55,-2.85) {87};
+\node[sc] at (12.10,-2.85) {50};
+\node[scpiv] at (12.65,-2.85) {71};
+\node[sc] at (13.20,-2.85) {85};
+\node[sc] at (13.75,-2.85) {89};
+\draw[very thick, black!80] (9.075,-3.21) -- (9.075,-2.49);
+\draw[very thick, black!80] (11.825,-3.21) -- (11.825,-2.49);
+\node[anchor=east, font=\small] at (0.25,-3.80) {對 71 分割};
+\node[scout] at (0.55,-3.80) {13};
+\node[scout] at (1.10,-3.80) {30};
+\node[scout] at (1.65,-3.80) {35};
+\node[scout] at (2.20,-3.80) {15};
+\node[scout] at (2.75,-3.80) {33};
+\node[scout] at (3.30,-3.80) {16};
+\node[scout] at (3.85,-3.80) {27};
+\node[scout] at (4.40,-3.80) {31};
+\node[scout] at (4.95,-3.80) {24};
+\node[scout] at (5.50,-3.80) {34};
+\node[scout] at (6.05,-3.80) {38};
+\node[sc] at (6.60,-3.80) {44};
+\node[sc] at (7.15,-3.80) {48};
+\node[sc] at (7.70,-3.80) {66};
+\node[sc] at (8.25,-3.80) {70};
+\node[sc] at (8.80,-3.80) {50};
+\node[scpiv] at (9.35,-3.80) {71};
+\node[sc] at (9.90,-3.80) {88};
+\node[sc] at (10.45,-3.80) {91};
+\node[sc] at (11.00,-3.80) {80};
+\node[sc] at (11.55,-3.80) {87};
+\node[sc] at (12.10,-3.80) {98};
+\node[sc] at (12.65,-3.80) {89};
+\node[sc] at (13.20,-3.80) {85};
+\node[sc] at (13.75,-3.80) {86};
+\node[anchor=east, font=\small] at (0.25,-4.75) {排好 $A[12..16]$};
+\node[scout] at (0.55,-4.75) {13};
+\node[scout] at (1.10,-4.75) {30};
+\node[scout] at (1.65,-4.75) {35};
+\node[scout] at (2.20,-4.75) {15};
+\node[scout] at (2.75,-4.75) {33};
+\node[scout] at (3.30,-4.75) {16};
+\node[scout] at (3.85,-4.75) {27};
+\node[scout] at (4.40,-4.75) {31};
+\node[scout] at (4.95,-4.75) {24};
+\node[scout] at (5.50,-4.75) {34};
+\node[scout] at (6.05,-4.75) {38};
+\node[sc] at (6.60,-4.75) {44};
+\node[scpiv] at (7.15,-4.75) {48};
+\node[sc] at (7.70,-4.75) {50};
+\node[sc] at (8.25,-4.75) {66};
+\node[sc] at (8.80,-4.75) {70};
+\node[scout] at (9.35,-4.75) {71};
+\node[scout] at (9.90,-4.75) {88};
+\node[scout] at (10.45,-4.75) {91};
+\node[scout] at (11.00,-4.75) {80};
+\node[scout] at (11.55,-4.75) {87};
+\node[scout] at (12.10,-4.75) {98};
+\node[scout] at (12.65,-4.75) {89};
+\node[scout] at (13.20,-4.75) {85};
+\node[scout] at (13.75,-4.75) {86};
+\foreach \k in {1,...,25} { \node[idxlbl] at (\k*0.55, -5.35) {\k}; }
+\end{tikzpicture}
+\diagcaption{\proc{Select} 找 $25$ 個數的第 $13$ 小。 第一層 $x = 38$，往右；第二層
+$A[12..25]$ 的 $x = 71$，往左；第三層只剩 $5$ 個數，直接排序。}
+\label{fig:sel-mom-trace}
+\end{center}
+
+第一層分成 $5$ 組，組中位數 $M = \langle 80, 35, 38, 31, 50 \rangle$；對 $M$ 找第
+$\lceil 5/2 \rceil = 3$ 小，$M$ 只有 $5$ 個數，直接排序得到 $x = 38$。 用 $38$ 分割後
+$q = 11$，$k = 11 < 13$，往右邊 $A[12..25]$ 找第 $13 - 11 = 2$ 小。 第二層的 $14$ 個數分
+成 $A[12..16]$、$A[17..21]$、$A[22..25]$ 三組，最後一組 $50, 71, 85, 89$ 取下中位數
+$71$；$M = \langle 88, 70, 71 \rangle$ 的第 $2$ 小是 $x = 71$。 用 $71$ 分割後
+$q = 17$，$k = 6 > 2$，往左邊 $A[12..16]$ 找第 $2$ 小。 第三層只剩 $5$ 個數，直接排成
+$44, 48, 50, 66, 70$，答案是 $A[13] = 48$。
+
+驗算：$25$ 個數由小到大的前 $13$ 個是 $13, 15, 16, 24, 27, 30, 31, 33, 34, 35, 38, 44,
+48$，第 $13$ 個是 $48$。 第一層丟掉了 $11$ 個，第二層從 $14$ 個留下 $5$ 個；第一層往
+右的那一邊有 $14$ 個，不超過上一小節算的 $16$。
+
+\subsection{C 程式}
+
+\texttt{select\_mom} 照虛擬碼翻譯，$M$ 用 \texttt{malloc} 配置，找完 $x$ 就
+\texttt{free}；\texttt{partition\_around} 把找位置、交換和 Lomuto 分割寫在一起。 程式
+印出第~\ref{sec:sel-mom-trace}~節那 $25$ 個數每一層的追蹤，\texttt{d=} 後面是遞迴到第幾
+層的 $M$，\texttt{d=0} 是原陣列。
+
+\begin{example}[label=ex:sel-mom]{c}{(mom\_select.c) 中位數的中位數}
+#include <stdio.h>
+#include <stdlib.h>
+
+void swap(int *x, int *y)
+{
+    int t = *x;
+    *x = *y;
+    *y = t;
+}
+
+void insertion_sort(int *a, int l, int h)       // 排好 a[l..h]
+{
+    for (int i = l + 1; i <= h; i++) {
+        int key = a[i], j = i - 1;
+        while (j >= l && a[j] > key) {
+            a[j + 1] = a[j];
+            j--;
+        }
+        a[j + 1] = key;
+    }
+}
+
+// 把 x 換到 a[r]，再做 Lomuto 分割，回傳 x 最後的位置。
+int partition_around(int *a, int p, int r, int x)
+{
+    int j = p;
+    while (a[j] != x)
+        j++;
+    swap(&a[j], &a[r]);
+    int i = p - 1;
+    for (j = p; j < r; j++)
+        if (a[j] <= x)
+            swap(&a[++i], &a[j]);
+    swap(&a[i + 1], &a[r]);
+    return i + 1;
+}
+
+// 回傳 a[p..r] 裡第 i 小的數，並印出每一層的追蹤。
+// d 是遞迴到「中位數陣列」的層數，原陣列是 0。
+int select_mom(int *a, int p, int r, int i, int d)
+{
+    int n = r - p + 1;
+    if (n <= 5) {
+        insertion_sort(a, p, r);
+        printf("d=%d n=%d i=%d base -> %d\n", d, n, i, a[p + i - 1]);
+        return a[p + i - 1];
+    }
+    int g = (n + 4) / 5;
+    int *m = malloc(g * sizeof *m);
+    if (m == NULL)
+        exit(1);
+    for (int j = 0; j < g; j++) {
+        int l = p + 5 * j, h = l + 4 < r ? l + 4 : r;
+        insertion_sort(a, l, h);
+        m[j] = a[(l + h) / 2];                  // 這一組的（下）中位數
+    }
+    printf("d=%d n=%d i=%d medians", d, n, i);
+    for (int j = 0; j < g; j++)
+        printf(" %d", m[j]);
+    printf("\n");
+    int x = select_mom(m, 0, g - 1, (g + 1) / 2, d + 1);
+    free(m);
+    int k = partition_around(a, p, r, x) - p + 1;
+    printf("d=%d x=%d k=%d %s\n", d, x, k,
+           i == k ? "found" : (i < k ? "go left" : "go right"));
+    if (i == k)
+        return x;
+    else if (i < k)
+        return select_mom(a, p, p + k - 2, i, d);
+    else
+        return select_mom(a, p + k, r, i - k, d);
+}
+
+int main(void)
+{
+    int a[] = {48, 89, 80, 91, 44, 13, 35, 30, 85, 66, 98, 33, 38,
+               88, 15, 70, 87, 31, 16, 27, 24, 50, 86, 71, 34};
+    printf("answer %d\n", select_mom(a, 0, 24, 13, 0));
+    return 0;
+}
+\end{example}
+\iosample{}{d=0 n=25 i=13 medians 80 35 38 31 50 \\ d=1 n=5 i=3 base -> 38 \\ d=0 x=38 k=11 go right \\ d=0 n=14 i=2 medians 88 70 71 \\ d=1 n=3 i=2 base -> 71 \\ d=0 x=71 k=6 go left \\ d=0 n=5 i=2 base -> 48 \\ answer 48}
+
+追蹤的七行和圖~\ref{fig:sel-mom-trace} 一一對應。 這個演算法每一層都要排好每一組、再遞迴找
+$x$，比較次數的常數比範例~\ref{ex:sel-rselect} 的大約 $3.3n$ 大得多。 所以實務上多半用隨機化
+選擇，或者先用隨機化選擇、發現遞迴太深時才換成中位數的中位數（Musser 在 1997 年提出的
+introselect）。 中位數的中位數的價值在於它證明了
+「最壞情況線性」做得到，而它的分析方法（兩個遞迴的比例加起來小於 $1$）在其他問題也
+用得上。
+
+\section{本章常見錯誤}
+\label{sec:sel-pitfalls}
+
+\begin{center}
+\begin{tabular}{p{0.25\linewidth}p{0.50\linewidth}p{0.15\linewidth}}
+\toprule
+錯誤 & 例子 & 見 \\
+\midrule
+往右走時名次沒有減 & 遞迴寫成 \proc{Randomized-Select}$(A, q+1, r, i)$，答案錯，或
+範圍外存取 & 第~\ref{sec:sel-random}~節 \\
+名次和索引差一 & 題目的 $k$ 從 $1$ 開始，C 陣列從 $0$ 開始，直接拿 $k$ 當索引 &
+第~\ref{sec:sel-trace}~節 \\
+兩邊都遞迴 & 寫成快速排序，時間變成 $\Theta(n \lg n)$ & 第~\ref{sec:sel-random}~節 \\
+固定取最後一個當樞紐 & 已經排好的輸入變成 $\Theta(n^2)$ & 第~\ref{sec:sel-random}~節 \\
+忽略重複值 & 全部相等時 Lomuto 分割每次只少一個數，隨機也沒用 &
+第~\ref{sec:sel-random}~節 \\
+以為 $x$ 是中位數 & 中位數的中位數只保證兩邊各有至少約 $3n/10$ 個數 &
+第~\ref{sec:sel-mom}~節 \\
+3 個一組也是線性 & 遞迴式 $T(n/3) + T(2n/3) + an$ 的解是 $\Theta(n \lg n)$ &
+第~\ref{sec:sel-mom}~節 \\
+決賽輸家當第二大 & 第二大可能第一輪就遇到冠軍 & 第~\ref{sec:sel-minmax}~節 \\
+最大最小的次數算錯 & 寫成 $3n/2$，沒有分奇偶，或忘了偶數時開頭那一次 &
+第~\ref{sec:sel-minmax}~節 \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\section{觀念題}
+\label{sec:sel-exercises}
+
+題型和研究所考試、期中期末考的筆試相近，有選擇、計算、追蹤和證明。 解答在本章最後。
+
+\begin{enumerate}
+\item \label{sel-q-tf}（選擇，可能不只一個答案）下列哪些敘述正確？
+\begin{enumerate}
+\item \proc{Randomized-Select} 的最壞執行時間是 $\Theta(n^2)$。
+\item \proc{Select} 第 13 行找到的 $x$ 一定是 $A[p..r]$ 的中位數。
+\item 把 \proc{Select} 改成 $3$ 個一組，第~\ref{sec:sel-mom}~節的分析仍然能證明最壞
+$O(n)$。
+\item 任何只用比較找最大值的演算法，至少要比 $n - 1$ 次。
+\item $n = 10$ 時，同時找最大和最小，最壞情況至少要比 $13$ 次。
+\end{enumerate}
+
+\item \label{sel-q-tour}（追蹤）
+\begin{enumerate}
+\item 用錦標賽找 $\langle 93, 41, 67, 28, 85, 52, 76, 39, 60 \rangle$ 的第二大。 相鄰
+兩個配對，人數是奇數時最後一個輪空。 畫出比賽樹，寫出直接輸給冠軍的數，以及總比較
+次數。
+\item 同樣的數改成 $\langle 41, 67, 28, 85, 52, 76, 39, 60, 93 \rangle$，再做一次。 比
+較次數為什麼和定理~\ref{thm:sel-second} 不一樣？ 這和下界矛盾嗎？
+\end{enumerate}
+
+\item \label{sel-q-trace}（追蹤）用樞紐固定取最後一個的選擇（把
+\proc{Randomized-Partition} 換成 \proc{Lomuto-Partition}），在
+$\langle 35, 81, 22, 64, 17, 90, 48, 73, 56 \rangle$ 裡找第 $3$ 小。 每次分割之後寫出
+陣列、$p$、$r$、$q$、$k$ 和新的 $i$，並算出總比較次數。
+
+\item \label{sel-q-worst}（計算）
+\begin{enumerate}
+\item 樞紐固定取最後一個，在已經由小到大排好的 $n$ 個數裡找最小值，比較幾次？
+\item 改用 \proc{Randomized-Select} 找最小值，比較次數和 (a) 一樣多的機率是多少？
+\end{enumerate}
+
+\item \label{sel-q-n3}（計算）$n = 3$、$i = 2$，三個數互不相同。 列出
+\proc{Randomized-Select} 所有可能的樞紐選擇，算出期望比較次數，再用
+定理~\ref{thm:sel-rselect-cmp} 的公式驗算。
+
+\item \label{sel-q-min}（證明）用定理~\ref{thm:sel-rselect-cmp} 的公式證明：找最小值
+（$i = 1$）的期望比較次數是 $2n - 2H_n$，$H_n = 1 + \frac{1}{2} + \cdots + \frac{1}{n}$。
+和範例~\ref{ex:sel-rselect} 印出的 $1987.0$ 對照。
+
+\item \label{sel-q-correct}（證明）假設 $A[p..r]$ 的數互不相同，$1 \le i \le r - p + 1$。
+對 $n = r - p + 1$ 用強歸納法，證明 \proc{Randomized-Select}$(A, p, r, i)$ 回傳
+$A[p..r]$ 裡第 $i$ 小的數。
+
+\item \label{sel-q-dup}（證明）$A[1..n]$ 的 $n$ 個數全部相等，$i = \lfloor (n+1)/2 \rfloor$。
+\begin{enumerate}
+\item 證明不管 \proc{Random} 傳回什麼，\proc{Randomized-Select} 都要比較
+$\Theta(n^2)$ 次。
+\item 改寫分割，讓它傳回兩個位置 $q_1 \le q_2$，使 $A[p..q_1 - 1] < x$、
+$A[q_1..q_2] = x$、$A[q_2 + 1..r] > x$，再寫出對應的選擇程序（虛擬碼）。 說明為什麼
+全部相等時只要比 $O(n)$ 次。
+\end{enumerate}
+
+\item \label{sel-q-mom15}（追蹤）用 \proc{Select} 找
+$\langle 42, 17, 93, 58, 26, 71, 35, 84, 10, 63, 49, 77, 22, 96, 31 \rangle$ 的中位數。
+寫出各組排好的結果、$M$、$x$、分割後的陣列和 $k$。 圖~\ref{fig:sel-mom-cols} 那種
+「保證 $\ge x$」的數有幾個？
+
+\item \label{sel-q-quarter}（證明）把 \proc{Select} 第 13 行改成取 $M$ 的第
+$\lceil g/4 \rceil$ 小，其他不變。 仿照引理~\ref{lem:sel-mom-split} 估計遞迴範圍的上
+界，寫出遞迴式，說明為什麼定理~\ref{thm:sel-mom} 的代換法證不過。
+
+\end{enumerate}
+
+\section{實作練習}
+\label{sec:sel-practice}
+
+下面是 Aki-Judge 上和本章相關的題目。 兩題都只交函式（第二題要交標頭檔和 \texttt{.c}
+檔），回傳第 $k$ 小的值（$k$ 從 $1$ 開始），不寫 \texttt{main}。
+
+\begin{center}
+\begin{tabular}{llc}
+\toprule
+小節 & 題目 & 難度 \\
+\midrule
+隨機化選擇 & \akiref{k-th-smallest-element}{第 K 小的元素} & 基本 \\
+中位數的中位數 & \akiref{worst-case-linear-k-th-smallest-function}{最壞情況線性時間的第 k 小函式} & 進階 \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+第一題的 $n$ 到 $10^6$。 固定取最後一個當樞紐，遇到已經排好的輸入會變成
+$\Theta(n^2)$；大量重複的值也會讓 Lomuto 分割變慢（第~\ref{sec:sel-random}~節最後一
+小節）。 寫的時候用隨機樞紐，再加上三路分割或第~14~章的 Hoare 分割，程式對任何輸入
+都不會退化。 第二題請照
+第~\ref{sec:sel-mom}~節寫中位數的中位數；注意題目允許重複值，分割時等於 $x$ 的數不能
+都擠到同一邊，否則引理~\ref{lem:sel-mom-split} 的保證就不成立。 交之前先用
+範例~\ref{ex:sel-mom} 的資料比對每一層的結果。
+
+\section{讀完你應該會}
+\label{sec:sel-checklist}
+
+\begin{itemize}
+\item 能寫出成對處理的最大最小演算法，證明它剛好比 $\lceil 3n/2 \rceil - 2$ 次，並說
+出對手論證為什麼不能更少。
+\item 能畫出錦標賽的比賽樹，找出第二大，算出 $n + \lceil \lg n \rceil - 2$ 次的由
+來。
+\item 能在給定的分割方法下，逐次寫出選擇演算法每一次分割後的陣列、$q$、$k$ 和新的
+名次。
+\item 能用 $U(n)$ 的遞迴式和代換法證明隨機化選擇的期望時間是線性，並用指示變數寫出
+期望比較次數。
+\item 能說明中位數的中位數為什麼保證兩邊都不超過約 $7n/10$，寫出遞迴式並用代換法證
+明線性；能說明 $3$ 個一組為什麼不行。
+\end{itemize}
+
+\textbf{延伸閱讀}（書末會整理完整的參考資料）
+
+\begin{itemize}
+\item Thomas H. Cormen 等，\textit{Introduction to Algorithms}，第 4 版，第 9 章：本章
+三節的對應內容。 它證明隨機化選擇的方法和本章不同（數「有幫助的分割」），中位數的
+中位數也用了另一種分組方式，可以對照著看。
+\item Donald E. Knuth，\textit{The Art of Computer Programming, Vol.~3}，第 2 版，
+5.3.3 節：用最少的比較次數找第 $i$ 小，包括第二大的下界的完整證明。
+\item M. Blum、R. W. Floyd、V. Pratt、R. L. Rivest、R. E. Tarjan，``Time Bounds for
+Selection''，\textit{Journal of Computer and System Sciences} 7(4)，1973：中位數的中
+位數的原始論文，也給了選擇問題比較次數的下界。
+\item K. Chen、A. Dumitrescu，``Select with Groups of 3 or 4''，WADS 2015：改變挑樞
+紐的方式之後，$3$ 個或 $4$ 個一組也能做到最壞線性時間。
+\end{itemize}
+
+\addcontentsline{toc}{section}{觀念題解答}
+\section*{觀念題解答}
+
+\begin{enumerate}
+\item (a)、(d)、(e) 正確。 (a)：每次都挑到最壞的樞紐時是 $n(n-1)/2$ 次比較。 (b)：$x$
+只保證兩邊各至少約 $3n/10$ 個數，第~\ref{sec:sel-mom-trace}~節的 $x = 38$ 是第 $11$
+小，不是第 $13$ 小。 (c)：遞迴式變成 $T(n/3) + T(2n/3) + an$，比例加起來是 $1$，只能
+證出 $O(n \lg n)$。 (d)：除了最大值，每個數都要輸一場。 (e)：$\lceil 30/2 \rceil - 2 = 13$。
+
+\item
+\begin{enumerate}
+\item 第一輪：$93 > 41$、$67 > 28$、$85 > 52$、$76 > 39$，$60$ 輪空。 第二輪：
+$93 > 67$、$85 > 76$，$60$ 輪空。 第三輪：$93 > 85$，$60$ 輪空。 第四輪：$93 > 60$。
+找冠軍比了 $4 + 2 + 1 + 1 = 8$ 次。 直接輸給 $93$ 的是 $41, 67, 85, 60$，再比 $3$ 次
+得到第二大 $85$。 共 $11 = 9 + \lceil \lg 9 \rceil - 2$ 次。
+\item 第一輪：$67$、$85$、$76$、$60$ 晉級，$93$ 輪空；第二輪：$85$、$76$ 晉級，$93$
+輪空；第三輪：$85$ 晉級，$93$ 輪空；第四輪：$93 > 85$。 找冠軍一樣比 $8$ 次，但冠軍只
+比了一場，直接輸給它的只有 $85$，不用再比，共 $8$ 次。 定理~\ref{thm:sel-second} 說
+的是最壞情況的次數；這個輸入剛好讓冠軍一路輪空，比較少。 下界也是對最壞情況說的：
+任何演算法都\textbf{存在}某個輸入要比 $11$ 次，不是每個輸入都要，所以不矛盾。
+\end{enumerate}
+
+\item
+\begin{center}
+\begin{tabular}{cccccl}
+\toprule
+$p..r$ & $i$ & 樞紐 & 分割後的陣列 & $q$, $k$ & 下一步 \\
+\midrule
+$1..9$ & 3 & 56 & 35 22 17 48 56 90 64 73 81 & 5, 5 & 往左 \\
+$1..4$ & 3 & 48 & 35 22 17 48 56 90 64 73 81 & 4, 4 & 往左 \\
+$1..3$ & 3 & 17 & 17 22 35 48 56 90 64 73 81 & 1, 1 & 往右，$i \gets 2$ \\
+$2..3$ & 2 & 35 & 17 22 35 48 56 90 64 73 81 & 3, 2 & 回傳 $35$ \\
+\bottomrule
+\end{tabular}
+\end{center}
+比較次數 $8 + 3 + 2 + 1 = 14$。
+
+\item (a) 每次的樞紐都是範圍裡最大的數，$k = n$，往左邊少一個數的範圍找。 比較次數
+$(n-1) + (n-2) + \cdots + 1 = n(n-1)/2$。 (b) 要比這麼多次，範圍是 $m$ 個數時樞紐必
+須是其中最大的（任何其他樞紐都會一次丟掉不只一個數），機率 $1/m$。 $m = n, n-1,
+\ldots, 2$ 每一步獨立，機率是 $\frac{1}{n} \cdot \frac{1}{n-1} \cdots \frac{1}{2} =
+\frac{1}{n!}$。
+
+\item 第一次分割一定比 $2$ 次。 樞紐是第 $2$ 小（機率 $1/3$）：直接找到，共 $2$ 次。
+樞紐是第 $1$ 小（機率 $1/3$）：往右邊兩個數找第 $1$ 小，再分割一次比 $1$ 次，不管樞
+紐是哪個，下一步不是找到就是只剩一個數，共 $3$ 次。 樞紐是第 $3$ 小：對稱，$3$ 次。
+期望值 $(2 + 3 + 3)/3 = 8/3$。 公式：$(a, b) = (1, 2)$ 的分母是 $2 - 1 + 1 = 2$，
+$(1, 3)$ 是 $3$，$(2, 3)$ 是 $2$，和是 $1 + \frac{2}{3} + 1 = \frac{8}{3}$，一樣。
+
+\item $i = 1$ 時 $\min(a, 1) = 1$、$\max(b, 1) = b$，每一對的機率是 $2/b$。 固定 $b$，
+$a$ 有 $b - 1$ 種：
+\[
+E_n(1) = \sum_{b=2}^{n} \frac{2(b-1)}{b} = 2(n - 1) - 2\sum_{b=2}^{n} \frac{1}{b}
+= 2(n - 1) - 2(H_n - 1) = 2n - 2H_n.
+\]
+$n = 1001$：$H_{1001} \approx \ln 1001 + 0.5772 \approx 7.486$，$2002 - 14.97 \approx
+1987.0$，和程式印的公式值一樣。
+
+\item $n = 1$：$p = r$，$i$ 只能是 $1$，回傳唯一的數，正確。 $n \ge 2$：假設比 $n$ 小
+的範圍都正確。 \proc{Lomuto-Partition} 結束後 $A[p..q-1]$ 都 $< A[q]$、$A[q+1..r]$ 都
+$> A[q]$（數互不相同），而且 $A[p..r]$ 仍是原來那些數，所以 $A[q]$ 是第 $k = q - p + 1$
+小。 $i = k$ 時回傳 $A[q]$，正確。 $i < k$ 時，第 $i$ 小的數比 $A[q]$ 小，在
+$A[p..q-1]$ 裡，而且這一段的數正是全部裡最小的 $k - 1$ 個，所以它在這一段裡也是第 $i$
+小；範圍有 $k - 1 \ge i$ 個數、小於 $n$，由歸納假設遞迴回傳正確。 $i > k$ 時，答案在
+$A[q+1..r]$，比它小的數裡有 $k$ 個在左邊（含樞紐），所以它在右邊是第 $i - k$ 小，範圍
+有 $n - k \ge i - k \ge 1$ 個數，同樣由歸納假設正確。
+
+\item (a) 所有數相等，隨機交換不改變陣列。 Lomuto 分割裡每個 $A[j] \le x$ 都成立，結
+束時 $q = r$、$k = n$。 $i < k$ 時往左邊 $n - 1$ 個數遞迴，名次不變。 範圍從 $n$ 一路
+減一，直到範圍大小等於 $i$ 時 $k = i$ 才停，比較次數
+$\sum_{m=i}^{n} (m - 1) \ge (n - i + 1)(i - 1)$。 $i = \lfloor (n+1)/2 \rfloor$ 時這是
+$\Theta(n^2)$。
+
+(b) 三路分割的一種寫法：用 $\mathit{lt}$、$j$、$\mathit{gt}$ 三個指標，維持
+$A[p..\mathit{lt}-1] < x$、$A[\mathit{lt}..j-1] = x$、$A[\mathit{gt}+1..r] > x$，$j$
+從左往右掃：$A[j] < x$ 就和 $A[\mathit{lt}]$ 交換、兩者都加一；$A[j] > x$ 就和
+$A[\mathit{gt}]$ 交換、$\mathit{gt}$ 減一（$j$ 不動）；相等就只把 $j$ 加一。 掃完傳
+回 $q_1 = \mathit{lt}$、$q_2 = \mathit{gt}$。 選擇程序和 \proc{Randomized-Select} 一樣，
+只是令 $k_1 = q_1 - p + 1$、$k_2 = q_2 - p + 1$：$i < k_1$ 往左找 $A[p..q_1 - 1]$ 的第
+$i$ 小，$i > k_2$ 往右找 $A[q_2 + 1..r]$ 的第 $i - k_2$ 小，否則回傳 $x$。
+全部相等時第一次分割就得到 $q_1 = p$、$q_2 = r$，任何 $i$ 都落在中間那段，分割一次就
+回傳，比較 $O(n)$ 次。
+
+\item 三組排好：$\langle 17, 26, 42, 58, 93 \rangle$、$\langle 10, 35, 63, 71, 84
+\rangle$、$\langle 22, 31, 49, 77, 96 \rangle$，$M = \langle 42, 63, 49 \rangle$，$M$
+的第 $2$ 小是 $x = 49$。 用 $49$ 分割後陣列是 $\langle 17, 26, 42, 10, 35, 22, 31, 49,$
+$71, 84, 58, 93, 96, 77, 63 \rangle$，$q = 8$，$k = 8 = i$，第一層就找到中位數 $49$。
+保證 $\ge 49$ 的：中位數 $\ge 49$ 的兩組（中位數 $63$、$49$）各 $3$ 個，即
+$63, 71, 84, 49, 77, 96$，共 $6$ 個；保證 $\le 49$ 的也是 $6$ 個（$17, 26, 42, 22, 31,
+49$）。
+
+\item 中位數 $\ge x$ 的組有 $g - \lceil g/4 \rceil + 1$ 組，大約 $3g/4$，保證 $\ge x$
+的數大約 $3 \cdot 3g/4 = 9n/20$，左邊最多大約 $11n/20$。 中位數 $\le x$ 的組只有
+$\lceil g/4 \rceil$ 組，保證 $\le x$ 的大約 $3g/4 = 3n/20$，右邊最多大約
+$17n/20 + O(1)$。 遞迴式是 $T(n) \le T(\lceil n/5 \rceil) + T(17n/20 + O(1)) + an$。
+代換法：$c\frac{n}{5} + c\frac{17n}{20} + an = \frac{21}{20}cn + an > cn$，不管 $c$ 多
+大都證不出 $T(n) \le cn$。 原因是 $\frac{1}{5} + \frac{17}{20} = \frac{21}{20} > 1$，遞
+迴樹每往下一層，總工作量反而變大。 （用第~2~章 2.6 節的 Akra--Bazzi 方法，
+$(1/5)^p + (17/20)^p = 1$ 的解 $p \approx 1.12$，這個上界只能給出
+$O(n^{1.12})$。）
+
+\end{enumerate}

@@ -1,0 +1,1920 @@
+\chapter{排序}
+\label{ch:sorting}
+
+% 本章的圖共用的樣式與巨集（名稱都以 so 開頭，避免和其他章衝突）
+\tikzset{
+    socell/.style={draw=black!55, minimum width=0.62cm, minimum height=0.5cm, inner sep=0pt, font=\small},
+    socellg/.style={socell, draw=black!30, text=black!45},
+    soarr/.style={-{Stealth[length=1.6mm]}, draw=black!55},
+    son/.style={circle, draw=black!65, minimum size=0.62cm, inner sep=0pt, font=\small},
+    soa/.style={son, draw=memStroke, thick, fill=memFill},
+    sog/.style={son, draw=black!30, text=black!40, dashed},
+    soedgen/.style={draw=black!55},
+    soedgea/.style={draw=black!55},
+    soedgeg/.style={draw=black!25, dashed},
+    soreg/.style={draw=black!60, minimum height=0.62cm, inner sep=0pt, font=\small},
+}
+% 已經排好、不再參與的格子（灰色字）
+\newcommand{\sofin}[1]{\textcolor{black!45}{#1}}
+% \soheap{根的座標}{最底層的寬度}{值/樣式,值/樣式,...}{節點名稱前綴}
+% 依陣列順序（從 1 開始）畫一棵完整二元樹。樣式是 n（一般）、a（標示）、g（已排好）。
+\newcommand{\soheap}[4]{%
+    \foreach \sov/\sos [count=\soi] in {#3} {%
+        \pgfmathtruncatemacro{\solev}{floor(ln(\soi)/ln(2) + 0.0001)}%
+        \pgfmathsetmacro{\sox}{(\soi - 2^\solev + 0.5) * #2 / 2^\solev - #2 / 2}%
+        \node[so\sos] (#4\soi) at ($(#1) + (\sox, -0.95*\solev)$) {\sov};%
+        \ifnum\soi>1
+            \pgfmathtruncatemacro{\sop}{floor(\soi/2)}%
+            \draw[soedge\sos] (#4\sop) -- (#4\soi);%
+        \fi
+    }%
+}
+
+助教收齊了一班的期中考卷，考卷已經照座號疊好。 老師要她依分數由低到高重新排一
+次，還交代同分的考卷要維持座號的順序，登記成績時比較好找。 她把考卷在桌上攤成
+一列，想到兩種做法：第一種是從左到右，每次拿起下一張，往左邊已經排好的那幾張裡
+插進適當的位置；第二種是每次從還沒排的考卷裡找出分數最低的一張，和還沒排的第一
+張對調位置。 兩種做法都能把考卷依分數排好，但只有一種一定做得到老師的第二個要
+求。 是哪一種？ 往下讀之前，先想一想。
+
+第~1~章用插入排序示範了怎麼逐行算執行次數。 這一章把常見的\textbf{比較排序}
+（comparison sort）放在一起看：它們只靠「比較兩個鍵值誰大」來決定順序。 第
+\ref{sec:so-terms}~節先定義穩定、原地這些用來比較排序方法的名詞。 第
+\ref{sec:so-simple}~節比較氣泡、選擇、插入三種 $\Theta(n^2)$ 的排序，第
+\ref{sec:so-shell}~節的 Shell 排序是插入排序的改良。 第
+\ref{sec:so-merge}--\ref{sec:so-heap}~節是三種 $O(n \lg n)$ 的方法：合併排序、快速排
+序、堆積排序，其中快速排序的平均情況會用指標隨機變數完整證明。 最後一節整理成一
+張比較表，並用同一組資料把每一種排序逐趟跑一次，這是考卷上很常見的題型。
+
+比較排序在最壞情況至少要比 $\Omega(n \lg n)$ 次，這個下界和不靠比較、可以做到線性時
+間的計數排序、基數排序，以及資料放不進記憶體時的外部排序，都在第~15~章。 「只找第
+$k$ 小，不必全部排好」的選擇問題在第~16~章。
+
+這一章用到第~1~章的插入排序、迴圈不變量和逆序對，第~2~章的遞迴式，第~5~章串列的
+合併與切半，第~8~章的堆積。 C 程式用到《C 程式設計基礎》第~9~章的函式指標、第
+~15~章的遞迴、第~18~章的 \texttt{qsort} 和第~19~章的 \texttt{malloc}，用到時先在框
+裡複習。
+
+\section{名詞：穩定、原地、比較次數}
+\label{sec:so-terms}
+
+\textbf{排序}的輸入是 $n$ 筆\textbf{紀錄}（record），每一筆有一個\textbf{鍵}
+（key），輸出是這 $n$ 筆紀錄的一個排列，使得鍵由小到大（不遞減）。 紀錄除了鍵還帶著別的
+資料，例如考卷除了分數還有座號和姓名，排序時跟著鍵一起搬；紀錄很大時，常改成排序指向紀錄
+的指標，每次只搬一個指標。 這一章的虛擬碼只寫鍵。
+
+\begin{definition}[穩定的排序]
+\label{def:so-stable}
+如果輸入裡任兩筆鍵相同的紀錄 $x$、$y$，$x$ 在 $y$ 前面，排序之後 $x$ 仍然在 $y$ 前
+面，就說這個排序方法是\textbf{穩定}的（stable）。
+\end{definition}
+
+鍵會重複時，穩定的排序保留了輸入原本的次序：章首的考卷照座號疊好，用穩定的方法依分數排，
+同分的考卷就自動依座號排。 一般地說，「先依次要的鍵排，再用穩定的方法依主要的鍵排」，結
+果就是依（主要鍵，次要鍵）排好，第~15~章的基數排序就是這樣做的。 任何排序都可以改成穩定
+的：把鍵換成（鍵，原本的位置），鍵相同時比位置，代價是每筆紀錄多存一個整數。
+
+除了輸入的陣列以外，只用 $O(1)$ 個元素大小的額外空間的排序，叫\textbf{原地}（in place）
+排序。 遞迴用到的呼叫堆疊，本書另外寫出來；有些課本把 $O(\lg n)$ 的堆疊也算在原地裡，遇
+到時看題目怎麼定義。
+
+比較排序只透過比較兩個鍵來得到順序的資訊，所以\textbf{比較次數}是衡量它們最常用的量；紀
+錄很大時，\textbf{移動次數}（交換或挪動）也要算。 第~1~章的\textbf{逆序對}個數 $I$ 可以
+看成陣列亂的程度，從 $0$（排好）到 $n(n-1)/2$（完全相反），$n!$ 種排列平均是
+$n(n-1)/4$。 執行時間會隨 $I$ 變小而變小的排序叫\textbf{自適應}（adaptive）的排序，插入
+排序的 $\Theta(n + I)$ 就是典型的例子。
+
+\section{氣泡、選擇、插入}
+\label{sec:so-simple}
+
+這三種排序都是兩層迴圈，最壞情況都是 $\Theta(n^2)$，考試卻常常考它們的差別：比較和
+交換各幾次、穩不穩定、已經排好時會不會比較快、跑完第 $k$ 趟陣列長什麼樣子。 插入
+排序在第~1~章已經逐行分析過（第~1~章虛擬碼~1.3），這一節補上另外兩種，最後放在一
+起比較。
+
+\subsection{氣泡排序}
+
+\textbf{氣泡排序}（bubble sort）一趟從左到右比較相鄰的兩個數，左邊比較大就交換。
+一趟走完，最大的數會被一路換到最右邊，像氣泡浮上來一樣。 第二趟不必再看最後一格，
+以此類推。 某一趟完全沒有交換時，陣列已經排好，可以提早結束。
+
+\begin{pseudo}[label=alg:so-bubble]{氣泡排序（沒有交換就提早結束）}
+\Procedure{Bubble-Sort}{$A, n$}
+    \For{$i \gets 1$ \To $n - 1$}
+        \State $\mathit{swapped} \gets \FALSE$
+        \For{$j \gets 1$ \To $n - i$}
+            \If{$A[j] > A[j + 1]$}
+                \State 交換 $A[j]$ 和 $A[j + 1]$
+                \State $\mathit{swapped} \gets \TRUE$
+            \EndIf
+        \EndFor
+        \If{$\mathit{swapped} = \FALSE$}
+            \State \Return
+        \EndIf
+    \EndFor
+\EndProcedure
+\end{pseudo}
+
+第 $i$ 趟比較 $n - i$ 次，結束時 $A[n-i+1..n]$ 是最大的 $i$ 個數，已經排好。
+
+\begin{itemize}
+\item \textbf{比較}：輸入已經排好時，第一趟比 $n - 1$ 次、沒有交換，第 8、9 行就結束，
+$\Theta(n)$。 最壞情況做滿 $n - 1$ 趟，共 $n(n-1)/2$ 次。 沒有第 3、7、8、9 行（不提早結
+束）的版本不管輸入如何都比 $n(n-1)/2$ 次。
+\item \textbf{交換}：每次交換相鄰的兩個數，剛好消掉一個逆序對，和第~1~章插入排序的挪動
+一樣，所以交換次數等於逆序對的個數 $I$。
+\item \textbf{趟數}：每一趟裡，左邊有比它大的數的那些數，都恰好被這一趟往右帶的最大值越過
+一次、往左移一格。 所以趟數是 $1$ 加上「左邊比它大的數的個數」的最大值，最多 $n - 1$ 趟；
+一個很小的數放在最右邊，就要走滿 $n - 1$ 趟。
+\item \textbf{穩定}：只有 $A[j] > A[j+1]$ 時才交換，相等的兩個數不會越過對方。 把第 5 行
+改成 $\ge$ 就不穩定了。
+\end{itemize}
+
+\subsection{選擇排序}
+
+\textbf{選擇排序}（selection sort）第 $i$ 趟從 $A[i..n]$ 裡找出最小的數，和 $A[i]$ 交
+換。 做完第 $i$ 趟，$A[1..i]$ 就是最小的 $i$ 個數，而且排好了。
+
+\begin{pseudo}[label=alg:so-selection]{選擇排序}
+\Procedure{Selection-Sort}{$A, n$}
+    \For{$i \gets 1$ \To $n - 1$}
+        \State $m \gets i$ \Comment{目前看到的最小值的位置}
+        \For{$j \gets i + 1$ \To $n$}
+            \If{$A[j] < A[m]$}
+                \State $m \gets j$
+            \EndIf
+        \EndFor
+        \State 交換 $A[i]$ 和 $A[m]$
+    \EndFor
+\EndProcedure
+\end{pseudo}
+
+\begin{itemize}
+\item \textbf{比較}：第 $i$ 趟比 $n - i$ 次，不管輸入長什麼樣子都一樣，共
+$n(n-1)/2$ 次。 已經排好的輸入也不會比較快，它不是自適應的。
+\item \textbf{交換}：每趟一次，共 $n - 1$ 次（$m = i$ 時等於沒動）。 這是本章所有
+排序裡寫入最少的，紀錄很大、搬動很貴時有用。
+\item \textbf{不穩定}：遠距離的交換會讓相同的鍵越過對方。 $\langle 5_a, 5_b, 2
+\rangle$（下標只是用來分辨兩個 $5$）第一趟把 $2$ 和 $5_a$ 交換，得到
+$\langle 2, 5_b, 5_a \rangle$，之後不再變動，兩個 $5$ 的先後反了。 章首的第二種做
+法就是選擇排序，所以它做不到老師的第二個要求；第一種做法是插入排序，做得到。
+\end{itemize}
+
+\subsection{三種排序的比較}
+
+插入排序（第~1~章虛擬碼~1.3）只在 $A[j] > \mathit{key}$ 時挪動，相等的數不會越過
+$\mathit{key}$，所以是穩定的；挪動次數等於 $I$，比較次數介於 $I$ 和 $I + n - 1$ 之間
+（第~1~章觀念題第 10 題）。 下表 $I$ 是逆序對個數，「平均」是 $n!$ 種排列機會一樣時的期望值。
+
+\begin{center}
+\begin{tabular}{llll}
+\toprule
+& 氣泡（提早結束） & 選擇 & 插入 \\
+\midrule
+比較：最好 & $n - 1$ & $n(n-1)/2$ & $n - 1$ \\
+比較：最壞 & $n(n-1)/2$ & $n(n-1)/2$ & $n(n-1)/2$ \\
+交換或挪動 & $I$ 次交換 & $n - 1$ 次交換 & $I$ 次挪動 \\
+交換或挪動：平均 & $n(n-1)/4$ & $n - 1$ & $n(n-1)/4$ \\
+第 $k$ 趟之後 & 最後 $k$ 格就定位 & 最前 $k$ 格就定位 & 前 $k + 1$ 格排好 \\
+穩定 & 是 & 否 & 是 \\
+自適應 & 是 & 否 & 是 \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+「就定位」是說那一格已經是最後的答案，之後不會再變。 插入排序前段雖然排好了，後
+面的數還可能插進來，所以只是「排好」。 這一點是逐趟追蹤題用來判斷「這是哪一種排
+序跑了幾趟」的依據。
+
+三者裡實務上最常用的是插入排序：氣泡排序的交換和插入排序的挪動一樣多，但一次交換要三次
+指定；$n$ 很小時插入排序甚至比 $O(n \lg n)$ 的方法快。 C 程式在範例~\ref{ex:so-stability}。
+
+\section{Shell 排序}
+\label{sec:so-shell}
+
+插入排序慢在每次只能挪一格：一個本來在最右邊、其實很小的數，要和前面每一個數各比
+一次、挪一次。 D. L. Shell 在 1959 年提出的改良是：先讓距離遠的數互相比較，把它們
+大致放到正確的區域，最後再做一次普通的插入排序收尾。 那時候陣列已經幾乎排好，插入
+排序只要做很少的挪動。
+
+\subsection{$h$ 排序和增量序列}
+
+\begin{definition}[$h$ 排序好]
+\label{def:so-hsorted}
+如果每個 $i$（$1 \le i \le n - h$）都有 $A[i] \le A[i + h]$，就說陣列是 \textbf{$h$ 排
+序好}的（$h$-sorted）。
+\end{definition}
+
+$h$ 排序好的意思是：把位置 $1, 1 + h, 1 + 2h, \ldots$ 抽出來是排好的，位置 $2, 2 + h,
+\ldots$ 抽出來也是排好的……一共 $h$ 個子序列各自排好。 $1$ 排序好就是整個陣列排好。
+要把陣列變成 $h$ 排序好，只要把插入排序裡的「往左一格」改成「往左 $h$ 格」。
+
+\textbf{Shell 排序}（Shellsort）取一串遞減的\textbf{增量}（increment，也叫 gap）
+$h_1 > h_2 > \cdots > h_t = 1$，依序對每個 $h_s$ 做一次 $h_s$ 排序。 最後一個增量一定
+要是 $1$，這一趟就是普通的插入排序，所以不管前面的增量怎麼選，結果一定是排好的；前面
+幾趟只影響速度。
+
+\begin{pseudo}[label=alg:so-shell]{Shell 排序，增量是 $H[1..t]$，$H[t] = 1$}
+\Procedure{Shell-Sort}{$A, n, H, t$}
+    \For{$s \gets 1$ \To $t$}
+        \State $h \gets H[s]$
+        \For{$i \gets h + 1$ \To $n$} \Comment{間隔 $h$ 的插入排序}
+            \State $\mathit{key} \gets A[i]$
+            \State $j \gets i - h$
+            \While{$j \ge 1$ \AND $A[j] > \mathit{key}$}
+                \State $A[j + h] \gets A[j]$
+                \State $j \gets j - h$
+            \EndWhile
+            \State $A[j + h] \gets \mathit{key}$
+        \EndFor
+    \EndFor
+\EndProcedure
+\end{pseudo}
+
+第 4 行的 $i$ 由小到大走，$h$ 個子序列是交錯著處理的：$i = h + 1$ 處理第一個子序列，
+$i = h + 2$ 處理第二個……效果和把每個子序列分開做插入排序一樣，因為不同子序列的數不
+會互相比較。
+
+\subsection{逐趟追蹤}
+
+用 Shell 原本的增量 $\lfloor n/2 \rfloor, \lfloor n/4 \rfloor, \ldots, 1$ 排 $A = \langle
+58, 23, 91, 7, 46, 14, 80, 35, 62, 19 \rangle$，$n = 10$，增量是 $5, 2, 1$。 下表每一
+列是一趟做完之後的陣列，「比較」是第 7 行 $A[j] > \mathit{key}$ 比了幾次，「挪動」是第 8 行
+執行幾次。
+
+\begin{center}
+\begin{tabular}{lcc*{10}{c}}
+\toprule
+& 比較 & 挪動 & 1 & 2 & 3 & 4 & 5 & 6 & 7 & 8 & 9 & 10 \\
+\midrule
+開始 & & & 58 & 23 & 91 & 7 & 46 & 14 & 80 & 35 & 62 & 19 \\
+$h = 5$ & 5 & 3 & 14 & 23 & 35 & 7 & 19 & 58 & 80 & 91 & 62 & 46 \\
+$h = 2$ & 12 & 5 & 14 & 7 & 19 & 23 & 35 & 46 & 62 & 58 & 80 & 91 \\
+$h = 1$ & 10 & 2 & 7 & 14 & 19 & 23 & 35 & 46 & 58 & 62 & 80 & 91 \\
+\midrule
+合計 & 27 & 10 & \multicolumn{10}{l}{} \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+$h = 5$ 的五個子序列是 $(58, 14)$、$(23, 80)$、$(91, 35)$、$(7, 62)$、$(46, 19)$，三組要
+對調。 $h = 2$ 把奇數位置 $\langle 14, 35, 19, 80, 62 \rangle$ 和偶數位置 $\langle 23, 7, 58,
+91, 46 \rangle$ 各自排好再交錯放回去。 最後只剩 $(14, 7)$、$(62, 58)$ 兩個逆序對，$h = 1$ 只
+挪兩次。
+
+同一個陣列直接做插入排序，要比較 31 次、挪動 24 次。 $n = 10$ 時差別還不
+大，$n$ 變大以後的差距見本節最後。
+
+Shell 排序不穩定。 $\langle 3, 2_a, 2_b, 1 \rangle$ 用增量 $2, 1$：$h = 2$ 時位置 $(1, 3)$ 是
+$(3, 2_b)$，對調；位置 $(2, 4)$ 是 $(2_a, 1)$，對調，得到 $\langle 2_b, 1, 3, 2_a
+\rangle$。 最後一趟插入排序不會讓兩個 $2$ 互相越過，結果是 $\langle 1, 2_b, 2_a, 3
+\rangle$。 間隔 $h$ 的移動會跳過中間的數，相同的鍵就可能越過對方。
+
+\subsection{增量怎麼選}
+
+為什麼前面幾趟的成果不會被後面的趟數破壞？ 有一個不容易證明、但很重要的性質（證明
+見延伸閱讀的 Knuth）：一個 $h$ 排序好的陣列再做 $k$ 排序之後，仍然是 $h$ 排序好的。 所
+以每一趟都是在前面的基礎上再整理，逆序對一趟比一趟少。
+
+增量的選法決定了最壞情況。 下表是幾種常見的序列，都由大到小用，用到 $1$ 為止。
+
+\begin{center}
+\begin{tabular}{lll}
+\toprule
+序列 & 前幾項 & 最壞情況 \\
+\midrule
+Shell（1959），每次減半 & $\lfloor n/2 \rfloor, \lfloor n/4 \rfloor, \ldots, 1$ & $\Theta(n^2)$ \\
+Hibbard（1963），$2^k - 1$ & $1, 3, 7, 15, 31, \ldots$ & $\Theta(n^{3/2})$ \\
+Knuth，$(3^k - 1)/2$ & $1, 4, 13, 40, 121, \ldots$ & $O(n^{3/2})$ \\
+Sedgewick（1986），$4^k + 3 \cdot 2^{k-1} + 1$ & $1, 8, 23, 77, 281, \ldots$ & $O(n^{4/3})$ \\
+Pratt（1971），$2^p 3^q$ & $1, 2, 3, 4, 6, 8, 9, 12, \ldots$ & $\Theta(n \lg^2 n)$ \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+Pratt 的序列漸近最好，但項數有 $\Theta(\lg^2 n)$ 個，實際上反而比較慢。 實務上常用
+Knuth 的序列，或是 Ciura 用實驗找出來的 $1, 4, 10, 23, 57, 132, 301, 701$。 Shell 排序的
+平均情況，對大部分序列都還沒有完整的理論結果。
+
+Shell 原本的減半序列為什麼最壞是 $\Theta(n^2)$？ $n$ 是 $2$ 的次方時，除了最後的 $1$，
+每個增量都是偶數，所以奇數位置的數和偶數位置的數，在最後一趟之前從來不會互相比較。
+如果最小的一半全部在奇數位置、最大的一半全部在偶數位置，前面那些趟數完全沒有幫忙。 例
+如 $n = 4096$，奇數位置依序放 $1..2048$、偶數位置依序放 $2049..4096$：前面 $11$ 個偶數增量
+只做了比較、什麼都沒挪，最後一趟要挪 $2048 \cdot 2047 / 2 = 2{,}096{,}128$ 次，比直接做插入
+排序還多了前面 $11$ 趟的比較。 Knuth 的序列裡有奇數，奇偶位置在前面幾趟就混在一起了，
+不會有這個問題。
+
+實際量一下。 用固定種子的虛擬亂數產生 $n = 16000$ 個數，插入排序比了大約 $6.4 \times
+10^7$ 次，減半序列大約 $4.9 \times 10^5$ 次，Knuth 的序列大約 $4.2 \times 10^5$ 次，少了一百
+倍以上；$n$ 每變成 $4$ 倍，插入排序的次數變成大約 $16$ 倍，兩種 Shell 排序大約 $5$ 到 $6$
+倍。 上面那個 $n = 4096$ 的壞輸入，減半序列比了 $2{,}141{,}185$ 次，比插入排序的
+$2{,}100{,}223$ 次還多，Knuth 的序列只比了 $45{,}532$ 次。 Shell 排序的 C 程式只是把插入排
+序的 $1$ 換成 $h$，寫在第~\ref{sec:so-compare}~節的範例~\ref{ex:so-stability} 裡。
+
+\section{合併排序}
+\label{sec:so-merge}
+
+前面幾種排序都是「每次把一個數放到對的地方」。 \textbf{合併排序}（merge sort）換一個
+方向：把陣列切成兩半，兩半各自排好，再把兩段排好的序列\textbf{合併}（merge）成一段。
+各自排好的那兩半，用同樣的方法遞迴處理；只剩一個數時本來就排好了。 這是\textbf{分
+治法}（divide and conquer）最典型的例子，第~17~章會再看到很多。
+
+\subsection{合併兩段排好的子陣列}
+
+第~5~章 5.5 節合併過兩條排好的串列（第~5~章虛擬碼~5.13）。 陣列版的想法一樣，兩邊
+各一個指標，每次取比較小的那個；不同的是陣列不能直接把節點接過去，所以先把
+$A[p..r]$ 抄到暫存陣列 $B$，再一個一個寫回 $A$。
+
+\begin{pseudo}[label=alg:so-merge]{合併 $A[p..q]$ 和 $A[q+1..r]$，$B$ 是暫存陣列}
+\Procedure{Merge}{$A, B, p, q, r$}
+    \For{$k \gets p$ \To $r$}
+        \State $B[k] \gets A[k]$
+    \EndFor
+    \State $i \gets p$；$j \gets q + 1$
+    \For{$k \gets p$ \To $r$}
+        \If{$i \le q$ \AND ($j > r$ \OR $B[i] \le B[j]$)}
+            \State $A[k] \gets B[i]$；$i \gets i + 1$
+        \Else
+            \State $A[k] \gets B[j]$；$j \gets j + 1$
+        \EndIf
+    \EndFor
+\EndProcedure
+\end{pseudo}
+
+第 6 行的條件是「左邊還有，而且右邊已經用完或左邊的比較小」。 \textbf{and}、
+\textbf{or} 照第~1~章的約定，左邊決定結果時右邊不算，所以 $B[i] \le B[j]$ 只在兩邊都
+還有的時候才比較，不會讀到範圍外。 兩點要注意：
+
+\begin{itemize}
+\item 用 $\le$ 而不是 $<$：鍵相同時先拿左邊的，左半的紀錄本來就在右半前面，所以合併
+排序是穩定的。 改成 $<$ 就變成先拿右邊的，不穩定。
+\item 兩段長度是 $m_1$、$m_2$ 時，比較次數介於 $\min(m_1, m_2)$ 和 $m_1 + m_2 - 1$ 之
+間，但寫入一定是 $m_1 + m_2$ 次，抄到 $B$ 也是，所以時間是 $\Theta(m_1 + m_2)$。
+\end{itemize}
+
+\subsection{遞迴版}
+
+\begin{pseudo}[label=alg:so-mergesort]{合併排序（遞迴）}
+\Procedure{Merge-Sort}{$A, B, p, r$}
+    \If{$p < r$}
+        \State $q \gets \lfloor (p + r)/2 \rfloor$
+        \State \Call{Merge-Sort}{$A, B, p, q$}
+        \State \Call{Merge-Sort}{$A, B, q + 1, r$}
+        \State \Call{Merge}{$A, B, p, q, r$}
+    \EndIf
+\EndProcedure
+\end{pseudo}
+
+呼叫 \proc{Merge-Sort}$(A, B, 1, n)$ 排整個陣列。 長度 $n = r - p + 1$ 的子陣列，左半
+有 $\lceil n/2 \rceil$ 個，右半有 $\lfloor n/2 \rfloor$ 個。
+
+用 $A = \langle 52, 27, 8, 66, 41, 13 \rangle$ 跑一次。 下圖上半是一路切下去的樣子，
+下半是一路合併上來的結果；灰色的是已經只剩一個、不再切的數，直接往下帶。
+
+\begin{center}
+\begin{tikzpicture}
+\node[socell] at (-1.550,0.000) {52};
+\node[socell] at (-0.930,0.000) {27};
+\node[socell] at (-0.310,0.000) {8};
+\node[socell] at (0.310,0.000) {66};
+\node[socell] at (0.930,0.000) {41};
+\node[socell] at (1.550,0.000) {13};
+\node[socell] at (-1.710,-0.800) {52};
+\node[socell] at (-1.090,-0.800) {27};
+\node[socell] at (-0.470,-0.800) {8};
+\node[socell] at (0.470,-0.800) {66};
+\node[socell] at (1.090,-0.800) {41};
+\node[socell] at (1.710,-0.800) {13};
+\node[socell] at (-2.030,-1.600) {52};
+\node[socell] at (-1.410,-1.600) {27};
+\node[socell] at (-0.470,-1.600) {8};
+\node[socell] at (0.470,-1.600) {66};
+\node[socell] at (1.090,-1.600) {41};
+\node[socell] at (2.030,-1.600) {13};
+\node[socell] at (-2.350,-2.400) {52};
+\node[socell] at (-1.410,-2.400) {27};
+\node[socellg] at (-0.470,-2.400) {8};
+\node[socell] at (0.470,-2.400) {66};
+\node[socell] at (1.410,-2.400) {41};
+\node[socellg] at (2.350,-2.400) {13};
+\node[socell] at (-2.030,-3.200) {27};
+\node[socell] at (-1.410,-3.200) {52};
+\node[socell] at (-0.470,-3.200) {8};
+\node[socell] at (0.470,-3.200) {41};
+\node[socell] at (1.090,-3.200) {66};
+\node[socell] at (2.030,-3.200) {13};
+\node[socell] at (-1.710,-4.000) {8};
+\node[socell] at (-1.090,-4.000) {27};
+\node[socell] at (-0.470,-4.000) {52};
+\node[socell] at (0.470,-4.000) {13};
+\node[socell] at (1.090,-4.000) {41};
+\node[socell] at (1.710,-4.000) {66};
+\node[socell] at (-1.550,-4.800) {8};
+\node[socell] at (-0.930,-4.800) {13};
+\node[socell] at (-0.310,-4.800) {27};
+\node[socell] at (0.310,-4.800) {41};
+\node[socell] at (0.930,-4.800) {52};
+\node[socell] at (1.550,-4.800) {66};
+\draw[soarr] (0.000,-0.300) -- (-1.090,-0.500);
+\draw[soarr, draw=memStroke] (-1.090,-4.300) -- (0.000,-4.500);
+\draw[soarr] (0.000,-0.300) -- (1.090,-0.500);
+\draw[soarr, draw=memStroke] (1.090,-4.300) -- (0.000,-4.500);
+\draw[soarr] (-1.090,-1.100) -- (-1.720,-1.300);
+\draw[soarr, draw=memStroke] (-1.720,-3.500) -- (-1.090,-3.700);
+\draw[soarr] (-1.090,-1.100) -- (-0.470,-1.300);
+\draw[soarr, draw=memStroke] (-0.470,-3.500) -- (-1.090,-3.700);
+\draw[soarr] (-1.720,-1.900) -- (-2.350,-2.100);
+\draw[soarr, draw=memStroke] (-2.350,-2.700) -- (-1.720,-2.900);
+\draw[soarr] (-1.720,-1.900) -- (-1.410,-2.100);
+\draw[soarr, draw=memStroke] (-1.410,-2.700) -- (-1.720,-2.900);
+\draw[soarr] (1.090,-1.100) -- (0.780,-1.300);
+\draw[soarr, draw=memStroke] (0.780,-3.500) -- (1.090,-3.700);
+\draw[soarr] (1.090,-1.100) -- (2.030,-1.300);
+\draw[soarr, draw=memStroke] (2.030,-3.500) -- (1.090,-3.700);
+\draw[soarr] (0.780,-1.900) -- (0.470,-2.100);
+\draw[soarr, draw=memStroke] (0.470,-2.700) -- (0.780,-2.900);
+\draw[soarr] (0.780,-1.900) -- (1.410,-2.100);
+\draw[soarr, draw=memStroke] (1.410,-2.700) -- (0.780,-2.900);
+\draw[densely dotted, black!35] (-0.470,-1.900) -- (-0.470,-2.100);
+\draw[densely dotted, black!35] (2.350,-1.900) -- (2.350,-2.100);
+\node[font=\small, anchor=east] at (-2.6,0) {切};
+\node[font=\small, anchor=east] at (-2.6,-4.8) {合併};
+\end{tikzpicture}
+\diagcaption{遞迴版合併排序。 黑色箭頭是切開，橘色箭頭是合併，最下面一列是結果。}
+\label{fig:so-merge-tree}
+\end{center}
+
+考卷上常用的寫法是「每合併一次寫一列」。 遞迴版合併的先後順序是深度優先的：左半全部
+做完，才輪到右半。 粗體是這一次合併的範圍。
+
+\begin{center}
+\begin{tabular}{l*{6}{c}}
+\toprule
+合併的範圍 & 1 & 2 & 3 & 4 & 5 & 6 \\
+\midrule
+開始 & 52 & 27 & 8 & 66 & 41 & 13 \\
+$A[1..1] + A[2..2]$ & \textbf{27} & \textbf{52} & 8 & 66 & 41 & 13 \\
+$A[1..2] + A[3..3]$ & \textbf{8} & \textbf{27} & \textbf{52} & 66 & 41 & 13 \\
+$A[4..4] + A[5..5]$ & 8 & 27 & 52 & \textbf{41} & \textbf{66} & 13 \\
+$A[4..5] + A[6..6]$ & 8 & 27 & 52 & \textbf{13} & \textbf{41} & \textbf{66} \\
+$A[1..3] + A[4..6]$ & \textbf{8} & \textbf{13} & \textbf{27} & \textbf{41} & \textbf{52} & \textbf{66} \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\subsection{分析}
+
+設 $C(n)$ 是長度 $n$ 時最多比較幾次。 兩邊遞迴，再加上一次合併：
+\[
+C(1) = 0, \qquad C(n) \le C(\lceil n/2 \rceil) + C(\lfloor n/2 \rfloor) + n - 1 \quad (n \ge 2).
+\]
+這和第~2~章的報表加總 $T(n) = T(\lceil n/2 \rceil) + T(\lfloor n/2 \rfloor) + n$ 是同一
+個形狀，只是每次少 $1$。 對 $n$ 歸納馬上得到 $C(n) \le T(n)$，而第~2~章定理~2.3 證明
+了 $T(n) \le n \lceil \lg n \rceil$，所以
+\[
+C(n) \le n \lceil \lg n \rceil .
+\]
+確切的最壞值是 $n \lceil \lg n \rceil - 2^{\lceil \lg n \rceil} + 1$（觀念題會驗證 $n$
+是 $2$ 的次方的情形）。 最好的情況，例如輸入已經排好、$n$ 是 $2$ 的次方，每次合併只比
+左半的個數次，共 $\frac{n}{2} \lg n$ 次，仍然是 $\Theta(n \lg n)$。 寫入的次數更固定：遞
+迴樹每一層合併的數加起來不超過 $n$ 個，最上面 $\lfloor \lg n \rfloor$ 層每層剛好 $n$ 個，每個數都要抄到 $B$ 再寫回來。 所以合併排序不
+管輸入如何，時間都是 $\Theta(n \lg n)$。
+
+空間方面，$B$ 要 $n$ 格，遞迴深度是 $\lceil \lg n \rceil$，合計 $\Theta(n)$ 的額外空間。
+這是合併排序最大的缺點。
+
+\subsection{由下而上的版本}
+
+不用遞迴也可以：先把相鄰的一個和一個合併成長度 $2$ 的段，再把相鄰的兩段合併成長度
+$4$，依此類推。 每一趟段的長度加倍，$\lceil \lg n \rceil$ 趟就排好了。 最後一段可能不足
+長度，合併時右邊界要取 $\min$；右邊根本沒有段時，這一段留著不動。
+
+\begin{pseudo}[label=alg:so-merge-bu]{合併排序（由下而上）}
+\Procedure{Merge-Sort-BU}{$A, B, n$}
+    \State $w \gets 1$ \Comment{這一趟每一段的長度}
+    \While{$w < n$}
+        \State $p \gets 1$
+        \While{$p + w \le n$} \Comment{右邊還有一段才合併}
+            \State \Call{Merge}{$A, B, p, p + w - 1, \min(p + 2w - 1, n)$}
+            \State $p \gets p + 2w$
+        \EndWhile
+        \State $w \gets 2w$
+    \EndWhile
+\EndProcedure
+\end{pseudo}
+
+同一個陣列用由下而上的版本，一趟寫一列：
+
+\begin{center}
+\begin{tabular}{l*{6}{c}}
+\toprule
+這一趟 & 1 & 2 & 3 & 4 & 5 & 6 \\
+\midrule
+開始 & 52 & 27 & 8 & 66 & 41 & 13 \\
+$w = 1$ & 27 & 52 & 8 & 66 & 13 & 41 \\
+$w = 2$ & 8 & 27 & 52 & 66 & 13 & 41 \\
+$w = 4$ & 8 & 13 & 27 & 41 & 52 & 66 \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+兩個版本最後的結果一樣，中間的陣列卻不同。 遞迴版把 $6$ 個切成 $3 + 3$，再切成
+$2 + 1$；由下而上的版本先兩兩合併成 $2 + 2 + 2$，第二趟合併成 $4 + 2$。 只有 $n$ 是
+$2$ 的次方時，兩者合併的段才完全相同（只是先後次序不同）。 比較次數也可能不一樣，
+這個例子遞迴版比了 9 次，由下而上比了 10 次。
+
+由下而上的版本沒有遞迴，很適合用在串列和外部排序（第~15~章 15.3 節）：每一趟都是從頭
+到尾依序讀、依序寫。
+
+\subsection{串列版}
+
+第~5~章的 \proc{Split-Half}（第~5~章虛擬碼~5.14）把串列切成前後兩半，\proc{Merge-Lists}
+（第~5~章虛擬碼~5.13）合併兩條排好的串列，兩個都只改 $\mathit{next}$。 把它們接起來就
+是串列的合併排序：
+
+\begin{pseudo}[label=alg:so-merge-list]{串列的合併排序，回傳排好的串列的開頭}
+\Function{Merge-Sort-List}{$h$}
+    \If{$h = \NIL$ \OR $h.\mathit{next} = \NIL$}
+        \State \Return $h$
+    \EndIf
+    \State $b \gets$ \Call{Split-Half}{$h$} \Comment{前半從 $h$ 開始，後半從 $b$ 開始}
+    \State \Return \proc{Merge-Lists}(\proc{Merge-Sort-List}($h$), \proc{Merge-Sort-List}($b$))
+\EndFunction
+\end{pseudo}
+
+串列版不需要暫存陣列，額外空間只有 $\Theta(\lg n)$ 的遞迴堆疊。 \proc{Split-Half} 讓前
+半在前，\proc{Merge-Lists} 遇到相同的鍵先拿前半的，所以也是穩定的。 第~5~章證明過
+\proc{Split-Half} 在 $n \ge 2$ 時兩半都不是空的，遞迴一定會停。 串列不能隨機存取，快
+速排序、堆積排序都不好做，合併排序是在串列上排序的標準做法。
+
+實務上常見的改良：子陣列很短時改用插入排序；合併前先檢查 $A[q] \le A[q + 1]$，成立就不
+必合併，排好的輸入只要 $\Theta(n)$。
+
+\subsection{C 程式}
+
+\begin{cbookrecap}[第~15~章 15.6 節、第~19~章 19.3 節]
+處理陣列的一段時，C 程式習慣用兩個下標 \texttt{lo}、\texttt{hi} 表示範圍，遞迴函式
+只處理這一段，陣列本身用指標傳進去。 中間點寫成 \texttt{lo + (hi - lo) / 2} 而不是
+\texttt{(lo + hi) / 2}，兩個很大的下標相加可能超過 \texttt{int} 的範圍。
+
+暫存陣列 \texttt{b} 只配置一次，整個排序共用，用完 \texttt{free}。 不要在每次合併時各
+\texttt{malloc} 一次，那會多出 $\Theta(n)$ 次配置。 下面的程式用一次 \texttt{malloc} 要
+$3n$ 格，再用指標分成原始資料、\texttt{a}、\texttt{b} 三段。 \texttt{memcpy(dst,
+src, k)} 把 \texttt{src} 開始的 \texttt{k} 個位元組抄到 \texttt{dst}，兩塊不能重疊，
+宣告在 \texttt{<string.h>}。
+\end{cbookrecap}
+
+下面的程式讀入一個陣列，用兩個版本各排一次：遞迴版每合併一次就印出整個陣列和合併的
+範圍，由下而上的版本每一趟印一次，最後印出兩者的比較次數。 C 的下標從 $0$ 開始，所以
+\texttt{a[0..1]} 是虛擬碼的 $A[1..2]$。 比較次數用逗號運算子數：\texttt{(cmp\_count++,
+b[i] <= b[j])} 先加一，再比較，和第 6 行一樣只在兩邊都還有時才算。
+
+\begin{example}[label=ex:so-merge]{c}{(merge\_sort.c) 遞迴與由下而上的合併排序}
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+
+int n;                                  // 陣列長度
+long long cmp_count;                    // b[i] <= b[j] 比較了幾次
+
+void print_array(const int *a)
+{
+    for (int i = 0; i < n; i++) {
+        printf(" %d", a[i]);
+    }
+    printf("\n");
+}
+
+// 合併 a[lo..mid] 和 a[mid+1..hi]，b 是暫存陣列。
+void merge(int *a, int *b, int lo, int mid, int hi)
+{
+    memcpy(b + lo, a + lo, (hi - lo + 1) * sizeof *a);
+    int i = lo, j = mid + 1;
+    for (int k = lo; k <= hi; k++) {
+        if (i <= mid && (j > hi || (cmp_count++, b[i] <= b[j]))) {
+            a[k] = b[i++];              // 相等時拿左邊的：穩定
+        } else {
+            a[k] = b[j++];
+        }
+    }
+}
+
+// 遞迴版：每合併一次就印出範圍和整個陣列。
+void merge_sort_rec(int *a, int *b, int lo, int hi)
+{
+    if (lo < hi) {
+        int mid = lo + (hi - lo) / 2;
+        merge_sort_rec(a, b, lo, mid);
+        merge_sort_rec(a, b, mid + 1, hi);
+        merge(a, b, lo, mid, hi);
+        printf("a[%d..%d]", lo, hi);
+        print_array(a);
+    }
+}
+
+// 由下而上版：寬度 w = 1, 2, 4, ... 的段兩兩合併，每一趟印一次。
+void merge_sort_bu(int *a, int *b)
+{
+    for (int w = 1; w < n; w *= 2) {
+        for (int lo = 0; lo + w < n; lo += 2 * w) {
+            int hi = lo + 2 * w - 1 < n - 1 ? lo + 2 * w - 1 : n - 1;
+            merge(a, b, lo, lo + w - 1, hi);
+        }
+        printf("w=%d", w);
+        print_array(a);
+    }
+}
+
+int main(void)
+{
+    if (scanf("%d", &n) != 1 || n <= 0) {
+        return 1;
+    }
+    int *src = malloc(3 * n * sizeof *src);     // 原始資料、a、b 共用一塊
+    if (src == NULL) {
+        return 1;
+    }
+    int *a = src + n, *b = src + 2 * n;
+    for (int i = 0; i < n; i++) {
+        if (scanf("%d", &src[i]) != 1) {
+            free(src);
+            return 1;
+        }
+    }
+    memcpy(a, src, n * sizeof *a);
+    merge_sort_rec(a, b, 0, n - 1);
+    long long c1 = cmp_count;
+    cmp_count = 0;
+    memcpy(a, src, n * sizeof *a);
+    merge_sort_bu(a, b);
+    printf("comparisons: %lld %lld\n", c1, cmp_count);
+    free(src);
+    return 0;
+}
+\end{example}
+\iosample{6 \\ 52 27 8 66 41 13}{a[0..1] 27 52 8 66 41 13 \\ a[0..2] 8 27 52 66 41 13 \\ a[3..4] 8 27 52 41 66 13 \\ a[3..5] 8 27 52 13 41 66 \\ a[0..5] 8 13 27 41 52 66 \\ w=1 27 52 8 66 13 41 \\ w=2 8 27 52 66 13 41 \\ w=4 8 13 27 41 52 66 \\ comparisons: 9 10}
+
+輸出和前面兩張表一樣。
+
+\section{快速排序}
+\label{sec:so-quick}
+
+合併排序的工作在遞迴\textbf{之後}：兩半排好了，再花力氣合併。 \textbf{快速排序}
+（quicksort，C. A. R. Hoare 在 1961 年發表）把工作放在遞迴\textbf{之前}：先選一個數
+當\textbf{基準}（pivot），把比它小的放左邊、比它大的放右邊，這一步叫\textbf{分割}
+（partition）。 左右兩邊各自遞迴排好以後，整段自然就排好了，不需要合併。 分割可以原
+地做，所以快速排序不需要暫存陣列。
+
+分割有兩種常見的寫法，Lomuto 的和 Hoare 的。 兩種寫法回傳的東西不一樣，遞迴的範圍也
+不一樣，是考試和寫程式時最容易混淆的地方，這一節兩種都講，並用同一個陣列追蹤。
+
+\subsection{Lomuto 分割}
+
+Lomuto 分割取最後一個數 $x = A[r]$ 當基準，從左到右掃一次。 掃的過程中維持一個分界
+$i$：$A[p..i-1]$ 都不大於 $x$，$A[i..j-1]$ 都大於 $x$。 看到 $A[j] \le x$ 時，把它和
+$A[i]$ 交換，分界往右一格。 最後把基準換到分界上。
+
+\begin{pseudo}[label=alg:so-lomuto]{Lomuto 分割，回傳基準最後的位置}
+\Function{Lomuto-Partition}{$A, p, r$}
+    \State $x \gets A[r]$ \Comment{基準}
+    \State $i \gets p$
+    \For{$j \gets p$ \To $r - 1$}
+        \If{$A[j] \le x$}
+            \State 交換 $A[i]$ 和 $A[j]$
+            \State $i \gets i + 1$
+        \EndIf
+    \EndFor
+    \State 交換 $A[i]$ 和 $A[r]$
+    \State \Return $i$
+\EndFunction
+\end{pseudo}
+
+\begin{center}
+\begin{tikzpicture}
+\node[soreg, fill=coreFill, minimum width=2.4cm, anchor=west] at (0,0) {$\le x$};
+\node[soreg, fill=memFill, minimum width=2.4cm, anchor=west] at (2.4,0) {$> x$};
+\node[soreg, minimum width=2.6cm, anchor=west] at (4.8,0) {還沒看};
+\node[soreg, fill=optFill, minimum width=0.7cm, anchor=west] at (7.4,0) {$x$};
+\node[idxlbl] at (0.2,-0.55) {$p$};
+\node[idxlbl] at (2.6,-0.55) {$i$};
+\node[idxlbl] at (5.0,-0.55) {$j$};
+\node[idxlbl] at (7.75,-0.55) {$r$};
+\end{tikzpicture}
+\diagcaption{Lomuto 分割的第 4 行每一輪開始時，$A[p..r]$ 分成四段。 中間兩段可能是空的。}
+\label{fig:so-lomuto}
+\end{center}
+
+用第~1~章 1.4 節的迴圈不變量證明它是對的。 \textbf{不變量}：第 4 行每一輪開始時，
+$A[p..i-1]$ 的每個數都 $\le x$，$A[i..j-1]$ 的每個數都 $> x$，而且 $A[r] = x$。
+
+\begin{itemize}
+\item \textbf{初始}：$i = j = p$，兩段都是空的；$A[r]$ 還沒動過。
+\item \textbf{維持}：如果 $A[j] > x$，什麼都不做，$j$ 加一以後第二段多了這個數，仍然
+成立。 如果 $A[j] \le x$，交換 $A[i]$ 和 $A[j]$：$A[i]$ 換成一個 $\le x$ 的數，第一段
+多一格；原本的 $A[i]$ 是第二段的第一個數（$> x$），被換到 $A[j]$，正好是第二段新的最
+後一格。 （第二段是空的時候 $i = j$，自己和自己交換。） $i$、$j$ 各加一，仍然成立。 $j$ 只
+跑到 $r - 1$，$A[r]$ 不會被換到。
+\item \textbf{結束}：$j = r$。 這時 $A[p..i-1] \le x$，$A[i..r-1] > x$。 第 8 行把基準換
+到 $A[i]$，原本的 $A[i]$（$> x$，或者 $i = r$ 時就是基準自己）換到 $A[r]$，得到
+$A[p..i-1] \le A[i] = x < A[i+1..r]$。
+\end{itemize}
+
+第 5 行一共比較 $r - p$ 次，所以分割長度 $m$ 的子陣列剛好比 $m - 1$ 次，時間
+$\Theta(m)$。 回傳的 $q$ 是基準最後的位置，基準已經就定位，兩邊遞迴時都不必再含它：
+
+\begin{pseudo}[label=alg:so-quick]{快速排序（Lomuto 分割）}
+\Procedure{Quicksort}{$A, p, r$}
+    \If{$p < r$}
+        \State $q \gets$ \Call{Lomuto-Partition}{$A, p, r$}
+        \State \Call{Quicksort}{$A, p, q - 1$}
+        \State \Call{Quicksort}{$A, q + 1, r$}
+    \EndIf
+\EndProcedure
+\end{pseudo}
+
+\subsection{Lomuto 的追蹤}
+
+用 $A = \langle 47, 82, 15, 63, 29, 91, 36, 54, 40 \rangle$。 第一次分割的基準是 $x = 40$，
+下表每一列是第 4 行做完一輪之後的陣列。
+
+\begin{center}
+\small
+\begin{tabular}{ccc*{9}{c}}
+\toprule
+$j$ & $A[j] \le 40$？ & 之後的 $i$ & 1 & 2 & 3 & 4 & 5 & 6 & 7 & 8 & 9 \\
+\midrule
+開始 & & 1 & 47 & 82 & 15 & 63 & 29 & 91 & 36 & 54 & 40 \\
+1 & 否 & 1 & 47 & 82 & 15 & 63 & 29 & 91 & 36 & 54 & 40 \\
+2 & 否 & 1 & 47 & 82 & 15 & 63 & 29 & 91 & 36 & 54 & 40 \\
+3 & 是，交換 $A[1]$、$A[3]$ & 2 & 15 & 82 & 47 & 63 & 29 & 91 & 36 & 54 & 40 \\
+4 & 否 & 2 & 15 & 82 & 47 & 63 & 29 & 91 & 36 & 54 & 40 \\
+5 & 是，交換 $A[2]$、$A[5]$ & 3 & 15 & 29 & 47 & 63 & 82 & 91 & 36 & 54 & 40 \\
+6 & 否 & 3 & 15 & 29 & 47 & 63 & 82 & 91 & 36 & 54 & 40 \\
+7 & 是，交換 $A[3]$、$A[7]$ & 4 & 15 & 29 & 36 & 63 & 82 & 91 & 47 & 54 & 40 \\
+8 & 否 & 4 & 15 & 29 & 36 & 63 & 82 & 91 & 47 & 54 & 40 \\
+結束 & 交換 $A[4]$、$A[9]$ & 4 & 15 & 29 & 36 & \textbf{40} & 82 & 91 & 47 & 54 & 63 \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+整個排序每一次分割（範圍至少有兩個數的呼叫）寫一列，依呼叫的先後排列，粗體是這次歸
+位的基準。
+
+\begin{center}
+\begin{tabular}{ccc*{9}{c}}
+\toprule
+範圍 & $x$ & $q$ & 1 & 2 & 3 & 4 & 5 & 6 & 7 & 8 & 9 \\
+\midrule
+開始 & & & 47 & 82 & 15 & 63 & 29 & 91 & 36 & 54 & 40 \\
+$[1..9]$ & 40 & 4 & 15 & 29 & 36 & \textbf{40} & 82 & 91 & 47 & 54 & 63 \\
+$[1..3]$ & 36 & 3 & 15 & 29 & \textbf{36} & 40 & 82 & 91 & 47 & 54 & 63 \\
+$[1..2]$ & 29 & 2 & 15 & \textbf{29} & 36 & 40 & 82 & 91 & 47 & 54 & 63 \\
+$[5..9]$ & 63 & 7 & 15 & 29 & 36 & 40 & 47 & 54 & \textbf{63} & 91 & 82 \\
+$[5..6]$ & 54 & 6 & 15 & 29 & 36 & 40 & 47 & \textbf{54} & 63 & 91 & 82 \\
+$[8..9]$ & 82 & 8 & 15 & 29 & 36 & 40 & 47 & 54 & 63 & \textbf{82} & 91 \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+範圍 $[4..3]$、$[5..4]$ 這些空的呼叫和只有一個數的呼叫直接返回，表上不寫。 一共比較了
+$8 + 2 + 1 + 4 + 1 + 1 = 17$ 次。
+
+\subsection{Hoare 分割}
+
+Hoare 原本的寫法是兩個指標從兩端往中間走：$i$ 從左邊找一個 $\ge x$ 的數，$j$ 從右邊找
+一個 $\le x$ 的數，兩個都找到而且還沒交錯，就把它們交換，繼續走；交錯了就停。 下面的
+版本取第一個數 $A[p]$ 當基準。
+
+\begin{pseudo}[label=alg:so-hoare]{Hoare 分割，回傳分界 $j$}
+\Function{Hoare-Partition}{$A, p, r$}
+    \State $x \gets A[p]$ \Comment{基準}
+    \State $i \gets p$；$j \gets r$
+    \While{\TRUE}
+        \While{$A[i] < x$}
+            \State $i \gets i + 1$
+        \EndWhile
+        \While{$A[j] > x$}
+            \State $j \gets j - 1$
+        \EndWhile
+        \If{$i \ge j$}
+            \State \Return $j$
+        \EndIf
+        \State 交換 $A[i]$ 和 $A[j]$
+        \State $i \gets i + 1$；$j \gets j - 1$
+    \EndWhile
+\EndFunction
+\end{pseudo}
+
+和 Lomuto 最大的不同在回傳值。 Hoare 回傳的 $j$ 只保證
+\[
+A[p..j] \text{ 的每個數} \;\le\; x \;\le\; A[j+1..r] \text{ 的每個數},
+\]
+基準 $x$ 本身不一定在 $A[j]$，可能在左邊，也可能在右邊。 所以兩邊遞迴的範圍是
+$[p..j]$ 和 $[j+1..r]$，$A[j]$ 要包含在左邊：
+
+\begin{pseudo}[label=alg:so-quick-hoare]{快速排序（Hoare 分割）}
+\Procedure{Quicksort-H}{$A, p, r$}
+    \If{$p < r$}
+        \State $j \gets$ \Call{Hoare-Partition}{$A, p, r$}
+        \State \Call{Quicksort-H}{$A, p, j$}
+        \State \Call{Quicksort-H}{$A, j + 1, r$}
+    \EndIf
+\EndProcedure
+\end{pseudo}
+
+這個版本的第 5、7 行迴圈沒有檢查邊界，第 9 行的 $\ge$ 也不能改成 $>$。 它對的理由寫在
+下面的框裡。
+
+\begin{whybox}[Hoare 分割為什麼不會越界、一定會變小]
+設 $p < r$。 要說明三件事：$i$、$j$ 不會走出 $[p..r]$；回傳的 $j$ 滿足 $p \le j < r$；
+回傳時 $A[p..j] \le x \le A[j+1..r]$。
+
+\textbf{第一輪}：$A[p] = x$ 不小於 $x$，第 5 行的迴圈在 $i = p$ 就停。 $j$ 往左走，最
+晚在 $A[p] = x$ 停下，所以 $p \le j \le r$。 如果 $j = p$，第 10 行回傳 $p < r$。 否則
+交換 $A[p]$ 和 $A[j]$，之後 $A[p] \le x$、$A[j] = x$。
+
+\textbf{之後每一輪開始時}（剛交換完、$i$ 和 $j$ 各走了一步），以下成立：$A[p..i-1]$ 都
+$\le x$，$A[j+1..r]$ 都 $\ge x$，而且上一次交換留下了兩個「擋板」：位置 $i - 1$ 的數
+$\le x$，位置 $j + 1$ 的數 $\ge x$。 第 5 行的 $i$ 最晚停在擋板 $j + 1$，第 7 行的 $j$
+最晚停在擋板 $i - 1$，所以都不會越界。 $j$ 在第一次交換之後至少減過一次，以後只會變
+小，所以回傳時 $j \le r - 1$；$j$ 停的位置不會小於 $p$（$A[p] \le x$ 擋著）。
+
+\textbf{停下的時候}：$i$ 走過的數都 $< x$，$j$ 走過的數都 $> x$，加上原本的兩段，得到
+$A[p..i-1] \le x$、$A[j+1..r] \ge x$。 $i \ge j$ 時只有兩種情形：$i = j + 1$，這時
+$A[p..j] = A[p..i-1] \le x$；或 $i = j$，這時 $A[i] \ge x$（$i$ 停下的原因）而且
+$A[j] \le x$，所以 $A[j] = x$，$A[p..j] \le x$ 仍然成立。 （$i > j + 1$ 不可能：那表示
+$i$ 走過了 $A[j+1]$，它應該 $< x$，卻又 $\ge x$。）
+
+$p \le j < r$ 保證兩邊的範圍都比 $[p..r]$ 小，遞迴一定會停。 如果基準改取 $A[r]$，第一
+輪的 $j$ 會停在 $r$，可能回傳 $r$，右邊是空的、左邊和原來一樣大，就會無窮遞迴。
+\end{whybox}
+
+\subsection{Hoare 的追蹤}
+
+同一個陣列 $\langle 47, 82, 15, 63, 29, 91, 36, 54, 40 \rangle$，基準 $x = 47$。 第一次分割
+每交換一次寫一列，粗體是被交換的兩格。
+
+\begin{center}
+\begin{tabular}{l*{9}{c}}
+\toprule
+步驟 & 1 & 2 & 3 & 4 & 5 & 6 & 7 & 8 & 9 \\
+\midrule
+開始，$x = 47$ & 47 & 82 & 15 & 63 & 29 & 91 & 36 & 54 & 40 \\
+$i = 1$、$j = 9$，交換 & \textbf{40} & 82 & 15 & 63 & 29 & 91 & 36 & 54 & \textbf{47} \\
+$i = 2$、$j = 7$，交換 & 40 & \textbf{36} & 15 & 63 & 29 & 91 & \textbf{82} & 54 & 47 \\
+$i = 4$、$j = 5$，交換 & 40 & 36 & 15 & \textbf{29} & \textbf{63} & 91 & 82 & 54 & 47 \\
+$i = 5$、$j = 4$，回傳 4 & 40 & 36 & 15 & 29 & 63 & 91 & 82 & 54 & 47 \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+第一次交換時 $i = 1$ 停在基準自己，$j = 9$ 停在 $40$。 最後 $i$ 停在 $A[5] = 63$，$j$
+停在 $A[4] = 29$，已經交錯，回傳 $4$。 基準 $47$ 這時在 $A[9]$，不在分界上。 整個排序
+的每一次分割：
+
+\begin{center}
+\begin{tabular}{ccc*{9}{c}}
+\toprule
+範圍 & $x$ & $j$ & 1 & 2 & 3 & 4 & 5 & 6 & 7 & 8 & 9 \\
+\midrule
+開始 & & & 47 & 82 & 15 & 63 & 29 & 91 & 36 & 54 & 40 \\
+$[1..9]$ & 47 & 4 & 40 & 36 & 15 & 29 & 63 & 91 & 82 & 54 & 47 \\
+$[1..4]$ & 40 & 3 & 29 & 36 & 15 & 40 & 63 & 91 & 82 & 54 & 47 \\
+$[1..3]$ & 29 & 1 & 15 & 36 & 29 & 40 & 63 & 91 & 82 & 54 & 47 \\
+$[2..3]$ & 36 & 2 & 15 & 29 & 36 & 40 & 63 & 91 & 82 & 54 & 47 \\
+$[5..9]$ & 63 & 6 & 15 & 29 & 36 & 40 & 47 & 54 & 82 & 91 & 63 \\
+$[5..6]$ & 47 & 5 & 15 & 29 & 36 & 40 & 47 & 54 & 82 & 91 & 63 \\
+$[7..9]$ & 82 & 7 & 15 & 29 & 36 & 40 & 47 & 54 & 63 & 91 & 82 \\
+$[8..9]$ & 91 & 8 & 15 & 29 & 36 & 40 & 47 & 54 & 63 & 82 & 91 \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+和 Lomuto 的表對照：Lomuto 做了 6 次分割，每次都讓一個基準就定位；Hoare 做了 8 次，
+基準常常留在子陣列裡，要到範圍縮得很小才就定位。 但 Hoare 交換的次數少很多：它只交換
+「左邊太大、右邊太小」的一對，Lomuto 則是每看到一個 $\le x$ 的數就交換一次。
+
+\begin{examnote}
+兩種分割的下標規則不一樣，不要混用。 Lomuto 回傳的 $q$ 是基準最後的位置，$A[q]$ 已經就
+定位，遞迴範圍是 $[p..q-1]$ 和 $[q+1..r]$。 Hoare 回傳的 $j$ 只是分界，遞迴範圍是
+$[p..j]$ 和 $[j+1..r]$；寫成 $[p..j-1]$ 會漏掉 $A[j]$，結果可能沒排好。 Hoare 的基準取
+$A[r]$ 時可能回傳 $r$ 而無窮遞迴，$\langle 1, 2 \rangle$ 就是例子。 另外有些課本取
+$A[p]$ 當基準，兩邊往中間找完以後再把 $A[p]$ 換到 $A[j]$，這種版本的 $j$ 就是基準的位
+置，遞迴範圍和 Lomuto 一樣。 作答前先看清楚題目用哪一種寫法、陣列從 $0$ 還是從 $1$ 開
+始，再寫追蹤。
+\end{examnote}
+
+\subsection{最壞和最好的情況}
+
+一次分割的時間和子陣列長度成正比，所以總時間取決於每次切得平不平均。
+
+\textbf{最壞的情況}：每次都切成 $0$ 和 $m - 1$ 個。 這時遞迴式是 $T(n) = T(n-1) +
+\Theta(n)$，照第~2~章 2.5 節的展開，$T(n) = \Theta(n^2)$。 用 Lomuto 分割、基準取最後一
+個數時，已經排好的輸入每次的基準都是最大值，比較次數剛好是 $(n-1) + (n-2) + \cdots +
+1 = n(n-1)/2$；由大到小的輸入每次的基準都是最小值，一樣是 $n(n-1)/2$。 這兩種輸入在實
+務上很常見，所以「固定取最後一個」不是好的選法。
+
+\textbf{最好的情況}：每次都切成兩半，$T(n) = 2T(n/2) + \Theta(n) = \Theta(n \lg n)$。 其實
+不必剛好一半：第~2~章 2.3 節的不平衡遞迴樹說明，只要每次都至少切出固定的比例（例如
+$1:9$），遞迴樹的高度就是 $O(\lg n)$，每一層的工作不超過 $n$，總時間仍然是
+$\Theta(n \lg n)$，只是常數變大。 快速排序怕的是「幾乎每次都切得極偏」，偶爾切偏一次
+沒有關係。
+
+\subsection{隨機選基準}
+
+要避免固定的壞輸入，可以每次從子陣列裡隨機選一個數當基準。 這時沒有任何一個輸入固定
+是壞的，執行時間是隨機的，我們算它的期望值。
+
+\begin{pseudo}[label=alg:so-rand]{隨機化快速排序}
+\Function{Randomized-Partition}{$A, p, r$}
+    \State $k \gets$ \Call{Random}{$p, r$} \Comment{從 $p..r$ 均勻選一個整數}
+    \State 交換 $A[k]$ 和 $A[r]$
+    \State \Return \Call{Lomuto-Partition}{$A, p, r$}
+\EndFunction
+\Statex
+\Procedure{Randomized-Quicksort}{$A, p, r$}
+    \If{$p < r$}
+        \State $q \gets$ \Call{Randomized-Partition}{$A, p, r$}
+        \State \Call{Randomized-Quicksort}{$A, p, q - 1$}
+        \State \Call{Randomized-Quicksort}{$A, q + 1, r$}
+    \EndIf
+\EndProcedure
+\end{pseudo}
+
+以下假設鍵互不相同。 把它們由小到大叫做 $z_1 < z_2 < \cdots < z_n$，並令
+$Z_{ij} = \{z_i, z_{i+1}, \ldots, z_j\}$。 令 $X$ 是整個排序裡 \proc{Lomuto-Partition} 第 5 行
+比較的總次數。
+
+\begin{lemma}
+\label{lem:so-once}
+每一次比較都是「這次分割的基準」和「範圍裡的另一個數」比；任兩個數在整個排序中最多
+比較一次。
+\end{lemma}
+
+\begin{proof}
+第 5 行比較的是 $A[j]$ 和 $x$，$x$ 是這次的基準。 分割結束後基準在 $A[q]$，而兩個遞迴
+呼叫的範圍是 $[p..q-1]$ 和 $[q+1..r]$，都不含 $q$，所以這個數以後不會再出現在任何一次
+分割裡。 兩個數 $a$、$b$ 比較時，其中一個是基準；比完之後那個數就不再參加，所以它們
+不會再比第二次。
+\end{proof}
+
+\begin{lemma}
+\label{lem:so-pair}
+$i < j$ 時，$z_i$ 和 $z_j$ 會被比較，若且唯若 $Z_{ij}$ 裡第一個被選為基準的是 $z_i$ 或
+$z_j$。
+\end{lemma}
+
+\begin{proof}
+先說明：在 $Z_{ij}$ 的任何一個數被選為基準之前，$Z_{ij}$ 的數全部在同一次呼叫的範圍
+裡。 一開始全部在 $[1..n]$。 一次分割如果選了 $Z_{ij}$ 以外的基準 $y$，$y$ 不是比
+$z_i$ 小就是比 $z_j$ 大，$Z_{ij}$ 的數和 $y$ 比的結果都一樣，所以全部分到同一邊。
+
+考慮 $Z_{ij}$ 裡第一個被選為基準的數 $z_k$，這時 $z_i$、$z_j$ 都在這次的範圍裡。 若
+$k = i$ 或 $k = j$，這次分割會拿基準和範圍裡每一個數比，其中就包括另一個。 若
+$i < k < j$，分割之後 $z_i$ 到左邊、$z_j$ 到右邊，從此在不同的子陣列裡，不會再相比；
+在這之前，它們都還沒當過基準，而由引理~\ref{lem:so-once}，每次比較都有一方是基準，所以
+之前也沒有比過。
+\end{proof}
+
+\begin{theorem}
+\label{thm:so-quick-avg}
+鍵互不相同時，對任何輸入，\proc{Randomized-Quicksort} 的比較次數期望值是
+\[
+\mathrm{E}[X] = \sum_{i=1}^{n-1} \sum_{j=i+1}^{n} \frac{2}{j - i + 1} = 2(n+1)H_n - 4n
+\;\le\; 2n \ln n,
+\]
+其中 $H_n = 1 + \frac12 + \cdots + \frac1n$。 期望執行時間是 $O(n \lg n)$。
+\end{theorem}
+
+\begin{proof}
+對每一對 $i < j$，令指標隨機變數 $X_{ij}$ 在 $z_i$、$z_j$ 被比較時為 $1$，否則為 $0$。
+由引理~\ref{lem:so-once}，每一對最多比較一次，所以 $X = \sum_{i<j} X_{ij}$。 用期望值的線
+性（第~1~章 1.8 節算插入排序平均情況時用過），$\mathrm{E}[X] = \sum_{i<j} \Pr\{z_i
+\text{ 和 } z_j \text{ 被比較}\}$。
+
+考慮 $Z_{ij}$ 裡第一次有數被選為基準的那次分割。 那時 $Z_{ij}$ 的 $j - i + 1$ 個數都在
+這次的範圍裡，而基準是在範圍裡均勻選出的；在「選中的數屬於 $Z_{ij}$」的條件下，這
+$j - i + 1$ 個數被選中的機會都一樣。 由引理~\ref{lem:so-pair}，
+\[
+\Pr\{z_i \text{ 和 } z_j \text{ 被比較}\} = \Pr\{z_i \text{ 或 } z_j \text{ 先被選中}\} = \frac{2}{j - i + 1}.
+\]
+加總時令 $d = j - i$，距離為 $d$ 的數對有 $n - d$ 對；再令 $m = d + 1$：
+\[
+\mathrm{E}[X] = \sum_{d=1}^{n-1} \frac{2(n - d)}{d + 1}
+= \sum_{m=2}^{n} \frac{2(n + 1 - m)}{m}
+= 2(n+1)(H_n - 1) - 2(n - 1)
+= 2(n+1)H_n - 4n .
+\]
+用第~1~章的 $H_n \le \ln n + 1$，得到 $\mathrm{E}[X] \le 2(n+1)\ln n - 2n + 2 \le 2n\ln n$
+（最後一步用 $\ln n \le n - 1$）。
+
+執行時間：每一次 $p < r$ 的呼叫會讓一個數當基準，而由引理~\ref{lem:so-once} 這個數不會再
+當基準，所以這種呼叫最多 $n$ 次，每次除了第 5 行的比較以外只花常數時間；$p \ge r$ 的呼
+叫都是它們的子呼叫，最多 $2n + 1$ 次，每次常數時間。 所以總時間是 $O(n + X)$，期望值是
+$O(n + n \lg n) = O(n \lg n)$。
+\end{proof}
+
+$2n \ln n \approx 1.39\, n \lg n$，只比合併排序最壞情況的 $n \lg n$ 多大約四成；而快速
+排序的內層迴圈非常簡單，又不用暫存陣列，所以實際上常常比較快。
+
+兩點補充。 第一，這個期望值是對演算法自己的隨機選擇取的，對\textbf{每一個}輸入都成立。
+如果基準固定取最後一個，改成假設「輸入的 $n!$ 種排列機會一樣」，平均比較次數也是同一個
+數：這時最後一個數在子陣列裡的名次是均勻的，而且 Lomuto 分割之後兩邊各自仍是隨機排列
+（這裡不證）。 所以「快速排序的平均情況是 $\Theta(n \lg n)$」有這兩種意義，前者不怕特
+定的壞輸入。
+
+第二，第~9~章 9.3 節的框算過：$n$ 個鍵隨機順序建成的二元搜尋樹，所有節點的期望深度總
+和也是 $2(n+1)H_n - 4n$。 兩者相同不是巧合：依某個順序選基準的快速排序，比較過的數對
+正好是依同一個順序建 BST 時「祖先和子孫」的數對，引理~\ref{lem:so-pair} 和第~9~章那個
+引理說的是同一件事。
+
+\subsection{三數取中、相同的鍵、堆疊深度}
+
+\textbf{三數取中}（median-of-three）：取 $A[p]$、$A[\lfloor (p+r)/2 \rfloor]$、$A[r]$ 三個
+數的中位數當基準，換到 $A[r]$ 再用 Lomuto 分割。 多花三次比較，但排好和由大到小的輸入
+會被切得很平均。 它沒有改變最壞情況：仍然有特別構造的輸入讓每次都切得很偏，所以最壞仍
+是 $\Theta(n^2)$。 實務上的排序函式常常把三數取中、小範圍改用插入排序合在一起用。
+
+\textbf{相同的鍵}：所有鍵都相同時，Lomuto 分割的第 5 行每次都成立，基準被換到最右邊，
+切成 $m - 1$ 和 $0$，又是 $\Theta(n^2)$。 隨機選基準、三數取中都救不了，因為不管選誰都
+一樣。 Hoare 分割遇到等於 $x$ 的數，$i$ 和 $j$ 都會停下來交換，兩個指標在中間相遇，切得
+很平均。 另一種做法是\textbf{三路分割}：分成 $< x$、$= x$、$> x$ 三段，只對頭尾兩段遞
+迴，鍵全部相同時一趟就結束。
+
+\textbf{堆疊深度}：最壞情況下遞迴深度是 $n$，$n$ 很大時會用光呼叫堆疊。 常見的改法是分割
+之後只對\textbf{比較短}的一邊遞迴，比較長的一邊改用迴圈處理（把 $p$ 或 $r$ 改掉，回到迴圈開
+頭再分割一次）。 每往下遞迴一層，範圍的長度至少減半，所以同時在堆疊上的呼叫不超過
+$\lfloor \lg n \rfloor + 1$ 層，總時間不變。
+
+快速排序不穩定。 $\langle 2_a, 2_b, 1 \rangle$ 第一次分割的基準是 $1$，$2_a$、$2_b$ 都比
+它大，最後一步把 $1$ 和 $2_a$ 交換，得到 $\langle 1, 2_b, 2_a \rangle$。 Lomuto 和 Hoare
+都會做遠距離的交換。
+
+\subsection{實際數一次}
+
+兩種分割的 C 程式在第~\ref{sec:so-compare}~節的範例~\ref{ex:so-stability}。 把它們加上三
+數取中和隨機基準，對 $n = 2000$ 的四種輸入各排一次，數鍵的比較次數（三數取中的那三次、
+Hoare 第 5、7 行的每一次都算），結果如下。 作為對照，定理~\ref{thm:so-quick-avg} 的期望值
+$2(n+1)H_n - 4n$ 在 $n = 2000$ 時大約是 $24{,}730$。
+
+\begin{center}
+\begin{tabular}{lrrrr}
+\toprule
+輸入 & Lomuto，取最後 & Lomuto，三數取中 & Lomuto，隨機 & Hoare，取第一個 \\
+\midrule
+排好 & 1{,}999{,}000 & 21{,}033 & 23{,}429 & 2{,}002{,}998 \\
+由大到小 & 1{,}999{,}000 & 36{,}177 & 24{,}156 & 2{,}003{,}998 \\
+隨機 & 25{,}079 & 24{,}252 & 24{,}796 & 34{,}332 \\
+全部相同 & 1{,}999{,}000 & 2{,}004{,}997 & 1{,}999{,}000 & 25{,}726 \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\begin{itemize}
+\item 基準取最後一個，在排好和由大到小的輸入上比較次數正好是 $n(n-1)/2 = 1{,}999{,}000$；
+Hoare 基準取第一個，在這兩種輸入上一樣退化。
+\item 三數取中和隨機基準在前三種輸入都只比了兩三萬次，和期望值同一級。
+\item 全部相同時，三種 Lomuto 都退化成 $n(n-1)/2$ 左右，只有 Hoare 不受影響。
+\item 隨機輸入上，Hoare 的比較次數比較多：基準沒有歸位，還留在子陣列裡繼續比，兩個指標
+交錯時也會多比一兩次。 它的優點在交換少，以及不怕相同的鍵。
+\end{itemize}
+
+\section{堆積排序}
+\label{sec:so-heap}
+
+第~8~章 8.2 節最後已經說過堆積排序的想法：先用 \proc{Build-Max-Heap}（第~8~章虛擬碼~8.3）
+把陣列變成最大堆積，最大值就在 $A[1]$；把它和最後一格交換，堆積少一格，再對新的根做
+\proc{Sift-Down}（第~8~章虛擬碼~8.1）。 每做一次，就有一個最大值放到陣列尾端的正確位
+置。 這一節補上完整的虛擬碼、追蹤和分析。
+
+\begin{pseudo}[label=alg:so-heapsort]{堆積排序}
+\Procedure{Heapsort}{$A, n$}
+    \State \Call{Build-Max-Heap}{$A, n$} \Comment{之後 $A.\mathit{size} = n$}
+    \For{$i \gets n$ \DownTo $2$}
+        \State 交換 $A[1]$ 和 $A[i]$ \Comment{目前的最大值放到 $A[i]$}
+        \State $A.\mathit{size} \gets A.\mathit{size} - 1$
+        \State \Call{Sift-Down}{$A, 1$}
+    \EndFor
+\EndProcedure
+\end{pseudo}
+
+\textbf{迴圈不變量}：第 3 行每一輪開始時，$A[1..i]$ 是一個最大堆積，裝著最小的 $i$ 個
+數；$A[i+1..n]$ 是最大的 $n - i$ 個數，已經排好。 第 4 行把堆積裡最大的數換到 $A[i]$，
+它不大於 $A[i+1..n]$ 的任何一個，所以 $A[i..n]$ 排好了；第 5、6 行把 $A[1..i-1]$ 修回
+堆積。 迴圈結束時 $i = 1$，$A[1]$ 是最小的數，$A[2..n]$ 排好，整個陣列就排好了。
+
+第 5 行很重要：堆積的大小要先減一，下沉時才不會把已經排好的 $A[i]$ 又拉回堆積。
+
+\subsection{手算追蹤}
+
+接著第~8~章 8.2 節的例子，那裡由下而上建好的堆積是
+\[
+\langle 70, 66, 52, 37, 61, 28, 45, 9, 23, 14 \rangle .
+\]
+下表每一列是第 3 行的迴圈
+做完一輪之後的陣列，「交換」是那一次下沉交換了幾次，灰色的是已經排好、不在堆積裡的
+格子。 下沉時兩個子節點相等就換左邊，和第~8~章一樣。
+
+\begin{center}
+\begin{tabular}{lc*{10}{c}}
+\toprule
+& 交換 & 1 & 2 & 3 & 4 & 5 & 6 & 7 & 8 & 9 & 10 \\
+\midrule
+建好堆積 & & 70 & 66 & 52 & 37 & 61 & 28 & 45 & 9 & 23 & 14 \\
+取出 70 & 2 & 66 & 61 & 52 & 37 & 14 & 28 & 45 & 9 & 23 & \sofin{70} \\
+取出 66 & 2 & 61 & 37 & 52 & 23 & 14 & 28 & 45 & 9 & \sofin{66} & \sofin{70} \\
+取出 61 & 2 & 52 & 37 & 45 & 23 & 14 & 28 & 9 & \sofin{61} & \sofin{66} & \sofin{70} \\
+取出 52 & 2 & 45 & 37 & 28 & 23 & 14 & 9 & \sofin{52} & \sofin{61} & \sofin{66} & \sofin{70} \\
+取出 45 & 2 & 37 & 23 & 28 & 9 & 14 & \sofin{45} & \sofin{52} & \sofin{61} & \sofin{66} & \sofin{70} \\
+取出 37 & 1 & 28 & 23 & 14 & 9 & \sofin{37} & \sofin{45} & \sofin{52} & \sofin{61} & \sofin{66} & \sofin{70} \\
+取出 28 & 1 & 23 & 9 & 14 & \sofin{28} & \sofin{37} & \sofin{45} & \sofin{52} & \sofin{61} & \sofin{66} & \sofin{70} \\
+取出 23 & 0 & 14 & 9 & \sofin{23} & \sofin{28} & \sofin{37} & \sofin{45} & \sofin{52} & \sofin{61} & \sofin{66} & \sofin{70} \\
+取出 14 & 0 & 9 & \sofin{14} & \sofin{23} & \sofin{28} & \sofin{37} & \sofin{45} & \sofin{52} & \sofin{61} & \sofin{66} & \sofin{70} \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\subsection{分析}
+
+\proc{Build-Max-Heap} 由第~8~章定理~8.1，交換少於 $2n$ 次、比較少於 $5n$ 次。 第 3 行的
+迴圈做 $n - 1$ 次下沉，堆積大小是 $m$ 時，下沉最多走 $\lfloor \lg m \rfloor$ 層，每層比較
+兩次。 所以比較次數最多
+\[
+5n + \sum_{m=1}^{n-1} 2\lfloor \lg m \rfloor \;\le\; 5n + 2 \lg\bigl((n-1)!\bigr) \;\le\; 2n \lg n + 5n .
+\]
+堆積排序的最壞情況是 $O(n \lg n)$，額外空間只有幾個變數，下沉也不需要遞迴：它是本章唯
+一同時做到「最壞 $O(n \lg n)$」和「原地」的排序。 鍵互不相同時，它的最好情況也是
+$\Theta(n \lg n)$（證明比較長，見延伸閱讀）；鍵全部相同時，每次下沉第一步就停，只要
+$\Theta(n)$。
+
+堆積排序不穩定。 $\langle 5_a, 5_b, 3 \rangle$ 本來就是最大堆積；第一輪把 $5_a$ 換到
+$A[3]$，$3$ 下沉時和 $5_b$ 交換；第二輪把 $5_b$ 換到 $A[2]$，結果是 $\langle 3, 5_b, 5_a
+\rangle$。 把最大值換到尾端這個動作，會讓先出現的 $5_a$ 跑到後面。
+
+實務上，堆積排序比快速排序慢一些：下沉時每次跳到兩倍遠的位置，快取的效果差，比較次數
+大約 $2n \lg n$，也比快速排序平均的 $1.39\, n \lg n$ 多。 C++ 標準程式庫常用的 introsort
+先用快速排序，遞迴太深時改用堆積排序，兼顧平均的速度和最壞的保證。
+
+C 程式在範例~\ref{ex:so-stability}，\texttt{sift\_down} 就是第~8~章的下沉。
+
+\section{各種排序的比較}
+\label{sec:so-compare}
+
+\subsection{比較表}
+
+下表整理本章的排序，時間都指鍵的比較次數的級數（也就是執行時間的級數），「平均」是
+$n!$ 種排列機會一樣時的期望值，快速排序用隨機基準時也是同一個值。 額外空間包括遞迴堆疊。
+
+\begin{center}
+\small
+\begin{tabular}{lllllll}
+\toprule
+排序 & 最好 & 平均 & 最壞 & 額外空間 & 穩定 & 原地 \\
+\midrule
+氣泡（提早結束） & $\Theta(n)$ & $\Theta(n^2)$ & $\Theta(n^2)$ & $\Theta(1)$ & 是 & 是 \\
+選擇 & $\Theta(n^2)$ & $\Theta(n^2)$ & $\Theta(n^2)$ & $\Theta(1)$ & 否 & 是 \\
+插入 & $\Theta(n)$ & $\Theta(n^2)$ & $\Theta(n^2)$ & $\Theta(1)$ & 是 & 是 \\
+Shell（減半序列） & $\Theta(n \lg n)$ & 見第~\ref{sec:so-shell}~節 & $\Theta(n^2)$ & $\Theta(1)$ & 否 & 是 \\
+合併（陣列） & $\Theta(n \lg n)$ & $\Theta(n \lg n)$ & $\Theta(n \lg n)$ & $\Theta(n)$ & 是 & 否 \\
+合併（串列） & $\Theta(n \lg n)$ & $\Theta(n \lg n)$ & $\Theta(n \lg n)$ & $\Theta(\lg n)$ & 是 & （不適用） \\
+快速 & $\Theta(n \lg n)$ & $\Theta(n \lg n)$ & $\Theta(n^2)$ & $\Theta(\lg n)$～$\Theta(n)$ & 否 & 是 \\
+堆積 & $\Theta(n \lg n)$ & $\Theta(n \lg n)$ & $\Theta(n \lg n)$ & $\Theta(1)$ & 否 & 是 \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+幾個要搭配表格記住的條件：
+
+\begin{itemize}
+\item 氣泡排序的最好情況 $\Theta(n)$ 要有「沒有交換就結束」那一行；沒有的話三種情況都
+是 $\Theta(n^2)$。
+\item Shell 排序的最好情況：已經排好時每一趟 $h$ 只比 $n - h$ 次，共 $\Theta(\lg n)$ 趟，
+所以是 $\Theta(n \lg n)$ 而不是 $\Theta(n)$。 換成 Knuth 的序列，最壞情況是
+$O(n^{3/2})$。
+\item 快速排序的空間：遞迴深度最壞是 $n$；用第~\ref{sec:so-quick}~節先遞迴短邊的寫法，
+保證是 $O(\lg n)$。 表上的最好、平均是鍵互不相同時的結果，Lomuto 分割遇到大量相同的鍵
+會退化。
+\item 堆積排序的最好情況 $\Theta(n \lg n)$ 指鍵互不相同；鍵全部相同時是 $\Theta(n)$。
+\item 第~15~章會證明任何比較排序最壞都要 $\Omega(n \lg n)$ 次比較，所以合併和堆積排序在
+漸近意義下已經最好；不靠比較的計數、基數排序也在第~15~章。
+\end{itemize}
+
+怎麼選？ 一般的資料交給標準程式庫；C 標準沒有規定 \texttt{qsort} 用哪
+一種演算法，也不保證穩定，需要穩定時把原本的位置加進比較函式當第二個鍵。 資料很少或幾乎
+排好，用插入排序；需要穩定或資料在串列上，用合併排序；記憶體很緊又要最壞情況的保證，用
+堆積排序；平均最快的通常是快速排序，記得隨機選基準或三數取中。 鍵是範圍不大的整數，或
+資料大到放不進記憶體，看第~15~章。
+
+\begin{examnote}
+判斷穩定性時，要說「穩定」得說明每一步都不會讓相同的鍵越過對方，例如「只在 $>$ 時交換
+相鄰的兩個」；要說「不穩定」只要舉一個反例，用兩個相同的鍵加上下標（$5_a$、$5_b$），寫
+出排序後它們的先後。 同一種排序改一個符號，穩定性就可能改變：合併時 $\le$ 改成 $<$、
+插入排序的 $>$ 改成 $\ge$ 都會變得不穩定，所以有程式碼的題目要照題目給的寫法判斷。 「原
+地」也一樣，題目有定義就照題目的定義。
+\end{examnote}
+
+\subsection{實際檢查穩定性}
+
+章首的考卷問題可以直接跑一次。 下面的程式把每筆紀錄存成（分數，座號），輸入時座號由小
+到大，用選擇、插入、Shell、快速（Lomuto 和 Hoare）、堆積排序各排一次，印出排好的「分
+數:座號」，並檢查同分的座號是不是仍然由小到大。 它也是這幾種排序的 C 實作（合併排序在範
+例~\ref{ex:so-merge}），寫法和本章的虛擬碼相同：插入排序就是間隔 $1$ 的 Shell 排序，堆積
+排序用第~8~章的下沉；陣列從 $0$ 開始，所以建堆積從 \texttt{n / 2 - 1} 做到 \texttt{0}。 氣
+泡排序只是兩層迴圈加一個旗標，請照虛擬碼~\ref{alg:so-bubble} 自己加進去。
+
+\begin{cbookrecap}[第~9~章 9.6、9.9 節]
+\texttt{a + k} 是指向 \texttt{a[k]} 的指標，把它當成陣列傳給函式，函式裡的第 $0$ 格就是
+\texttt{a[k]}。 快速排序用它遞迴處理右邊那一段，函式只需要長度一個參數。
+
+\texttt{void (*sorter[])(Rec *, int)} 是一個陣列，每一格指向一個「參數是 \texttt{Rec *} 和
+\texttt{int}、沒有回傳值」的函式。 函式名稱可以直接放進去，\texttt{sorter[k](a, n)} 就呼叫
+第 \texttt{k} 個，同一段測試程式可以輪流套用每一種排序。
+\end{cbookrecap}
+
+\begin{example}[label=ex:so-stability]{c}{(sorts.c) 六種排序對同分紀錄的處理}
+#include <stdio.h>
+#include <string.h>
+
+#define MAXN 100
+
+typedef struct {
+    int score;                          // 排序的鍵
+    int id;                             // 座號，輸入時由小到大
+} Rec;
+
+void swap(Rec *x, Rec *y)
+{
+    Rec t = *x;
+    *x = *y;
+    *y = t;
+}
+
+void selection_sort(Rec *a, int n)
+{
+    for (int i = 0; i < n - 1; i++) {
+        int m = i;
+        for (int j = i + 1; j < n; j++) {
+            if (a[j].score < a[m].score) {
+                m = j;
+            }
+        }
+        swap(&a[i], &a[m]);
+    }
+}
+
+void gap_insertion(Rec *a, int n, int h)    // 間隔 h 的插入排序
+{
+    for (int i = h; i < n; i++) {
+        Rec key = a[i];
+        int j = i - h;
+        while (j >= 0 && a[j].score > key.score) {
+            a[j + h] = a[j];
+            j -= h;
+        }
+        a[j + h] = key;
+    }
+}
+
+void insertion_sort(Rec *a, int n)
+{
+    gap_insertion(a, n, 1);
+}
+
+void shell_sort(Rec *a, int n)          // 增量 n/2, n/4, ..., 1
+{
+    for (int h = n / 2; h >= 1; h /= 2) {
+        gap_insertion(a, n, h);
+    }
+}
+
+// 快速排序排 a[0..n-1]。遞迴時用指標算術：a + k 是從 a[k] 開始的子陣列。
+void quick_lomuto(Rec *a, int n)        // 基準是 a[n-1]
+{
+    if (n > 1) {
+        int i = 0;
+        for (int j = 0; j < n - 1; j++) {
+            if (a[j].score <= a[n - 1].score) {
+                swap(&a[i++], &a[j]);
+            }
+        }
+        swap(&a[i], &a[n - 1]);         // 基準歸位在 a[i]
+        quick_lomuto(a, i);             // a[0..i-1]
+        quick_lomuto(a + i + 1, n - i - 1);
+    }
+}
+
+void quick_hoare(Rec *a, int n)         // 基準是 a[0]
+{
+    if (n > 1) {
+        int x = a[0].score, i = 0, j = n - 1;
+        for (;;) {
+            while (a[i].score < x) {
+                i++;
+            }
+            while (a[j].score > x) {
+                j--;
+            }
+            if (i >= j) {
+                break;
+            }
+            swap(&a[i++], &a[j--]);
+        }
+        quick_hoare(a, j + 1);          // a[0..j]，包含 a[j]
+        quick_hoare(a + j + 1, n - j - 1);
+    }
+}
+
+void sift_down(Rec *a, int size, int i) // 第 8 章的下沉
+{
+    for (int j = 2 * i + 1; j < size; i = j, j = 2 * i + 1) {
+        if (j + 1 < size && a[j + 1].score > a[j].score) {
+            j++;
+        }
+        if (a[i].score >= a[j].score) {
+            return;
+        }
+        swap(&a[i], &a[j]);
+    }
+}
+
+void heap_sort(Rec *a, int n)
+{
+    for (int i = n / 2 - 1; i >= 0; i--) {
+        sift_down(a, n, i);
+    }
+    for (int size = n - 1; size >= 1; size--) {
+        swap(&a[0], &a[size]);          // 最大值換到尾端，堆積少一格
+        sift_down(a, size, 0);
+    }
+}
+
+int main(void)
+{
+    const char *name[] = {"selection", "insertion", "shell",
+                          "lomuto", "hoare", "heap"};
+    void (*sorter[])(Rec *, int) = {selection_sort, insertion_sort,
+                                    shell_sort, quick_lomuto, quick_hoare, heap_sort};
+    Rec src[MAXN], a[MAXN];
+    int n;
+    if (scanf("%d", &n) != 1 || n <= 0 || n > MAXN) {
+        return 1;
+    }
+    for (int i = 0; i < n; i++) {
+        src[i].id = i + 1;
+        if (scanf("%d", &src[i].score) != 1) {
+            return 1;
+        }
+    }
+    for (int k = 0; k < 6; k++) {
+        memcpy(a, src, n * sizeof *a);
+        sorter[k](a, n);
+        int same = 1;                   // 同分的座號是否仍由小到大
+        printf("%s:", name[k]);
+        for (int i = 0; i < n; i++) {
+            printf(" %d:%d", a[i].score, a[i].id);
+            if (i > 0 && a[i].score == a[i - 1].score && a[i].id < a[i - 1].id) {
+                same = 0;
+            }
+        }
+        printf(" %s\n", same ? "same-order" : "CHANGED");
+    }
+    return 0;
+}
+\end{example}
+\iosample{8 \\ 90 70 80 80 70 80 70 70}{selection: 70:2 70:5 70:7 70:8 80:6 80:3 80:4 90:1 CHANGED \\ insertion: 70:2 70:5 70:7 70:8 80:3 80:4 80:6 90:1 same-order \\ shell: 70:5 70:2 70:7 70:8 80:3 80:6 80:4 90:1 CHANGED \\ lomuto: 70:2 70:5 70:7 70:8 80:6 80:3 80:4 90:1 CHANGED \\ hoare: 70:5 70:7 70:2 70:8 80:6 80:3 80:4 90:1 CHANGED \\ heap: 70:8 70:7 70:2 70:5 80:6 80:3 80:4 90:1 CHANGED}
+
+插入排序保住了座號的順序，其他五種各自打亂了某些同分的座號，章首的第二種做法（選擇排
+序）就在其中。 要注意
+\texttt{same-order} 只表示這一組輸入沒有出問題，不能當成穩定的證明；\texttt{CHANGED}
+則是一個實際的反例，足以說明不穩定。
+
+\subsection{例題：同一組資料的逐趟追蹤}
+
+考卷上常見的題型是：「用某某排序把下列資料由小到大排好，寫出每一趟（每一輪、每次分
+割）之後的結果。」 下面用 $A = \langle 36, 71, 19, 54, 8, 92, 43, 27 \rangle$ 把本章每一種
+排序都跑一次，每一趟一列。 這些列是用照本章虛擬碼寫的模擬程式產生的，可以拿來對答案。
+「一趟」的定義：氣泡、選擇、插入是外層迴圈的一個 $i$（氣泡排序第 6 趟沒有交換，提早結束）；
+Shell 是一個增量（$n = 8$，減半序列是 $4, 2, 1$）；合併排序用由下而上的版本，一趟一列，
+$n = 8$ 是 $2$ 的次方，遞迴版每一層合併完的結果和這三列相同；快速排序是一次範圍至少兩個數
+的分割，依呼叫的先後；堆積排序是建好堆積一列，之後每取出一個最大值一列。
+
+\begin{center}
+\footnotesize
+\begin{tabular}{ll*{8}{c}}
+\toprule
+& & 1 & 2 & 3 & 4 & 5 & 6 & 7 & 8 \\
+\midrule
+原始陣列 & & 36 & 71 & 19 & 54 & 8 & 92 & 43 & 27 \\
+\midrule
+\multicolumn{10}{l}{\textbf{氣泡排序}（第二欄：這一趟交換幾次）} \\
+第 1 趟 & 5 & 36 & 19 & 54 & 8 & 71 & 43 & 27 & 92 \\
+第 2 趟 & 4 & 19 & 36 & 8 & 54 & 43 & 27 & 71 & 92 \\
+第 3 趟 & 3 & 19 & 8 & 36 & 43 & 27 & 54 & 71 & 92 \\
+第 4 趟 & 2 & 8 & 19 & 36 & 27 & 43 & 54 & 71 & 92 \\
+第 5 趟 & 1 & 8 & 19 & 27 & 36 & 43 & 54 & 71 & 92 \\
+第 6 趟 & 0 & 8 & 19 & 27 & 36 & 43 & 54 & 71 & 92 \\
+\midrule
+\multicolumn{10}{l}{\textbf{選擇排序}（第二欄：這一趟的最小值原本在哪一格）} \\
+第 1 趟 & 5 & 8 & 71 & 19 & 54 & 36 & 92 & 43 & 27 \\
+第 2 趟 & 3 & 8 & 19 & 71 & 54 & 36 & 92 & 43 & 27 \\
+第 3 趟 & 8 & 8 & 19 & 27 & 54 & 36 & 92 & 43 & 71 \\
+第 4 趟 & 5 & 8 & 19 & 27 & 36 & 54 & 92 & 43 & 71 \\
+第 5 趟 & 7 & 8 & 19 & 27 & 36 & 43 & 92 & 54 & 71 \\
+第 6 趟 & 7 & 8 & 19 & 27 & 36 & 43 & 54 & 92 & 71 \\
+第 7 趟 & 8 & 8 & 19 & 27 & 36 & 43 & 54 & 71 & 92 \\
+\midrule
+\multicolumn{10}{l}{\textbf{插入排序}（第二欄：$\mathit{key}$）} \\
+$i = 2$ & 71 & 36 & 71 & 19 & 54 & 8 & 92 & 43 & 27 \\
+$i = 3$ & 19 & 19 & 36 & 71 & 54 & 8 & 92 & 43 & 27 \\
+$i = 4$ & 54 & 19 & 36 & 54 & 71 & 8 & 92 & 43 & 27 \\
+$i = 5$ & 8 & 8 & 19 & 36 & 54 & 71 & 92 & 43 & 27 \\
+$i = 6$ & 92 & 8 & 19 & 36 & 54 & 71 & 92 & 43 & 27 \\
+$i = 7$ & 43 & 8 & 19 & 36 & 43 & 54 & 71 & 92 & 27 \\
+$i = 8$ & 27 & 8 & 19 & 27 & 36 & 43 & 54 & 71 & 92 \\
+\midrule
+\multicolumn{10}{l}{\textbf{Shell 排序}，增量 $4, 2, 1$（第二欄：挪動次數）} \\
+$h = 4$ & 2 & 8 & 71 & 19 & 27 & 36 & 92 & 43 & 54 \\
+$h = 2$ & 3 & 8 & 27 & 19 & 54 & 36 & 71 & 43 & 92 \\
+$h = 1$ & 4 & 8 & 19 & 27 & 36 & 43 & 54 & 71 & 92 \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\begin{center}
+\footnotesize
+\begin{tabular}{ll*{8}{c}}
+\toprule
+& & 1 & 2 & 3 & 4 & 5 & 6 & 7 & 8 \\
+\midrule
+原始陣列 & & 36 & 71 & 19 & 54 & 8 & 92 & 43 & 27 \\
+\midrule
+\multicolumn{10}{l}{\textbf{合併排序}，由下而上} \\
+$w = 1$ & & 36 & 71 & 19 & 54 & 8 & 92 & 27 & 43 \\
+$w = 2$ & & 19 & 36 & 54 & 71 & 8 & 27 & 43 & 92 \\
+$w = 4$ & & 8 & 19 & 27 & 36 & 43 & 54 & 71 & 92 \\
+\midrule
+\multicolumn{10}{l}{\textbf{快速排序}，Lomuto（第一欄：範圍；第二欄：基準 $x$；粗體：歸位的基準）} \\
+$[1..8]$ & 27 & 19 & 8 & \textbf{27} & 54 & 71 & 92 & 43 & 36 \\
+$[1..2]$ & 8 & \textbf{8} & 19 & 27 & 54 & 71 & 92 & 43 & 36 \\
+$[4..8]$ & 36 & 8 & 19 & 27 & \textbf{36} & 71 & 92 & 43 & 54 \\
+$[5..8]$ & 54 & 8 & 19 & 27 & 36 & 43 & \textbf{54} & 71 & 92 \\
+$[7..8]$ & 92 & 8 & 19 & 27 & 36 & 43 & 54 & 71 & \textbf{92} \\
+\midrule
+\multicolumn{10}{l}{\textbf{快速排序}，Hoare（第二欄：基準 $x$ 和回傳的 $j$）} \\
+$[1..8]$ & 36，3 & 27 & 8 & 19 & 54 & 71 & 92 & 43 & 36 \\
+$[1..3]$ & 27，2 & 19 & 8 & 27 & 54 & 71 & 92 & 43 & 36 \\
+$[1..2]$ & 19，1 & 8 & 19 & 27 & 54 & 71 & 92 & 43 & 36 \\
+$[4..8]$ & 54，5 & 8 & 19 & 27 & 36 & 43 & 92 & 71 & 54 \\
+$[4..5]$ & 36，4 & 8 & 19 & 27 & 36 & 43 & 92 & 71 & 54 \\
+$[6..8]$ & 92，7 & 8 & 19 & 27 & 36 & 43 & 54 & 71 & 92 \\
+$[6..7]$ & 54，6 & 8 & 19 & 27 & 36 & 43 & 54 & 71 & 92 \\
+\midrule
+\multicolumn{10}{l}{\textbf{堆積排序}（第二欄：下沉時交換幾次；灰色：已排好）} \\
+建堆積 & & 92 & 71 & 43 & 54 & 8 & 19 & 36 & 27 \\
+取出 92 & 2 & 71 & 54 & 43 & 27 & 8 & 19 & 36 & \sofin{92} \\
+取出 71 & 1 & 54 & 36 & 43 & 27 & 8 & 19 & \sofin{71} & \sofin{92} \\
+取出 54 & 1 & 43 & 36 & 19 & 27 & 8 & \sofin{54} & \sofin{71} & \sofin{92} \\
+取出 43 & 2 & 36 & 27 & 19 & 8 & \sofin{43} & \sofin{54} & \sofin{71} & \sofin{92} \\
+取出 36 & 1 & 27 & 8 & 19 & \sofin{36} & \sofin{43} & \sofin{54} & \sofin{71} & \sofin{92} \\
+取出 27 & 0 & 19 & 8 & \sofin{27} & \sofin{36} & \sofin{43} & \sofin{54} & \sofin{71} & \sofin{92} \\
+取出 19 & 0 & 8 & \sofin{19} & \sofin{27} & \sofin{36} & \sofin{43} & \sofin{54} & \sofin{71} & \sofin{92} \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+比較次數：氣泡 27 次（交換 15 次，等於逆序對個數），選擇 28 次，插入 20 次，
+Shell 23 次，合併 17 次，快速排序 Lomuto 16 次、Hoare 37 次，堆積 25 次。 合
+併排序的 $17$ 次正好是 $n = 8$ 的最壞值 $8 \cdot 3 - 8 + 1$：每一次合併都要比到其中一邊剩最
+後一個。
+
+\begin{examnote}
+「一趟」的定義各本課本不同：氣泡排序有的從右往左把最小值換到前面，選擇排序有的每趟找
+最大值放到後面，快速排序的基準和分割方式有好幾種，合併排序有遞迴和由下而上兩種，建堆積
+有逐一插入和由下而上兩種。 題目有指定就照題目做；沒有指定就選一種，寫一句說明，從頭到尾
+照它做。
+\end{examnote}
+
+\subsection{例題：\texttt{qsort} 比較函式的溢位}
+
+實際寫 C 程式時，排序多半交給標準程式庫的 \texttt{qsort}，自己只寫比較函式。 比較函式
+最常見的錯，是用減法決定大小。
+
+\begin{cbookrecap}[第~13~章 13.1、13.2 節，第~18~章 18.6 節]
+\texttt{qsort(base, n, size, cmp)} 排序從 \texttt{base} 開始的 \texttt{n} 個元素，每個
+\texttt{size} 個位元組。 \texttt{cmp(p, q)} 拿到兩個指向元素的 \texttt{const void *}，第
+一個應該排在前面就回傳負數，後面就回傳正數，相等回傳 $0$。 這個比較必須對所有元素定
+出一個一致的全序（$a < b$、$b < c$ 就要 $a < c$），否則 C 標準不保證 \texttt{qsort} 會
+做什麼。
+
+有號整數的運算結果超出型別範圍是未定義行為；把超出範圍的值轉成有號整數型別，結果則
+由編譯器決定（implementation-defined），gcc 的做法是取 $2^{32}$ 的餘數（\texttt{int}
+是 32 位元時）。 無號整數的運算一定是取餘數，不會溢位。
+\end{cbookrecap}
+
+第一種錯是 \texttt{int} 的比較函式寫成 \texttt{return x - y;}。 $x$ 和 $y$ 差很遠時差會超
+出 \texttt{int} 的範圍。 例如 $x = 2{,}000{,}000{,}000$、$y = -1{,}000{,}000{,}000$，真正的差
+$3 \times 10^9$ 大於 \texttt{INT\_MAX}（$2{,}147{,}483{,}647$），這是有號整數溢位，屬於未定
+義行為：程式可能回傳一個負數，讓 $x$ 排到 $y$ 前面，也可能發生其他事，而且開了
+\texttt{-fsanitize=undefined} 就會被抓出來。 本書的程式不能真的執行這種寫法，所以下面
+示範第二種同樣常見、但行為確定的錯：鍵是 \texttt{long long}，比較函式卻把差直接當
+\texttt{int} 回傳。
+
+情境是一個雲端硬碟依檔案大小（位元組）排序。 大小可以超過 $2^{31}$，所以用
+\texttt{long long} 存；\texttt{x - y} 是 \texttt{long long} 的減法，不會溢位，但回傳時被
+轉成 \texttt{int}，只留下低 32 位元。 程式先印出錯誤比較函式的三個回傳值，再用它排序。
+為了讓結果固定，用錯誤的比較函式排序時用的是自己寫的插入排序，因為把不一致的比較函式
+交給 \texttt{qsort} 本身就不受保證。
+
+\begin{example}[label=ex:so-cmp]{c}{(cmp\_trap.c) 比較函式用減法的後果}
+#include <stdio.h>
+#include <stdlib.h>
+
+// 錯的寫法：long long 的差直接當 int 回傳。差超過 int 的範圍時，
+// 轉成 int 的結果由編譯器決定（gcc 取 2^32 的餘數），正負號可能反過來。
+int cmp_size_bad(const void *p, const void *q)
+{
+    long long x = *(const long long *)p;
+    long long y = *(const long long *)q;
+    return x - y;
+}
+
+// 對的寫法：只比較，不相減。
+int cmp_size(const void *p, const void *q)
+{
+    long long x = *(const long long *)p;
+    long long y = *(const long long *)q;
+    return (x > y) - (x < y);
+}
+
+// 用比較函式做插入排序。把錯的比較函式交給 qsort 是未定義行為，
+// 所以示範時用自己寫的排序，結果才固定。
+void insertion_sort(long long *a, int n, int (*cmp)(const void *, const void *))
+{
+    for (int i = 1; i < n; i++) {
+        long long key = a[i];
+        int j = i - 1;
+        while (j >= 0 && cmp(&a[j], &key) > 0) {
+            a[j + 1] = a[j];
+            j--;
+        }
+        a[j + 1] = key;
+    }
+}
+
+int main(void)
+{
+    long long c[3] = {0, 1500000000LL, 3000000000LL};
+    for (int i = 0; i < 3; i++) {       // 三個數兩兩比較
+        int j = (i + 1) % 3;
+        printf("bad(%lld, %lld) = %d\n", c[i], c[j], cmp_size_bad(&c[i], &c[j]));
+    }
+    long long a[] = {52000000, 3500000000LL, 1200, 2300000000LL, 640000};
+    long long b[] = {52000000, 3500000000LL, 1200, 2300000000LL, 640000};
+    int n = sizeof a / sizeof a[0];
+    insertion_sort(a, n, cmp_size_bad);
+    qsort(b, n, sizeof b[0], cmp_size);
+    printf("bad:");
+    for (int i = 0; i < n; i++) {
+        printf(" %lld", a[i]);
+    }
+    printf("\nqsort:");
+    for (int i = 0; i < n; i++) {
+        printf(" %lld", b[i]);
+    }
+    printf("\n");
+    return 0;
+}
+\end{example}
+\iosample{}{bad(0, 1500000000) = -1500000000 \\ bad(1500000000, 3000000000) = -1500000000 \\ bad(3000000000, 0) = -1294967296 \\ bad: 2300000000 3500000000 1200 640000 52000000 \\ qsort: 1200 640000 52000000 2300000000 3500000000}
+
+前兩列的差是 $-1.5 \times 10^9$，在 \texttt{int} 的範圍內，答案對。 第三列 $3 \times 10^9 - 0$
+超過 $2^{31} - 1$，取 $2^{32}$ 的餘數變成 $3 \times 10^9 - 2^{32} = -1{,}294{,}967{,}296$。 於是
+$0$ 比 $1.5 \times 10^9$ 小，$1.5 \times 10^9$ 比 $3 \times 10^9$ 小，$3 \times 10^9$ 卻比 $0$
+小，形成一個循環，根本不是全序，任何排序都不可能「照它排對」。 用它排五個檔案的大小，兩
+個超過 $2^{31}$ 的大檔案排到了最前面；\texttt{qsort} 配正確的比較函式排出正確的結果。 正確的寫法 \texttt{(x > y) - (x < y)} 不做減法，兩個比較的結果都
+是 $0$ 或 $1$，相減只會是 $-1$、$0$、$1$，對 \texttt{int}、\texttt{long long}、
+\texttt{double} 都適用。
+
+\section{本章常見錯誤}
+\label{sec:so-pitfalls}
+
+\begin{center}
+\small
+\begin{tabular}{p{0.24\linewidth}p{0.50\linewidth}p{0.16\linewidth}}
+\toprule
+錯誤 & 例子 & 見 \\
+\midrule
+最好情況沒看條件 & 說氣泡排序最好是 $\Theta(n)$，但題目的程式沒有提早結束；說堆積排序最好是
+$\Theta(n)$，但鍵互不相同 & 第~\ref{sec:so-compare}~節 \\
+穩定性只憑印象 & 合併時用 $<$、插入時用 $\ge$，程式已經不穩定，答案卻寫「穩定」 &
+第~\ref{sec:so-compare}~節 \\
+合併忘了寫回 & 只合併到 $B$ 沒寫回 $A$；由下而上最後一段的右界沒取 $\min$ 而越界 &
+第~\ref{sec:so-merge}~節 \\
+遞迴版和由下而上混用 & 題目要遞迴版，卻寫出兩兩合併的逐趟結果；$n$ 不是 $2$ 的次方時兩者不同 &
+第~\ref{sec:so-merge}~節 \\
+分割的遞迴範圍 & Hoare 分割遞迴 $[p..j-1]$；Lomuto 遞迴 $[p..q]$，基準一直留在範圍裡 &
+第~\ref{sec:so-quick}~節 \\
+Hoare 的基準取最後一個 & $j$ 可能等於 $r$，無窮遞迴 & 第~\ref{sec:so-quick}~節 \\
+說快速排序是 $O(n \lg n)$ & 沒說是平均或期望；最壞是 $\Theta(n^2)$，大量相同的鍵用 Lomuto 分割也是 & 第~\ref{sec:so-quick}~節 \\
+堆積大小沒有縮小 & 交換以後仍用 $n$ 下沉，把排好的尾端拉回堆積 & 第~\ref{sec:so-heap}~節 \\
+比較函式用減法 & \texttt{return x - y;}，差超過 \texttt{int} 的範圍；\texttt{double} 的差被截成
+$0$ & 第~\ref{sec:so-compare}~節 \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\section{觀念題}
+\label{sec:so-exercises}
+
+題型和研究所考試、期中期末考的筆試相近，有選擇、計算、追蹤、證明和設計。 沒有特別說
+明時，陣列從 $1$ 開始編號，排序方法照本章的虛擬碼。 解答在本章最後。
+
+\begin{enumerate}
+\item （選擇，可能不只一個答案）下列哪些敘述正確？
+\begin{enumerate}
+\item 選擇排序的比較次數和輸入的內容無關。
+\item 如果每個數和它排好之後的位置相差不超過 $k$ 格，插入排序的時間是 $O(nk)$。
+\item 合併排序（虛擬碼~\ref{alg:so-mergesort}）排已經排好的輸入，只要 $\Theta(n)$ 次比較。
+\item 快速排序改成隨機選基準以後，最壞情況是 $\Theta(n \lg n)$。
+\item 堆積排序除了輸入陣列以外，只需要 $\Theta(1)$ 的額外空間。
+\end{enumerate}
+
+\item （選擇）下列修改，哪些修改之後的排序仍然是穩定的？ 不穩定的請舉反例。
+\begin{enumerate}
+\item 氣泡排序第 5 行改成 $A[j] \ge A[j+1]$。
+\item 插入排序的內層條件改成 $A[j] \ge \mathit{key}$。
+\item \proc{Merge} 第 6 行的 $B[i] \le B[j]$ 改成 $B[i] < B[j]$。
+\item 選擇排序第 5 行改成 $A[j] \le A[m]$。
+\item \proc{Merge-Sort} 第 3 行改成 $q \gets \lceil (p + r)/2 \rceil$。
+\end{enumerate}
+
+\item\label{so-q-bubble} （追蹤）用氣泡排序（虛擬碼~\ref{alg:so-bubble}）排
+$\langle 45, 12, 78, 33, 9, 61, 27 \rangle$。 寫出每一趟之後的陣列，以及總比較次數和總交換次
+數，並驗證交換次數等於逆序對的個數。
+
+\item （計算）令 $W(n)$ 是合併排序（虛擬碼~\ref{alg:so-mergesort}）在長度 $n$ 時最多的比較
+次數，$W(1) = 0$，$W(n) = W(\lceil n/2 \rceil) + W(\lfloor n/2 \rfloor) + n - 1$。
+\begin{enumerate}
+\item 算出 $W(1), W(2), \ldots, W(8)$。
+\item 證明 $W(2^k) = k\,2^k - 2^k + 1$。
+\item 給一個 $1$ 到 $8$ 的排列，讓合併排序剛好比較 $W(8)$ 次，並說明為什麼。
+\end{enumerate}
+
+\item （追蹤）$A = \langle 33, 71, 18, 54, 26, 90, 41 \rangle$。
+\begin{enumerate}
+\item 用 Lomuto 分割的快速排序（虛擬碼~\ref{alg:so-quick}），寫出每一次分割之後的陣列和基
+準的位置，並算出比較次數。
+\item 用 Hoare 分割的快速排序（虛擬碼~\ref{alg:so-quick-hoare}），寫出每一次分割的範圍、
+回傳的 $j$ 和之後的陣列。
+\end{enumerate}
+
+\item （設計）\textbf{三路分割}：設計一個只掃一次的分割程序，把 $A[p..r]$ 排成 $< x$、
+$= x$、$> x$ 三段（$x = A[r]$），回傳中間那一段的頭尾位置。 寫出虛擬碼和迴圈不變量，再說
+明用它做快速排序時，所有鍵都相同的輸入只要 $\Theta(n)$ 的時間。
+
+\item （說明）Hoare 分割的快速排序。
+\begin{enumerate}
+\item 如果遞迴寫成 \proc{Quicksort-H}$(A, p, j - 1)$ 和 \proc{Quicksort-H}$(A, j + 1, r)$，
+找一個長度 $3$ 的輸入，讓結果沒有排好。
+\item 如果 \proc{Hoare-Partition} 第 2 行改成 $x \gets A[r]$，說明 $\langle 1, 2 \rangle$ 會讓
+\proc{Quicksort-H} 無窮遞迴。
+\end{enumerate}
+
+\item （證明）\proc{Randomized-Quicksort}，鍵互不相同，記號和定理~\ref{thm:so-quick-avg}
+一樣。
+\begin{enumerate}
+\item 證明 $z_i$ 和 $z_{i+1}$ 一定會被比較。
+\item 求 $z_1$ 和 $z_n$ 被比較的機率。
+\item 證明 $z_k$ 參與的比較次數期望值是 $2(H_k + H_{n-k+1} - 2)$，並用它重新算出
+$\mathrm{E}[X]$。
+\end{enumerate}
+
+\item （C 程式）下面的比較函式要讓學生依平均成績由低到高排序。 指出它的問題，舉一組會排錯
+的成績，並改正。
+\begin{code}{c}{觀念題 9}
+typedef struct {
+    char name[16];
+    double gpa;
+} Student;
+
+int cmp_gpa(const void *p, const void *q)
+{
+    const Student *a = p, *b = q;
+    return a->gpa - b->gpa;
+}
+\end{code}
+\end{enumerate}
+
+\section{實作練習}
+\label{sec:so-practice}
+
+下面是 Aki-Judge 上和本章相關的題目。 幾題只要交排序函式，不寫 \texttt{main}；評測資
+料有已經排好、由大到小、全部相同、含 \texttt{INT\_MIN} 和 \texttt{INT\_MAX} 的陣列，交之
+前先用這幾種輸入自己測一次。
+
+\begin{center}
+\begin{tabular}{llc}
+\toprule
+小節 & 題目 & 難度 \\
+\midrule
+比較函式 & \akiref{sorting-integers-with-a-safe-comparator}{整數排序與比較函式溢位} & 暖身 \\
+ & \akiref{group-by-distinct-digits}{依不同數字個數分組排序} & 基本 \\
+排序的應用 & \akiref{counting-distinct-integers}{計算相異整數的個數} & 暖身 \\
+合併排序 & \akiref{merge-sort-function}{合併排序函式} & 基本 \\
+ & \akiref{merge-sort-function-dc}{合併排序函式} & 基本 \\
+ & \akiref{three-way-merge-sort-by-absolute-value}{依絕對值的三路合併排序} & 進階 \\
+快速排序 & \akiref{quicksort-on-adversarial-input}{抗最壞情況的快速排序} & 進階 \\
+逆序對 & \akiref{counting-inversions}{計算逆序對的數量} & 進階 \\
+ & \akiref{count-inversions-in-an-array}{計算逆序對數量} & 進階 \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+幾題的提示：「整數排序與比較函式溢位」和「依不同數字個數分組排序」用 \texttt{qsort}，比較函
+式照第~\ref{sec:so-compare}~節的寫法不要相減，後者依序比三個鍵，數值要用 \texttt{long long}。
+「計算相異整數的個數」先排序，再數有幾個位置和前一個不同。 兩題「合併排序函式」要交的函
+式一樣，可以一題用遞迴版、一題用由下而上的版本。 「依絕對值的三路合併排序」把比較規則寫成
+一個函式，合併三段時呼叫它；輸出的順序就是遞迴的後序。 「抗最壞情況的快速排序」的測資有長
+度 $2 \times 10^5$ 的已排好和由大到小的陣列，要用三數取中或隨機基準，並先遞迴短的一邊。 兩
+題逆序對都可以在合併時順便數：\proc{Merge} 從右半拿 $B[j]$ 時，左半還沒拿的 $q - i + 1$ 個
+數都比它大；相等不算逆序，所以相等時先拿左邊的，答案要用 \texttt{long long}。 第~8~章題單的
+「以堆積排序整數陣列」也是第~\ref{sec:so-heap}~節的練習。
+
+\section{讀完你應該會}
+\label{sec:so-checklist}
+
+\begin{itemize}
+\item 說出每種排序是否穩定、是否原地、額外空間多少；判斷不穩定時能用兩個相同的鍵舉出反例。
+\item 給一組資料，寫出氣泡、選擇、插入、Shell、合併（遞迴與由下而上）、快速（Lomuto 與
+Hoare）、堆積排序每一趟之後的陣列，並數出比較或交換的次數。
+\item 寫出 Lomuto 和 Hoare 分割，說出回傳值的意義和對應的遞迴範圍，用迴圈不變量證明
+Lomuto 分割正確。
+\item 說出每種排序最好、平均、最壞的時間和發生的條件；用指標隨機變數證明隨機化快速排序
+的期望比較次數是 $2(n+1)H_n - 4n$。
+\item 寫出不會溢位、能定出全序的 \texttt{qsort} 比較函式，並依資料的特性選擇排序方法。
+\end{itemize}
+
+\textbf{延伸閱讀}（書末會整理完整的參考資料）
+
+\begin{itemize}
+\item Thomas H. Cormen 等，\textit{Introduction to Algorithms}，第 4 版，第 2.3 節（合併排
+序）、第 6 章（堆積排序）、第 7 章（快速排序）。 第 7 章的章末問題有 Hoare 分割的正確性、
+相同的鍵、堆疊深度和三數取中的分析。
+\item Donald E. Knuth，\textit{The Art of Computer Programming, Vol.~3: Sorting and
+Searching}，第 2 版，第 5.2 節：插入與 Shell 排序（5.2.1，含 $h$ 排序好的陣列再做 $k$ 排
+序仍是 $h$ 排序好的證明）、交換排序與快速排序（5.2.2）、選擇與堆積排序（5.2.3）、合併
+排序（5.2.4），各種比較次數的精確分析都在這裡。
+\item Robert Sedgewick、Kevin Wayne，\textit{Algorithms}，第 4 版，第 2 章：實作導向，三
+路分割的快速排序講得很清楚。
+\item Jon L. Bentley、M. Douglas McIlroy，``Engineering a Sort Function''，
+\textit{Software---Practice and Experience} 23(11)，1993：一個實際的 \texttt{qsort} 怎麼
+選基準、怎麼處理相同的鍵。
+\item Russel Schaffer、Robert Sedgewick，``The Analysis of Heapsort''，\textit{Journal of
+Algorithms} 15(1)，1993：堆積排序最好情況也是 $\Theta(n \lg n)$ 的證明。
+\item 《C 程式設計基礎》第~18~章 18.6 節：函式指標與 \texttt{qsort}、字串和結構的比較函式。
+\end{itemize}
+
+\addcontentsline{toc}{section}{觀念題解答}
+\section*{觀念題解答}
+
+\begin{enumerate}
+\item (a)、(b)、(e) 正確。 (a)：第 $i$ 趟一定比 $n - i$ 次，共 $n(n-1)/2$ 次。 (b)：設 $x$ 現
+在在位置 $i$，排好後在位置 $f$，$|i - f| \le k$。 一個在 $x$ 左邊、比 $x$ 大的數 $y$，排好後的
+位置大於 $f$，所以現在的位置至少是 $f + 1 - k$；它又在 $x$ 左邊，位置小於 $i \le f + k$。 這
+樣的位置不到 $2k$ 個，所以逆序對 $I < 2kn$，插入排序的時間 $\Theta(n + I) = O(nk)$。 (c)：
+排好的輸入每次合併仍要比左半的個數次，共約 $\frac{n}{2}\lg n$ 次。 (d)：隨機選基準只改善
+期望值，運氣最差時每次都選到最大或最小，仍是 $\Theta(n^2)$。 (e)：堆積排序是原地的，下沉
+也不用遞迴。
+
+\item 只有 (e)。 (a)、(b)、(c)、(d) 都可以用 $\langle 1_a, 1_b \rangle$ 當反例：(a) $A[1] \ge
+A[2]$ 成立，交換；(b) $\mathit{key} = 1_b$ 時 $A[1] = 1_a \ge \mathit{key}$，$1_a$ 被挪到右邊；
+(c) 合併 $\langle 1_a \rangle$ 和 $\langle 1_b \rangle$ 時 $B[i] < B[j]$ 不成立，先拿右邊的
+$1_b$；(d) $j = 2$ 時 $A[2] \le A[1]$ 成立，$m = 2$，交換後是 $\langle 1_b, 1_a \rangle$。 這
+四個都變成 $\langle 1_b, 1_a \rangle$。 (e) 只改變切開的位置，左半仍在右半前面，\proc{Merge}
+遇到相同的鍵仍先拿左半的，所以仍然穩定。
+
+\item 每一趟之後：
+\begin{center}
+\begin{tabular}{ll*{7}{c}}
+\toprule
+& 交換 & 1 & 2 & 3 & 4 & 5 & 6 & 7 \\
+\midrule
+開始 & & 45 & 12 & 78 & 33 & 9 & 61 & 27 \\
+第 1 趟 & 5 & 12 & 45 & 33 & 9 & 61 & 27 & 78 \\
+第 2 趟 & 3 & 12 & 33 & 9 & 45 & 27 & 61 & 78 \\
+第 3 趟 & 2 & 12 & 9 & 33 & 27 & 45 & 61 & 78 \\
+第 4 趟 & 2 & 9 & 12 & 27 & 33 & 45 & 61 & 78 \\
+第 5 趟 & 0 & 9 & 12 & 27 & 33 & 45 & 61 & 78 \\
+\bottomrule
+\end{tabular}
+\end{center}
+第 5 趟沒有交換，提早結束。 比較 $6 + 5 + 4 + 3 + 2 = 20$ 次，交換 12 次。 逆序對：
+$45$ 和 $12, 33, 9, 27$；$12$ 和 $9$；$78$ 和 $33, 9, 61, 27$；$33$ 和 $9, 27$；$61$ 和 $27$，
+共 $4 + 1 + 4 + 2 + 1 = 12$ 個。
+
+\item (a) $W(1..8) = 0, 1, 3, 5, 8, 11, 14, 17$。
+
+(b) 對 $k$ 歸納。 $k = 0$：$W(1) = 0 = 0 - 1 + 1$。 $k \ge 1$：
+$W(2^k) = 2W(2^{k-1}) + 2^k - 1 = 2\bigl((k-1)2^{k-1} - 2^{k-1} + 1\bigr) + 2^k - 1
+= k\,2^k - 2^k + 1$。
+
+(c) 例如 $\langle 1, 5, 3, 7, 2, 6, 4, 8 \rangle$。 一次合併要比滿 $m_1 + m_2 - 1$ 次，條件是
+兩邊的數一直交錯，直到其中一邊只剩最後一個。 這個排列把排好的 $1..8$ 依名次的奇偶分成左右
+兩半，每一半再照同樣的方法分，所以每一次合併兩邊都完全交錯：四次 $1 + 1$ 的合併各比 $1$
+次，兩次 $2 + 2$ 各比 $3$ 次，最後 $4 + 4$ 比 $7$ 次，共 $4 + 6 + 7 = 17$。 第
+\ref{sec:so-compare}~節例題的 $\langle 36, 71, 19, 54, 8, 92, 43, 27 \rangle$ 也剛好比 $17$ 次。
+
+\item (a) 粗體是歸位的基準。
+\begin{center}
+\begin{tabular}{ll*{7}{c}}
+\toprule
+& $x$ & 1 & 2 & 3 & 4 & 5 & 6 & 7 \\
+\midrule
+開始 & & 33 & 71 & 18 & 54 & 26 & 90 & 41 \\
+$[1..7]$ & 41 & 33 & 18 & 26 & \textbf{41} & 71 & 90 & 54 \\
+$[1..3]$ & 26 & 18 & \textbf{26} & 33 & 41 & 71 & 90 & 54 \\
+$[5..7]$ & 54 & 18 & 26 & 33 & 41 & \textbf{54} & 90 & 71 \\
+$[6..7]$ & 71 & 18 & 26 & 33 & 41 & 54 & \textbf{71} & 90 \\
+\bottomrule
+\end{tabular}
+\end{center}
+比較 $6 + 2 + 2 + 1 = 11$ 次。
+
+(b)
+\begin{center}
+\begin{tabular}{ll*{7}{c}}
+\toprule
+& $x$，$j$ & 1 & 2 & 3 & 4 & 5 & 6 & 7 \\
+\midrule
+開始 & & 33 & 71 & 18 & 54 & 26 & 90 & 41 \\
+$[1..7]$ & 33，2 & 26 & 18 & 71 & 54 & 33 & 90 & 41 \\
+$[1..2]$ & 26，1 & 18 & 26 & 71 & 54 & 33 & 90 & 41 \\
+$[3..7]$ & 71，5 & 18 & 26 & 41 & 54 & 33 & 90 & 71 \\
+$[3..5]$ & 41，3 & 18 & 26 & 33 & 54 & 41 & 90 & 71 \\
+$[4..5]$ & 54，4 & 18 & 26 & 33 & 41 & 54 & 90 & 71 \\
+$[6..7]$ & 90，6 & 18 & 26 & 33 & 41 & 54 & 71 & 90 \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\item 一種寫法（Dijkstra 的「荷蘭國旗」問題）：
+\begin{pseudo}{觀念題 6 的解答}
+\Function{Three-Way-Partition}{$A, p, r$}
+    \State $x \gets A[r]$
+    \State $\mathit{lt} \gets p$；$i \gets p$；$\mathit{gt} \gets r$
+    \While{$i \le \mathit{gt}$}
+        \If{$A[i] < x$}
+            \State 交換 $A[\mathit{lt}]$ 和 $A[i]$；$\mathit{lt} \gets \mathit{lt} + 1$；$i \gets i + 1$
+        \ElsIf{$A[i] > x$}
+            \State 交換 $A[i]$ 和 $A[\mathit{gt}]$；$\mathit{gt} \gets \mathit{gt} - 1$
+        \Else
+            \State $i \gets i + 1$
+        \EndIf
+    \EndWhile
+    \State \Return $(\mathit{lt}, \mathit{gt})$
+\EndFunction
+\end{pseudo}
+不變量：第 4 行每次檢查時，$A[p..\mathit{lt}-1] < x$，$A[\mathit{lt}..i-1] = x$，
+$A[\mathit{gt}+1..r] > x$，$A[i..\mathit{gt}]$ 還沒看。 一開始前三段都是空的。 $A[i] < x$
+時，$A[\mathit{lt}]$ 是第二段的第一個（$= x$），或第二段是空的時就是 $A[i]$ 自己，交換後
+第一段、第二段各往右一格；$A[i] > x$ 時換到 $A[\mathit{gt}]$，第四段往左長一格，換過來的
+數還沒看，所以 $i$ 不動；$A[i] = x$ 時第二段長一格。 每一輪 $i$ 加一或 $\mathit{gt}$ 減一，
+$r - p + 1$ 輪內結束，結束時 $i = \mathit{gt} + 1$，中間一段 $A[\mathit{lt}..\mathit{gt}]$
+全部等於 $x$，而且至少有 $x$ 自己。 快速排序只遞迴 $[p..\mathit{lt}-1]$ 和
+$[\mathit{gt}+1..r]$。 鍵全部相同時，第一次分割每一輪都走 \textbf{else}，結束時
+$\mathit{lt} = p$、$\mathit{gt} = r$，兩邊都是空的，總共 $\Theta(n)$。
+
+\item (a) $\langle 3, 1, 2 \rangle$。 $x = 3$：$i$ 停在 $1$，$j$ 停在 $3$（$2 \le 3$），交換得
+$\langle 2, 1, 3 \rangle$；接著 $i$ 走到 $3$，$j$ 停在 $2$，回傳 $j = 2$。 正確的遞迴是
+$[1..2]$ 和 $[3..3]$；錯的寫法遞迴 $[1..1]$ 和 $[3..3]$，$A[2] = 1$ 沒有參加，結果停在
+$\langle 2, 1, 3 \rangle$。
+
+(b) $x = A[2] = 2$。 $i$：$A[1] = 1 < 2$，走到 $i = 2$ 停下。 $j$：$A[2] = 2$ 不大於 $2$，在
+$j = 2$ 停下。 $i \ge j$，回傳 $2 = r$。 於是遞迴呼叫 \proc{Quicksort-H}$(A, 1, 2)$，範圍和
+原來一模一樣，陣列也沒變，永遠不會結束。
+
+\item (a) $Z_{i,i+1} = \{z_i, z_{i+1}\}$ 只有這兩個數，第一個被選為基準的一定是其中之一，由
+引理~\ref{lem:so-pair}，它們一定會被比較。 直觀上，沒有別的數能把它們分開。
+
+(b) $j - i + 1 = n$，機率是 $2/n$：$z_1$ 和 $z_n$ 會被比較，若且唯若第一次分割的基準就是最
+小值或最大值。
+
+(c) $z_k$ 參與的比較就是 $\sum_{j \ne k} X_{kj}$，期望值是
+\[
+\sum_{j \ne k} \frac{2}{|j - k| + 1}
+= 2\left(\frac12 + \cdots + \frac1k\right) + 2\left(\frac12 + \cdots + \frac{1}{n-k+1}\right)
+= 2(H_k + H_{n-k+1} - 2).
+\]
+每次比較有兩個數參與，所以把 $k = 1..n$ 加起來再除以 $2$：
+$\mathrm{E}[X] = \sum_{k=1}^{n}(H_k + H_{n-k+1} - 2) = 2\sum_{k=1}^{n} H_k - 2n$。 用
+$\sum_{k=1}^{n} H_k = (n+1)H_n - n$，得到 $2(n+1)H_n - 4n$，和定理~\ref{thm:so-quick-avg}
+一樣。 這和第~9~章 9.3 節框裡 $j$ 的期望深度 $H_j + H_{n-j+1} - 2$ 只差一個 $2$ 倍：BST 裡
+只算祖先，快速排序裡兩個方向都算。
+
+\item \texttt{a->gpa - b->gpa} 是 \texttt{double}，回傳時轉成 \texttt{int} 會把小數部分捨去
+（往 $0$ 截斷）。 兩個成績相差不到 $1$ 時差被截成 $0$，比較函式說它們相等。 例如成績
+$3.9$ 和 $3.2$，\texttt{qsort} 可以把 $3.9$ 排在 $3.2$ 前面。 更嚴重的是它不是一個一致的全
+序：$2.9$ 和 $3.5$「相等」，$3.5$ 和 $4.0$「相等」，$2.9$ 卻比 $4.0$ 小，C 標準不保證
+\texttt{qsort} 在這種比較函式下會做什麼。 改成只比較、不相減：最後一行寫成
+\texttt{return (a->gpa > b->gpa) - (a->gpa < b->gpa);}。
+\end{enumerate}
