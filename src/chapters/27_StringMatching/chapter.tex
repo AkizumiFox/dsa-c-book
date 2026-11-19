@@ -294,8 +294,8 @@ t_{s+1} = d \bigl( t_s - T[s + 1] \cdot d^{m-1} \bigr) + T[s + m + 1].
 \end{equation}
 這叫\textbf{滾動雜湊}（rolling hash），每次只要常數個算術運算。
 
-問題是 $t_s$ 有 $m$ 位，$m$ 一大就放不進一個字組，算術運算不能再算一步（第~1~章
-1.9 節）。 解法是全部對一個質數 $q$ 取餘數，也就是第~12~章字串鍵的雜湊函數
+問題是 $t_s$ 有 $m$ 位，$m$ 一大就放不進一個字組，算術運算不能再當成一步
+（第~\ref{sec:ana-input-size}~節）。 解法是全部對一個質數 $q$ 取餘數，也就是第~12~章字串鍵的雜湊函數
 （第~\ref{sec:hash-func}~節）：
 \[
 p \bmod q, \qquad t_s \bmod q, \qquad
@@ -698,7 +698,7 @@ $q$ & $P[q]$ & 開始的 $k$ & 比較 & $\pi[q]$ \\
 \end{tabular}
 \end{center}
 
-$q = 9$ 那一列最值得看：$P[1..8]$ 的最長邊界 $5$ 接不上 \texttt{A}，退到 $\pi[5] = 2$
+$q = 9$ 那一列退了兩次：$P[1..8]$ 的最長邊界 $5$ 接不上 \texttt{A}，退到 $\pi[5] = 2$
 也接不上，再退到 $\pi[2] = 1$，$P[2] = \mathtt{A}$ 接上了，得到 $\pi[9] = 2$。 這三個
 $k$ 正是圖~\ref{fig:stm-borders} 的鏈。
 
@@ -896,8 +896,7 @@ $i$ & $T[i]$ & 開始的 $q$ & 退到 & 結束的 $q$ & 說明 \\
 \node[stm-bad] at (10.00,-4.65) {A};
 \node[stm-note, anchor=west] at (10.55,-4.65) {比 1 次};
 \end{tikzpicture}
-\diagcaption{KMP 在 $T = \mathtt{AACAACAACAAACAACAAAGT}$ 上試過的位移。 $s = 1, 2$
-、$s = 4$ 到 $9$、$s = 11$ 到 $16$ 都直接跳過，$T$ 的每個字元只有失配時才會再比一次。}
+\diagcaption{KMP 在 $T = \mathtt{AACAACAACAAACAACAAAGT}$ 上試過的位移。 $s = 1, 2$、$s = 4$ 到 $9$、$s = 11$ 到 $16$ 都直接跳過，$T$ 的每個字元只有失配時才會再比一次。}
 \label{fig:stm-kmp-align}
 \end{minipage}\end{center}
 
@@ -920,7 +919,7 @@ KMP 的追蹤題，常見的兩種寫法是：像上表一個字元一列寫出 
 $P = \mathtt{A}^{m-1}\mathtt{C}$、$T = \mathtt{A}^{m-1}\mathtt{G}\cdots$，讀到
 \texttt{G} 時 $q$ 從 $m - 1$ 一路退到 $0$，退了 $m - 1$ 次。 所以單看一個字元，最
 壞是 $\Theta(m)$；照第~1~章的方法把每個字元的最壞情況乘起來，只能得到
-$O(nm)$。 這和第~3~章的多重 pop 堆疊是同一種情形：要退很多次，之前一定先往上加過
+$O(nm)$。 這和第~3~章的 \proc{Multipop}（虛擬碼~\ref{alg:multipop}）是同一種情形：要退很多次，之前一定先往上加過
 很多次。
 
 \begin{theorem}
@@ -1110,8 +1109,8 @@ KMP 失配時要沿著鏈退好幾步，才知道下一個 $q$ 是多少。 如�
 \[
 \delta(q, a) = \text{$P$ 的前綴之中，是 $P[1..q]\,a$ 的後綴的最長長度}.
 \]
-定理~\ref{thm:stm-kmp-correct} 的證明說的就是：讀完 $T[i]$ 之後的狀態是 $f(i)$，而
-$f(i) = \delta(f(i - 1), T[i])$。 進入狀態 $m$ 就表示找到一次出現。
+照定理~\ref{thm:stm-kmp-correct} 證明裡同樣的推理（把 $q$ 換成 $f(i - 1)$）可以得到
+$f(i) = \delta(f(i - 1), T[i])$，所以讀完 $T[i]$ 之後的狀態就是 $f(i)$。 進入狀態 $m$ 就表示找到一次出現。
 
 \begin{pseudo}[label=alg:stm-dfa-match]{用自動機比對}
 \Procedure{Automaton-Match}{$T, n, \delta, m$}
@@ -1306,7 +1305,7 @@ $q = 0..4$。
 
 \item \label{q:stm-power-mod}（說明）Rabin--Karp 用 $d = 4$，有人為了用位元運算算得
 快，取 $q = 256$。 證明這時 $t_s \bmod q$ 只和視窗的最後 $4$ 個字元有關。 $m = 10$ 時
-這會造成什麼問題？ 和第~12~章引理~\ref{lem:hash-gcd} 前後討論的「除法的 $m$ 不要選
+這會造成什麼問題？ 和第~12~章引理~\ref{lem:hash-gcd} 前後討論的「除法的表格大小不要選
 $2$ 的次方」比較。
 
 \item （是非）「Rabin--Karp 的 $q$ 選一個比 $nm$ 大的質數，底數 $x$ 從 $0$ 到 $q - 1$
@@ -1368,7 +1367,7 @@ $\Theta(m)$ 但平攤是 $O(1)$。
 \item Thomas H. Cormen 等，\textit{Introduction to Algorithms}，第 4 版，第 32 章
 （32.1--32.4 節）：樸素比對、Rabin--Karp、比對自動機和 KMP，自動機和失敗函數的正確
 性證明寫得比本章完整；32.5 節的後綴陣列是本章沒有講的另一條路。
-\item Donald E. Knuth、James H. Morris、Vaughan R. Pratt，``Fast Pattern Matching in
+\item Donald E. Knuth、James H. Morris Jr.、Vaughan R. Pratt，``Fast Pattern Matching in
 Strings''，\textit{SIAM Journal on Computing} 6(2)，1977：KMP 的原始論文，也講了
 $\mathit{next}$ 的改良版。
 \item Richard M. Karp、Michael O. Rabin，``Efficient Randomized Pattern-Matching
@@ -1516,8 +1515,9 @@ $j \le m - 4$ 的項都含 $4^4$ 這個因數，除以 $256$ 的餘數是 $0$，
 $t_s \bmod 256$ 只由最後 $4$ 項，也就是最後 $4$ 個字元決定。 $m = 10$ 時，任何最後
 $4$ 個字元和 $P$ 相同的視窗都會命中，前 $6$ 個字元完全沒被檢查。 DNA 這類重複很多的
 資料，偽命中會大量出現，每次都要花 $O(m)$ 確認，時間退化成接近樸素比對。 這和第~12~章
-除法取 $m = 2^p$ 只用到鍵的最低 $p$ 個位元是同一件事：模數和底數有公因數時，高位的
-資訊全部丟掉。 所以 $q$ 要選質數，而且不要和 $d$ 有公因數。
+除法的表格大小取 $2^p$ 時只用到鍵的最低 $p$ 個位元是同一件事：模數整除底數的某個次方
+時（這裡 $256 = 4^4$），高位的資訊全部丟掉。 所以 $q$ 要選不整除 $d$ 的質數，實際上就是
+選一個比 $d$ 大的質數。
 
 \item 不對。 定理~\ref{thm:stm-rk-random} 給的是機率的上界：每個不同的視窗偽命中的機
 率不超過 $(m - 1)/q < 1/n$，所以偽命中的\textbf{期望}次數小於 $(n - m + 1)/n \le 1$。

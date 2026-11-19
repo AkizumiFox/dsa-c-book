@@ -31,7 +31,7 @@
 \end{enumerate}
 
 切成 $a$ 個規模 $n/b$ 的子問題、分和合一共花 $f(n)$ 時，執行時間是
-$T(n) = aT(n/b) + f(n)$，用第~2~章的遞迴樹或主定理（定理~2.4）就能解。 這個式子
+$T(n) = aT(n/b) + f(n)$，用第~2~章的遞迴樹或主定理（定理~\ref{thm:rec-master}）就能解。 這個式子
 也告訴我們，想讓分治法變快，有兩個方向：讓 $f(n)$ 變小（合得更省），或讓 $a$ 變
 小（少解幾個子問題）。 這一章的五節分別示範幾種情形。
 
@@ -65,7 +65,7 @@ C 程式用到《C 程式設計基礎》第~9~章的指標參數、第~14~章的
 \subsection{找一個值}
 
 輸入是由小到大排好（允許相等）的 $A[1..n]$ 和一個數 $x$。 如果 $x$ 在裡面，回傳
-一個位置 $i$ 使 $A[i] = x$；不在就回傳 \NIL。 第~2~章的虛擬碼~2.1 是遞迴版：看中
+一個位置 $i$ 使 $A[i] = x$；不在就回傳 \NIL。 第~2~章的虛擬碼~\ref{alg:rec-search} 是遞迴版：看中
 間那一格，相等就回答，比 $x$ 小就到右半邊找，比 $x$ 大就到左半邊找。 遞迴呼叫是
 函式的最後一步（第~6~章的尾遞迴），所以可以直接改成迴圈，用 $\mathit{lo}$、
 $\mathit{hi}$ 記住還要找的範圍 $A[\mathit{lo}..\mathit{hi}]$。
@@ -88,7 +88,7 @@ $\mathit{hi}$ 記住還要找的範圍 $A[\mathit{lo}..\mathit{hi}]$。
 \end{pseudo}
 
 \textbf{不變量}：每次檢查第 3 行的條件時，$A[1..\mathit{lo}-1]$ 的每個數都小於
-$x$，$A[\mathit{hi}+1..n]$ 的每個數都大於 $x$。 照第~1~章 1.4 節的三步來證。
+$x$，$A[\mathit{hi}+1..n]$ 的每個數都大於 $x$。 照第~\ref{sec:ana-invariant}~節的三步來證。
 
 \begin{itemize}
 \item \textbf{初始}：$\mathit{lo} = 1$、$\mathit{hi} = n$，兩段都是空的，敘述成立。
@@ -431,7 +431,7 @@ $e$ & $e$ 的二進位 & $r$ & $b$ & 這一輪做的事（都取除以 $1000$ �
 答案是 $7^{45} \bmod 1000 = 807$，共 $\nu(45) + \lfloor \lg 45 \rfloor = 4 + 5 = 9$
 次乘法。
 
-快速冪是第~1~章 1.9 節那個區別的好例子。 輸入的 $n$ 只有 $\lg n$ 個位元。 連乘 $n$
+快速冪是第~\ref{sec:ana-input-size}~節那個區別的好例子。 輸入的 $n$ 只有 $\lg n$ 個位元。 連乘 $n$
 次是位元數的指數；快速冪只要 $\Theta(\lg n)$ 次乘法，是位元數的多項式。
 
 同一個演算法只用到「乘法有結合律」，所以把數換成矩陣也可以。 例如費氏數列
@@ -724,7 +724,7 @@ $i$ & $A[i]$ & 上一輪的 $\mathit{cur}$ & 這一輪的 $\mathit{cur} = E[i]$ 
 
 \subsection{C 程式}
 
-\begin{cbookrecap}[第~14~章 14.1、14.3 節]
+\begin{cbookrecap}[第~14~章 14.2、14.4、14.6 節]
 \texttt{typedef struct} 定義的結構可以整個當成回傳值，也可以用 \texttt{=} 整個複
 製，\texttt{best = C;} 會把三個欄位一起抄過去。 用結構 \texttt{Range} 把「開頭、結
 尾、和」包在一起，就不必用三個指標參數帶回三個值。
@@ -838,7 +838,7 @@ int main(void)
 
 兩個 $n$ 位數相乘，小學的直式乘法把一個數的每一位乘上另一個數的每一位，共 $n^2$ 次
 一位乘一位，再做 $\Theta(n^2)$ 次加法和進位，時間 $\Theta(n^2)$。 這裡的輸入大小
-是位數 $n$，不是數值本身（第~1~章 1.9 節）：密碼學裡的整數動輒上千位，一次乘法不
+是位數 $n$，不是數值本身（第~\ref{sec:ana-input-size}~節）：密碼學裡的整數動輒上千位，一次乘法不
 能當成一步。
 
 設 $x$、$y$ 都是 $n$ 位數，$m = \lfloor n/2 \rfloor$，把每個數切成高位和低位：
@@ -897,7 +897,7 @@ T(n) \le 3T(\lceil n/2 \rceil + 1) + \Theta(n).
 \]
 多出來的 $+1$ 用第~2~章的換變數處理：令 $S(n) = T(n + 2)$，因為
 $\lceil (n+2)/2 \rceil + 1 = \lceil n/2 \rceil + 2$，得到
-$S(n) \le 3S(\lceil n/2 \rceil) + \Theta(n)$，這正是第~2~章圖~2.2 算過的
+$S(n) \le 3S(\lceil n/2 \rceil) + \Theta(n)$，這正是第~2~章圖~\ref{fig:rec-tree-3half} 算過的
 $3T(n/2) + n$，解是 $\Theta(n^{\lg 3})$。 所以 $T(n) = S(n-2) = O(n^{\lg 3})$，
 $\lg 3 \approx 1.585$。 $n = 1000$ 時 $n^2 = 10^6$，$n^{\lg 3}$ 只有大約
 $5.7 \times 10^4$。
@@ -1058,8 +1058,8 @@ T(n) = 7T(n/2) + \Theta(n^2).
 \]
 $\log_2 7 \approx 2.807$，$n^2 = O(n^{\log_2 7 - 0.8})$，主定理情況 1：
 $T(n) = \Theta(n^{\lg 7}) \approx \Theta(n^{2.81})$。 加法從 $4$ 次變成 $18$ 次，
-只影響 $f(n)$ 的常數；少掉的那一次乘法卻讓遞迴樹每一層少分出一個分支，改變了葉子
-的個數 $7^{\lg n} = n^{\lg 7}$。
+只影響 $f(n)$ 的常數；少掉的那一次乘法卻讓遞迴樹每一層少分出一個分支，改變了葉節
+點的個數 $7^{\lg n} = n^{\lg 7}$。
 
 \begin{whybox}[為什麼 \texorpdfstring{$C_{11} = M_1 + M_4 - M_5 + M_7$}{C11 = M1 + M4 - M5 + M7}]
 把四個乘積展開（子矩陣的乘法不能交換，但有分配律，展開時保持左右順序）：
@@ -1157,7 +1157,7 @@ $x$ 排好，回去時改成依 $y$ 排好（$y$ 相同時依 $x$）。 這和�
     \State $q \gets \lfloor (p + r)/2 \rfloor$
     \State $x_m \gets P[q].x$ \Comment{遞迴會重排 $P$，先記下分界}
     \State $\delta \gets \min($\Call{Closest}{$P, p, q$}$,\ $\Call{Closest}{$P, q + 1, r$}$)$
-    \State 依 $y$ 合併 $P[p..q]$ 和 $P[q+1..r]$ \Comment{虛擬碼 14.4，鍵換成 $y$}
+    \State 依 $y$ 合併 $P[p..q]$ 和 $P[q+1..r]$ \Comment{虛擬碼~\ref{alg:so-merge}，鍵換成 $y$}
     \State $S \gets P[p..r]$ 裡 $|x - x_m| < \delta$ 的點，保持依 $y$ 的順序；$k \gets |S|$
     \For{$i \gets 1$ \To $k - 1$}
         \State $j \gets i + 1$
@@ -1350,8 +1350,8 @@ $10$，不比 $\delta^2$ 小，不更新；EG 是 $4 + 1 = 5$，$\delta^2$ 變�
 \texttt{qsort(p, n, sizeof *p, cmp\_x)} 用比較函式 \texttt{cmp\_x} 排序 \texttt{p} 指
 到的 \texttt{n} 個元素。 比較函式收到兩個 \texttt{const void *}，先轉回
 \texttt{const Point *} 再比；回傳負數、$0$、正數分別表示第一個應該排在前面、一樣、排
-在後面。 不要寫成 \texttt{p->x - q->x}，兩個很大的整數相減會溢位，第~14~章
-14.7 節有例子；這裡用 \texttt{(a > b) - (a < b)}。 暫存陣列 \texttt{tmp} 用
+在後面。 不要寫成 \texttt{p->x - q->x}，兩個很大的整數相減會溢位，本書第~\ref{sec:so-compare}~節
+有例子；這裡用 \texttt{(a > b) - (a < b)}。 暫存陣列 \texttt{tmp} 用
 \texttt{malloc} 一次要 $n$ 格，整個遞迴共用，最後 \texttt{free}。
 \end{cbookrecap}
 
@@ -1519,7 +1519,7 @@ $\binom{n}{2}$。 第~1~章證明了插入排序的挪動次數等於逆序數�
 \EndFunction
 \end{pseudo}
 
-\proc{Merge-Count} 和第~14~章的虛擬碼~14.4 只差第 10 行和 $c$。
+\proc{Merge-Count} 和虛擬碼~\ref{alg:so-merge} 的 \proc{Merge} 只差 $c$ 和第 10 行。
 
 \begin{lemma}
 \label{lem:dc-cross}
@@ -1552,7 +1552,7 @@ $T(n) = 2T(n/2) + \Theta(n) = \Theta(n \lg n)$。
 
 \subsection{手算}
 
-用 $A = \langle 6, 2, 9, 4, 4, 1, 8, 3 \rangle$。 前三層的合併各數到 $1$ 個（例如
+用 $A = \langle 6, 2, 9, 4, 4, 1, 8, 3 \rangle$。 下面兩層的六次合併各數到 $1$ 個（例如
 $\langle 6 \rangle$ 和 $\langle 2 \rangle$ 合併時數到 $(6, 2)$），左半
 $\langle 6, 2, 9, 4 \rangle$ 共 $3$ 個，右半 $\langle 4, 1, 8, 3 \rangle$ 也是
 $3$ 個。 最上層合併 $\langle 2, 4, 6, 9 \rangle$ 和 $\langle 1, 3, 4, 8 \rangle$：
@@ -1813,7 +1813,7 @@ $\Theta(\lg n)$，只差底數。
 $2(n/2)^2 = \frac{1}{2} n^2$，主定理情況 3 給出 $\Theta(n^2)$。
 
 (e)：帶狀區域最多 $n$ 個點，重排 $O(n \lg n)$，$T(n) = 2T(n/2) + O(n \lg n) =
-O(n \lg^2 n)$（定理~2.5，$k = 1$）。
+O(n \lg^2 n)$（定理~\ref{thm:rec-master2}，$k = 1$）。
 
 \item
 \begin{center}

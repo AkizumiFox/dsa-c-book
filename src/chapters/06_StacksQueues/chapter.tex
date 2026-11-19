@@ -366,8 +366,8 @@ push 的個數（不會對空堆疊 pop）。 所以只要數合法的序列。
 
 $n$ 個 push、$n$ 個 pop 任意排，共 $\binom{2n}{n}$ 種。 數不合法的：不合法的序列
 一定有第一個「pop 比 push 多一個」的位置。 把這個位置\textbf{之後}的每一步對調
-（push 換成 pop，pop 換成 push）。 那個位置之前 push 比 pop 少一個，之後原本 push、
-pop 各剩 $n - t$ 和 $n - t - 1$ 個（$t$ 是前面 push 的個數），對調後總共變成
+（push 換成 pop，pop 換成 push）。 到那個位置為止（含這一步）push 比 pop 少一個，之
+後原本 push、pop 各剩 $n - t$ 和 $n - t - 1$ 個（$t$ 是前面 push 的個數），對調後總共變成
 $n - 1$ 個 push、$n + 1$ 個 pop。 反過來，任何 $n - 1$ 個 push、$n + 1$ 個 pop 的
 序列，pop 總數比較多，一定有第一個「pop 比 push 多一個」的位置，把之後對調回去，
 就得到一個不合法的原序列。 兩邊一一對應，所以不合法的有 $\binom{2n}{n-1}$ 種。
@@ -724,8 +724,8 @@ int main(void)
 $68$。 第 4 份只有 $1$ 頁，卻排在 $10$ 頁的那份後面，等了 $59$ 秒。
 
 先來先服務很公平，但不一定讓平均等待最短。 如果每次挑頁數最少的先印，第 4 份就不
-用等那麼久；這時要的是「每次取出最小的」，那是第~8~章的優先佇列，第~19~章會證明
-這樣排能讓平均等待時間最小。
+用等那麼久；這時要的是「每次取出最小的」，那是第~8~章的優先佇列，第~19~章會證明：所有工作同時送到時，
+這樣排能讓平均等待時間最小（工作陸續送到時不一定）。
 
 程式結束前佇列一定是空的（迴圈的條件），所以每個 \texttt{malloc} 出來的節點都在
 \texttt{dequeue} 裡釋放了。 佇列不保證空的程式，結束前要像範例~\ref{ex:sq-list-stack}
@@ -1510,19 +1510,19 @@ int f(int n)
 小節 & 題目 & 難度 \\
 \midrule
 堆疊的實作 & \akiref{growable-array-stack}{可自動擴充的陣列堆疊} & 基本 \\
- & \akiref{linked-node-stack}{鏈結節點堆疊} & 基本 \\
- & \akiref{container-yard-stacks}{貨櫃堆疊場} & 基本 \\
+堆疊的實作 & \akiref{linked-node-stack}{鏈結節點堆疊} & 基本 \\
+堆疊的實作 & \akiref{container-yard-stacks}{貨櫃堆疊場} & 基本 \\
 括號配對 & \akiref{bracket-matching-check}{括號配對檢查} & 基本 \\
 佇列的實作 & \akiref{ring-buffer-queue}{環狀緩衝區佇列} & 基本 \\
- & \akiref{sushi-conveyor-belt}{迴轉壽司輸送帶} & 基本 \\
+佇列的實作 & \akiref{sushi-conveyor-belt}{迴轉壽司輸送帶} & 基本 \\
 雙端佇列 & \akiref{double-ended-queue}{雙端佇列} & 基本 \\
- & \akiref{queue-line-manager}{排隊名單調度} & 進階 \\
+雙端佇列 & \akiref{queue-line-manager}{排隊名單調度} & 進階 \\
 運算式 & \akiref{evaluate-postfix-expression}{後序運算式求值} & 暖身 \\
- & \akiref{convert-infix-to-postfix}{中序運算式轉後序} & 基本 \\
- & \akiref{postfix-string-calculator}{後序字串計算機} & 基本 \\
- & \akiref{prefix-calculator-lazy-conditional}{附條件運算的前序算式} & 進階 \\
-單調堆疊、單調佇列 & \akiref{next-larger-value-to-the-right}{右側第一個較大的數} & 進階 \\
- & \akiref{maximum-of-every-window}{每個視窗的最大值} & 進階 \\
+運算式 & \akiref{convert-infix-to-postfix}{中序運算式轉後序} & 基本 \\
+運算式 & \akiref{postfix-string-calculator}{後序字串計算機} & 基本 \\
+運算式 & \akiref{prefix-calculator-lazy-conditional}{附條件運算的前序算式} & 進階 \\
+單調堆疊 & \akiref{next-larger-value-to-the-right}{右側第一個較大的數} & 進階 \\
+單調佇列 & \akiref{maximum-of-every-window}{每個視窗的最大值} & 進階 \\
 \bottomrule
 \end{tabular}
 \end{center}

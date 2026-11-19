@@ -150,8 +150,8 @@ $G_2$ 的 $F$ 和 $H$ 之間兩個方向各有一條邊。}
 無向圖裡，和頂點 $v$ 關聯的邊數叫 $v$ 的\textbf{度數}（degree），寫成 $\deg(v)$。 有向
 圖分成兩個：從 $v$ 出去的邊數叫\textbf{出度}（out-degree）$\deg^{+}(v)$，指進 $v$ 的邊
 數叫\textbf{入度}（in-degree）$\deg^{-}(v)$。 有些課本把度數叫「分支度」，入度、出度
-叫「內分支度」「外分支度」；第~7~章樹的「分支度」是孩子個數，和這裡的度數不一樣（樹
-當成無向圖時，非根節點的度數是孩子數加 $1$）。
+叫「內分支度」「外分支度」；第~7~章樹的「分支度」是子節點個數，和這裡的度數不一樣（樹
+當成無向圖時，非根節點的度數是子節點數加 $1$）。
 
 在 $G_1$ 裡，$\deg(3) = \deg(5) = \deg(6) = 3$，$\deg(8) = 1$；在 $G_2$ 裡，
 $\deg^{+}(A) = 3$、$\deg^{-}(A) = 1$，$\deg^{+}(C) = 1$、$\deg^{-}(C) = 3$。
@@ -234,7 +234,7 @@ walk 或「通路」稱呼可以重複頂點的走法；有的書把本書的環
 
 有向圖的「可到達」沒有對稱性：$G_2$ 裡 $F \leadsto A$，但 $A$ 到不了 $F$。 如果有向圖裡
 任兩個頂點 $u$、$v$ 都有 $u \leadsto v$ 而且 $v \leadsto u$，這張圖叫\textbf{強連通}
-（strongly connected）。 「互相可到達」又是一個等價關係，它的等價類叫\textbf{強連通元
+（strongly connected）。 「互相可達」又是一個等價關係，它的等價類叫\textbf{強連通元
 件}（strongly connected component）。 $G_2$ 的強連通元件是 $\{A, B, C, D, E\}$、
 $\{F, G, H\}$：$A$ 到 $E$ 這五頁可以互相點過去，$F$、$G$、$H$ 也是，但兩組之間只有從
 $G$ 到 $C$ 的單向連結。 強連通元件怎麼有效率地求出來，是第~23~章的主題；把有向邊都當
@@ -536,7 +536,7 @@ $\mathit{link}_u = \NIL$，結束。 得到 $e_2, e_3, e_5$。 走的時候每�
 
 C 的鄰接串列照第~5~章的單向串列來寫：每個鄰居是一個用 \texttt{malloc} 要來的節點
 （\texttt{struct AdjNode}，存鄰居的編號和 \texttt{next}），\texttt{adj[u]} 指向 \texttt{u}
-那條串列的第一個節點，空串列是 \texttt{NULL}。 插入用第~5~章範例 \texttt{signup.c} 的
+那條串列的第一個節點，空串列是 \texttt{NULL}。 插入用第~5~章範例~\ref{ex:ll-signup}（\texttt{signup.c}）的
 「指標的指標」寫法，找到第一個不小於 \texttt{v} 的位置插進去，每條串列就一直保持由小到大；
 遇到相同的 \texttt{v} 就是重邊，不插。 完整的程式放在第~\ref{sec:gtr-c}~節，和 BFS、DFS
 寫在一起。
@@ -615,7 +615,7 @@ $v$ 是白色，表示第一次看到它，就塗成灰色，距離比 $u$ 多 $
 
 \begin{center}
 \small
-\begin{tabular}{clp{0.25\linewidth}p{0.27\linewidth}l}
+\begin{tabular}{cl>{\raggedright\arraybackslash}p{0.25\linewidth}>{\raggedright\arraybackslash}p{0.27\linewidth}l}
 \toprule
 輪 & 拿出 $u$ & 依序看的鄰居 & 新發現：$d$，$\pi$ & 之後的佇列 \\
 \midrule
@@ -642,7 +642,7 @@ $\pi[v]$ & \NIL & $1$ & $1$ & $2$ & $3$ & $4$ & $5$ & \NIL & \NIL & \NIL \\
 \end{tabular}
 \end{center}
 
-幾個值得注意的地方。 第 3 輪看到 $4$ 時，$4$ 已經是灰色（第 2 輪由 $2$ 發現），所以
+這張表有幾個地方要看。 第 3 輪看到 $4$ 時，$4$ 已經是灰色（第 2 輪由 $2$ 發現），所以
 $\pi[4] = 2$ 而不是 $3$：誰先發現就算誰的。 第 5 輪的 $6$ 也一樣，$\pi[6] = 4$。 對岸的
 $8$、$9$、$10$ 從 $1$ 走不到，BFS 結束時仍是白色，距離是 $\infty$。 佇列裡的頂點，距
 離由前到後是 $1, 1$ 或 $1, 2$ 或 $2, 2$ 這種樣子：不會減少，頭尾最多差 $1$。 這是 BFS 正
@@ -678,7 +678,7 @@ $\{3, 4\}$、$\{5, 6\}$ 連接相鄰的兩個距離，$\{6, 7\}$ 連接同一個
 
 \begin{center}
 \small
-\begin{tabular}{clp{0.25\linewidth}p{0.27\linewidth}l}
+\begin{tabular}{cl>{\raggedright\arraybackslash}p{0.25\linewidth}>{\raggedright\arraybackslash}p{0.27\linewidth}l}
 \toprule
 輪 & 拿出 $u$ & 依序看的鄰居 & 新發現：$d$，$\pi$ & 之後的佇列 \\
 \midrule
@@ -932,7 +932,7 @@ $\pi[v]$ & \NIL & $A$ & $B$ & $E$ & $B$ & \NIL & $F$ & $G$ \\
 
 DFS 森林有兩棵樹：$A$ 為根的樹包含 $A$ 到 $E$，$F$ 為根的樹包含 $F$、$G$、$H$
 （圖~\ref{fig:gtr-paren} 上半）。 和 BFS 從 $A$ 出發比較：BFS 樹裡 $D$、$E$ 都是 $A$ 的
-孩子（距離 $1$），DFS 樹裡 $D$ 卻在深度 $3$，DFS 樹的路徑不是最短路徑。
+子節點（距離 $1$），DFS 樹裡 $D$ 卻在深度 $3$，DFS 樹的路徑不是最短路徑。
 
 \subsection{時間}
 
@@ -1061,7 +1061,7 @@ $1 \to 2 \to \cdots \to n$，或任何一張「DFS 一路走到底」的圖。 �
 $18$ 萬個頂點的鏈上就當掉了，每層大約用掉 $48$ 個位元組。 圖有十萬、百萬個頂點在實務
 上很常見，這時要改用自己的堆疊。
 
-第~6~章 6.4 節的方法是：堆疊裡放「之後還要做的事」。 \proc{DFS-Visit}$(u)$ 暫停時需要
+第~\ref{sec:sq-recursion}~節的方法是：堆疊裡放「之後還要做的事」。 \proc{DFS-Visit}$(u)$ 暫停時需要
 記住的只有兩件事：正在處理的頂點 $u$，以及 $u$ 的串列看到哪裡了。 每個頂點同一時間最多
 在堆疊裡出現一次（只有灰色的頂點在堆疊裡），所以「看到哪裡」可以存在一個以頂點為索引
 的陣列 $\mathit{next}[u]$，堆疊裡只放頂點。
@@ -1108,8 +1108,8 @@ $18$ 萬個頂點的鏈上就當掉了，每層大約用掉 $48$ 個位元組。
 看起來只是把標記提早，其實走出來的已經不是 DFS。 在 $G_2$ 上從 $A$ 出發，它一開始就把
 $A$ 的三個鄰居 $B$、$D$、$E$ 全部標記並推進堆疊；之後從 $B$ 走到 $C$，退回來時 $D$ 已經
 在堆疊裡、被標記過了，於是依序拿出 $D$、$E$，得到拜訪順序 $A, B, C, D, E$。 真正的 DFS
-從 $B$ 會先走到 $E$、再從 $E$ 走到 $D$，順序是 $A, B, C, E, D$，而且 $D$ 是 $E$ 的孩子，
-不是 $A$ 的孩子。 標記的時機改變了「誰先發現誰」，連 DFS 樹都不一樣了。
+從 $B$ 會先走到 $E$、再從 $E$ 走到 $D$，順序是 $A, B, C, E, D$，而且 $D$ 是 $E$ 的子節點，
+不是 $A$ 的子節點。 標記的時機改變了「誰先發現誰」，連 DFS 樹都不一樣了。
 
 第~\ref{sec:gtr-c}~節的程式裡，\texttt{dfs\_visit} 是遞迴版，\texttt{dfs\_iter} 是虛擬碼
 \ref{alg:gtr-dfs-iter}，\texttt{stack[0..top-1]} 是灰色的頂點，\texttt{cur[u]} 就是
@@ -1163,7 +1163,7 @@ $f[v] < f[u]$。 若 $d[u] < d[v]$，由括號定理 $v$ 的區間包在 $u$ 的
 章的「依完成時間由大到小排列就是拓樸順序」就是從這裡來的。
 
 交叉邊的方向也有規律：$d[v] < f[v] < d[u]$，交叉邊總是從比較晚發現的頂點，指向比較早就
-已經完成的頂點。 畫 DFS 森林時，如果每棵樹的孩子由左到右照發現的順序排、先長出的樹畫在左
+已經完成的頂點。 畫 DFS 森林時，如果每棵樹的子節點由左到右照發現的順序排、先長出的樹畫在左
 邊，交叉邊一律從右指向左。
 
 \subsection{$G_2$ 的分類}
@@ -1315,7 +1315,7 @@ $\mathit{comp}[1..7] = 1$、$\mathit{comp}[8..10] = 2$，$k = 2$。 用 DFS 或 
 
 \begin{center}
 \small
-\begin{tabular}{p{0.25\linewidth}p{0.32\linewidth}p{0.32\linewidth}}
+\begin{tabular}{>{\raggedright\arraybackslash}p{0.25\linewidth}>{\raggedright\arraybackslash}p{0.32\linewidth}>{\raggedright\arraybackslash}p{0.32\linewidth}}
 \toprule
  & DFS／BFS & 互斥集合（第~13~章） \\
 \midrule
@@ -1323,7 +1323,7 @@ $\mathit{comp}[1..7] = 1$、$\mathit{comp}[8..10] = 2$，$k = 2$。 用 DFS 或 
 全部算完的時間 & $\Theta(n + m)$ & $O(n + m\,\alpha(n))$ \\
 額外的記憶體 & 鄰接串列 $\Theta(n + m)$ & 父節點和大小陣列 $\Theta(n)$ \\
 邊陸續加入，中間隨時要回答 & 每次重算 $\Theta(n + m)$ & 每條邊、每個詢問平攤 $O(\alpha(n))$ \\
-有刪邊 & 刪掉之後重算 & 不支援；事先知道順序時倒著做（第~13~章的拔線例子）\\
+有刪邊 & 刪掉之後重算 & 不支援；事先知道順序時倒著做（範例~\ref{ex:ds-lab-cut}）\\
 順便得到 & 元件的成員、路徑、距離、生成樹 & 只有「是否同組」和組的大小 \\
 有向圖 & 可以再發展成強連通元件（第~23~章）& 不適用 \\
 \bottomrule
@@ -1397,7 +1397,7 @@ $\{u, v\}$，得到一個長度 $2(d[u] - d[w]) + 1$ 的環，是奇環，所以
 \end{pseudo}
 
 $\mathit{side}[v]$ 就是 $d[v]$ 的奇偶，所以第 14 行的條件「同色」等於「$d$ 相同」（$d$ 最
-多差一）。 時間 $\Theta(n + m)$。 這裡用 DFS 也可以，只要讓孩子的顏色和父節點相反；同色
+多差一）。 時間 $\Theta(n + m)$。 這裡用 DFS 也可以，只要讓子節點的顏色和父節點相反；同色
 的鄰居一樣代表奇環。
 
 用 $G_1$ 試一次。 第~\ref{sec:gtr-bfs-trace}~節的 BFS 裡，$6$ 和 $7$ 的距離都是 $3$，邊
@@ -1496,7 +1496,7 @@ BFS 和印出路徑（第~\ref{sec:gtr-bfs}~節）、遞迴和迴圈兩種 DFS �
 \ref{sec:gtr-dfs}、\ref{sec:gtr-class}~節）、連通元件和二分圖檢查（第~\ref{sec:gtr-app}~節）。
 每一部分前面的註解寫了對應的小節。
 
-\begin{cbookrecap}[第~14~章 14.5 節、第~19~章 19.3、19.10、19.12 節]
+\begin{cbookrecap}[第~14~章 14.5 節、第~19~章 19.3、19.9--19.11 節]
 \texttt{AdjNode **pp} 是「指向某個 \texttt{next} 欄位（或指向 \texttt{adj[u]}）」的指
 標。 \texttt{*pp} 是那個欄位目前指的節點，\texttt{pp = \&(*pp)->next} 往下走一格；
 插入時 \texttt{x->next = *pp; *pp = x;}，不管插在開頭還是中間都是這兩行。
@@ -2022,7 +2022,7 @@ $G_1$ 從 $1$ 出發的結果。
 \item \label{q:gtr-make-bip}（計算）$G_1$ 刪掉哪一條邊之後會變成二分圖？ 找出所有答案，並
 各寫出一種分法 $L$、$R$。
 
-\item \label{q:gtr-leaf}（證明）對連通的無向圖做 DFS，$u$ 是 DFS 樹裡的葉子（沒有孩子），而
+\item \label{q:gtr-leaf}（證明）對連通的無向圖做 DFS，$u$ 是 DFS 樹裡的葉節點（沒有子節點），而
 且不是根。 證明 $u$ 的每一個鄰居都是 $u$ 的祖先。
 \end{enumerate}
 
@@ -2160,7 +2160,7 @@ $3\colon 2$；$4\colon 1, 6$；$5\colon 3, 4$；$6\colon 2, 5$。 它就是矩�
 
 \begin{center}
 \small
-\begin{tabular}{clp{0.25\linewidth}p{0.27\linewidth}l}
+\begin{tabular}{cl>{\raggedright\arraybackslash}p{0.25\linewidth}>{\raggedright\arraybackslash}p{0.27\linewidth}l}
 \toprule
 輪 & 拿出 $u$ & 依序看的鄰居 & 新發現：$d$，$\pi$ & 之後的佇列 \\
 \midrule
@@ -2277,11 +2277,11 @@ $\langle 3, 7, 5 \rangle$；拿出 $5$（鄰居都標記過）、$7$、$3$。 �
 否則留下的那個奇環讓圖仍不是二分圖；兩個環共同的邊只有 $\{6, 7\}$、$\{5, 7\}$。 再驗證這兩
 個確實可以：刪 $\{6, 7\}$ 後，$L = \{1, 4, 5, 8, 10\}$、$R = \{2, 3, 6, 7, 9\}$；刪
 $\{5, 7\}$ 後，$L = \{1, 4, 5, 7, 8, 10\}$、$R = \{2, 3, 6, 9\}$。 兩種分法都可以逐條邊檢
-查，每條邊兩端都在不同邊。 也可以把範例~\ref{ex:gtr-graph} 輸入的 $G_1$ 刪掉一條邊（$m$ 改成 $10$），看程式是否
+查，每條邊兩端都在不同組。 也可以把範例~\ref{ex:gtr-graph} 輸入的 $G_1$ 刪掉一條邊（$m$ 改成 $10$），看程式是否
 印出 \texttt{bipartite: yes}。
 
 \item 由定理~\ref{thm:gtr-undirected}，和 $u$ 關聯的邊 $\{u, w\}$ 不是樹邊就是後向邊。 樹邊
-連接父子：$u$ 沒有孩子，所以 $w$ 只能是 $u$ 的父節點，是祖先。 後向邊連接一個頂點和它的祖
-先：若 $u$ 是 $w$ 的祖先，$w$ 就是 $u$ 的子孫，但葉子沒有子孫，所以只能是 $w$ 為 $u$ 的祖先。
-第~23~章找割點時會用到這個事實：DFS 樹的葉子永遠不是割點。
+連接父子：$u$ 沒有子節點，所以 $w$ 只能是 $u$ 的父節點，是祖先。 後向邊連接一個頂點和它的祖
+先：若 $u$ 是 $w$ 的祖先，$w$ 就是 $u$ 的子孫，但葉節點沒有子孫，所以只能是 $w$ 為 $u$ 的祖先。
+第~23~章的割點判斷，靠的就是無向圖 DFS 的這個性質：不是樹邊的邊只會連到祖先。
 \end{enumerate}
