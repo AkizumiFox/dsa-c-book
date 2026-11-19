@@ -1,0 +1,1817 @@
+\chapter{陣列、矩陣與多項式}
+\label{ch:arrays}
+
+% 本章的圖共用的樣式（名稱都以 arr- 開頭，避免和其他章衝突）
+\tikzset{
+    arr-r1/.style={draw=coreStroke, fill=coreFill, minimum width=0.95cm,
+        minimum height=0.55cm, inner sep=1pt, font=\scriptsize},
+    arr-r2/.style={arr-r1, draw=memStroke, fill=memFill},
+    arr-r3/.style={arr-r1, draw=optStroke, fill=optFill},
+    arr-tri/.style={draw=coreStroke, fill=coreFill, minimum width=0.7cm,
+        minimum height=0.7cm, inner sep=1pt, font=\small},
+    arr-zero/.style={draw=black!25, text=black!35, minimum width=0.7cm,
+        minimum height=0.7cm, inner sep=1pt, font=\small},
+}
+
+期末考借了一間大教室，座位排成 $9$ 排，每排 $7$ 個位子。 監考老師拿到的座位名單
+是一長串學號，從第 $1$ 排最左邊的位子開始，一排排完再換下一排。 坐在第 $6$ 排左
+邊數來第 $4$ 個位子的同學，是名單上的第幾個？ 如果名單改成先把每排最左邊那個位子
+從前排到後排列完，再列左邊數來第二個位子，依此類推，同一個同學又變成第幾個？ 不
+用把名單數一遍，能不能直接算出來？ 往下讀之前，先算算看。
+
+這一章講的就是這種計算。 記憶體是一長條編了號的格子，二維的表格、三維的方塊放進
+去都要先「攤平」，攤平的規則決定了每一格的位置怎麼算。 我們先推導一般陣列的位址
+公式，再看幾種形狀特別的矩陣（三角、對稱、帶狀）怎麼只存必要的部分、同時仍然能用
+公式在 $O(1)$ 時間找到每一格。 接著是大部分元素都是 $0$ 的稀疏矩陣：只存非零的
+項，轉置和相乘要怎麼做才快。 最後用同樣的眼光看多項式：存全部的係數，或只存非零
+的項，相加、相乘和求值各要花多少時間。
+
+第~1~章 1.1 節的 RAM 模型假設讀寫任何一格記憶體都花固定時間，這一章說明陣列為什
+麼能做到這件事。 第~5~章 5.3 節會把這一章的多項式和稀疏矩陣改用串列存，那裡處理
+「項數一直變動」的情況，這一章只用陣列。 用到的 C 語法有二維陣列、陣列參數、指標
+算術和結構，用到時會先在框裡複習。
+
+\section{陣列與位址計算}
+\label{sec:arr-address}
+
+陣列（array）的元素在記憶體裡一個緊接著一個，而且每個元素占一樣多的空間。 這兩
+個性質讓人不用從頭數，只靠一次乘法和一次加法就知道某個元素在哪裡。 這一節把這
+個「在哪裡」寫成公式，從一維開始，推到二維、三維和一般的 $d$ 維。
+
+\subsection{一維陣列}
+
+記憶體的每個位元組（byte）有一個編號，叫做\textbf{位址}（address）。 一個一維陣
+列寫成 $A[l..u]$，表示下標從 $l$ 到 $u$，共有 $u - l + 1$ 個元素。 $l$ 叫
+\textbf{下界}（lower bound），$u$ 叫\textbf{上界}（upper bound）。 C 的陣列下界一
+定是 $0$，本書的虛擬碼通常從 $1$ 開始，但考題和一些程式語言允許任意的下界，例如
+$A[-5..20]$。
+
+設每個元素占 $w$ 個位元組，第一個元素 $A[l]$ 的位址是 $\alpha$，叫做
+\textbf{起始位址}（base address）。 $A[i]$ 前面有 $A[l], A[l+1], \ldots, A[i-1]$
+共 $i - l$ 個元素，每個占 $w$，所以
+\begin{equation}
+\mathrm{loc}(A[i]) = \alpha + (i - l)\,w .
+\label{eq:arr-1d}
+\end{equation}
+這個元素占用的位址是從 $\mathrm{loc}(A[i])$ 到 $\mathrm{loc}(A[i]) + w - 1$。 算
+$\mathrm{loc}(A[i])$ 只要一次減法、一次乘法、一次加法，和 $i$ 是多少、陣列多長都
+沒有關係，這就是陣列可以在 $O(1)$ 時間讀寫任何一格的原因。
+
+\textbf{例}。 陣列 $T[-10..30]$ 記錄每個整數氣溫（攝氏）出現過幾天，每個元素是
+$4$ 位元組的整數，$T[-10]$ 的位址是十六進位的 \texttt{1A00}。 共有
+$30 - (-10) + 1 = 41$ 個元素。 $T[17]$ 前面有 $17 - (-10) = 27$ 個元素，位移是
+$27 \times 4 = 108$，十六進位是 \texttt{6C}，所以
+$\mathrm{loc}(T[17]) = \texttt{1A00} + \texttt{6C} = \texttt{1A6C}$。 最後一個元素
+$T[30]$ 的位址是 $\texttt{1A00} + 40 \times 4 = \texttt{1A00} + \texttt{A0} =
+\texttt{1AA0}$，整個陣列占用 \texttt{1A00} 到 \texttt{1AA3}，共 $164$ 個位元組。
+
+位址是十六進位時，可以先把位移用十進位算好，再換成十六進位相加；也可以把起始位址
+換成十進位，算完再換回去。 兩種做法都行，重點是不要把十六進位的 \texttt{1A00} 當
+成十進位的 $1A00$ 去加。
+
+\subsection{二維陣列：列優先與行優先}
+
+二維陣列 $A[l_1..u_1,\ l_2..u_2]$ 有 $m = u_1 - l_1 + 1$ 列（row）、
+$n = u_2 - l_2 + 1$ 行（column，也叫欄）。 記憶體只有一維，要先決定這 $mn$ 個元素
+排成一條時的順序。 常用的有兩種：
+
+\begin{itemize}
+\item \textbf{列優先}（row-major，也叫以列為主）：先放第 $l_1$ 列的 $n$ 個元素，
+再放下一列，依此類推。 C、C++ 的陣列用這種順序。
+\item \textbf{行優先}（column-major，以行為主）：先放第 $l_2$ 行的 $m$ 個元素，再
+放下一行。 Fortran、MATLAB 的陣列用這種順序。
+\end{itemize}
+
+下圖是 $A[1..3, 1..4]$ 的兩種排法，每一格寫的是它的下標「列, 行」，同一列用同一
+種顏色。 格子下面的數字是它前面有幾個元素。
+
+\begin{center}
+\begin{tikzpicture}
+\node[arr-r1] at (0.95,-0.62) {1,1};
+\node[arr-r1] at (1.90,-0.62) {1,2};
+\node[arr-r1] at (2.85,-0.62) {1,3};
+\node[arr-r1] at (3.80,-0.62) {1,4};
+\node[arr-r2] at (0.95,-1.24) {2,1};
+\node[arr-r2] at (1.90,-1.24) {2,2};
+\node[arr-r2] at (2.85,-1.24) {2,3};
+\node[arr-r2] at (3.80,-1.24) {2,4};
+\node[arr-r3] at (0.95,-1.86) {3,1};
+\node[arr-r3] at (1.90,-1.86) {3,2};
+\node[arr-r3] at (2.85,-1.86) {3,3};
+\node[arr-r3] at (3.80,-1.86) {3,4};
+\node[idxlbl, anchor=east] at (0.50,-0.62) {列 1};
+\node[idxlbl, anchor=east] at (0.50,-1.24) {列 2};
+\node[idxlbl, anchor=east] at (0.50,-1.86) {列 3};
+\node[idxlbl] at (0.95,-0.15) {行 1};
+\node[idxlbl] at (1.90,-0.15) {行 2};
+\node[idxlbl] at (2.85,-0.15) {行 3};
+\node[idxlbl] at (3.80,-0.15) {行 4};
+\node[anchor=east, font=\small] at (0.5,-3.0) {列優先};
+\node[arr-r1] at (1.075,-3.0) {1,1};
+\node[idxlbl] at (1.075,-3.5) {0};
+\node[arr-r1] at (2.025,-3.0) {1,2};
+\node[idxlbl] at (2.025,-3.5) {1};
+\node[arr-r1] at (2.975,-3.0) {1,3};
+\node[idxlbl] at (2.975,-3.5) {2};
+\node[arr-r1] at (3.925,-3.0) {1,4};
+\node[idxlbl] at (3.925,-3.5) {3};
+\node[arr-r2] at (4.875,-3.0) {2,1};
+\node[idxlbl] at (4.875,-3.5) {4};
+\node[arr-r2] at (5.825,-3.0) {2,2};
+\node[idxlbl] at (5.825,-3.5) {5};
+\node[arr-r2] at (6.775,-3.0) {2,3};
+\node[idxlbl] at (6.775,-3.5) {6};
+\node[arr-r2] at (7.725,-3.0) {2,4};
+\node[idxlbl] at (7.725,-3.5) {7};
+\node[arr-r3] at (8.675,-3.0) {3,1};
+\node[idxlbl] at (8.675,-3.5) {8};
+\node[arr-r3] at (9.625,-3.0) {3,2};
+\node[idxlbl] at (9.625,-3.5) {9};
+\node[arr-r3] at (10.575,-3.0) {3,3};
+\node[idxlbl] at (10.575,-3.5) {10};
+\node[arr-r3] at (11.525,-3.0) {3,4};
+\node[idxlbl] at (11.525,-3.5) {11};
+\node[anchor=east, font=\small] at (0.5,-4.6) {行優先};
+\node[arr-r1] at (1.075,-4.6) {1,1};
+\node[idxlbl] at (1.075,-5.1) {0};
+\node[arr-r2] at (2.025,-4.6) {2,1};
+\node[idxlbl] at (2.025,-5.1) {1};
+\node[arr-r3] at (2.975,-4.6) {3,1};
+\node[idxlbl] at (2.975,-5.1) {2};
+\node[arr-r1] at (3.925,-4.6) {1,2};
+\node[idxlbl] at (3.925,-5.1) {3};
+\node[arr-r2] at (4.875,-4.6) {2,2};
+\node[idxlbl] at (4.875,-5.1) {4};
+\node[arr-r3] at (5.825,-4.6) {3,2};
+\node[idxlbl] at (5.825,-5.1) {5};
+\node[arr-r1] at (6.775,-4.6) {1,3};
+\node[idxlbl] at (6.775,-5.1) {6};
+\node[arr-r2] at (7.725,-4.6) {2,3};
+\node[idxlbl] at (7.725,-5.1) {7};
+\node[arr-r3] at (8.675,-4.6) {3,3};
+\node[idxlbl] at (8.675,-5.1) {8};
+\node[arr-r1] at (9.625,-4.6) {1,4};
+\node[idxlbl] at (9.625,-5.1) {9};
+\node[arr-r2] at (10.575,-4.6) {2,4};
+\node[idxlbl] at (10.575,-5.1) {10};
+\node[arr-r3] at (11.525,-4.6) {3,4};
+\node[idxlbl] at (11.525,-5.1) {11};
+\end{tikzpicture}
+\diagcaption{$3 \times 4$ 的陣列用列優先和行優先排成一維。 列優先時同一列的元素相
+鄰；行優先時同一行的元素相鄰，同一列的元素每隔 $3$ 格出現一次。}
+\label{fig:arr-order}
+\end{center}
+
+\textbf{列優先的公式}。 $A[i, j]$ 前面有哪些元素？ 第 $l_1$ 列到第 $i - 1$ 列全部
+排在它前面，共 $i - l_1$ 列，每列 $n$ 個；第 $i$ 列裡面，$A[i, l_2]$ 到
+$A[i, j - 1]$ 也在它前面，共 $j - l_2$ 個。 所以
+\begin{equation}
+\mathrm{loc}(A[i, j]) = \alpha + \bigl[(i - l_1)\,n + (j - l_2)\bigr]\,w ,
+\qquad n = u_2 - l_2 + 1 .
+\label{eq:arr-row}
+\end{equation}
+
+\textbf{行優先的公式}。 把列和行的角色對調：前面有 $j - l_2$ 整行，每行 $m$ 個，
+再加上第 $j$ 行裡排在它上面的 $i - l_1$ 個：
+\begin{equation}
+\mathrm{loc}(A[i, j]) = \alpha + \bigl[(j - l_2)\,m + (i - l_1)\bigr]\,w ,
+\qquad m = u_1 - l_1 + 1 .
+\label{eq:arr-col}
+\end{equation}
+
+兩個公式都只用到「另一個維度」的大小：列優先要乘的是\textbf{行數} $n$（一列有幾
+個），行優先要乘的是\textbf{列數} $m$。 列優先的公式裡完全沒有 $m$，所以陣列有幾
+列不影響位址，只影響陣列的總大小。 這也是 C 的二維陣列參數可以省略第一維、不能省
+略第二維的原因。
+
+\textbf{例 1}。 $A[-2..5,\ 3..9]$，每個元素 $4$ 位元組，$\alpha = 2000$（也就是
+$A[-2, 3]$ 的位址）。 求 $A[1, 7]$ 的位址。
+
+先算大小：$m = 5 - (-2) + 1 = 8$ 列，$n = 9 - 3 + 1 = 7$ 行。
+
+\begin{itemize}
+\item 列優先：前面有 $(1 - (-2)) \times 7 + (7 - 3) = 21 + 4 = 25$ 個元素，位址是
+$2000 + 25 \times 4 = 2100$。
+\item 行優先：前面有 $(7 - 3) \times 8 + (1 - (-2)) = 32 + 3 = 35$ 個元素，位址是
+$2000 + 35 \times 4 = 2140$。
+\end{itemize}
+
+\textbf{例 2}（反推）。 $B[1..30,\ 1..n]$ 以列優先存放，每個元素 $2$ 位元組，$n$
+未知。 已知 $\mathrm{loc}(B[3, 5]) = 1130$、$\mathrm{loc}(B[6, 2]) = 1316$，求 $n$ 和
+$B[1, 1]$ 的位址。
+
+把兩個位址都寫成公式~(\ref{eq:arr-row}) 再相減，$\alpha$ 就消掉了：
+\[
+1316 - 1130 = \bigl[(6 - 3)\,n + (2 - 5)\bigr] \times 2
+\quad\Longrightarrow\quad 3n - 3 = 93
+\quad\Longrightarrow\quad n = 32 .
+\]
+再代回任一個：$1130 = \alpha + [(3 - 1) \times 32 + (5 - 1)] \times 2 = \alpha + 136$，
+所以 $\alpha = 994$。 驗算 $B[6, 2]$：$994 + (5 \times 32 + 1) \times 2 = 994 + 322
+= 1316$，相符。 注意 $B[6, 2]$ 的行號比 $B[3, 5]$ 小，$j - l_2$ 那一項相減後是負的，
+不要直接寫成 $3n + 3$。
+
+章首的座位問題就是 $S[1..9, 1..7]$，名單上的「第幾個」等於前面的人數加 $1$。 一排
+一排列是列優先：$(6 - 1) \times 7 + (4 - 1) + 1 = 39$，第 $39$ 個。 改成先列每排最
+左邊的位子，是行優先：$(4 - 1) \times 9 + (6 - 1) + 1 = 33$，第 $33$ 個。
+
+\begin{examnote}
+位址題先把題目給的條件抄成一行：上下界 $l_1..u_1$、$l_2..u_2$（下標從 $0$ 開始、
+從 $1$ 開始，還是有負的）、每格大小 $w$、起始位址 $\alpha$ 是哪一格的位址、列優先
+還是行優先。 每格大小的單位也要看清楚：題目說「每個元素占 $4$ 個位元組」和「每個元
+素占 $1$ 個字組（word）、位址以字組為單位」，乘的數不同。 起始位址是十六進位時，
+答案也寫成十六進位。 另外，中國大陸的教材「行」「列」的意思和台灣相反（「行」是
+row），讀到簡體的題目時，以英文的 row-major、column-major 為準。
+\end{examnote}
+
+\subsection{三維與更多維}
+
+三維陣列 $A[l_1..u_1,\ l_2..u_2,\ l_3..u_3]$ 的三個維度大小記作
+$d_k = u_k - l_k + 1$（$k = 1, 2, 3$）。 列優先推廣成「最後一個下標變得最快」：先固
+定 $i_1 = l_1$、$i_2 = l_2$，讓 $i_3$ 從 $l_3$ 走到 $u_3$；再讓 $i_2$ 加一，依此類
+推。 可以把它想成 $d_1$ 張 $d_2 \times d_3$ 的表格疊起來，一張一張用列優先放。
+$A[i_1, i_2, i_3]$ 前面有：
+
+\begin{itemize}
+\item 前面 $i_1 - l_1$ 張完整的表格，每張 $d_2 d_3$ 個；
+\item 同一張表格裡，前面 $i_2 - l_2$ 整列，每列 $d_3$ 個；
+\item 同一列裡，前面 $i_3 - l_3$ 個。
+\end{itemize}
+
+所以
+\begin{equation}
+\mathrm{loc}(A[i_1, i_2, i_3]) = \alpha + \bigl[(i_1 - l_1)\,d_2 d_3 + (i_2 - l_2)\,d_3
++ (i_3 - l_3)\bigr]\,w .
+\label{eq:arr-3d-row}
+\end{equation}
+
+行優先是「第一個下標變得最快」，把下標的順序倒過來：
+\begin{equation}
+\mathrm{loc}(A[i_1, i_2, i_3]) = \alpha + \bigl[(i_3 - l_3)\,d_1 d_2 + (i_2 - l_2)\,d_1
++ (i_1 - l_1)\bigr]\,w .
+\label{eq:arr-3d-col}
+\end{equation}
+
+\textbf{例 3}。 $B[1..4,\ -1..3,\ 0..5]$，每個元素 $8$ 位元組，$\alpha = 5000$。 求
+$B[3, 2, 4]$ 的位址。 三個維度的大小是 $d_1 = 4$、$d_2 = 5$、$d_3 = 6$，下標減掉下
+界後是 $(3 - 1, 2 - (-1), 4 - 0) = (2, 3, 4)$。
+
+\begin{itemize}
+\item 列優先：$2 \times (5 \times 6) + 3 \times 6 + 4 = 60 + 18 + 4 = 82$，位址
+$5000 + 82 \times 8 = 5656$。
+\item 行優先：$4 \times (4 \times 5) + 3 \times 4 + 2 = 80 + 12 + 2 = 94$，位址
+$5000 + 94 \times 8 = 5752$。
+\end{itemize}
+
+\textbf{$d$ 維的情形}。 $A[l_1..u_1, \ldots, l_d..u_d]$，記 $e_k = i_k - l_k$（第 $k$
+個下標減掉下界）。 列優先時，$A[i_1, \ldots, i_d]$ 前面的元素有幾個？ 一個元素排在
+它前面，若且唯若兩者的下標從左邊比起，第一個不同的位置上前者比較小（就像字典裡的
+順序）。 把這些元素依「第一個不同的位置 $k$」分類：前 $k - 1$ 個下標和
+$A[i_1, \ldots, i_d]$ 相同，第 $k$ 個下標比 $i_k$ 小（有 $e_k$ 種），後面的下標隨
+便（有 $d_{k+1} \cdots d_d$ 種）。 加起來，前面共有
+\begin{equation}
+\mathrm{off} = \sum_{k=1}^{d} e_k \prod_{t=k+1}^{d} d_t
+= \Bigl(\cdots\bigl((e_1\,d_2 + e_2)\,d_3 + e_3\bigr)\cdots\Bigr)\,d_d + e_d
+\label{eq:arr-dd}
+\end{equation}
+個元素，位址是 $\alpha + \mathrm{off} \cdot w$。 右邊那種一層包一層的寫法，就是
+第~\ref{sec:arr-poly}~節求多項式值用的 Horner 法：從左到右，每一步把目前的值乘上
+下一個維度的大小，再加上下一個 $e_k$。 照這個寫法算，只要 $d - 1$ 次乘法。
+
+\begin{pseudo}[label=alg:arr-offset]{列優先的位移（$d$ 維）}
+\Function{Row-Major-Offset}{$d, \mathit{lo}, \mathit{hi}, \mathit{idx}$}
+    \State $\mathit{off} \gets 0$
+    \For{$k \gets 1$ \To $d$}
+        \State $\mathit{off} \gets \mathit{off} \cdot (\mathit{hi}[k] - \mathit{lo}[k] + 1)
+        + (\mathit{idx}[k] - \mathit{lo}[k])$
+    \EndFor
+    \State \Return $\mathit{off}$
+\EndFunction
+\end{pseudo}
+
+第 4 行第一次執行時 $\mathit{off} = 0$，乘法其實可以省掉，所以實際需要的乘法是
+$d - 1$ 次。 行優先只要把 $k$ 的順序改成 $d$ \textbf{downto} $1$。
+
+公式~(\ref{eq:arr-dd}) 也告訴我們每個下標加 $1$ 時位址變多少，這個量叫做那一維的
+\textbf{步長}（stride）。 列優先時第 $k$ 維的步長是 $w \cdot d_{k+1} \cdots d_d$，最
+後一維的步長是 $w$；行優先時第 $k$ 維的步長是 $w \cdot d_1 \cdots d_{k-1}$，第一維
+的步長是 $w$。 例 3 的 $B$ 用列優先存放時，三個維度的步長依序是 $240$、$48$、$8$
+位元組。
+
+\subsection{C 的陣列}
+
+C 的多維陣列一律是列優先、下界一律是 $0$。 宣告 \texttt{int a[R][C]} 之後，
+\texttt{a[i][j]} 的位址是 \texttt{a} 的位址加上 $(i \cdot C + j) \cdot
+\texttt{sizeof(int)}$ 個位元組，就是公式~(\ref{eq:arr-row}) 取 $l_1 = l_2 = 0$、
+$n = C$。 編譯器算這個位址時要知道 $C$，所以二維陣列當參數傳進函式時，第二維的大
+小一定要寫出來。
+
+\begin{cbookrecap}[第~6~章 6.11 節、第~8~章 8.6 節、第~9~章 9.6、9.7 節]
+二維陣列在記憶體裡是先放完第 $0$ 列再放第 $1$ 列的一長條，\texttt{grid[i][j]} 的
+位移是 \texttt{i * C + j}。 指標加上整數 $k$，移動的是 $k$ 個「它指的型別」的大小，
+不是 $k$ 個位元組；兩個指向同一個陣列的指標相減，得到的是相差幾個元素。 想算位元組
+的差，先把兩個指標都轉成 \texttt{char *} 再相減，結果的型別是
+\texttt{ptrdiff\_t}，用 \texttt{\%td} 印。 \texttt{a[i][j]} 會展開成
+\texttt{*(*(a + i) + j)}。 多維陣列傳進函式時，第一維可以省略，後面的維度一定要寫
+清楚，例如 \texttt{void f(int n, int a[][8])}。
+\end{cbookrecap}
+
+C 不能宣告下界不是 $0$ 的陣列。 需要 $A[l..u]$ 的時候，配置 $u - l + 1$ 格，存取時
+自己把下標減掉 $l$：寫一個函式或巨集回傳 \texttt{buf[i - l]}。 有人會先算一個
+\texttt{p = buf - l}，之後直接寫 \texttt{p[i]}。 $l > 0$ 時 \texttt{buf - l} 指到陣
+列開頭之前，C 標準規定這樣的指標運算是未定義行為，即使之後再加回來也一樣，本書不這
+樣寫。
+
+下面的程式把公式~(\ref{eq:arr-dd}) 寫成兩個函式，算出例 1、例 3 和一維例子的位
+址；最後拿一個真正的 C 三維陣列，比較公式算出的位移和編譯器實際的位移。
+
+\begin{example}[label=ex:arr-addr]{c}{(addr\_check.c) 公式算的位址和實際的位址}
+#include <stdio.h>
+#include <stddef.h>
+
+// d 維陣列，第 k 個下標的範圍是 lo[k]..hi[k]。
+// 回傳 idx 這一格前面有幾個元素。列優先：最後一個下標變得最快。
+long row_major(int d, const int *lo, const int *hi, const int *idx)
+{
+    long off = 0;
+    for (int k = 0; k < d; k++)
+        off = off * (hi[k] - lo[k] + 1) + (idx[k] - lo[k]);
+    return off;
+}
+
+// 行優先：第一個下標變得最快，等於把下標倒過來做列優先。
+long col_major(int d, const int *lo, const int *hi, const int *idx)
+{
+    long off = 0;
+    for (int k = d - 1; k >= 0; k--)
+        off = off * (hi[k] - lo[k] + 1) + (idx[k] - lo[k]);
+    return off;
+}
+
+static double c[4][5][6];       // C 的三維陣列，下標從 0 開始
+
+int main(void)
+{
+    // 一維：T[-10..30]，每格 4 bytes，T[-10] 在 0x1A00
+    int lo1[] = {-10}, hi1[] = {30}, t[] = {17};
+    printf("T[17]: 0x%lX\n", 0x1A00 + 4 * row_major(1, lo1, hi1, t));
+
+    // 二維：A[-2..5, 3..9]，每格 4 bytes，A[-2,3] 在 2000
+    int lo2[] = {-2, 3}, hi2[] = {5, 9}, a[] = {1, 7};
+    printf("A[1,7]: row-major %ld, column-major %ld\n",
+           2000 + 4 * row_major(2, lo2, hi2, a),
+           2000 + 4 * col_major(2, lo2, hi2, a));
+
+    // 三維：B[1..4, -1..3, 0..5]，每格 8 bytes，B[1,-1,0] 在 5000
+    int lo3[] = {1, -1, 0}, hi3[] = {4, 3, 5}, b[] = {3, 2, 4};
+    printf("B[3,2,4]: row-major %ld, column-major %ld\n",
+           5000 + 8 * row_major(3, lo3, hi3, b),
+           5000 + 8 * col_major(3, lo3, hi3, b));
+
+    // 和編譯器實際的位址比較：公式算的位移 vs. 指標相減
+    int loc[] = {0, 0, 0}, hic[] = {3, 4, 5};
+    int probe[][3] = {{0, 0, 1}, {0, 1, 0}, {1, 0, 0},
+                      {2, 3, 4}, {3, 4, 5}};
+    for (int p = 0; p < 5; p++) {
+        int *x = probe[p];
+        long f = (long)sizeof(double) * row_major(3, loc, hic, x);
+        char *base = (char *)&c[0][0][0];
+        ptrdiff_t real = (char *)&c[x[0]][x[1]][x[2]] - base;
+        printf("c[%d][%d][%d]: formula %ld, actual %td\n",
+               x[0], x[1], x[2], f, real);
+    }
+    return 0;
+}
+\end{example}
+\iosample{}{T[17]: 0x1A6C \\ A[1,7]: row-major 2100, column-major 2140 \\ B[3,2,4]: row-major 5656, column-major 5752 \\ c[0][0][1]: formula 8, actual 8 \\ c[0][1][0]: formula 48, actual 48 \\ c[1][0][0]: formula 240, actual 240 \\ c[2][3][4]: formula 656, actual 656 \\ c[3][4][5]: formula 952, actual 952}
+
+最後五行左邊是公式~(\ref{eq:arr-dd}) 乘上 \texttt{sizeof(double)}（$8$），右邊是
+編譯器實際放的位置，五組都一樣。 \texttt{c[0][0][1]}、\texttt{c[0][1][0]}、
+\texttt{c[1][0][0]} 三行正好是三個維度的步長：$8$、$6 \times 8 = 48$、
+$5 \times 6 \times 8 = 240$。
+
+\textbf{指標陣列}。 另一種存二維資料的方法是先配置一個指標陣列
+\texttt{int *row[R]}，每一列各自用 \texttt{malloc} 配置，\texttt{row[i]} 指向第 $i$
+列（《C 程式設計基礎》第~9~章 9.8 節）。 存取 \texttt{row[i][j]} 時先讀出
+\texttt{row[i]} 這個指標，再往後數 $j$ 格；不用乘上行數，但多讀了一次記憶體。 它的
+好處是每一列可以不一樣長，下一節的三角矩陣就可以一列配置 $i$ 格。 壞處是各列不一
+定相鄰，不能用一個公式從頭算到任何一格，整個陣列也不能一次複製。
+
+\textbf{走訪的順序}。 第~1~章提過，真正的電腦有快取，讀相鄰的位址比跳著讀快。 C 的
+陣列是列優先，外層迴圈跑列、內層迴圈跑行時，連續兩次存取的位址相差 $w$；兩層對調
+之後，連續兩次存取相差一整列 $n \cdot w$ 個位元組。 在 RAM 模型裡兩種寫法的步數一
+樣，實際上 $n$ 很大時後者可能慢上好幾倍。 寫雙層迴圈時，讓最內層的迴圈跑最後一個
+下標。
+
+\section{特殊矩陣的壓縮存放}
+\label{sec:arr-special}
+
+有些 $n \times n$ 矩陣有一大片位置一定是 $0$，或是一半的元素和另一半相同。 照上
+一節的方法存，要用 $n^2$ 格，其中很多格的內容早就知道了。 這一節把真正需要的元素
+依某個順序放進一個一維陣列 $B$，再推導「$A[i, j]$ 放在 $B$ 的第幾格」的公式。 有
+了公式，讀寫一格仍然是 $O(1)$ 時間，只是省下了空間。
+
+這一節的矩陣下標都從 $1$ 開始，$B$ 也從 $1$ 開始，「$A[i, j]$ 是 $B$ 的第 $k$ 格」
+的位址是 $\alpha + (k - 1)\,w$；下標從 $0$ 開始的版本，最後另外整理。
+
+\begin{definition}[特殊矩陣]
+\label{def:arr-special}
+$A$ 是 $n \times n$ 的矩陣。
+\begin{itemize}
+\item $i < j$ 時 $A[i, j] = 0$，叫做\textbf{下三角矩陣}（lower triangular matrix）：
+非零元素只在對角線和它的左下方。
+\item $i > j$ 時 $A[i, j] = 0$，叫做\textbf{上三角矩陣}（upper triangular matrix）。
+\item 對所有 $i, j$ 都有 $A[i, j] = A[j, i]$，叫做\textbf{對稱矩陣}（symmetric
+matrix）。
+\item $|i - j| > 1$ 時 $A[i, j] = 0$，叫做\textbf{三對角矩陣}（tridiagonal matrix）；
+更一般地，$|i - j| > a$ 時 $A[i, j] = 0$，叫做半頻寬 $a$ 的\textbf{帶狀矩陣}
+（band matrix）。
+\end{itemize}
+\end{definition}
+
+\subsection{下三角矩陣}
+
+下三角矩陣第 $i$ 列需要存的是 $A[i, 1], \ldots, A[i, i]$，共 $i$ 個，全部加起來
+$1 + 2 + \cdots + n = n(n + 1)/2$ 個，大約是 $n^2$ 的一半。
+
+\textbf{列優先}。 $A[i, j]$（$i \ge j$）前面有第 $1$ 到第 $i - 1$ 列的全部，共
+$1 + 2 + \cdots + (i - 1) = i(i - 1)/2$ 個，再加上第 $i$ 列的 $A[i, 1]$ 到
+$A[i, j - 1]$ 共 $j - 1$ 個。 它是第
+\begin{equation}
+k = \frac{i(i - 1)}{2} + j
+\label{eq:arr-lower-row}
+\end{equation}
+格。 這個公式和 $n$ 無關：矩陣再大，前幾列的位置都不變。
+
+\textbf{行優先}。 第 $c$ 行要存的是 $A[c, c], \ldots, A[n, c]$，共 $n - c + 1$ 個。
+$A[i, j]$ 前面有第 $1$ 到第 $j - 1$ 行的全部，共
+\[
+\sum_{c=1}^{j-1} (n - c + 1) = (j - 1)(n + 1) - \frac{(j - 1)j}{2}
+= \frac{(j - 1)(2n - j + 2)}{2}
+\]
+個，再加上第 $j$ 行裡排在它上面的 $A[j, j], \ldots, A[i - 1, j]$，共 $i - j$ 個。
+它是第
+\begin{equation}
+k = \frac{(j - 1)(2n - j + 2)}{2} + (i - j + 1)
+\label{eq:arr-lower-col}
+\end{equation}
+格。 這個公式就和 $n$ 有關了。
+
+下圖是 $n = 5$ 時兩種順序的編號，灰色的 $0$ 不存。
+
+\begin{center}
+\begin{tikzpicture}
+\node[arr-tri] at (0.70,-0.70) {1};
+\node[arr-zero] at (1.40,-0.70) {0};
+\node[arr-zero] at (2.10,-0.70) {0};
+\node[arr-zero] at (2.80,-0.70) {0};
+\node[arr-zero] at (3.50,-0.70) {0};
+\node[arr-tri] at (0.70,-1.40) {2};
+\node[arr-tri] at (1.40,-1.40) {3};
+\node[arr-zero] at (2.10,-1.40) {0};
+\node[arr-zero] at (2.80,-1.40) {0};
+\node[arr-zero] at (3.50,-1.40) {0};
+\node[arr-tri] at (0.70,-2.10) {4};
+\node[arr-tri] at (1.40,-2.10) {5};
+\node[arr-tri] at (2.10,-2.10) {6};
+\node[arr-zero] at (2.80,-2.10) {0};
+\node[arr-zero] at (3.50,-2.10) {0};
+\node[arr-tri] at (0.70,-2.80) {7};
+\node[arr-tri] at (1.40,-2.80) {8};
+\node[arr-tri] at (2.10,-2.80) {9};
+\node[arr-tri] at (2.80,-2.80) {10};
+\node[arr-zero] at (3.50,-2.80) {0};
+\node[arr-tri] at (0.70,-3.50) {11};
+\node[arr-tri] at (1.40,-3.50) {12};
+\node[arr-tri] at (2.10,-3.50) {13};
+\node[arr-tri] at (2.80,-3.50) {14};
+\node[arr-tri] at (3.50,-3.50) {15};
+\node[font=\small] at (2.10,-4.25) {列優先};
+\node[arr-tri] at (5.30,-0.70) {1};
+\node[arr-zero] at (6.00,-0.70) {0};
+\node[arr-zero] at (6.70,-0.70) {0};
+\node[arr-zero] at (7.40,-0.70) {0};
+\node[arr-zero] at (8.10,-0.70) {0};
+\node[arr-tri] at (5.30,-1.40) {2};
+\node[arr-tri] at (6.00,-1.40) {6};
+\node[arr-zero] at (6.70,-1.40) {0};
+\node[arr-zero] at (7.40,-1.40) {0};
+\node[arr-zero] at (8.10,-1.40) {0};
+\node[arr-tri] at (5.30,-2.10) {3};
+\node[arr-tri] at (6.00,-2.10) {7};
+\node[arr-tri] at (6.70,-2.10) {10};
+\node[arr-zero] at (7.40,-2.10) {0};
+\node[arr-zero] at (8.10,-2.10) {0};
+\node[arr-tri] at (5.30,-2.80) {4};
+\node[arr-tri] at (6.00,-2.80) {8};
+\node[arr-tri] at (6.70,-2.80) {11};
+\node[arr-tri] at (7.40,-2.80) {13};
+\node[arr-zero] at (8.10,-2.80) {0};
+\node[arr-tri] at (5.30,-3.50) {5};
+\node[arr-tri] at (6.00,-3.50) {9};
+\node[arr-tri] at (6.70,-3.50) {12};
+\node[arr-tri] at (7.40,-3.50) {14};
+\node[arr-tri] at (8.10,-3.50) {15};
+\node[font=\small] at (6.70,-4.25) {行優先};
+\end{tikzpicture}
+\diagcaption{$5 \times 5$ 下三角矩陣的非零格，依列優先（左）和行優先（右）放進
+$B[1..15]$ 時的編號。}
+\label{fig:arr-tri}
+\end{center}
+
+\textbf{例 4}。 $6 \times 6$ 的下三角矩陣，每個元素 $4$ 位元組，$B[1]$ 的位址是
+$3000$。 求 $A[5, 3]$ 的位址。
+
+\begin{itemize}
+\item 列優先：$k = 5 \times 4 / 2 + 3 = 13$，位址 $3000 + 12 \times 4 = 3048$。
+\item 行優先：$k = 2 \times (12 - 3 + 2)/2 + (5 - 3 + 1) = 11 + 3 = 14$，位址
+$3000 + 13 \times 4 = 3052$。
+\end{itemize}
+
+可以用圖驗算：$n = 5$ 時列優先的 $A[5, 3]$ 是 $13$，和 $n$ 無關，所以 $n = 6$ 時也
+是 $13$；行優先時第 $1$、$2$ 行在 $n = 6$ 時各有 $6$、$5$ 個，$A[5, 3]$ 前面還有
+$A[3, 3]$、$A[4, 3]$，所以是 $6 + 5 + 2 + 1 = 14$。
+
+\subsection{上三角矩陣}
+
+上三角矩陣不必重新推導。 $A$ 是上三角時，它的轉置 $A^{\mathsf T}$（$A^{\mathsf
+T}[j, i] = A[i, j]$）是下三角。 用列優先存 $A$，等於一列一列存 $A^{\mathsf T}$ 的
+行，也就是用行優先存 $A^{\mathsf T}$。 所以「上三角、列優先」的公式就是「下三角、
+行優先」的公式把 $i$、$j$ 對調；另外兩種也一樣。 下表把四種情形整理在一起。
+
+\begin{center}
+\renewcommand{\arraystretch}{1.6}
+\begin{tabular}{lll}
+\toprule
+ & 列優先 & 行優先 \\
+\midrule
+下三角（$i \ge j$）& $\dfrac{i(i - 1)}{2} + j$ & $\dfrac{(j - 1)(2n - j + 2)}{2} + (i - j + 1)$ \\
+上三角（$i \le j$）& $\dfrac{(i - 1)(2n - i + 2)}{2} + (j - i + 1)$ & $\dfrac{j(j - 1)}{2} + i$ \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+這些公式不必硬背，推導的步驟都一樣：先問「它前面有幾整列（或幾整行），每一列各
+有幾個」，再加上同一列裡排在它前面的個數。 每一列個數固定是 $1, 2, 3, \ldots$ 的那兩種情形，公式和
+$n$ 無關；每一列個數是 $n, n - 1, \ldots$ 的那兩種，公式裡有 $n$。
+
+\textbf{下標從 $0$ 開始}。 C 的程式裡 $i$、$j$、$k$ 都從 $0$ 開始。 下三角、列優先時，
+第 $0$ 到第 $i - 1$ 列共有 $1 + 2 + \cdots + i = i(i + 1)/2$ 個，所以 $A[i][j]$
+放在 \texttt{b[i * (i + 1) / 2 + j]}。 不要把 $1$ 起算的公式~(\ref{eq:arr-lower-row})
+直接搬過來再減 $1$，代入 $i$ 的值也要跟著換。
+
+\begin{examnote}
+特殊矩陣的題目先確認四件事：上三角還是下三角、列優先還是行優先、下標和陣列 $B$ 從
+$0$ 還是從 $1$ 開始、對角線有沒有存（距離表這類對角線全是 $0$ 的矩陣常常不存）。
+推出公式之後，代 $A[1, 1]$（或 $A[0][0]$）和這一列的最後一格驗算一次，看是不是
+$B$ 的第一格和預期的位置。
+\end{examnote}
+
+\subsection{對稱矩陣：距離表}
+
+對稱矩陣只要存下三角（含對角線），讀 $A[i, j]$ 時如果 $i < j$，就改讀 $A[j, i]$。
+空間從 $n^2$ 降到 $n(n + 1)/2$。
+
+校園裡幾個地點兩兩之間的步行距離是一個對稱矩陣，而且對角線全是 $0$（自己到自己），
+所以連對角線都不用存，只存 $i > j$ 的 $n(n - 1)/2$ 格。 下標從 $0$ 開始時，第 $0$ 列
+沒有要存的格子，第 $1$ 到第 $i - 1$ 列各存 $1, \ldots, i - 1$ 格，所以 $A[i][j]$
+（$i > j$）放在 \texttt{d[i * (i - 1) / 2 + j]}。
+
+\begin{cbookrecap}[第~8~章 8.6 節、第~19~章 19.3 節]
+一維陣列當參數傳進函式時傳的是位址，\texttt{const int *d} 表示函式只讀不改。
+\texttt{malloc(size * sizeof *d)} 配置 \texttt{size} 個 \texttt{int}，要不到時回傳
+\texttt{NULL}，用完要 \texttt{free}。
+\end{cbookrecap}
+
+\begin{example}[label=ex:arr-tri-dist]{c}{(tri\_dist.c) 三角矩陣存距離表}
+#include <stdio.h>
+#include <stdlib.h>
+
+// 對稱、對角線是 0 的距離表，只存 i > j 的格子（下標從 0 開始）。
+// (i, j) 和 (j, i) 都對應到 d[] 的同一格。
+static long tri_index(int i, int j)
+{
+    if (i < j) {                // 對稱：換成下三角的那一格
+        int tmp = i; i = j; j = tmp;
+    }
+    return (long)i * (i - 1) / 2 + j;
+}
+
+int dist_get(const int *d, int i, int j)
+{
+    return i == j ? 0 : d[tri_index(i, j)];
+}
+
+int main(void)
+{
+    int n = 5;                  // 0 lib, 1 gym, 2 cafe, 3 eng, 4 dorm
+    int pairs[][3] = {          // 地點、地點、距離（公尺），順序任意
+        {0, 1, 450}, {2, 0, 300}, {1, 2, 380}, {0, 3, 520},
+        {3, 1, 610}, {2, 3, 270}, {4, 0, 800}, {1, 4, 350},
+        {4, 2, 540}, {3, 4, 700},
+    };
+    long size = (long)n * (n - 1) / 2;
+    int *d = malloc(size * sizeof *d);
+    if (d == NULL)
+        return 1;
+    for (int p = 0; p < 10; p++)
+        d[tri_index(pairs[p][0], pairs[p][1])] = pairs[p][2];
+
+    printf("packed:");
+    for (long k = 0; k < size; k++)
+        printf(" %d", d[k]);
+    printf("\n");
+    for (int i = 0; i < n; i++) {         // 還原成完整的表
+        for (int j = 0; j < n; j++)
+            printf(j > 0 ? " %d" : "%d", dist_get(d, i, j));
+        printf("\n");
+    }
+    for (long m = 50; m <= 5000; m *= 10)
+        printf("n = %ld: full %ld, packed %ld\n",
+               m, m * m, m * (m - 1) / 2);
+    free(d);
+    return 0;
+}
+\end{example}
+\iosample{}{packed: 450 300 380 520 610 270 800 350 540 700 \\ 0 450 300 520 800 \\ 450 0 380 610 350 \\ 300 380 0 270 540 \\ 520 610 270 0 700 \\ 800 350 540 700 0 \\ n = 50: full 2500, packed 1225 \\ n = 500: full 250000, packed 124750 \\ n = 5000: full 25000000, packed 12497500}
+
+\texttt{pairs} 裡的地點順序是亂的，\texttt{tri\_index} 會先把 $(i, j)$ 換成 $i > j$
+的那一格。 第一行印出的 \texttt{d[0..9]} 依序是 $(1,0)$、$(2,0)$、$(2,1)$、$(3,0)$、
+\ldots、$(4,3)$ 的距離，正是下三角、列優先的順序；接著還原出完整的 $5 \times 5$ 表，
+它對稱、對角線是 $0$。 最後三行是空間的比較，$n$ 很大時省下一半多一點。
+
+\subsection{三對角與帶狀矩陣}
+
+三對角矩陣的第 $1$ 列和第 $n$ 列各有 $2$ 個可能非零的元素，其他列各 $3$ 個，共
+$3n - 2$ 個。 用列優先放進 $B$：第 $1$ 列占 $B[1..2]$；第 $i$ 列（$i \ge 2$）前面
+有 $2 + 3(i - 2) = 3i - 4$ 個，這一列的三個元素是 $A[i, i - 1]$、$A[i, i]$、
+$A[i, i + 1]$，$A[i, j]$ 是其中第 $j - i + 2$ 個。 所以
+\[
+k = (3i - 4) + (j - i + 2) = 2i + j - 2 .
+\]
+代 $i = 1$ 檢查：$A[1, 1]$、$A[1, 2]$ 得到 $1$、$2$，第 $1$ 列也適用。
+
+半頻寬 $a$ 更大的帶狀矩陣，前 $a$ 列和最後 $a$ 列的長度都不一樣，緊密存放的公式會
+分段，不好用。 實務上常改成每一列都留 $2a + 1$ 格：開一個 $n \times (2a + 1)$ 的陣
+列 $E$，把 $A[i, j]$ 放在 $E[i,\ j - i + a + 1]$，也就是第 $i$ 列只存從 $A[i, i - a]$
+到 $A[i, i + a]$ 這一段。 前 $a$ 列左邊、最後 $a$ 列右邊會有幾格用不到（共
+$a(a + 1)$ 格），換來的是 $E$ 是普通的矩形陣列，用列優先攤平時第 $k = (i - 1)(2a + 1)
++ (j - i + a + 1)$ 格，沒有例外。 下圖是 $n = 6$、$a = 1$ 的兩種存法，右邊打叉的兩
+格是浪費的。
+
+\begin{center}
+\begin{tikzpicture}
+\node[arr-tri] at (0.70,-0.70) {1};
+\node[arr-tri] at (1.40,-0.70) {2};
+\node[arr-zero] at (2.10,-0.70) {0};
+\node[arr-zero] at (2.80,-0.70) {0};
+\node[arr-zero] at (3.50,-0.70) {0};
+\node[arr-zero] at (4.20,-0.70) {0};
+\node[arr-tri] at (0.70,-1.40) {3};
+\node[arr-tri] at (1.40,-1.40) {4};
+\node[arr-tri] at (2.10,-1.40) {5};
+\node[arr-zero] at (2.80,-1.40) {0};
+\node[arr-zero] at (3.50,-1.40) {0};
+\node[arr-zero] at (4.20,-1.40) {0};
+\node[arr-zero] at (0.70,-2.10) {0};
+\node[arr-tri] at (1.40,-2.10) {6};
+\node[arr-tri] at (2.10,-2.10) {7};
+\node[arr-tri] at (2.80,-2.10) {8};
+\node[arr-zero] at (3.50,-2.10) {0};
+\node[arr-zero] at (4.20,-2.10) {0};
+\node[arr-zero] at (0.70,-2.80) {0};
+\node[arr-zero] at (1.40,-2.80) {0};
+\node[arr-tri] at (2.10,-2.80) {9};
+\node[arr-tri] at (2.80,-2.80) {10};
+\node[arr-tri] at (3.50,-2.80) {11};
+\node[arr-zero] at (4.20,-2.80) {0};
+\node[arr-zero] at (0.70,-3.50) {0};
+\node[arr-zero] at (1.40,-3.50) {0};
+\node[arr-zero] at (2.10,-3.50) {0};
+\node[arr-tri] at (2.80,-3.50) {12};
+\node[arr-tri] at (3.50,-3.50) {13};
+\node[arr-tri] at (4.20,-3.50) {14};
+\node[arr-zero] at (0.70,-4.20) {0};
+\node[arr-zero] at (1.40,-4.20) {0};
+\node[arr-zero] at (2.10,-4.20) {0};
+\node[arr-zero] at (2.80,-4.20) {0};
+\node[arr-tri] at (3.50,-4.20) {15};
+\node[arr-tri] at (4.20,-4.20) {16};
+\node[font=\small] at (2.45,-4.95) {$A$ 的非零格依列優先編號};
+\node[arr-zero, minimum width=1.05cm] at (7.25,-0.70) {$\times$};
+\node[arr-tri, minimum width=1.05cm] at (8.30,-0.70) {$a_{11}$};
+\node[arr-tri, minimum width=1.05cm] at (9.35,-0.70) {$a_{12}$};
+\node[arr-tri, minimum width=1.05cm] at (7.25,-1.40) {$a_{21}$};
+\node[arr-tri, minimum width=1.05cm] at (8.30,-1.40) {$a_{22}$};
+\node[arr-tri, minimum width=1.05cm] at (9.35,-1.40) {$a_{23}$};
+\node[arr-tri, minimum width=1.05cm] at (7.25,-2.10) {$a_{32}$};
+\node[arr-tri, minimum width=1.05cm] at (8.30,-2.10) {$a_{33}$};
+\node[arr-tri, minimum width=1.05cm] at (9.35,-2.10) {$a_{34}$};
+\node[arr-tri, minimum width=1.05cm] at (7.25,-2.80) {$a_{43}$};
+\node[arr-tri, minimum width=1.05cm] at (8.30,-2.80) {$a_{44}$};
+\node[arr-tri, minimum width=1.05cm] at (9.35,-2.80) {$a_{45}$};
+\node[arr-tri, minimum width=1.05cm] at (7.25,-3.50) {$a_{54}$};
+\node[arr-tri, minimum width=1.05cm] at (8.30,-3.50) {$a_{55}$};
+\node[arr-tri, minimum width=1.05cm] at (9.35,-3.50) {$a_{56}$};
+\node[arr-tri, minimum width=1.05cm] at (7.25,-4.20) {$a_{65}$};
+\node[arr-tri, minimum width=1.05cm] at (8.30,-4.20) {$a_{66}$};
+\node[arr-zero, minimum width=1.05cm] at (9.35,-4.20) {$\times$};
+\node[idxlbl] at (7.25,-0.2) {1};
+\node[idxlbl] at (8.30,-0.2) {2};
+\node[idxlbl] at (9.35,-0.2) {3};
+\node[idxlbl, anchor=east] at (6.60,-0.70) {1};
+\node[idxlbl, anchor=east] at (6.60,-1.40) {2};
+\node[idxlbl, anchor=east] at (6.60,-2.10) {3};
+\node[idxlbl, anchor=east] at (6.60,-2.80) {4};
+\node[idxlbl, anchor=east] at (6.60,-3.50) {5};
+\node[idxlbl, anchor=east] at (6.60,-4.20) {6};
+\node[font=\small] at (8.30,-4.95) {每列 $3$ 格的 $E[1..6, 1..3]$};
+\end{tikzpicture}
+\diagcaption{三對角矩陣的兩種存法。 左：只存非零格，第 $k = 2i + j - 2$ 格。 右：每
+列留 $3$ 格，$A[i, j]$ 放在 $E[i, j - i + 2]$，多用了 $2$ 格。}
+\label{fig:arr-band}
+\end{center}
+
+$a = 1$ 時右邊的攤平公式是 $(i - 1) \times 3 + (j - i + 2) = 2i + j - 1$，比緊密存放
+多 $1$，差的就是第 $1$ 列左邊浪費的那一格。
+
+\section{稀疏矩陣}
+\label{sec:arr-sparse}
+
+一門課有 $6$ 位同學、$7$ 次實驗課，助教只在同學上台示範時加分，表上大部分是 $0$：
+\[
+A = \begin{pmatrix}
+0 & 0 & 3 & 0 & 0 & 1 & 0 \\
+2 & 0 & 0 & 0 & 0 & 0 & 0 \\
+0 & 0 & 5 & 0 & 0 & 0 & 4 \\
+0 & 1 & 0 & 0 & 0 & 0 & 0 \\
+0 & 0 & 2 & 0 & 0 & 3 & 0 \\
+1 & 0 & 0 & 0 & 0 & 0 & 0
+\end{pmatrix}
+\]
+$42$ 格裡只有 $9$ 格不是 $0$。 非零元素只占很小一部分的矩陣叫做\textbf{稀疏矩陣}
+（sparse matrix）。 「很小」沒有固定的門檻，看的是只存非零元素划不划算：$1000
+\times 1000$ 的矩陣只有幾千個非零元素時，存滿 $10^6$ 格顯然浪費；特殊矩陣的零集中
+在固定的位置，可以用上一節的公式，稀疏矩陣的零散在各處，要另外記下每個非零元素的
+位置。
+
+\subsection{三元組表示法}
+
+每個非零元素記成一個\textbf{三元組}（triple）$(\text{列}, \text{行}, \text{值})$，
+整個矩陣是一個三元組陣列，再加上列數、行數和非零項的個數 $t$。 三元組依列號由小到
+大排，列號相同時依行號由小到大，也就是列優先的順序。 這一節的列號、行號和三元組陣
+列都從 $0$ 開始，和 Aki-Judge 的題目一致；虛擬碼也照寫 $[0..t-1]$，C 程式的輸出才
+能直接和手算對照。
+
+上面的加分表寫成三元組（$m = 6$ 列、$n = 7$ 行、$t = 9$）：
+
+\begin{center}
+\begin{tabular}{c|ccccccccc}
+\toprule
+位置 $p$ & 0 & 1 & 2 & 3 & 4 & 5 & 6 & 7 & 8 \\
+\midrule
+列 & 0 & 0 & 1 & 2 & 2 & 3 & 4 & 4 & 5 \\
+行 & 2 & 5 & 0 & 2 & 6 & 1 & 2 & 5 & 0 \\
+值 & 3 & 1 & 2 & 5 & 4 & 1 & 2 & 3 & 1 \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+虛擬碼把一個稀疏矩陣寫成物件 $A$，欄位有 $A.\mathit{rows}$、$A.\mathit{cols}$、
+$A.t$ 和三元組陣列 $A.T[0..t-1]$，每個三元組有 $\mathit{row}$、$\mathit{col}$、
+$\mathit{val}$ 三個欄位。
+
+\textbf{空間}。 列號、行號、值各占一個整數時，三元組表示法用 $3t$ 個整數（加上記
+列數、行數、$t$ 的 $3$ 個），存滿要 $mn$ 個。 $3t + 3 < mn$ 時才划算，加分表的
+$3 \times 9 + 3 = 30 < 42$，省得不多；$1000 \times 1000$ 有 $5000$ 個非零元素時，是
+$15003$ 對 $10^6$。
+
+\textbf{讀一格}。 三元組依（列, 行）排好，讀 $A[i, j]$ 可以在三元組陣列上做二分搜
+尋（第~17~章），$O(\lg t)$；找不到就是 $0$。 \textbf{寫一格}比較麻煩：把一個 $0$
+改成非零，要插入一個三元組，後面的全部往後挪；把非零改成 $0$ 要刪除，後面的往前
+挪。 最壞 $\Theta(t)$。 矩陣常常要改時，第~5~章 5.3 節的正交串列比較適合；這一節
+處理的是建好之後只讀的矩陣。
+
+\subsection{轉置}
+
+$m \times n$ 矩陣 $A$ 的\textbf{轉置}（transpose）$A^{\mathsf T}$ 是 $n \times m$
+的矩陣，$A^{\mathsf T}[j, i] = A[i, j]$。 存滿的矩陣轉置要 $\Theta(mn)$。 三元組表
+示法下，把每個三元組的列和行對調只要 $\Theta(t)$，但結果的順序亂了：對調後的列號
+是原來的行號，原本依列排好的三元組，現在依行排才對。 加分表對調後依序是
+$(2,0)$、$(5,0)$、$(0,1)$……，不是列優先的順序。 後面的相乘、二分搜尋都需要排好的
+三元組，所以轉置要連順序一起處理。
+
+最直接的方法：結果的第 $0$ 列是 $A$ 的第 $0$ 行，就把 $A$ 的三元組從頭掃一遍，挑
+出行號是 $0$ 的；再掃一遍挑行號是 $1$ 的，依此類推。
+
+\begin{pseudo}[label=alg:arr-simple-transpose]{簡單轉置}
+\Function{Simple-Transpose}{$A$}
+    \State $B.\mathit{rows} \gets A.\mathit{cols}$；$B.\mathit{cols} \gets A.\mathit{rows}$；$B.t \gets A.t$
+    \State $q \gets 0$
+    \For{$c \gets 0$ \To $A.\mathit{cols} - 1$}
+        \For{$p \gets 0$ \To $A.t - 1$}
+            \If{$A.T[p].\mathit{col} = c$}
+                \State $B.T[q] \gets (c,\ A.T[p].\mathit{row},\ A.T[p].\mathit{val})$
+                \State $q \gets q + 1$
+            \EndIf
+        \EndFor
+    \EndFor
+    \State \Return $B$
+\EndFunction
+\end{pseudo}
+
+結果依列排好，因為第 4 行的 $c$ 由小到大；同一列裡依行排好，因為第 5 行由前往後
+掃，行號相同的三元組在 $A$ 裡依列號由小到大出現，對調後就是依行號由小到大。 第 6
+行的比較執行 $A.\mathit{cols} \cdot t$ 次，加分表是 $7 \times 9 = 63$ 次。 時間
+$\Theta(n \cdot t)$。 非零元素少時還好，但 $t$ 接近 $mn$ 時是 $\Theta(mn^2)$，比存
+滿的矩陣直接轉置還慢。
+
+\subsection{快速轉置}
+
+簡單轉置浪費在「每一行都掃一遍」。 換個想法：如果事先知道 $A$ 的第 $c$ 行有幾個
+非零元素，就知道結果的第 $c$ 列從 $B$ 的第幾格開始放，接著只要把 $A$ 掃一遍，每個
+三元組直接放到它該去的地方。 這個方法叫\textbf{快速轉置}（fast transpose）。
+
+用兩個長度 $n$ 的陣列：$\mathit{cnt}[c]$ 是 $A$ 的第 $c$ 行有幾個非零元素，
+$\mathit{start}[c]$ 是結果第 $c$ 列下一個要放的位置。 第 $c$ 列前面是第 $0$ 到第
+$c - 1$ 列，所以一開始 $\mathit{start}[c] = \mathit{cnt}[0] + \cdots +
+\mathit{cnt}[c - 1]$。
+
+\begin{pseudo}[label=alg:arr-fast-transpose]{快速轉置}
+\Function{Fast-Transpose}{$A$}
+    \State $B.\mathit{rows} \gets A.\mathit{cols}$；$B.\mathit{cols} \gets A.\mathit{rows}$；$B.t \gets A.t$
+    \State 建立陣列 $\mathit{cnt}[0..A.\mathit{cols} - 1]$，每一格設成 $0$
+    \For{$p \gets 0$ \To $A.t - 1$}
+        \State $\mathit{cnt}[A.T[p].\mathit{col}] \gets \mathit{cnt}[A.T[p].\mathit{col}] + 1$
+    \EndFor
+    \State $\mathit{start}[0] \gets 0$
+    \For{$c \gets 1$ \To $A.\mathit{cols} - 1$}
+        \State $\mathit{start}[c] \gets \mathit{start}[c - 1] + \mathit{cnt}[c - 1]$
+    \EndFor
+    \For{$p \gets 0$ \To $A.t - 1$}
+        \State $c \gets A.T[p].\mathit{col}$
+        \State $B.T[\mathit{start}[c]] \gets (c,\ A.T[p].\mathit{row},\ A.T[p].\mathit{val})$
+        \State $\mathit{start}[c] \gets \mathit{start}[c] + 1$
+    \EndFor
+    \State \Return $B$
+\EndFunction
+\end{pseudo}
+
+\textbf{手算追蹤}。 用加分表跑一次。 第 4、5 行數完之後，第 7、8 行做前綴和：
+
+\begin{center}
+\begin{tabular}{c|ccccccc}
+\toprule
+行 $c$ & 0 & 1 & 2 & 3 & 4 & 5 & 6 \\
+\midrule
+$\mathit{cnt}[c]$ & 2 & 1 & 3 & 0 & 0 & 2 & 1 \\
+$\mathit{start}[c]$ & 0 & 2 & 3 & 6 & 6 & 6 & 8 \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+第 $3$、$4$ 行沒有非零元素，$\mathit{start}[3] = \mathit{start}[4] =
+\mathit{start}[5] = 6$：結果的第 $3$、$4$ 列是空的，第 $5$ 列從 $B[6]$ 開始。 接著第
+9 到 12 行依序處理每個三元組，每一步放進 $B[\mathit{start}[c]]$，再把
+$\mathit{start}[c]$ 加一：
+
+\begin{center}
+\begin{tabular}{cccccl}
+\toprule
+$p$ & $A.T[p]$ & $c$ & 放進 & 之後的 $\mathit{start}[c]$ & 放進去的三元組 \\
+\midrule
+0 & $(0,2,3)$ & 2 & $B[3]$ & 4 & $(2,0,3)$ \\
+1 & $(0,5,1)$ & 5 & $B[6]$ & 7 & $(5,0,1)$ \\
+2 & $(1,0,2)$ & 0 & $B[0]$ & 1 & $(0,1,2)$ \\
+3 & $(2,2,5)$ & 2 & $B[4]$ & 5 & $(2,2,5)$ \\
+4 & $(2,6,4)$ & 6 & $B[8]$ & 9 & $(6,2,4)$ \\
+5 & $(3,1,1)$ & 1 & $B[2]$ & 3 & $(1,3,1)$ \\
+6 & $(4,2,2)$ & 2 & $B[5]$ & 6 & $(2,4,2)$ \\
+7 & $(4,5,3)$ & 5 & $B[7]$ & 8 & $(5,4,3)$ \\
+8 & $(5,0,1)$ & 0 & $B[1]$ & 2 & $(0,5,1)$ \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+最後的 $B$ 是
+$(0,1,2)$、$(0,5,1)$、$(1,3,1)$、$(2,0,3)$、$(2,2,5)$、$(2,4,2)$、$(5,0,1)$、$(5,4,3)$、$(6,2,4)$，
+依（列, 行）排好。 做完之後每個 $\mathit{start}[c]$ 都變成原本的
+$\mathit{start}[c + 1]$（例如 $\mathit{start}[2]$ 從 $3$ 變成 $6$），因為第 $c$ 列
+剛好放滿 $\mathit{cnt}[c]$ 個。
+
+\begin{theorem}
+\label{thm:arr-fast-transpose}
+$A$ 的三元組依（列, 行）排好時，\proc{Fast-Transpose} 回傳的 $B$ 是
+$A^{\mathsf T}$，三元組也依（列, 行）排好。 時間是 $\Theta(n + t)$，其中 $n =
+A.\mathit{cols}$，額外空間 $\Theta(n)$。
+\end{theorem}
+
+\begin{proof}
+第 4、5 行做完時，$\mathit{cnt}[c]$ 是 $A$ 的第 $c$ 行非零元素的個數。 第 7、8 行
+做完時，$\mathit{start}[c] = \sum_{c' < c} \mathit{cnt}[c']$，也就是行號小於 $c$ 的
+三元組個數。 依（列, 行）排好的 $A^{\mathsf T}$ 裡，列號是 $c$ 的三元組（$A$ 的第
+$c$ 行）應該占 $B[\mathit{start}[c] .. \mathit{start}[c] + \mathit{cnt}[c] - 1]$ 這
+一段，各段互不重疊、剛好鋪滿 $B[0..t-1]$。
+
+第 9 到 12 行的迴圈每遇到一個行號是 $c$ 的三元組，就放進這一段裡下一個空位，所以
+第 $c$ 段依序收到 $A$ 的第 $c$ 行的 $\mathit{cnt}[c]$ 個元素，不會超出這一段。 它們
+被處理的順序是在 $A$ 裡出現的順序；$A$ 依列排好，所以這些元素的列號遞增，放進 $B$
+之後就是同一列裡行號遞增。 因此 $B$ 依（列, 行）排好，而且每個 $(i, j, v)$ 都變成
+了 $(j, i, v)$，$B = A^{\mathsf T}$。
+
+時間：第 3 行和第 7、8 行各 $\Theta(n)$，第 4、5 行和第 9 到 12 行各 $\Theta(t)$，共
+$\Theta(n + t)$。 額外的陣列是 $\mathit{cnt}$ 和 $\mathit{start}$，各 $n$ 格。
+\end{proof}
+
+證明用到了「$A$ 依列排好」。 如果 $A$ 的三元組順序是亂的，每一列的範圍仍然對，但同
+一列裡的順序就跟著 $A$ 亂掉（觀念題第 12 題）。 這個「先數、再算起點、再一個一個放」
+的方法，和第~15~章的計數排序是同一件事：快速轉置就是用行號當鍵，對三元組做一次穩
+定的計數排序。
+
+下表比較三種轉置。 $t$ 遠小於 $mn$ 時快速轉置最好；$t$ 接近 $mn$ 時，快速轉置和直
+接轉置都是 $\Theta(mn)$，簡單轉置變成 $\Theta(mn^2)$。
+
+\begin{center}
+\begin{tabular}{lll}
+\toprule
+方法 & 時間 & 額外空間 \\
+\midrule
+存滿的矩陣直接轉置 & $\Theta(mn)$ & 結果的 $mn$ 格 \\
+簡單轉置（虛擬碼~\ref{alg:arr-simple-transpose}）& $\Theta(n \cdot t)$ & 結果的 $t$ 個三元組 \\
+快速轉置（虛擬碼~\ref{alg:arr-fast-transpose}）& $\Theta(n + t)$ & 結果的 $t$ 個三元組，加 $2n$ 格 \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+快速轉置的 C 程式和下一小節的相乘寫在同一支程式裡（範例~\ref{ex:arr-sparse}），它
+的輸出前半就是上面兩張追蹤表。
+
+\subsection{相乘}
+
+$A$ 是 $m \times n$、$B$ 是 $n \times r$，乘積 $C = AB$ 是 $m \times r$，
+\[
+C[i, j] = \sum_{k=0}^{n-1} A[i, k] \cdot B[k, j] .
+\]
+存滿的矩陣照定義算要 $mnr$ 次乘法（第~17~章的 Strassen 方法可以更少）。 兩個都稀疏
+時，大部分的乘積 $A[i, k] \cdot B[k, j]$ 都有一邊是 $0$，不該去算。
+
+$C[i, j]$ 是「$A$ 的第 $i$ 列」和「$B$ 的第 $j$ 行」的內積，只有兩邊在同一個 $k$ 都
+非零時才有貢獻。 $A$ 的第 $i$ 列在三元組陣列裡是連續的一段，依行號 $k$ 排好；可惜
+$B$ 的第 $j$ 行散在各處。 所以先把 $B$ 快速轉置成 $B^{\mathsf T}$，$B$ 的第 $j$ 行就
+變成 $B^{\mathsf T}$ 的第 $j$ 列，也是連續的一段、依 $k$ 排好。 兩段都依 $k$ 排好，
+就能像合併兩個排好的序列一樣，用兩個位置同步往前走，找出 $k$ 相同的配對。
+
+要找到每一列在三元組陣列裡的範圍，先算每一列的起點 $\mathit{rs}[i]$，做法和快速轉
+置的 $\mathit{start}$ 一樣，只是多留一格 $\mathit{rs}[m] = t$ 當結尾：第 $i$ 列是
+$T[\mathit{rs}[i] .. \mathit{rs}[i + 1] - 1]$，空的列 $\mathit{rs}[i] =
+\mathit{rs}[i + 1]$。
+
+\begin{pseudo}[label=alg:arr-row-starts]{每一列的起點}
+\Function{Row-Starts}{$M$}
+    \State 建立陣列 $\mathit{rs}[0..M.\mathit{rows}]$，每一格設成 $0$
+    \For{$p \gets 0$ \To $M.t - 1$}
+        \State $\mathit{rs}[M.T[p].\mathit{row} + 1] \gets \mathit{rs}[M.T[p].\mathit{row} + 1] + 1$
+    \EndFor
+    \For{$i \gets 1$ \To $M.\mathit{rows}$}
+        \State $\mathit{rs}[i] \gets \mathit{rs}[i] + \mathit{rs}[i - 1]$
+    \EndFor
+    \State \Return $\mathit{rs}$
+\EndFunction
+\end{pseudo}
+
+第 4 行把第 $i$ 列的個數記在 $\mathit{rs}[i + 1]$，往後挪了一格，第 5、6 行的前綴
+和做完，$\mathit{rs}[i]$ 就是第 $0$ 到 $i - 1$ 列的總個數。
+
+\begin{pseudo}[label=alg:arr-sparse-mul]{稀疏矩陣相乘}
+\Function{Sparse-Multiply}{$A, B$} \Comment{$A$ 是 $m \times n$，$B$ 是 $n \times r$}
+    \State $B' \gets \Call{Fast-Transpose}{B}$
+    \State $\mathit{ra} \gets \Call{Row-Starts}{A}$；$\mathit{rb} \gets \Call{Row-Starts}{B'}$
+    \State $C.\mathit{rows} \gets A.\mathit{rows}$；$C.\mathit{cols} \gets B.\mathit{cols}$；$C.t \gets 0$
+    \For{$i \gets 0$ \To $A.\mathit{rows} - 1$}
+        \For{$j \gets 0$ \To $B.\mathit{cols} - 1$}
+            \State $p \gets \mathit{ra}[i]$；$q \gets \mathit{rb}[j]$；$s \gets 0$
+            \While{$p < \mathit{ra}[i + 1]$ \AND $q < \mathit{rb}[j + 1]$}
+                \If{$A.T[p].\mathit{col} < B'.T[q].\mathit{col}$}
+                    \State $p \gets p + 1$
+                \ElsIf{$A.T[p].\mathit{col} > B'.T[q].\mathit{col}$}
+                    \State $q \gets q + 1$
+                \Else
+                    \State $s \gets s + A.T[p].\mathit{val} \cdot B'.T[q].\mathit{val}$
+                    \State $p \gets p + 1$；$q \gets q + 1$
+                \EndIf
+            \EndWhile
+            \If{$s \ne 0$}
+                \State $C.T[C.t] \gets (i, j, s)$；$C.t \gets C.t + 1$
+            \EndIf
+        \EndFor
+    \EndFor
+    \State \Return $C$
+\EndFunction
+\end{pseudo}
+
+$B'$ 的第 $j$ 列的三元組是 $(j, k, B[k, j])$，所以第 9、11 行比的 $B'.T[q].\mathit{col}$
+是 $B$ 原本的列號 $k$。 $i$、$j$ 都由小到大，$C$ 的三元組自然依（列, 行）排好。 第
+16 行只存非零的和：兩個非零的乘積可能剛好互相抵消，$C[i, j]$ 是 $0$ 就不存。
+
+\textbf{手算追蹤}。 用一組小的例子：
+\[
+A = \begin{pmatrix} 2 & 0 & 0 & 1 \\ 0 & 0 & 3 & 0 \\ 0 & -1 & 0 & 0 \end{pmatrix},
+\qquad
+B = \begin{pmatrix} 0 & 4 & 1 \\ 1 & 0 & 0 \\ 0 & 0 & -2 \\ 3 & 0 & -2 \end{pmatrix}.
+\]
+$A$ 的三元組是 $(0,0,2)$、$(0,3,1)$、$(1,2,3)$、$(2,1,-1)$。 $B$ 轉置之後，$B'$ 的三元組
+是 $(0,1,1)$、$(0,3,3)$、$(1,0,4)$、$(2,0,1)$、$(2,2,-2)$、$(2,3,-2)$。 下表把每一列寫成
+「$k$:值」，列出九對 $(i, j)$ 各自配對到的 $k$：
+
+\begin{center}
+\begin{tabular}{cllll}
+\toprule
+$(i, j)$ & $A$ 的第 $i$ 列 & $B'$ 的第 $j$ 列 & 配對 & $s$ \\
+\midrule
+$(0, 0)$ & 0:2, 3:1 & 1:1, 3:3 & $k = 3$：$1 \cdot 3$ & $3$ \\
+$(0, 1)$ & 0:2, 3:1 & 0:4 & $k = 0$：$2 \cdot 4$ & $8$ \\
+$(0, 2)$ & 0:2, 3:1 & 0:1, 2:$-2$, 3:$-2$ & $k = 0$：$2 \cdot 1$；$k = 3$：$1 \cdot (-2)$ & $0$，不存 \\
+$(1, 0)$ & 2:3 & 1:1, 3:3 & 無 & $0$ \\
+$(1, 1)$ & 2:3 & 0:4 & 無 & $0$ \\
+$(1, 2)$ & 2:3 & 0:1, 2:$-2$, 3:$-2$ & $k = 2$：$3 \cdot (-2)$ & $-6$ \\
+$(2, 0)$ & 1:$-1$ & 1:1, 3:3 & $k = 1$：$(-1) \cdot 1$ & $-1$ \\
+$(2, 1)$ & 1:$-1$ & 0:4 & 無 & $0$ \\
+$(2, 2)$ & 1:$-1$ & 0:1, 2:$-2$, 3:$-2$ & 無 & $0$ \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+結果 $C$ 有 $4$ 項：$(0,0,3)$、$(0,1,8)$、$(1,2,-6)$、$(2,0,-1)$。 總共做了 $6$ 次乘法，存
+滿的矩陣要 $3 \times 4 \times 3 = 36$ 次。 $(0, 2)$ 那一格做了兩次乘法，加起來是
+$0$，沒有存進 $C$。
+
+\textbf{成本}。 設 $A$ 有 $t_A$ 個非零元素，第 $i$ 列有 $a_i$ 個；$B$ 有 $t_B$ 個，
+第 $j$ 行有 $b_j$ 個。 處理一對 $(i, j)$ 時，\textbf{while} 迴圈每一輪至少讓 $p$ 或
+$q$ 前進一格，最多 $a_i + b_j$ 輪。 全部加起來
+\[
+\sum_{i=0}^{m-1} \sum_{j=0}^{r-1} (a_i + b_j) = r \cdot t_A + m \cdot t_B .
+\]
+再加上兩層 \textbf{for} 本身的 $mr$ 次、轉置的 $\Theta(r + t_B)$ 和算起點的
+$\Theta(m + r + t_A + t_B)$，總時間 $O(mr + r \cdot t_A + m \cdot t_B)$。 存滿的矩陣
+是 $\Theta(mnr)$；每列、每行只有少數幾個非零元素時，差距非常大。 C 程式在第 $i$ 列
+全是 $0$ 時直接跳過內層迴圈，對很多空列的矩陣能再省一些。
+
+另一種常用的做法不轉置 $B$，改成一列一列算 $C$：$C$ 的第 $i$ 列等於「$A$ 的第 $i$
+列的每個非零元素 $A[i, k]$ 乘上 $B$ 的第 $k$ 列」加起來。 用一個長度 $r$ 的陣列累
+加，這一列做完後把非零的位置收集起來。 它的工作量和非零乘積的個數成正比（再加上和 $m$、$r$
+有關的固定成本），不會為了配對而掃過沒有貢獻的元素；代價是要處理累加陣列的清空和結果的排序。 本章
+的實作練習有一題就是這個做法。
+
+\begin{cbookrecap}[第~8~章 8.6 節、第~14~章 14.3、14.5、14.6 節、第~19~章 19.3 節]
+函式收 \texttt{const Sparse *A}，表示只讀不改；要把結果交回呼叫端，就傳
+\texttt{Sparse *C} 進去，在函式裡設定 \texttt{C->t}、\texttt{C->a}。
+\texttt{(Triple)\{c, r, v\}} 是 C99 起的\textbf{複合字面值}，臨時造出一個
+\texttt{Triple} 結構的值，效果和分三行設定 \texttt{row}、\texttt{col}、\texttt{val}
+一樣。 \texttt{calloc(n, size)} 配置 $n$ 格並全部設成 $0$，適合當計數陣列。
+\texttt{free(NULL)} 什麼都不做，所以配置失敗時可以把幾個指標一起 \texttt{free}。
+\end{cbookrecap}
+
+下面的程式先對加分表做快速轉置，印出 $\mathit{cnt}$、$\mathit{start}$ 和每一步放進
+$B$ 的哪一格；再算上面的 $C = AB$。 C 的陣列從 $0$ 開始，和虛擬碼、追蹤表完全一樣，
+輸出可以逐行對照。
+
+\begin{example}[label=ex:arr-sparse]{c}{(sparse.c) 稀疏矩陣的快速轉置與相乘}
+#include <stdio.h>
+#include <stdlib.h>
+
+typedef struct {
+    int row, col, val;
+} Triple;
+
+typedef struct {
+    int rows, cols, t;          // 列數、行數、非零項個數
+    Triple *a;                  // a[0..t-1]，依（列, 行）由小到大
+} Sparse;
+
+// 先印大小，再每行印 5 個三元組。
+void print_terms(const char *title, const Sparse *m)
+{
+    printf("%s: %d x %d, %d terms\n", title, m->rows, m->cols, m->t);
+    for (int p = 0; p < m->t; p++)
+        printf("(%d,%d,%d)%s", m->a[p].row, m->a[p].col, m->a[p].val,
+               (p % 5 == 4 || p == m->t - 1) ? "\n" : " ");
+}
+
+// 快速轉置。B->a 由這個函式配置；trace 不是 0 時印出每一步。
+// 假設 A->cols >= 1。成功回傳 1。
+int fast_transpose(const Sparse *A, Sparse *B, int trace)
+{
+    int n = A->cols;
+    int *cnt = calloc(n, sizeof *cnt);
+    int *start = malloc(n * sizeof *start);
+    B->a = malloc((A->t > 0 ? A->t : 1) * sizeof *B->a);
+    if (cnt == NULL || start == NULL || B->a == NULL) {
+        free(cnt); free(start); free(B->a);
+        return 0;
+    }
+    B->rows = A->cols;
+    B->cols = A->rows;
+    B->t = A->t;
+    for (int p = 0; p < A->t; p++)
+        cnt[A->a[p].col]++;
+    start[0] = 0;
+    for (int c = 1; c < n; c++)
+        start[c] = start[c - 1] + cnt[c - 1];
+    if (trace) {
+        printf("cnt:");
+        for (int c = 0; c < n; c++) printf(" %d", cnt[c]);
+        printf("\nstart:");
+        for (int c = 0; c < n; c++) printf(" %d", start[c]);
+        printf("\n");
+    }
+    for (int p = 0; p < A->t; p++) {
+        int c = A->a[p].col;
+        int q = start[c]++;
+        B->a[q] = (Triple){c, A->a[p].row, A->a[p].val};
+        if (trace)
+            printf("p=%d -> B[%d], start[%d]=%d\n",
+                   p, q, c, start[c]);
+    }
+    free(cnt);
+    free(start);
+    return 1;
+}
+
+// rs[i] 是第 i 列第一項的位置，rs[rows] = t。由呼叫者 free。
+int *row_starts(const Sparse *M)
+{
+    int *rs = calloc(M->rows + 1, sizeof *rs);
+    if (rs == NULL)
+        return NULL;
+    for (int p = 0; p < M->t; p++)
+        rs[M->a[p].row + 1]++;
+    for (int i = 1; i <= M->rows; i++)
+        rs[i] += rs[i - 1];
+    return rs;
+}
+
+// C = A * B。C->a 由這個函式配置。*mul 記錄乘法次數。成功回傳 1。
+int sparse_mul(const Sparse *A, const Sparse *B, Sparse *C, long *mul)
+{
+    Sparse Bt;
+    if (A->cols != B->rows || !fast_transpose(B, &Bt, 0))
+        return 0;
+    int *ra = row_starts(A), *rb = row_starts(&Bt);
+    long cap = (long)A->rows * B->cols;     // C 最多這麼多項
+    C->a = malloc((cap > 0 ? cap : 1) * sizeof *C->a);
+    if (ra == NULL || rb == NULL || C->a == NULL) {
+        free(ra); free(rb); free(Bt.a); free(C->a);
+        return 0;
+    }
+    C->rows = A->rows;
+    C->cols = B->cols;
+    C->t = 0;
+    *mul = 0;
+    for (int i = 0; i < A->rows; i++) {
+        if (ra[i] == ra[i + 1])
+            continue;                       // A 的第 i 列全是 0
+        for (int j = 0; j < Bt.rows; j++) {
+            int p = ra[i], q = rb[j];
+            long sum = 0;
+            while (p < ra[i + 1] && q < rb[j + 1]) {
+                if (A->a[p].col < Bt.a[q].col) {
+                    p++;
+                } else if (A->a[p].col > Bt.a[q].col) {
+                    q++;
+                } else {
+                    sum += (long)A->a[p].val * Bt.a[q].val;
+                    (*mul)++;
+                    p++;
+                    q++;
+                }
+            }
+            if (sum != 0)                   // 相消成 0 的不存
+                C->a[C->t++] = (Triple){i, j, (int)sum};
+        }
+    }
+    free(ra);
+    free(rb);
+    free(Bt.a);
+    return 1;
+}
+
+int main(void)
+{
+    // 6 位同學、7 次實驗課的加分表，只記非零的 9 格
+    Triple g[] = {{0, 2, 3}, {0, 5, 1}, {1, 0, 2}, {2, 2, 5},
+                  {2, 6, 4}, {3, 1, 1}, {4, 2, 2}, {4, 5, 3},
+                  {5, 0, 1}};
+    Sparse G = {6, 7, 9, g}, Gt;
+    if (!fast_transpose(&G, &Gt, 1))
+        return 1;
+    print_terms("Gt", &Gt);
+    free(Gt.a);
+
+    Triple ta[] = {{0, 0, 2}, {0, 3, 1}, {1, 2, 3}, {2, 1, -1}};
+    Triple tb[] = {{0, 1, 4}, {0, 2, 1}, {1, 0, 1},
+                   {2, 2, -2}, {3, 0, 3}, {3, 2, -2}};
+    Sparse A = {3, 4, 4, ta}, B = {4, 3, 6, tb}, C;
+    long mul;
+    if (!sparse_mul(&A, &B, &C, &mul))
+        return 1;
+    print_terms("C", &C);
+    printf("multiplications = %ld (dense: %d)\n",
+           mul, A.rows * A.cols * B.cols);
+    free(C.a);
+    return 0;
+}
+\end{example}
+\iosample{}{cnt: 2 1 3 0 0 2 1 \\ start: 0 2 3 6 6 6 8 \\ p=0 -> B[3], start[2]=4 \\ p=1 -> B[6], start[5]=7 \\ p=2 -> B[0], start[0]=1 \\ p=3 -> B[4], start[2]=5 \\ p=4 -> B[8], start[6]=9 \\ p=5 -> B[2], start[1]=3 \\ p=6 -> B[5], start[2]=6 \\ p=7 -> B[7], start[5]=8 \\ p=8 -> B[1], start[0]=2 \\ Gt: 7 x 6, 9 terms \\ (0,1,2) (0,5,1) (1,3,1) (2,0,3) (2,2,5) \\ (2,4,2) (5,0,1) (5,4,3) (6,2,4) \\ C: 3 x 3, 4 terms \\ (0,0,3) (0,1,8) (1,2,-6) (2,0,-1) \\ multiplications = 6 (dense: 36)}
+
+\texttt{int q = start[c]++;} 先取出 $\mathit{start}[c]$ 的值放進 \texttt{q}，再把
+\texttt{start[c]} 加一，對應虛擬碼~\ref{alg:arr-fast-transpose} 的第 11、12 行。 快
+速轉置的三個迴圈合計只跑了 $9 + 6 + 9 = 24$ 輪，簡單轉置要比較 $63$ 次。
+\texttt{sparse\_mul} 結束前把轉置用的 \texttt{Bt.a} 和兩個起點陣列都釋放掉，只留下
+\texttt{C->a} 給 \texttt{main}。 \texttt{C->a} 一開始配置 $mr$ 格，這是 $C$ 最多可能
+的項數；在意空間時，可以先算一遍有幾項再配置，或是像第~3~章的動態陣列那樣不夠時
+加倍。
+
+\section{多項式}
+\label{sec:arr-poly}
+
+單變數多項式 $p(x) = c_d x^d + c_{d-1} x^{d-1} + \cdots + c_1 x + c_0$ 由係數決定。
+$c_d \ne 0$ 時 $d$ 是它的\textbf{次數}（degree）。 這一節比較兩種用陣列存多項式的
+方法，再看相加、相乘和求值各要多少時間。
+
+\subsection{兩種表示法}
+
+\textbf{係數陣列}。 開一個長度 $d + 1$ 的陣列 $c[0..d]$，$c[i]$ 是 $x^i$ 的係數，
+係數是 $0$ 的也存。 下標就是次方，要讀寫某一次的係數是 $O(1)$。 例如
+$p(x) = 2x^4 - 3x^3 + 5x - 6$ 存成 $c[0..4] = (-6, 5, 0, -3, 2)$。
+
+\textbf{非零項陣列}。 只存係數不是 $0$ 的項，每一項是一個（係數, 次方）的配對，依次
+方由大到小排。 $p(x)$ 存成 $(2, 4), (-3, 3), (5, 1), (-6, 0)$。 有 $t$ 個非零項時用
+$2t$ 格。
+
+兩者的空間是 $d + 1$ 對 $2t$。 $x^{1000} + 1$ 用係數陣列要 $1001$ 格，非零項陣列只
+要 $4$ 格；反過來，$3x^5 - x^4 + 2x^3 + 7x^2 - x + 4$ 每一項都不是 $0$，係數陣列用
+$6$ 格，非零項陣列要 $12$ 格。 和稀疏矩陣一樣，非零項陣列適合「次數高、項數少」的
+多項式。
+
+很多個多項式要一起存時，非零項陣列還可以全部放進同一個大陣列，每個多項式只記住自
+己從第幾格到第幾格。 這樣不用為每個多項式各配置一塊，但某個多項式變長時，後面的多
+項式就得整個往後搬；刪掉一個多項式則會在中間留下空洞。 第~5~章用串列存多項式，就
+是為了避開這兩個問題。
+
+\begin{examnote}
+表示法的約定先看清楚再動手。 係數陣列的第一個數是常數項還是最高次項，題目各有不
+同（本章和大部分 Aki-Judge 的題目是由低次到高次，但也有由高次寫到常數項的）。 稀疏
+矩陣的三元組陣列，有些課本把第 $0$ 格拿來存（列數, 行數, 非零個數），真正的三元組
+從第 $1$ 格開始；這時快速轉置的起點陣列也從 $1$ 開始算，追蹤表上的每個位置都比本
+章多 $1$。
+\end{examnote}
+
+\subsection{相加}
+
+係數陣列相加就是對應的格子相加：$r[i] = a[i] + b[i]$，短的那個多項式缺的高次項當成
+$0$。 時間 $\Theta(\max(d_a, d_b) + 1)$。 和的最高次係數可能抵消成 $0$（例如
+$x^2 + 1$ 加 $-x^2 + x$），要知道真正的次數，就從最高次往下找第一個不是 $0$ 的。
+
+非零項陣列相加和第~5~章 5.3 節的 \proc{Poly-Add} 是同一個演算法：兩個位置 $i$、$j$
+各指著一個多項式目前的項，次方大的先抄到結果；次方相同就把係數加起來，和不是 $0$
+才抄，兩邊一起前進；有一邊抄完了，另一邊剩下的照抄。 那裡的節點換成陣列的格子，
+「接到結果後面」換成「寫進結果的下一格」，其他完全一樣。 設兩個多項式各有 $t_a$、
+$t_b$ 項，結果最多 $t_a + t_b$ 項，所以陣列版可以事先配置這麼多格；比較次方最多
+$t_a + t_b - 1$ 次，時間 $\Theta(t_a + t_b)$。
+
+\subsection{相乘}
+
+係數陣列相乘：$a(x)$ 的 $x^i$ 項乘上 $b(x)$ 的 $x^j$ 項會貢獻到 $x^{i+j}$，所以
+\[
+r[k] = \sum_{i + j = k} a[i] \cdot b[j], \qquad 0 \le k \le d_a + d_b .
+\]
+
+\begin{pseudo}[label=alg:arr-poly-mul]{係數陣列相乘}
+\Function{Poly-Mul}{$a, d_a, b, d_b$}
+    \State 建立陣列 $r[0..d_a + d_b]$，每一格設成 $0$
+    \For{$i \gets 0$ \To $d_a$}
+        \For{$j \gets 0$ \To $d_b$}
+            \State $r[i + j] \gets r[i + j] + a[i] \cdot b[j]$
+        \EndFor
+    \EndFor
+    \State \Return $r$
+\EndFunction
+\end{pseudo}
+
+第 5 行執行 $(d_a + 1)(d_b + 1)$ 次，時間 $\Theta(d_a d_b)$（$d_a, d_b \ge 1$ 時）。
+兩個次數都是 $d$ 時是 $\Theta(d^2)$。 第~17~章的 Karatsuba 方法用分治把它降到
+$\Theta(d^{\lg 3})$，那裡的大數乘法就是把整數的每一位當成多項式的係數。
+
+非零項陣列相乘：$a$ 的每一項乘上 $b$ 的每一項，共 $t_a t_b$ 個乘積，難處在把次方相
+同的乘積合併起來。 三種做法：
+
+\begin{itemize}
+\item 把「$a$ 的一項乘上整個 $b$」得到的 $t_b$ 項（次方仍由大到小）用上一小節的相加
+加進結果，重複 $t_a$ 次。 第 $i$ 次相加時結果最多 $(i - 1)t_b$ 項，這次相加是
+$O(i \cdot t_b)$，合計 $O(t_a^2 t_b)$。 第~5~章的串列版也是這樣分析。
+\item 把 $t_a t_b$ 個乘積全部算出來，依次方排序（第~14~章），再把相鄰次方相同的合
+併。 時間 $O(t_a t_b \lg(t_a t_b))$。
+\item 結果的次數 $d_a + d_b$ 不大時，直接用一個係數陣列累加，再把非零的挑出來。 時間
+$O(t_a t_b + d_a + d_b)$。
+\end{itemize}
+
+兩個多項式都很稀疏、次數又很高時（例如次數 $10^6$、各 $50$ 項），係數陣列的乘法要
+做約 $10^{12}$ 次，非零項陣列只要 $2500$ 個乘積，這時一定用非零項陣列。
+
+\subsection{Horner 法求值}
+
+要算 $p(x_0)$，直接照定義一項一項算：第 $i$ 項的 $x_0^i$ 如果每次重新乘，要 $i - 1$
+次乘法，全部加起來是 $\Theta(d^2)$ 次。 一邊加一邊維護 $x_0$ 的次方（每一項之後乘一
+次 $x_0$），可以降到大約 $2d$ 次。 \textbf{Horner 法}（Horner's rule）更省：把多項式
+寫成一層包一層的形式
+\[
+p(x) = \Bigl(\cdots\bigl((c_d\,x + c_{d-1})\,x + c_{d-2}\bigr)\,x + \cdots + c_1\Bigr)\,x + c_0 ,
+\]
+從最裡面往外算，每一層一次乘法、一次加法。
+
+\begin{pseudo}[label=alg:arr-horner]{Horner 法，$c[0..d]$ 是係數}
+\Function{Horner}{$c, d, x$}
+    \State $s \gets c[d]$
+    \For{$i \gets d - 1$ \DownTo $0$}
+        \State $s \gets s \cdot x + c[i]$
+    \EndFor
+    \State \Return $s$
+\EndFunction
+\end{pseudo}
+
+\textbf{手算追蹤}。 $p(x) = 2x^4 - 3x^3 + 5x - 6$ 在 $x = 3$：
+
+\begin{center}
+\begin{tabular}{cccl}
+\toprule
+$i$ & $c[i]$ & $s \cdot 3 + c[i]$ & 這一步之後的 $s$ \\
+\midrule
+（第 2 行）& $c[4] = 2$ & & $2$ \\
+3 & $-3$ & $2 \cdot 3 - 3$ & $3$ \\
+2 & $0$ & $3 \cdot 3 + 0$ & $9$ \\
+1 & $5$ & $9 \cdot 3 + 5$ & $32$ \\
+0 & $-6$ & $32 \cdot 3 - 6$ & $90$ \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+$p(3) = 2 \cdot 81 - 3 \cdot 27 + 15 - 6 = 90$，相符。 一共 $4$ 次乘法；$0$ 係數那一
+項也要做一次，Horner 法對每個次方都做一步。
+
+\begin{theorem}
+\label{thm:arr-horner}
+\proc{Horner}$(c, d, x)$ 回傳 $\sum_{k=0}^{d} c[k]\,x^k$，用 $d$ 次乘法和 $d$ 次加法。
+\end{theorem}
+
+\begin{proof}
+對 $0 \le i \le d$，定義只看 $c[i..d]$ 的多項式
+\[
+q_i(x) = c[i] + c[i+1]\,x + \cdots + c[d]\,x^{d - i} = \sum_{k=i}^{d} c[k]\,x^{k - i} .
+\]
+$q_d(x) = c[d]$，$q_0$ 就是 $p$，而且把 $q_{i+1}$ 的每一項乘上 $x$、再補上常數項
+$c[i]$，就得到 $q_i$：$q_i(x) = q_{i+1}(x) \cdot x + c[i]$。
+
+不變量：第 3 行的迴圈要處理 $i$ 之前（$i = d - 1, d - 2, \ldots, 0$），$s =
+q_{i+1}(x)$。 初始：$i = d - 1$ 時 $s = c[d] = q_d(x)$。 維持：第 4 行把 $s$ 換成
+$q_{i+1}(x) \cdot x + c[i] = q_i(x)$，下一個要處理的是 $i - 1$，不變量成立。 結束：迴
+圈做完 $i = 0$ 之後 $s = q_0(x) = p(x)$。 迴圈跑 $d$ 輪，每輪一次乘法、一次加法。
+\end{proof}
+
+\textbf{Horner 法和除法}。 上面的追蹤表中間出現的 $2, 3, 9, 32$ 也有用：它們正好是
+$p(x)$ 除以 $(x - 3)$ 的商的係數，最後的 $90$ 是餘數，
+\[
+2x^4 - 3x^3 + 5x - 6 = (x - 3)(2x^3 + 3x^2 + 9x + 32) + 90 .
+\]
+把右邊展開就能驗證。 這就是高中學過的綜合除法，也說明了為什麼 $p(x_0)$ 等於 $p(x)$
+除以 $(x - x_0)$ 的餘數。 一般的證明留作觀念題第 15 題。
+
+非零項陣列也能用 Horner 法：相鄰兩項的次方差 $g$ 不是 $1$ 時，那一步改成乘上
+$x^{g}$，用第~17~章的快速冪算 $x^g$ 只要 $O(\lg g)$ 次乘法。 $t$ 項、次數 $d$ 的多
+項式總共 $O(t \lg d)$ 次乘法。
+
+下面的程式用係數陣列做相加、相乘和 Horner 法求值，順便印出綜合除法的商；係數一律
+由低次印到高次。 非零項陣列的相加和第~5~章的串列版只差在「寫進下一格」，留給實作
+練習。
+
+\begin{example}[label=ex:arr-poly-dense]{c}{(poly\_dense.c) 係數陣列的多項式}
+#include <stdio.h>
+
+// 係數陣列：c[i] 是 x^i 的係數，c[0..d]。由低次到高次印出來。
+void print_poly(const char *name, const long long *c, int d)
+{
+    printf("%s:", name);
+    for (int i = 0; i <= d; i++)
+        printf(" %lld", c[i]);
+    printf("\n");
+}
+
+// r[0..max(da,db)] = a + b
+void poly_add(const long long *a, int da, const long long *b, int db,
+              long long *r)
+{
+    int d = da > db ? da : db;
+    for (int i = 0; i <= d; i++)
+        r[i] = (i <= da ? a[i] : 0) + (i <= db ? b[i] : 0);
+}
+
+// r[0..da+db] = a * b，每一對 (i, j) 都乘一次。
+void poly_mul(const long long *a, int da, const long long *b, int db,
+              long long *r)
+{
+    for (int k = 0; k <= da + db; k++)
+        r[k] = 0;
+    for (int i = 0; i <= da; i++)
+        for (int j = 0; j <= db; j++)
+            r[i + j] += a[i] * b[j];
+}
+
+// Horner 法求 p(x)。q 不是 NULL 時，順便存下每一步的值：
+// q[d-1..0] 是 p(x) 除以 (x - x0) 的商。*mul 記錄乘法次數。
+long long horner(const long long *c, int d, long long x, long long *q,
+                 int *mul)
+{
+    long long s = c[d];
+    *mul = 0;
+    for (int i = d - 1; i >= 0; i--) {
+        if (q != NULL)
+            q[i] = s;
+        s = s * x + c[i];
+        (*mul)++;
+    }
+    return s;
+}
+
+int main(void)
+{
+    long long p[] = {-6, 5, 0, -3, 2};      // 2x^4 - 3x^3 + 5x - 6
+    long long g[] = {-1, 4, 1};             // x^2 + 4x - 1
+    long long sum[5], prod[7], quot[4];
+    int mul;
+    print_poly("p", p, 4);
+    print_poly("g", g, 2);
+    poly_add(p, 4, g, 2, sum);
+    print_poly("p + g", sum, 4);
+    poly_mul(p, 4, g, 2, prod);
+    print_poly("p * g", prod, 6);
+    long long v = horner(p, 4, 3, quot, &mul);
+    printf("p(3) = %lld, multiplications = %d\n", v, mul);
+    print_poly("p / (x - 3)", quot, 3);
+    printf("remainder = %lld\n", v);
+    return 0;
+}
+\end{example}
+\iosample{}{p: -6 5 0 -3 2 \\ g: -1 4 1 \\ p + g: -7 9 1 -3 2 \\ p * g: 6 -29 14 8 -14 5 2 \\ p(3) = 90, multiplications = 4 \\ p / (x - 3): 32 9 3 2 \\ remainder = 90}
+
+\texttt{p * g} 的 $7$ 個係數由 \texttt{poly\_mul} 的雙層迴圈做了 $5 \times 3 = 15$
+次乘法得到。 \texttt{horner} 在第 $i$ 步把當下的 $s$ 存進 \texttt{q[i]}，所以
+\texttt{q[0..3]} 是商 $2x^3 + 3x^2 + 9x + 32$ 由低次到高次的係數。
+
+\section{本章常見錯誤}
+\label{sec:arr-pitfalls}
+
+\begin{center}
+\begin{tabular}{p{0.24\linewidth}p{0.50\linewidth}p{0.16\linewidth}}
+\toprule
+錯誤 & 例子 & 見 \\
+\midrule
+忘了減下界 & $A[-2..5, 3..9]$ 的 $A[1, 7]$ 直接用 $1 \times 7 + 7$ 算位移 &
+第~\ref{sec:arr-address}~節 \\
+乘錯維度 & 列優先乘了列數 $m$，或行優先乘了行數 $n$ & 第~\ref{sec:arr-address}~節 \\
+位址單位搞混 & 每格 $4$ 位元組卻只加了位移的元素個數；十六進位的位址用十進位相加 &
+第~\ref{sec:arr-address}~節 \\
+反推時正負號錯 & 兩個位址相減時，行號比較小的那一項寫成正的 &
+第~\ref{sec:arr-address}~節 \\
+C 用指標假裝下界 & \texttt{int *p = buf - l;} 再用 \texttt{p[i]}：指到陣列外，
+未定義行為 & 第~\ref{sec:arr-address}~節 \\
+三角矩陣的起點差 $1$ & 把從 $1$ 起算的 $i(i-1)/2 + j$ 用在下標從 $0$ 開始的 C 程式 &
+第~\ref{sec:arr-special}~節 \\
+上三角套用下三角公式 & 沒有先把 $i$、$j$ 對調；行優先時忘了公式裡有 $n$ &
+第~\ref{sec:arr-special}~節 \\
+轉置只對調列和行 & 結果的三元組沒有依（列, 行）排好，之後的二分搜尋、相乘出錯 &
+第~\ref{sec:arr-sparse}~節 \\
+起點陣列漏了空行 & 只為出現過的行算 $\mathit{start}$，行數是 $0$ 的那幾行沒有填 &
+第~\ref{sec:arr-sparse}~節 \\
+放完沒有更新起點 & 快速轉置放進 $B[\mathit{start}[c]]$ 後忘了加一，同一行的元素互相
+覆蓋 & 第~\ref{sec:arr-sparse}~節 \\
+存了 $0$ 的項 & 稀疏相乘或多項式相加的結果裡留下抵消成 $0$ 的項 &
+第~\ref{sec:arr-sparse}、\ref{sec:arr-poly}~節 \\
+係數順序讀反 & 題目由高次寫到常數項，程式卻當成 $c[0]$ 是常數項 &
+第~\ref{sec:arr-poly}~節 \\
+Horner 法從常數項開始 & $s \gets c[0]$，再依序乘 $x$ 加 $c[1], c[2], \ldots$，算出來
+的是係數倒過來的多項式 & 第~\ref{sec:arr-poly}~節 \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\section{觀念題}
+\label{sec:arr-exercises}
+
+題型和研究所考試、期中期末考的筆試相近，有選擇、計算、追蹤和證明。 除非題目另外
+說明，位址都用十進位，每格大小的單位是位元組。 解答在本章最後。
+
+\begin{enumerate}
+\item （選擇，可能不只一個答案）$A[1..m, 1..n]$，每個元素 $w$ 位元組。 下列哪些敘
+述正確？
+\begin{enumerate}
+\item 列優先存放時，$A[i, j]$ 和 $A[i, j + 1]$（$j < n$）的位址相差 $w$。
+\item 行優先存放時，$A[i, j]$ 和 $A[i + 1, j]$（$i < m$）的位址相差 $n \cdot w$。
+\item 用列優先存 $A$，和用行優先存 $A^{\mathsf T}$（$n \times m$），每個元素在記憶體
+裡的位置完全一樣。
+\item 列優先存放時，只要知道 $\alpha$、$w$、$i$、$j$，不用知道 $n$ 就能算出
+$A[i, j]$ 的位址。
+\item C 的 \texttt{int a[5][8]} 裡，\texttt{a[2][3]} 在 \texttt{a[0][0]} 之後第 $19$
+個 \texttt{int} 的位置。
+\end{enumerate}
+
+\item （計算）陣列 $H[-20..44]$，每個元素 $6$ 位元組，$H[-20]$ 的位址是十六進位的
+\texttt{2F40}。 求元素個數、$H[0]$ 和 $H[31]$ 的位址，以及整個陣列占用的最後一個位
+元組的位址（都用十六進位）。
+
+\item （計算）$P[0..11, -4..15]$，每個元素 $4$ 位元組，$P[0, -4]$ 的位址是 $4000$。
+\begin{enumerate}
+\item 分別用列優先和行優先，求 $P[7, 3]$ 的位址。
+\item 列優先時，位址 $4400$ 是哪一個元素？ 行優先時呢？
+\end{enumerate}
+
+\item （計算）$Q[1..m, 1..8]$ 以行優先存放，每個元素 $4$ 位元組，$m$ 未知。 已知
+$Q[2, 3]$ 的位址是 $1276$，$Q[5, 7]$ 的位址是 $1432$。 求 $m$、$Q[1, 1]$ 的位址，
+以及最後一個元素 $Q[m, 8]$ 的位址。
+
+\item （證明）$A[l_1..u_1, l_2..u_2]$ 以列優先存放，$n = u_2 - l_2 + 1$。 證明位移
+$\mathrm{off}(i, j) = (i - l_1)\,n + (j - l_2)$ 把 $mn$ 個下標一對一地對應到
+$0, 1, \ldots, mn - 1$，並寫出反過來的公式：給 $\mathrm{off}$，求 $(i, j)$。
+
+\item （計算）下面的程式片段把一個 C 的二維陣列清成 $0$。
+\begin{code}{c}{觀念題 7}
+double a[400][300];
+for (int j = 0; j < 300; j++)
+    for (int i = 0; i < 400; i++)
+        a[i][j] = 0;
+\end{code}
+\begin{enumerate}
+\item 內層迴圈相鄰兩次寫入的位址相差幾個位元組？
+\item 從 \texttt{a[399][j]} 換到 \texttt{a[0][j + 1]} 時，位址差多少？
+\item 把兩層迴圈對調（外層 \texttt{i}、內層 \texttt{j}）之後，相鄰兩次寫入的位址相差
+多少？ 換列的時候呢？
+\end{enumerate}
+
+\item （計算）C 程式用一維陣列 \texttt{b[]} 存 $8 \times 8$ 下三角矩陣的下三角（含對
+角線），列優先，下標全部從 $0$ 開始。 \texttt{b} 要開幾格？ $A[6][2]$ 放在
+\texttt{b} 的第幾格？ 如果 $A$ 是對稱矩陣，$A[2][6]$ 要讀哪一格？
+
+\item （計算）$10 \times 10$ 的上三角矩陣，下標從 $1$ 開始，把上三角（含對角線）放進
+$B[1..55]$，每個元素 $8$ 位元組，$B[1]$ 的位址是 $600$。 分別用列優先和行優先，求
+$A[4, 7]$ 在 $B$ 的第幾格和它的位址。
+
+\item （推導）下三角矩陣以列優先放進 $B[1..n(n+1)/2]$（下標從 $1$ 開始）。 給 $k$，
+求它是 $A$ 的哪一格 $(i, j)$。 寫出 $i$ 的公式並說明理由，再算 $k = 23$。
+
+\item （計算）$50 \times 50$ 的三對角矩陣，下標從 $1$ 開始。
+\begin{enumerate}
+\item 非零元素最多幾個？
+\item 依列優先緊密放進 $B[1..]$ 時，$A[20, 21]$ 和 $A[50, 49]$ 各是第幾格？
+\item 改用每列 $3$ 格的 $E[1..50, 1..3]$（$A[i, j]$ 放在 $E[i, j - i + 2]$），再用列
+優先攤平，同樣兩個元素各是第幾格？ $E$ 共用幾格？
+\end{enumerate}
+
+\item （追蹤）$5 \times 6$ 稀疏矩陣的三元組依序是
+$(0,1,7)$、$(0,4,2)$、$(1,1,-3)$、$(2,0,6)$、$(2,5,1)$、$(3,3,9)$、$(4,0,-4)$、$(4,4,8)$。 用
+\proc{Fast-Transpose}（虛擬碼~\ref{alg:arr-fast-transpose}）轉置。 寫出
+$\mathit{cnt}$、一開始的 $\mathit{start}$、每一步放進 $B$ 的哪一格，以及最後的 $B$。
+
+\item （說明）\proc{Fast-Transpose} 的輸入如果沒有依（列, 行）排好，例如 $3 \times 3$
+矩陣的三元組依序是 $(2,0,6)$、$(0,0,1)$、$(1,2,4)$、$(0,2,5)$，輸出是什麼？ 它是不是
+$A^{\mathsf T}$？ 是不是依（列, 行）排好？ \proc{Simple-Transpose} 會不會有同樣的
+問題？
+
+\item （追蹤）用 \proc{Sparse-Multiply}（虛擬碼~\ref{alg:arr-sparse-mul}）計算 $C = AB$，
+$A$ 是 $2 \times 3$，三元組 $(0,0,1)$、$(0,2,-2)$、$(1,1,3)$；$B$ 是 $3 \times 2$，三元組
+$(0,0,2)$、$(0,1,1)$、$(1,1,-1)$、$(2,0,1)$、$(2,1,4)$。 寫出 $B'$、$\mathit{ra}$、
+$\mathit{rb}$、$C$ 的三元組，以及總共做了幾次乘法。 哪一對 $(i, j)$ 做了乘法、卻沒
+有存進 $C$？
+
+\item （計算）用 Horner 法計算 $p(x) = x^5 - 4x^3 + 2x^2 - 7$ 在 $x = -2$ 的值，列出每
+一步的 $s$，並寫出 $p(x)$ 除以 $(x + 2)$ 的商和餘數。
+
+\item （證明）$p(x) = \sum_{k=0}^{d} c_k x^k$，$d \ge 1$。 對一個數 $a$，令 $s_d =
+c_d$，$s_i = s_{i+1} \cdot a + c_i$（$i = d - 1, \ldots, 0$），也就是 \proc{Horner}
+$(c, d, a)$ 每一步的 $s$。 證明
+\[
+p(x) = (x - a)\bigl(s_d\,x^{d-1} + s_{d-1}\,x^{d-2} + \cdots + s_1\bigr) + s_0 ,
+\]
+並由此說明 $p(a) = s_0$。
+
+\item （計算）$f(x) = x^{1000000} + 3x^{500000} - 1$，$g(x)$ 的次數是 $10^6$，有
+$40$ 個非零項。
+\begin{enumerate}
+\item 用係數陣列和非零項陣列存 $f$，各要幾格？
+\item 用兩種表示法計算 $f + g$ 和 $f \cdot g$，各大約要做多少步（只要量級）？
+\item $h(x)$ 的次數是 $30$，$31$ 個係數都不是 $0$。 存 $h$ 用哪一種表示法比較省？
+\end{enumerate}
+\end{enumerate}
+
+\section{實作練習}
+\label{sec:arr-practice}
+
+下面是 Aki-Judge 上和本章相關的題目。 有幾題只要交函式和標頭檔，由評測程式讀輸入、
+呼叫你的函式。 每一題的列號、行號從 $0$ 還是 $1$ 開始，係數由低次還是高次排，題目
+都寫得很清楚，動手前先對照本章的約定。
+
+\begin{center}
+\begin{tabular}{llc}
+\toprule
+小節 & 題目 & 難度 \\
+\midrule
+位址計算 & \akiref{locating-cells-in-a-shared-pool}{共用記憶體區塊的元素定位} & 進階 \\
+稀疏矩陣 & \akiref{transpose-a-sparse-matrix}{稀疏矩陣轉置} & 暖身 \\
+稀疏矩陣 & \akiref{sparse-matrix-set-and-get}{稀疏矩陣設值與查詢} & 基本 \\
+稀疏矩陣 & \akiref{multiply-two-sparse-matrices}{稀疏矩陣相乘} & 基本 \\
+稀疏矩陣 & \akiref{dot-products-of-sparse-rows}{稀疏列的內積} & 基本 \\
+稀疏矩陣 & \akiref{row-by-row-sparse-matrix-product}{逐列累加的稀疏矩陣乘積} & 進階 \\
+多項式 & \akiref{evaluate-a-polynomial-at-a-point}{多項式在某點的值} & 暖身 \\
+多項式 & \akiref{add-two-polynomials}{兩個多項式相加} & 暖身 \\
+多項式 & \akiref{dense-polynomial-set-eval-and-degree}{稠密多項式設值、求值與次數} & 基本 \\
+多項式 & \akiref{sparse-polynomial-terms}{稀疏多項式的項} & 基本 \\
+多項式 & \akiref{polynomial-long-division}{多項式長除法} & 基本 \\
+多項式 & \akiref{polynomial-composition}{多項式代入多項式} & 進階 \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+幾點提示：
+
+\begin{itemize}
+\item 「共用記憶體區塊的元素定位」是把位址公式反過來用：給一個指標，先找出它落在哪
+個矩陣，再用觀念題第 5 題的反函數求列和行。
+\item 「稀疏矩陣轉置」規定的輸出順序不是排好的順序，照題目做就好。 寫完之後，可以
+自己改成輸出依（列, 行）排好的結果，用快速轉置再寫一次。
+\item 「稀疏列的內積」用一個指標陣列記每一列的開頭，作用和 \proc{Row-Starts} 的
+$\mathit{rs}$ 一樣；兩列的內積就是 \proc{Sparse-Multiply} 第 8 到 15 行的合併。
+\item 「逐列累加的稀疏矩陣乘積」用的是第~\ref{sec:arr-sparse}~節最後提到的另一種乘
+法。 資料量大，每一列都把長度 $r$ 的累加陣列整個清空會太慢，要想辦法只清用過的位置。
+\item 「多項式長除法」的係數由最高次寫到常數項，和本章相反。 除式的最高次係數是
+$1$，每一步的做法和綜合除法類似。
+\item 「多項式代入多項式」把 Horner 法裡的「乘上 $x$」換成「乘上 $g(x)$」，每一步
+是一次係數陣列的乘法。
+\end{itemize}
+
+\section{讀完你應該會}
+\label{sec:arr-checklist}
+
+\begin{itemize}
+\item 給上下界、每格大小和起始位址，能用列優先和行優先算出一維、二維、三維陣列任
+一格的位址；給兩格的位址，能反推未知的維度大小或起始位址。
+\item 能推導上、下三角矩陣在列優先、行優先、下標從 $0$ 或 $1$ 開始時的對應公式，
+並用對稱性從一種推出另一種；能寫出三對角矩陣和帶狀矩陣的存法。
+\item 能把稀疏矩陣寫成三元組，手算快速轉置的 $\mathit{cnt}$、$\mathit{start}$ 和每一
+步的位置，並說明簡單轉置、快速轉置的時間。
+\item 能用「先轉置、再逐對合併」計算兩個稀疏矩陣的乘積，並算出它的時間上界。
+\item 能依次數和項數選擇多項式的表示法，說出相加、相乘的成本；能用 Horner 法求值，
+並從過程讀出除以 $(x - a)$ 的商和餘數。
+\end{itemize}
+
+\textbf{延伸閱讀}（書末會整理完整的參考資料）
+
+\begin{itemize}
+\item Thomas H. Cormen 等，\textit{Introduction to Algorithms}，第 4 版，第 10.1 節：
+陣列、列優先與行優先、一個陣列和多個陣列的存法，還提到把矩陣切成小塊存放的做法。
+第 30 章：多項式的係數表示和點值表示，以及用快速傅立葉轉換在 $\Theta(n \lg n)$ 時
+間做多項式乘法。
+\item Donald E. Knuth，\textit{The Art of Computer Programming}，第 1 冊，第 2.2.6 節：
+循序配置的位址公式、三角矩陣的存法和稀疏矩陣，是這些題材比較早的系統整理。
+\item Fred G. Gustavson，“Two Fast Algorithms for Sparse Matrices: Multiplication and
+Permuted Transposition”，\textit{ACM Transactions on Mathematical Software}，1978：
+用計數算起點的轉置，以及逐列累加的稀疏矩陣乘法，適合想知道實際的稀疏矩陣程式庫怎
+麼做的人。
+\item 《C 程式設計基礎》第~6~章 6.11 節、第~9~章 9.6 到 9.8 節：C 的二維陣列在記憶
+體裡的排法、指標算術和指標陣列，C 語法的部分寫得比本章詳細。
+\end{itemize}
+
+\addcontentsline{toc}{section}{觀念題解答}
+\section*{觀念題解答}
+
+\begin{enumerate}
+\item (a)、(c)、(e) 正確。 (a)：同一列相鄰，位移差 $1$。 (b)：行優先時同一行相鄰，
+$A[i, j]$ 和 $A[i + 1, j]$ 相差 $w$；相差 $m \cdot w$ 的是 $A[i, j]$ 和
+$A[i, j + 1]$。 (c)：$A^{\mathsf T}$ 的第 $i$ 行就是 $A$ 的第 $i$ 列，行優先存
+$A^{\mathsf T}$ 時 $A^{\mathsf T}[j, i]$ 的位移是 $(i - 1)\,n + (j - 1)$，和列優先存
+$A$ 時 $A[i, j]$ 的位移相同。 (d)：公式~(\ref{eq:arr-row}) 要乘 $n$。 (e)：
+$2 \times 8 + 3 = 19$。
+
+\item 元素個數 $44 - (-20) + 1 = 65$。 $H[0]$：位移 $20 \times 6 = 120 = \texttt{78}$，
+位址 $\texttt{2F40} + \texttt{78} = \texttt{2FB8}$。 $H[31]$：位移 $51 \times 6 = 306
+= \texttt{132}$，位址 $\texttt{3072}$。 最後一個元素 $H[44]$ 的位移 $64 \times 6 = 384
+= \texttt{180}$，從 $\texttt{30C0}$ 開始占 $6$ 個位元組，最後一個位元組是
+$\texttt{30C5}$（整個陣列共 $390$ 個位元組）。
+
+\item $m = 12$，$n = 20$。
+\begin{enumerate}
+\item 列優先：$(7 - 0) \times 20 + (3 - (-4)) = 147$，位址 $4000 + 147 \times 4 = 4588$。
+行優先：$(3 - (-4)) \times 12 + (7 - 0) = 91$，位址 $4000 + 91 \times 4 = 4364$。
+\item 位移 $(4400 - 4000)/4 = 100$。 列優先：$100 = 5 \times 20 + 0$，是 $P[5, -4]$。
+行優先：$100 = 8 \times 12 + 4$，行是 $-4 + 8 = 4$、列是 $0 + 4 = 4$，是 $P[4, 4]$。
+\end{enumerate}
+
+\item 行優先的位移是 $(j - 1)\,m + (i - 1)$。 兩式相減：$1432 - 1276 = 156 =
+[(7 - 3)\,m + (5 - 2)] \times 4$，$4m + 3 = 39$，$m = 9$。 代回：$1276 = \alpha + [(3 - 1)
+\times 9 + 1] \times 4 = \alpha + 76$，$\alpha = 1200$。 $Q[9, 8]$ 的位移是
+$7 \times 9 + 8 = 71$，位址 $1200 + 284 = 1484$。
+
+\item 令 $e_1 = i - l_1 \in \{0, \ldots, m - 1\}$、$e_2 = j - l_2 \in \{0, \ldots, n - 1\}$，
+$\mathrm{off} = e_1 n + e_2$。 範圍：最小 $0$，最大 $(m - 1)n + (n - 1) = mn - 1$。 一對
+一：若 $e_1 n + e_2 = e_1' n + e_2'$，則 $(e_1 - e_1')\,n = e_2' - e_2$，右邊的絕對值
+小於 $n$，所以兩邊都是 $0$，$e_1 = e_1'$、$e_2 = e_2'$。 $mn$ 個下標對應到 $mn$ 個不
+同的值，又都落在 $0..mn - 1$，所以剛好一對一對應。 反過來的公式就是除法的商和餘數：
+$i = l_1 + \lfloor \mathrm{off} / n \rfloor$，$j = l_2 + (\mathrm{off} \bmod n)$。
+
+\item (a) 內層是 \texttt{i} 加一，跳過一整列：$300 \times 8 = 2400$ 位元組。 (b)
+$(0 - 399) \times 2400 + 8 = -957592$，往回跳了將近整個陣列。 (c) 對調後內層是
+\texttt{j} 加一，相差 $8$ 位元組；換列時從 \texttt{a[i][299]} 到
+\texttt{a[i + 1][0]}，位移 $(i + 1) \times 300 - (i \times 300 + 299) = 1$，也只差 $8$。
+整個陣列從頭到尾依序寫一遍。
+
+\item 共 $8 \times 9 / 2 = 36$ 格。 $A[6][2]$：第 $0$ 到第 $5$ 列共 $1 + 2 + \cdots + 6
+= 21$ 格，所以是 \texttt{b[21 + 2] = b[23]}（公式 $i(i + 1)/2 + j$）。 對稱時
+$A[2][6] = A[6][2]$，也讀 \texttt{b[23]}。
+
+\item 列優先：$k = (4 - 1)(20 - 4 + 2)/2 + (7 - 4 + 1) = 27 + 4 = 31$，位址
+$600 + 30 \times 8 = 840$。 驗算：第 $1$、$2$、$3$ 列各有 $10$、$9$、$8$ 個，共 $27$；
+第 $4$ 列從 $A[4, 4]$ 數到 $A[4, 7]$ 是第 $4$ 個。 行優先：$k = 7 \times 6 / 2 + 4 =
+25$，位址 $600 + 24 \times 8 = 792$。 驗算：第 $1$ 到 $6$ 行各有 $1$ 到 $6$ 個，共
+$21$；第 $7$ 行從 $A[1, 7]$ 數到 $A[4, 7]$ 是第 $4$ 個。
+
+\item 第 $i$ 列占 $B$ 的第 $i(i - 1)/2 + 1$ 到第 $i(i + 1)/2$ 格。 所以 $i$ 是滿足
+$i(i + 1)/2 \ge k$ 的最小正整數。 $i^2 + i - 2k \ge 0$ 的正根是
+$(\sqrt{8k + 1} - 1)/2$，因此
+\[
+i = \left\lceil \frac{\sqrt{8k + 1} - 1}{2} \right\rceil ,\qquad
+j = k - \frac{i(i - 1)}{2} .
+\]
+$k = 23$：$\sqrt{185} \approx 13.6$，$(13.6 - 1)/2 \approx 6.3$，$i = 7$；$j = 23 - 21
+= 2$，是 $A[7, 2]$。 驗算 $7 \times 6/2 + 2 = 23$。
+
+\item (a) $3 \times 50 - 2 = 148$。 (b) $k = 2i + j - 2$：$A[20, 21]$ 是 $40 + 21 - 2 =
+59$，$A[50, 49]$ 是 $100 + 49 - 2 = 147$。 (c) $k = (i - 1) \times 3 + (j - i + 2)$：
+$A[20, 21]$ 是 $57 + 3 = 60$，$A[50, 49]$ 是 $147 + 1 = 148$；$E$ 共 $150$ 格，比
+(a) 多 $2$ 格（第 $1$ 列左邊、第 $50$ 列右邊各一格）。
+
+\item $\mathit{cnt} = (2, 2, 0, 1, 2, 1)$，$\mathit{start} = (0, 2, 4, 4, 5, 7)$。 每一步：
+\begin{center}
+\begin{tabular}{cccc}
+\toprule
+$p$ & 三元組 & 放進 & 之後的 $\mathit{start}[c]$ \\
+\midrule
+0 & $(0,1,7)$ & $B[2]$ & $\mathit{start}[1] = 3$ \\
+1 & $(0,4,2)$ & $B[5]$ & $\mathit{start}[4] = 6$ \\
+2 & $(1,1,-3)$ & $B[3]$ & $\mathit{start}[1] = 4$ \\
+3 & $(2,0,6)$ & $B[0]$ & $\mathit{start}[0] = 1$ \\
+4 & $(2,5,1)$ & $B[7]$ & $\mathit{start}[5] = 8$ \\
+5 & $(3,3,9)$ & $B[4]$ & $\mathit{start}[3] = 5$ \\
+6 & $(4,0,-4)$ & $B[1]$ & $\mathit{start}[0] = 2$ \\
+7 & $(4,4,8)$ & $B[6]$ & $\mathit{start}[4] = 7$ \\
+\bottomrule
+\end{tabular}
+\end{center}
+$B$（$6 \times 5$）：$(0,2,6)$、$(0,4,-4)$、$(1,0,7)$、$(1,1,-3)$、$(3,3,9)$、$(4,0,2)$、$(4,4,8)$、$(5,2,1)$。 第 $2$ 行沒有元素，$\mathit{start}[2] = \mathit{start}[3] = 4$，結果的第
+$2$ 列是空的。 把範例~\ref{ex:arr-sparse} 的 \texttt{g[]} 和大小換成這一組，
+程式印出的追蹤和上表相同。
+
+\item $\mathit{cnt} = (2, 0, 2)$，$\mathit{start} = (0, 2, 2)$。 依序放：$(2,0,6)$ 進
+$B[0]$ 成為 $(0,2,6)$；$(0,0,1)$ 進 $B[1]$ 成為 $(0,0,1)$；$(1,2,4)$ 進 $B[2]$ 成為
+$(2,1,4)$；$(0,2,5)$ 進 $B[3]$ 成為 $(2,0,5)$。 輸出 $(0,2,6)$、$(0,0,1)$、$(2,1,4)$、$(2,0,5)$。 每個元素都對調了，而且列號已經分好組，所以它代表的矩陣是
+$A^{\mathsf T}$；但同一列裡的行號是 $2, 0$ 和 $1, 0$，沒有排好。 \proc{Simple-Transpose}
+也一樣：它對每個 $c$ 由前往後掃 $A$，同一列裡的順序跟著 $A$ 的順序。 兩者都只保證
+「列」排好，「同一列依行排好」要靠輸入依列排好。
+
+\item $B'$（$2 \times 3$）：$(0,0,2)$、$(0,2,1)$、$(1,0,1)$、$(1,1,-1)$、$(1,2,4)$。
+$\mathit{ra} = (0, 2, 3)$，$\mathit{rb} = (0, 2, 5)$。 四對：
+\begin{itemize}
+\item $(0, 0)$：$A$ 第 $0$ 列 0:1、2:$-2$，$B'$ 第 $0$ 列 0:2、2:1，配對 $k = 0, 2$，
+$1 \cdot 2 + (-2) \cdot 1 = 0$，不存。
+\item $(0, 1)$：$B'$ 第 $1$ 列 0:1、1:$-1$、2:4，配對 $k = 0, 2$，$1 - 8 = -7$。
+\item $(1, 0)$：$A$ 第 $1$ 列 1:3，$B'$ 第 $0$ 列沒有 $k = 1$，$0$。
+\item $(1, 1)$：配對 $k = 1$，$3 \cdot (-1) = -3$。
+\end{itemize}
+$C = (0,1,-7), (1,1,-3)$，共 $5$ 次乘法（存滿要 $2 \times 3 \times 2 = 12$ 次）。
+$(0, 0)$ 做了兩次乘法，和是 $0$，沒有存。
+
+\item 係數由高到低是 $1, 0, -4, 2, 0, -7$。 $s$ 依序是 $1$；$1 \cdot (-2) + 0 = -2$；
+$(-2)(-2) - 4 = 0$；$0 \cdot (-2) + 2 = 2$；$2 \cdot (-2) + 0 = -4$；$(-4)(-2) - 7 = 1$。
+$p(-2) = 1$（驗算：$-32 + 32 + 8 - 7 = 1$）。 除以 $(x + 2) = (x - (-2))$ 的商是
+$x^4 - 2x^3 + 0x^2 + 2x - 4$，餘數 $1$。 共 $5$ 次乘法。
+
+\item 展開右邊的乘積：
+\[
+(x - a)\sum_{i=1}^{d} s_i\,x^{i-1} = \sum_{i=1}^{d} s_i\,x^{i} - \sum_{i=0}^{d-1} a\,s_{i+1}\,x^{i} .
+\]
+比較各次的係數：$x^d$ 的係數是 $s_d = c_d$；$1 \le i \le d - 1$ 時，$x^i$ 的係數是
+$s_i - a\,s_{i+1} = c_i$（由 $s_i$ 的定義）；常數項是 $-a\,s_1$，再加上 $s_0 = a\,s_1
++ c_0$，得到 $c_0$。 所以右邊等於 $\sum c_k x^k = p(x)$。 代入 $x = a$，第一項是 $0$，
+得到 $p(a) = s_0$。 這也證明了餘式定理：$p(x)$ 除以 $(x - a)$ 的餘數是 $p(a)$。
+
+\item (a) 係數陣列 $10^6 + 1$ 格；非零項陣列 $3$ 項、$6$ 格。 (b) $f + g$：係數陣列
+約 $10^6$ 步，非零項陣列約 $3 + 40$ 步。 $f \cdot g$：係數陣列約 $(10^6)^2 = 10^{12}$
+次乘法；非零項陣列 $3 \times 40 = 120$ 個乘積，用「一項乘整個多項式再相加」合併，相加
+的總步數不超過 $40 + 80 + 120$ 的量級，全部在幾百步以內。 (c) 係數陣列 $31$ 格，非零
+項陣列要 $62$ 格，用係數陣列。
+\end{enumerate}
