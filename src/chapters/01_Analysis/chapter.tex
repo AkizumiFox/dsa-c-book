@@ -210,20 +210,20 @@ $M$ 個位元組的記憶體，\texttt{calloc} 把它們設成 $0$ 也要時間�
 
 這本書每個演算法都會給兩種寫法：虛擬碼和 C 程式。 虛擬碼的寫法和多數演算法教科
 書、考卷上的寫法相近，用來講道理、算次數、手算追蹤；C 程式用來實際執行，驗證書上
-說的結果。 兩種寫法有幾個地方不同，下表整理在一起，之後各章不再重複。
+說的結果。 兩種寫法有幾個地方不同，下表整理在一起，之後各章不再重複。 表裡只對照寫法，$i$ 的值兩邊相同；陣列編號差 $1$ 怎麼換，見表後的說明。
 
 \begin{center}
-\begin{tabular}{p{0.20\linewidth}p{0.34\linewidth}p{0.34\linewidth}}
+\begin{tabular}{p{0.15\linewidth}p{0.33\linewidth}p{0.42\linewidth}}
 \toprule
 項目 & 虛擬碼 & C \\
 \midrule
 陣列編號 & 從 $1$ 開始：$A[1..n]$ & 從 $0$ 開始：\texttt{a[0..n-1]} \\
 指定 & $x \gets x + 1$ & \texttt{x = x + 1} \\
 比較相等 & $x = y$、不等 $x \ne y$ & \texttt{x == y}、\texttt{x != y} \\
-計數迴圈 & \textbf{for} $i \gets 2$ \textbf{to} $n$（包含 $n$）&
-\texttt{for (int i = 1; i < n; i++)} \\
-往下數 & \textbf{for} $i \gets n$ \textbf{downto} $1$ &
-\texttt{for (int i = n - 1; i >= 0; i--)} \\
+計數迴圈 & \textbf{for} $i \gets 1$ \textbf{to} $n$（包含 $n$）&
+\texttt{for (int i = 1; i <= n; i++)} \\
+往下數 & \textbf{for} $i \gets n$ \textbf{downto} $1$（包含 $1$）&
+\texttt{for (int i = n; i >= 1; i--)} \\
 且、或 & \textbf{and}、\textbf{or}，左邊決定結果時右邊不算 & \texttt{\&\&}、\texttt{||}，
 一樣不算右邊 \\
 空指標 & \NIL & \texttt{NULL} \\
