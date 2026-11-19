@@ -2,7 +2,7 @@
 
 作者：林子祐
 
-「註解 Annotated 演算法系列」的第 4 本，寫給修大學資料結構、演算法必修的學生，以及準備資工所筆試的讀者。 先備是[《C 程式設計基礎》](https://github.com/AkizumiFox/c-programming-book)（網頁版 [annotated.codes/learn/c](https://annotated.codes/learn/c)）：指標、`malloc`、`struct`、遞迴都假設已經會了，用到時用「《C 程式設計基礎》回顧」框簡短複習，並寫出在那本書的第幾章。
+寫給修大學資料結構、演算法必修的學生，以及準備資工所筆試的讀者。 先備是[《C 程式設計基礎》](https://github.com/AkizumiFox/c-programming-book)（網頁版 [annotated.codes/learn/c](https://annotated.codes/learn/c)）：指標、`malloc`、`struct`、遞迴都假設已經會了，用到時用「《C 程式設計基礎》回顧」框簡短複習，並寫出在那本書的第幾章。
 
 每個演算法都有兩種寫法：教科書風格的虛擬碼，用來講道理、算次數、手算追蹤；以及自己用 `malloc` 和指標寫的 C11 程式，不用任何現成的容器，書上印的輸出都實際跑過。 每章依序是觀念、虛擬碼、C 實作、手算追蹤（照筆試寫答案的方式，例如 AVL 每次旋轉後畫一次樹、雜湊的探測序列、每一步的堆積陣列），章末有觀念題（計算、追蹤、證明、選擇，全部自己出，附解答）和 Aki-Judge 上的實作題單（只列題名，不附解答）。
 
@@ -54,16 +54,10 @@
 | | 附錄 A　數學工具 | 草稿 |
 | | 附錄 B　筆試作答寫法 | 草稿 |
 
-## 註解 Annotated 演算法系列
+## 相關的書
 
-| # | 書名 | 狀態 |
-|---|---|---|
-| 1 | 《C++ 演算法解題 1：APCS 實作題核心》 | 草稿，[cpp-algorithms-book](https://github.com/AkizumiFox/cpp-algorithms-book) |
-| 2 | 《C++ 演算法解題 2：動態規劃與圖論》 | 草稿，[cpp-algorithms-book-2](https://github.com/AkizumiFox/cpp-algorithms-book-2) |
-| 3 | 《C++ 演算法解題 3：進階資料結構、數學與競賽》 | 規劃中 |
-| 4 | 《資料結構與演算法：C 語言、虛擬碼與研究所考試》 | 本書，草稿（第 1 章） |
-
-前三本用 C++17，一本接一本讀。 這一本用 C 和虛擬碼，不需要先讀前三本；書裡提到前三本時只當延伸閱讀。
+- 《C 程式設計基礎》（[c-programming-book](https://github.com/AkizumiFox/c-programming-book)）：本書的先備。
+- 《C++ 演算法解題 1：APCS 實作題核心》、《C++ 演算法解題 2：動態規劃與圖論》（[cpp-algorithms-book](https://github.com/AkizumiFox/cpp-algorithms-book)、[cpp-algorithms-book-2](https://github.com/AkizumiFox/cpp-algorithms-book-2)）：用 C++ 解題的另一套書。本書不需要先讀它們，書裡提到時只當延伸閱讀。
 
 ## 虛擬碼的寫法
 
