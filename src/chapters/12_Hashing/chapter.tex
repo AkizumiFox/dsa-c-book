@@ -752,7 +752,7 @@ $m(m-1)$ 種。 第~\ref{sec:hash-analysis}~節的理想模型允許全部 $m!$ 
 刪除。
 
 \begin{pseudo}[label=alg:hash-tomb]{有刪除標記的插入與刪除}
-\Function{Tomb-Insert}{$T, k$}
+\Function{Mark-Insert}{$T, k$}
     \State $a \gets \NIL$ \Comment{第一個可以放的格子}
     \For{$i \gets 0$ \To $m - 1$}
         \State $j \gets h(k, i)$
@@ -772,7 +772,7 @@ $m(m-1)$ 種。 第~\ref{sec:hash-analysis}~節的理想模型允許全部 $m!$ 
     \State $T[a] \gets k$
     \State \Return $a$
 \EndFunction
-\Procedure{Tomb-Delete}{$T, k$}
+\Procedure{Mark-Delete}{$T, k$}
     \State $j \gets$ \Call{Open-Search}{$T, k$}
     \If{$j \ne \NIL$}
         \State $T[j] \gets \hashDEL$
@@ -780,7 +780,7 @@ $m(m-1)$ 種。 第~\ref{sec:hash-analysis}~節的理想模型允許全部 $m!$ 
 \EndProcedure
 \end{pseudo}
 
-\proc{Tomb-Insert} 遇到第一個刪除標記時先記在 $a$（第 7、8 行），但不能馬上放：$k$ 可
+\proc{Mark-Insert} 遇到第一個刪除標記時先記在 $a$（第 7、8 行），但不能馬上放：$k$ 可
 能就在更後面，直接放會讓表裡有兩個 $k$。 所以它繼續往後找，直到遇到空格（第 9、10
 行）或找到 $k$（第 5、6 行）才停，最後把 $k$ 放在第一個可以放的格子。 回到線性探測
 的例子，刪除 $1682$ 之後做三件事，見圖~\ref{fig:hash-tomb}。
@@ -873,7 +873,7 @@ $\Theta(m)$ 個鍵，重建的 $O(m)$ 平攤到這些插入上，每次 $O(1)$�
 
 下面的程式把三種探測法寫在同一個函式 \texttt{probe} 裡，用 \texttt{mode} 選擇；每格
 有 \texttt{EMPTY}、\texttt{FULL}、\texttt{DELETED} 三種狀態。 \texttt{search} 就
-是虛擬碼的 \proc{Open-Search} 加上 \proc{Tomb-Insert} 要的「第一個可以放的格子」，
+是虛擬碼的 \proc{Open-Search} 加上 \proc{Mark-Insert} 要的「第一個可以放的格子」，
 \texttt{operate} 的插入、搜尋、刪除都先呼叫它，再依結果放鍵或立標記。 \texttt{main} 把這一節的九張停車證用三種方法各插一次，
 線性探測再做一次刪除、搜尋和插入。 線性探測的每個操作印一行：\texttt{i}、\texttt{f}、
 \texttt{d} 是插入、搜尋、刪除，接著是試過的格子、結果的格子（\texttt{-1} 表示沒找
