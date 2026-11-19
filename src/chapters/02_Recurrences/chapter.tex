@@ -98,7 +98,7 @@ $\lfloor n/2 \rfloor$。 每一次呼叫只會往下呼叫\textbf{一次}，呼�
 \[
 W(n) = W(\lfloor n/2 \rfloor) + c \quad (n \ge 1), \qquad W(0) = c,
 \]
-$c$ 是一次呼叫除了遞迴以外的成本。 觀念題第 12 題會證明這時總共呼叫
+$c$ 是一次呼叫除了遞迴以外的成本。 觀念題第~\ref{rec-q-halving}~題會證明這時總共呼叫
 $\lfloor \lg n \rfloor + 2$ 次，所以 $W(n) = \Theta(\lg n)$。
 
 \subsection{例子：層層核對的報表加總}
@@ -145,10 +145,11 @@ C(1) = 1, \qquad C(n) = C(\lceil n/2 \rceil) + C(\lfloor n/2 \rfloor) + 1 \quad 
 \subsection{手算追蹤}
 
 $n = 5$ 時把每一次呼叫畫成一個節點，節點裡寫它處理的那一段，下面寫它自己做了幾
-次加法（不含下一層的）。 這種圖叫\textbf{遞迴樹}（recursion tree），第~\ref{sec:rec-tree}~節
-會把它當成解遞迴式的工具。
+次加法（不含下一層的），見圖~\ref{fig:rec-audit5}。 這種圖叫\textbf{遞迴樹}（recursion
+tree），第~\ref{sec:rec-tree}~節會把它當成解遞迴式的工具。
 
-\begin{center}
+\begin{figure}[tbp]
+\centering
 \begin{tikzpicture}[level distance=1.45cm]
 \node[rnode] (a) at (0,0) {$A[1..5]$\\[-1pt]{\scriptsize 加 5 次}};
 \node[rnode] (b) at (-3,-1.6) {$A[1..3]$\\[-1pt]{\scriptsize 加 3 次}};
@@ -168,7 +169,7 @@ $n = 5$ 時把每一次呼叫畫成一個節點，節點裡寫它處理的那一
 \diagcaption{\proc{Audit-Sum} 處理 5 天的遞迴樹。 共 9 次呼叫、$5 + 5 + 2 = 12$ 次
 加法。 第 0、1 層各加 5 次；第 2 層只有 $A[1..2]$ 要加，其他都是基礎情況。}
 \label{fig:rec-audit5}
-\end{center}
+\end{figure}
 
 考卷上寫追蹤時，也可以把遞迴式一個一個代進去，由小到大列表：
 \begin{center}
@@ -706,6 +707,13 @@ $\lg n$，不是情況 1；推廣的情況 2 要 $k \ge 0$，這裡等於 $k = -
 $4^m = n^2$ 個。 $H_m = \Theta(\lg m)$，所以
 $T(n) = \Theta(n^2 \lg \lg n)$，比 $n^2$ 大，比 $n^2 \lg n$ 小。
 
+有些課本和講義把推廣的情況 2 再延伸到 $k < 0$：$f(n) = \Theta(n^{\log_b a} \lg^k n)$
+時，$k > -1$ 得 $\Theta(n^{\log_b a} \lg^{k+1} n)$，$k = -1$ 得
+$\Theta(n^{\log_b a} \lg \lg n)$（就是上面這個例子），$k < -1$ 得
+$\Theta(n^{\log_b a})$。 理由和這裡一樣：第 $j$ 層是 $n^{\log_b a}$ 乘上
+$(m - j)^k$ 的常數倍，加總時 $k = -1$ 是調和級數，$k < -1$ 時和有上界。 本書的
+定理只到 $k \ge 0$；考卷沒有給延伸的版本時，用遞迴樹把它算出來，不要直接引用。
+
 \textbf{不是 $aT(n/b) + f(n)$ 的形式。} 規模是減的，例如 $T(n) = T(n-1) + n$（見
 第~\ref{sec:rec-other}~節）；子問題不一樣大，例如 $T(n/4) + T(3n/4) + n$（見
 第~\ref{sec:rec-tree}~節和第~\ref{sec:rec-gf}~節）；$a$ 不是常數，例如
@@ -733,7 +741,8 @@ D：$4T(n/2) + n^2/\lg n$，D1 印 $T(n)/(n^2 \lg n)$，D2 印 $T(n)/(n^2 \lg \l
 //   A: T(n) = 3T(n/2) + n            除以 n^(lg 3) = 3^k
 //   B: T(n) = 2T(n/2) + n            除以 n lg n
 //   C: T(n) = 2T(n/2) + n^2          除以 n^2
-//   D: T(n) = 4T(n/2) + n^2 / lg n   D1 除以 n^2 lg n，D2 除以 n^2 lg lg n
+//   D: T(n) = 4T(n/2) + n^2 / lg n   D1 除以 n^2 lg n，
+//                                    D2 除以 n^2 lg lg n
 int main(void)
 {
     double ta = 1, tb = 1, tc = 1, td = 1;  // T(2^0)
@@ -746,7 +755,8 @@ int main(void)
         tb = 2 * tb + n;
         tc = 2 * tc + n * n;
         td = 4 * td + n * n / k;              // lg n = k
-        if (k == 2 || k == 4 || k == 8 || k == 16 || k == 32 || k == 64) {
+        if (k == 2 || k == 4 || k == 8 ||
+            k == 16 || k == 32 || k == 64) {
             printf("%d %.4f %.4f %.4f %.4f %.4f\n", k, ta / pow3,
                    tb / (n * k), tc / (n * n), td / (n * n * k),
                    td / (n * n * log2(k)));
@@ -946,7 +956,7 @@ $d \cdot s^n$ & $p \cdot s^n$ \\
 \end{center}
 
 例外：如果 $1$（前兩列）或 $s$（第三列）剛好是特徵方程式的根，猜的式子會被齊次部
-分吃掉，要再乘上 $n$（重根乘 $n^2$）。 觀念題第 11 題 (b) 就是這種情形。
+分吃掉，要再乘上 $n$（重根乘 $n^2$）。 觀念題第~\ref{rec-q-nonhomog}~題 (b) 就是這種情形。
 
 \textbf{例 3。} 回到鋪地磚。 照定義直接寫遞迴函式，最右邊是長 $2$ 的磚時，紅、藍
 各呼叫一次，所以呼叫次數是
@@ -974,8 +984,9 @@ long long calls;    // tile 被呼叫的次數
 long long tile(int n)
 {
     calls++;
+    // 長 0：什麼都不鋪；長 1：一塊灰磚
     if (n <= 1) {
-        return 1;                   // 長 0：什麼都不鋪；長 1：一塊灰磚
+        return 1;
     }
     long long ways = tile(n - 1);   // 最右邊是灰磚
     for (int color = 0; color < 2; color++) {
@@ -993,7 +1004,8 @@ int main(void)
         long long sign = (n % 2 == 0) ? 1 : -1;     // (-1)^n
         calls = 0;
         long long w = tile(n);
-        printf("%d %lld %lld %lld %lld\n", n, w, ((2LL << n) + sign) / 3,
+        printf("%d %lld %lld %lld %lld\n", n, w,
+               ((2LL << n) + sign) / 3,
                calls, (1LL << n) + (sign - 1) / 2);
     }
     return 0;
@@ -1062,7 +1074,7 @@ $k = 1$ 時它包含主定理的大部分情形。
 \label{sec:rec-pitfalls}
 
 \begin{center}
-\begin{tabular}{p{0.24\linewidth}p{0.50\linewidth}p{0.16\linewidth}}
+\begin{tabular}{>{\raggedright\arraybackslash}p{0.24\linewidth}>{\raggedright\arraybackslash}p{0.50\linewidth}p{0.16\linewidth}}
 \toprule
 錯誤 & 例子 & 見 \\
 \midrule
@@ -1164,13 +1176,13 @@ O(n)$。 所以 $T(n) = O(n)$。
 \item $a_n = 4a_{n-1} - 4a_{n-2}$，$a_0 = 2$，$a_1 = 2$。
 \end{enumerate}
 
-\item （計算）解下列遞迴式，寫出封閉形式。
+\item \label{rec-q-nonhomog}（計算）解下列遞迴式，寫出封閉形式。
 \begin{enumerate}
 \item $T(0) = 0$，$T(n) = 3T(n-1) + 2^n$。
 \item $T(0) = 0$，$T(n) = 2T(n-1) + 2^n$。
 \end{enumerate}
 
-\item （證明）$R(1) = 0$，$n \ge 2$ 時 $R(n) = R(\lfloor n/2 \rfloor) + 1$。 證明
+\item \label{rec-q-halving}（證明）$R(1) = 0$，$n \ge 2$ 時 $R(n) = R(\lfloor n/2 \rfloor) + 1$。 證明
 $R(n) = \lfloor \lg n \rfloor$。 再用它說明：虛擬碼~\ref{alg:rec-search} 在 $n \ge 1$
 個數裡找一個比全部都大的 $x$ 時，一共呼叫 $\lfloor \lg n \rfloor + 2$ 次。
 

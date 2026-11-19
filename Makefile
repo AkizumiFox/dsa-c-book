@@ -61,7 +61,7 @@ $(CHAPTERS_OUTDIR)/%.pdf: FORCE
 	@echo "Building chapter: $*..."
 	@wrapper="$(BUILDDIR)/chapter-$*.tex" && \
 	chap_num=$$(echo "$*" | grep -o '^[0-9]\+') && \
-	sed -e '/\\include{chapters/d' -e '/\\input{chapters/d' -e '/\\setcounter{chapter}/d' \
+	sed -e '/% BEGIN-APPENDIX-SETUP/,/% END-APPENDIX-SETUP/d' -e '/\\include{chapters/d' -e '/\\input{chapters/d' -e '/\\setcounter{chapter}/d' \
 	    -e '/\\end{document}/d' -e '/\\maketitle/d' -e '/\\romantableofcontents/d' \
 	    -e '/\\tableofcontents/d' $(SRCDIR)/book.tex > "$$wrapper" && \
 	echo "\\setcounter{chapter}{$$(( 10#$$chap_num - 1 ))}" >> "$$wrapper" && \

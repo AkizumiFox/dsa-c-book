@@ -34,12 +34,13 @@
     minted language={#2},
     listing only,
     minted style=perldoc,
-    minted options={breaklines, autogobble, linenos, numbersep=3mm},
+    minted options={breaklines, autogobble, linenos, numbersep=1.5mm},
     title={\textbf{片段~\thetcbcounter：}#3},
     sharp corners,
     breakable,
     colback=white,
-    left=7mm,
+    left=8.5mm,  % 三位數行號（100 行以上）也要在框內
+    right=2.5mm, % 左邊多出的 1.5mm 從右邊扣回來，每行能放的字數不變
     #1
 }
 
@@ -52,12 +53,13 @@
     minted language={#2},
     listing only,
     minted style=perldoc,
-    minted options={breaklines, autogobble, linenos, numbersep=3mm},
+    minted options={breaklines, autogobble, linenos, numbersep=1.5mm},
     title={\textbf{範例~\thetcbcounter：}#3},
     sharp corners,
     breakable,
     colback=white,
-    left=7mm,
+    left=8.5mm,  % 三位數行號（100 行以上）也要在框內
+    right=2.5mm, % 左邊多出的 1.5mm 從右邊扣回來，每行能放的字數不變
     #1
 }
 
@@ -184,3 +186,4 @@
 }
 
 \endinput
+

@@ -23,6 +23,9 @@
     tps-lvl/.style={font=\scriptsize, text=black!55, anchor=east},
     tps-gone/.style={text=black!35},
 }
+% 後面至少要有 #1 的空間，否則換頁（避免虛擬碼框在開頭幾行就被切開）
+\providecommand{\tpsneed}[1]{\par\penalty-100\begingroup\dimen0=\dimexpr\pagegoal-\pagetotal\relax
+    \ifdim #1>\dimen0 \ifdim\dimen0>0pt \vfil\fi\penalty-10000\fi\endgroup}
 % 手算表裡已經取出的頂點
 \newcommand{\tpsgone}{\textcolor{black!35}{--}}
 
@@ -117,7 +120,7 @@ $x_0, x_1, \ldots, x_n$ 共 $n + 1$ 個頂點，一定有兩個相同，設 $x_i
 \end{theorem}
 
 \begin{proof}
-有環就沒有拓樸順序，上面已經說明。 反方向對 $n$ 做歸納：$n = 1$ 時顯然成立。 $n > 1$
+有環就沒有拓樸順序，上面已經說明。 反方向對 $n$ 做歸納：$n = 1$ 時只有一個頂點，它自己就是一個拓樸順序。 $n > 1$
 時，由引理~\ref{lem:tps-source}，$G$ 有一個入度 $0$ 的頂點 $s$。 把 $s$ 和它的出邊拿
 掉，剩下的圖仍然沒有環，由歸納假設有拓樸順序；把 $s$ 放在最前面，$s$ 的邊都往後指，
 其他邊照舊，所以整列是 $G$ 的拓樸順序。
@@ -148,11 +151,11 @@ $Q$ 裡同時有好幾個頂點時，取哪一個都對，但答案會不一樣�
         \State $\mathit{in}[v] \gets 0$
     \EndFor
     \For{$u \gets 1$ \To $n$}
-        \For{$\mathit{Adj}[u]$ 裡的每一個 $v$}
+        \For{每個 $v \in \mathit{Adj}[u]$}
             \State $\mathit{in}[v] \gets \mathit{in}[v] + 1$
         \EndFor
     \EndFor
-    \State $Q \gets$ 空的佇列；$L \gets$ 空的串列
+    \State $Q \gets$ 空佇列；$L \gets$ 空串列
     \For{$v \gets 1$ \To $n$} \Comment{編號由小到大}
         \If{$\mathit{in}[v] = 0$}
             \State \Call{Enqueue}{$Q, v$}
@@ -161,7 +164,7 @@ $Q$ 裡同時有好幾個頂點時，取哪一個都對，但答案會不一樣�
     \While{$Q$ 不是空的}
         \State $u \gets$ \Call{Dequeue}{$Q$}
         \State 把 $u$ 接到 $L$ 的尾端
-        \For{$\mathit{Adj}[u]$ 裡的每一個 $v$} \Comment{編號由小到大}
+        \For{每個 $v \in \mathit{Adj}[u]$} \Comment{編號由小到大}
             \State $\mathit{in}[v] \gets \mathit{in}[v] - 1$
             \If{$\mathit{in}[v] = 0$}
                 \State \Call{Enqueue}{$Q, v$}
@@ -223,9 +226,11 @@ $\{7\}$，結果是
 \[
 L' = 2, 3, 1, 5, 6, 4, 8, 7.
 \]
-這個版本排出的是所有拓樸順序裡\textbf{字典序最小}的一個：每一步都在「現在可以排的頂點」
-裡挑最小的，而任何拓樸順序在同一個位置都只能從這些頂點裡挑。 代價是每次進出優先佇列
-花 $O(\lg n)$，總時間變成 $O(m + n \lg n)$。
+這個版本排出的是所有拓樸順序裡\textbf{字典序最小}的一個。 拿它和任何一個別的拓樸順序
+比，看第一個不同的位置 $k$：前 $k - 1$ 個頂點相同，所以第 $k$ 個位置能放的，在兩邊都是
+「前驅全都排在前 $k - 1$ 個裡」的頂點，也就是這時 $Q$ 裡的頂點。 最小優先佇列版挑的是其
+中最小的，另一個順序挑的一定比它大。 代價是每次進出優先佇列花 $O(\lg n)$，總時間變成
+$O(m + n \lg n)$。
 
 \begin{examnote}
 Kahn 演算法的追蹤題，答案取決於三個約定：(1) 入度 $0$ 的頂點用佇列、堆疊還是「每次挑
@@ -277,16 +282,17 @@ $C$ 上的頂點一個都排不出去，$L$ 不到 $n$ 個。
 再\textbf{依 $f$ 由大到小}排列。 實作時不必真的排序：每完成一個頂點就把它插到串列的最
 前面，最後完成的自然在最前面。
 
+\tpsneed{8cm}
 \subsection{演算法}
 
 \begin{pseudo}[label=alg:tps-dfs]{用 DFS 做拓樸排序}
 \Function{DFS-Topo-Sort}{$G$}
     \For{$u \gets 1$ \To $n$}
-        \State $\mathit{color}[u] \gets$ 白
+        \State $\mathit{color}[u] \gets \gtrwhite$
     \EndFor
-    \State $\mathit{time} \gets 0$；$L \gets$ 空的串列
+    \State $\mathit{time} \gets 0$；$L \gets$ 空串列
     \For{$u \gets 1$ \To $n$}
-        \If{$\mathit{color}[u] =$ 白}
+        \If{$\mathit{color}[u] = \gtrwhite$}
             \State \Call{Topo-Visit}{$G, u$}
         \EndIf
     \EndFor
@@ -294,15 +300,15 @@ $C$ 上的頂點一個都排不出去，$L$ 不到 $n$ 個。
 \EndFunction
 \Procedure{Topo-Visit}{$G, u$}
     \State $\mathit{time} \gets \mathit{time} + 1$；$d[u] \gets \mathit{time}$
-    \State $\mathit{color}[u] \gets$ 灰
-    \For{$\mathit{Adj}[u]$ 裡的每一個 $v$} \Comment{編號由小到大}
-        \If{$\mathit{color}[v] =$ 白}
+    \State $\mathit{color}[u] \gets \gtrgray$
+    \For{每個 $v \in \mathit{Adj}[u]$} \Comment{編號由小到大}
+        \If{$\mathit{color}[v] = \gtrwhite$}
             \State \Call{Topo-Visit}{$G, v$}
-        \ElsIf{$\mathit{color}[v] =$ 灰}
+        \ElsIf{$\mathit{color}[v] = \gtrgray$}
             \State 回報「找到後向邊 $(u, v)$，有環」並停止
         \EndIf
     \EndFor
-    \State $\mathit{color}[u] \gets$ 黑
+    \State $\mathit{color}[u] \gets \gtrblack$
     \State $\mathit{time} \gets \mathit{time} + 1$；$f[u] \gets \mathit{time}$
     \State 把 $u$ 插到 $L$ 的最前面
 \EndProcedure
@@ -396,7 +402,7 @@ $2 \to 1$ 有 $f[1] = 6 < 12 = f[2]$，$1$ 在 $2$ 被發現之前就完成了�
 \node[tps-v] (L4) at (6,0) {4};
 \node[tps-v] (L7) at (7,0) {7};
 \foreach \v/\t in {3/16, 6/15, 2/12, 5/11, 8/10, 1/6, 4/5, 7/4} {
-    \node[tps-time] at ($(L\v)+(0,-0.48)$) {$f = \t$};
+    \node[tps-time] at ($(L\v)+(0,-1.0)$) {$f = \t$};
 }
 \draw[tps-e] (L3) -- (L6);
 \draw[tps-e] (L2) -- (L5);
@@ -449,14 +455,14 @@ typedef struct {
     Node **head;                // head[u]：u 的出邊，終點由小到大
     int *indeg;                 // 入度
     int *color, *d, *f, time;   // DFS 用
-    int *order, pos;            // DFS 完成的頂點從 order 的最後一格往前放
+    int *order, pos;            // 完成的頂點從 order 尾端往前放
     int back_u, back_v;         // 找到的後向邊；沒有時 back_u = -1
 } Graph;
 
 int graph_init(Graph *g, int n)
 {
     g->n = n;
-    g->head = calloc(n, sizeof *g->head);   // 每一格都是 NULL：空串列
+    g->head = calloc(n, sizeof *g->head);   // 每格都是 NULL：空串列
     g->indeg = calloc(n, sizeof(int));
     g->color = calloc(n, sizeof(int));      // 0 就是 WHITE
     g->d = calloc(n, sizeof(int));
@@ -465,7 +471,8 @@ int graph_init(Graph *g, int n)
     g->time = 0;
     g->pos = n;
     g->back_u = g->back_v = -1;
-    return g->head && g->indeg && g->color && g->d && g->f && g->order;
+    return g->head && g->indeg && g->color && g->d && g->f
+           && g->order;
 }
 
 void graph_free(Graph *g)
@@ -533,7 +540,8 @@ void visit(Graph *g, int u)
 {
     g->d[u] = ++g->time;
     g->color[u] = GRAY;
-    for (Node *x = g->head[u]; x != NULL && g->back_u < 0; x = x->next) {
+    for (Node *x = g->head[u]; x != NULL && g->back_u < 0;
+         x = x->next) {
         if (g->color[x->to] == WHITE) {
             visit(g, x->to);
         } else if (g->color[x->to] == GRAY) {   // 後向邊：有環
@@ -562,8 +570,8 @@ int main(void)
         int ok = graph_init(&g, n);
         for (int i = 0; i < m && ok; i++) {
             int u, v;
-            ok = scanf("%d %d", &u, &v) == 2 && u >= 1 && u <= n && v >= 1
-                 && v <= n && add_edge(&g, u - 1, v - 1);
+            ok = scanf("%d %d", &u, &v) == 2 && u >= 1 && u <= n
+                 && v >= 1 && v <= n && add_edge(&g, u - 1, v - 1);
         }
         int *q = ok ? malloc(n * sizeof *q) : NULL;
         int cnt = q != NULL ? kahn(&g, q) : -1;
@@ -583,12 +591,17 @@ int main(void)
             }
         }
         if (g.back_u >= 0) {
-            printf("dfs: back edge %d -> %d (cycle)\n", g.back_u + 1, g.back_v + 1);
+            printf("dfs: back edge %d -> %d (cycle)\n",
+                   g.back_u + 1, g.back_v + 1);
         } else {
             print_list("dfs", g.order, n);
-            printf("\nd f:");
+            printf("\nd:");
             for (int v = 0; v < n; v++) {
-                printf(" %d/%d", g.d[v], g.f[v]);
+                printf(" %d", g.d[v]);
+            }
+            printf("\nf:");
+            for (int v = 0; v < n; v++) {
+                printf(" %d", g.f[v]);
             }
             printf("\n");
         }
@@ -598,10 +611,10 @@ int main(void)
     return 0;
 }
 \end{example}
-\iosample{8 11 \\ 2 1 3 1 1 4 2 5 3 6 5 4 \\ 6 4 5 8 6 8 4 7 8 7 \\ 5 6 \\ 1 2 2 3 3 4 4 2 1 5 5 3}{kahn: 2 3 5 1 6 4 8 7 \\ dfs: 3 6 2 5 8 1 4 7 \\ d f: 1/6 7/12 13/16 2/5 8/11 14/15 3/4 9/10 \\ kahn: 1 5 (stuck, 3 left: cycle) \\ dfs: back edge 4 -> 2 (cycle)}
+\iosample{8 11 \\ 2 1 3 1 1 4 2 5 3 6 5 4 \\ 6 4 5 8 6 8 4 7 8 7 \\ 5 6 \\ 1 2 2 3 3 4 4 2 1 5 5 3}{kahn: 2 3 5 1 6 4 8 7 \\ dfs: 3 6 2 5 8 1 4 7 \\ d: 1 7 13 2 8 14 3 9 \\ f: 6 12 16 5 11 15 4 10 \\ kahn: 1 5 (stuck, 3 left: cycle) \\ dfs: back edge 4 -> 2 (cycle)}
 
-第一張圖是 $G_1$，兩種方法的順序和 $d$、$f$（\texttt{d f:} 那一行依頂點 $1..8$ 列出
-$d/f$）都和手算相同。 第二張圖有環 $2 \to 3 \to 4 \to 2$：Kahn 演算法取出 $1$、$5$ 之
+第一張圖是 $G_1$，兩種方法的順序和 $d$、$f$（\texttt{d:}、\texttt{f:} 兩行依頂點
+$1..8$ 列出）都和手算相同。 第二張圖有環 $2 \to 3 \to 4 \to 2$：Kahn 演算法取出 $1$、$5$ 之
 後，$2$、$3$、$4$ 的入度都還是 $1$，佇列空了；DFS 從 $1$ 出發依序發現 $2$、$3$、$4$，在
 $4$ 檢查邊 $4 \to 2$ 時 $2$ 還是灰的。 想要字典序最小的版本，把佇列換成第~8~章的最小堆
 積就好，其他不變。 遞迴深度最多是 $n$；$n$ 很大（例如 $10^6$ 個頂點排成一條鏈）時，C 的
@@ -610,7 +623,7 @@ $4$ 檢查邊 $4 \to 2$ 時 $2$ 還是灰的。 想要字典序最小的版本�
 \subsection{兩種方法的比較}
 
 \begin{center}
-\begin{tabular}{p{0.2\linewidth}p{0.34\linewidth}p{0.34\linewidth}}
+\begin{tabular}{>{\raggedright\arraybackslash}p{0.2\linewidth}>{\raggedright\arraybackslash}p{0.34\linewidth}>{\raggedright\arraybackslash}p{0.34\linewidth}}
 \toprule
  & Kahn 演算法 & DFS 完成時間法 \\
 \midrule
@@ -839,8 +852,10 @@ $c_2$ 個拓樸順序。 整張圖的拓樸順序，等於先決定哪 $n_1$ 個
 \]
 個。 特例：兩條鏈 $a_1 \to \cdots \to a_p$ 和 $b_1 \to \cdots \to b_q$，每條鏈自己只有
 $1$ 種順序，合起來有 $\binom{p + q}{p}$ 種，就是「把兩疊牌洗在一起、各自保持順序」的
-方法數。 推廣到 $k$ 塊，是多項式係數 $\frac{(n_1 + \cdots + n_k)!}{n_1! \cdots n_k!}
-\, c_1 \cdots c_k$。
+方法數。 推廣到 $k$ 塊，是多項式係數乘上各塊的個數：
+\[
+\frac{(n_1 + \cdots + n_k)!}{n_1! \cdots n_k!} \, c_1 \cdots c_k.
+\]
 
 \textbf{必經的頂點。} 若頂點 $x$ 和其他每一個頂點之間都有路徑（不是 $x$ 走得到它，就
 是它走得到 $x$），$x$ 在每個拓樸順序裡的位置都一樣，前面是所有走得到 $x$ 的頂點，後面
@@ -960,7 +975,7 @@ D 還在等 C；取出 C，D 進佇列……得到
 放在邊上，頂點變成「某些活動都完成了」的時間點。 兩種網路的差別整理如下。
 
 \begin{center}
-\begin{tabular}{p{0.2\linewidth}p{0.34\linewidth}p{0.34\linewidth}}
+\begin{tabular}{>{\raggedright\arraybackslash}p{0.2\linewidth}>{\raggedright\arraybackslash}p{0.34\linewidth}>{\raggedright\arraybackslash}p{0.34\linewidth}}
 \toprule
  & AOV 網路 & AOE 網路 \\
 \midrule
@@ -993,39 +1008,8 @@ D 還在等 C；取出 C，D 進佇列……得到
 有時候兩項活動之間只有先後關係，沒有實際的工作，就用一條工期 $0$ 的\textbf{虛活動}
 （dummy activity）表示，圖上畫成虛線。 下面的例子會看到為什麼需要它。
 
-\textbf{例子：裝修工程。} 章首的裝修工程整理成下面兩張表：第一張是事件的意思，第二張是活動。
-\begin{center}
-\small
-\begin{tabular}{cl@{\hspace{2em}}cl}
-1 & 開工 & 6 & 可以油漆（泥作、木作都完成） \\
-2 & 拆除完成 & 7 & 油漆完成，系統櫃也運到了 \\
-3 & 系統櫃設計定案 & 8 & 系統櫃、衛浴設備都裝好 \\
-4 & 水電配管完成 & 9 & 完工 \\
-5 & 窗框與浴室泥作完成 & & \\
-\end{tabular}
-\end{center}
-
-\begin{center}
-\begin{tabular}{clcc}
-\toprule
-活動 & 內容 & 邊 & 工期（天） \\
-\midrule
-$a_1$ & 拆除舊裝潢 & $\langle 1, 2 \rangle$ & 4 \\
-$a_2$ & 丈量並設計系統櫃 & $\langle 1, 3 \rangle$ & 3 \\
-$a_3$ & 水電配管 & $\langle 2, 4 \rangle$ & 5 \\
-$a_4$ & 更換窗框 & $\langle 2, 5 \rangle$ & 3 \\
-$a_5$ & 工廠製作系統櫃 & $\langle 3, 7 \rangle$ & 14 \\
-$a_6$ & 浴室防水與貼磚 & $\langle 4, 5 \rangle$ & 6 \\
-$a_7$ & 天花板木作 & $\langle 4, 6 \rangle$ & 6 \\
-$a_8$ & （虛活動） & $\langle 5, 6 \rangle$ & 0 \\
-$a_9$ & 安裝衛浴設備 & $\langle 5, 8 \rangle$ & 2 \\
-$a_{10}$ & 油漆 & $\langle 6, 7 \rangle$ & 5 \\
-$a_{11}$ & 安裝系統櫃 & $\langle 7, 8 \rangle$ & 3 \\
-$a_{12}$ & 裝燈具與清潔 & $\langle 8, 9 \rangle$ & 2 \\
-\bottomrule
-\end{tabular}
-\end{center}
-
+\textbf{例子：裝修工程。} 章首的裝修工程畫成圖~\ref{fig:tps-aoe} 的 AOE 網路。 圖後的左表是每個事件的
+意思，右表是每項活動的內容和工期。
 \begin{center}
 \begin{tikzpicture}[x=1.22cm, y=1.1cm]
 \node[tps-ev] (e1) at (0, 1.2) {1};
@@ -1052,6 +1036,43 @@ $a_{12}$ & 裝燈具與清潔 & $\langle 8, 9 \rangle$ & 2 \\
 \end{tikzpicture}
 \diagcaption{裝修工程的 AOE 網路。 圓圈是事件，邊是活動，數字是工期（天）；虛線是虛活動。}
 \label{fig:tps-aoe}
+\end{center}
+
+\begin{center}
+\small
+\begin{tabular}[t]{cl}
+\toprule
+事件 & 意思 \\
+\midrule
+1 & 開工 \\
+2 & 拆除完成 \\
+3 & 系統櫃設計定案 \\
+4 & 水電配管完成 \\
+5 & 窗框與浴室泥作完成 \\
+6 & 可以油漆（泥作、木作都完成） \\
+7 & 油漆完成，系統櫃也運到了 \\
+8 & 系統櫃、衛浴設備都裝好 \\
+9 & 完工 \\
+\bottomrule
+\end{tabular}\hspace{1.5em}%
+\begin{tabular}[t]{clcc}
+\toprule
+活動 & 內容 & 邊 & 工期（天） \\
+\midrule
+$a_1$ & 拆除舊裝潢 & $\langle 1, 2 \rangle$ & 4 \\
+$a_2$ & 丈量並設計系統櫃 & $\langle 1, 3 \rangle$ & 3 \\
+$a_3$ & 水電配管 & $\langle 2, 4 \rangle$ & 5 \\
+$a_4$ & 更換窗框 & $\langle 2, 5 \rangle$ & 3 \\
+$a_5$ & 工廠製作系統櫃 & $\langle 3, 7 \rangle$ & 14 \\
+$a_6$ & 浴室防水與貼磚 & $\langle 4, 5 \rangle$ & 6 \\
+$a_7$ & 天花板木作 & $\langle 4, 6 \rangle$ & 6 \\
+$a_8$ & （虛活動） & $\langle 5, 6 \rangle$ & 0 \\
+$a_9$ & 安裝衛浴設備 & $\langle 5, 8 \rangle$ & 2 \\
+$a_{10}$ & 油漆 & $\langle 6, 7 \rangle$ & 5 \\
+$a_{11}$ & 安裝系統櫃 & $\langle 7, 8 \rangle$ & 3 \\
+$a_{12}$ & 裝燈具與清潔 & $\langle 8, 9 \rangle$ & 2 \\
+\bottomrule
+\end{tabular}
 \end{center}
 
 虛活動 $a_8$ 的用處：油漆要等泥作（事件 5）和木作（$a_7$）都完成，衛浴設備卻只要等泥
@@ -1081,6 +1102,7 @@ $\min$ 就是有向無環圖上的最短路徑，第~25~章會再用到。
 裝修工程的事件編號 $1..9$ 剛好就是一個拓樸順序，依序算：
 
 \begin{center}
+\small
 \begin{tabular}{cclc}
 \toprule
 事件 $j$ & 指向 $j$ 的活動 & 計算 & $\mathit{ee}[j]$ \\
@@ -1114,6 +1136,7 @@ $\mathit{le}[j] - \mathit{dur}$ 開工；$i$ 必須趕上其中最早的那一�
 $\mathit{le}[i]$ 用到的是 $i$ 的後繼，所以\textbf{依拓樸順序倒過來}算。
 
 \begin{center}
+\small
 \begin{tabular}{cclc}
 \toprule
 事件 $i$ & 從 $i$ 出發的活動 & 計算 & $\mathit{le}[i]$ \\
@@ -1151,6 +1174,7 @@ $\mathit{le}[i]$ 是「從 $i$ 出發的所有活動裡，最急的那一項」�
 以更晚。 把 $l(a)$ 寫成 $\mathit{le}[i]$ 是最常見的錯誤。
 
 \begin{center}
+\small
 \begin{tabular}{clccccc}
 \toprule
 活動 & 內容 & 工期 & $e$ & $l$ & $l - e$ & 關鍵 \\
@@ -1173,11 +1197,12 @@ $a_{12}$ & 裝燈具與清潔 & 2 & 23 & $25 - 2 = 23$ & 0 & $\checkmark$ \\
 
 \begin{examnote}
 AOE 的記號各本書不同，作答前先對照題目用的是哪一套。 本書用 $\mathit{ee}$／$\mathit{le}$
-表示事件的最早、最晚時間，$e$／$l$ 表示活動的最早、最晚開始時間。 常見的其他寫法有：
-事件用 $\mathit{ve}(j)$／$\mathit{vl}(j)$、$\mathit{TE}$／$\mathit{TL}$ 或
-$\mathit{early}$／$\mathit{late}$；活動用 $\mathit{ES}$、$\mathit{EF}$、$\mathit{LS}$、
-$\mathit{LF}$（最早開始、最早完成、最晚開始、最晚完成，專案管理的要徑法常用），這時寬裕
-時間是 $\mathit{LS} - \mathit{ES}$，也等於 $\mathit{LF} - \mathit{EF}$。 寬裕時間也叫
+表示事件的最早、最晚時間，$e$／$l$ 表示活動的最早、最晚開始時間。 延伸閱讀裡 Horowitz 等人的
+課本事件也用 $\mathit{ee}$、$\mathit{le}$，活動寫成 $\mathit{early}(i)$、$\mathit{late}(i)$。
+其他常見的寫法：事件用 $\mathit{ve}(j)$／$\mathit{vl}(j)$ 或 $T_E$／$T_L$；活動用
+$\mathit{ES}$、$\mathit{EF}$、$\mathit{LS}$、$\mathit{LF}$（最早開始、最早完成、最晚開始、
+最晚完成，專案管理的要徑法常用），這時寬裕時間是 $\mathit{LS} - \mathit{ES}$，也等於
+$\mathit{LF} - \mathit{EF}$。 寬裕時間也叫
 浮時（float）。 表格一律畫完整：事件表有 $\mathit{ee}$、$\mathit{le}$ 兩欄，活動表有
 $e$、$l$、$l - e$，最後寫出關鍵活動和關鍵路徑。
 \end{examnote}
@@ -1321,8 +1346,8 @@ $\mathit{le}$ 先設成 $T$ 再取最小值，結束事件沒有出邊，就留�
 #define MAXM 1000               // 活動數上限
 
 int n, m;                       // 事件數、活動數
-int from[MAXM], to[MAXM], dur[MAXM];    // 活動 k：事件 from[k] -> to[k]
-int first[MAXN], last[MAXN], nxt[MAXM]; // 出邊串列，用陣列下標當指標，-1 是結尾
+int from[MAXM], to[MAXM], dur[MAXM];    // 活動 k：from[k] -> to[k]
+int first[MAXN], last[MAXN], nxt[MAXM]; // 出邊串列，-1 是結尾
 int indeg[MAXN], order[MAXN], ee[MAXN], le[MAXN], path[MAXN];
 
 // Kahn 演算法：order 本身當佇列用，回傳排出幾個事件
@@ -1345,7 +1370,8 @@ int topo_order(void)
     return cnt;
 }
 
-// 從事件 u 只沿著寬裕時間 0 的活動往下走，走到結束事件就印出一條關鍵路徑
+// 從事件 u 只沿著寬裕時間 0 的活動往下走，
+// 走到結束事件就印出一條關鍵路徑
 void print_critical(int u, int len)
 {
     path[len++] = u;
@@ -1366,20 +1392,22 @@ void print_critical(int u, int len)
 
 int main(void)
 {
-    if (scanf("%d %d", &n, &m) != 2 || n < 1 || n > MAXN || m < 0 || m > MAXM) {
+    if (scanf("%d %d", &n, &m) != 2 || n < 1 || n > MAXN || m < 0
+        || m > MAXM) {
         return 1;
     }
     for (int v = 0; v < n; v++) {
         first[v] = last[v] = -1;
     }
     for (int k = 0; k < m; k++) {
-        if (scanf("%d %d %d", &from[k], &to[k], &dur[k]) != 3 || from[k] < 1
-            || from[k] > n || to[k] < 1 || to[k] > n || dur[k] < 0) {
+        if (scanf("%d %d %d", &from[k], &to[k], &dur[k]) != 3
+            || from[k] < 1 || from[k] > n || to[k] < 1 || to[k] > n
+            || dur[k] < 0) {
             return 1;
         }
         int u = --from[k];              // 輸入的事件從 1 編號
         to[k]--;
-        nxt[k] = -1;                    // 接在 u 的串列尾端，保持輸入的順序
+        nxt[k] = -1;                    // 接在 u 的串列尾端
         if (first[u] == -1) {
             first[u] = k;
         } else {
@@ -1408,7 +1436,7 @@ int main(void)
     }
     for (int i = n - 1; i >= 0; i--) {      // 往回算：拓樸順序倒過來
         int u = order[i];
-        le[u] = T;                          // 結束事件沒有出邊，留在 T
+        le[u] = T;                          // 結束事件沒有出邊
         for (int k = first[u]; k != -1; k = nxt[k]) {
             if (le[to[k]] - dur[k] < le[u]) {
                 le[u] = le[to[k]] - dur[k];
@@ -1422,8 +1450,8 @@ int main(void)
     printf("act edge dur e l slack\n");
     for (int k = 0; k < m; k++) {
         int e = ee[from[k]], l = le[to[k]] - dur[k];
-        printf("a%d %d->%d %d %d %d %d%s\n", k + 1, from[k] + 1, to[k] + 1,
-               dur[k], e, l, l - e, l == e ? " *" : "");
+        printf("a%d %d->%d %d %d %d %d%s\n", k + 1, from[k] + 1,
+               to[k] + 1, dur[k], e, l, l - e, l == e ? " *" : "");
     }
     printf("project length = %d\n", T);
     for (int v = 0; v < n; v++) {
@@ -1444,7 +1472,7 @@ int main(void)
 \label{sec:tps-pitfalls}
 
 \begin{center}
-\begin{tabular}{p{0.26\linewidth}p{0.48\linewidth}p{0.16\linewidth}}
+\begin{tabular}{>{\raggedright\arraybackslash}p{0.26\linewidth}>{\raggedright\arraybackslash}p{0.48\linewidth}>{\raggedright\arraybackslash}p{0.16\linewidth}}
 \toprule
 錯誤 & 例子 & 見 \\
 \midrule
@@ -1661,7 +1689,7 @@ d[2] = 3$，依 $d$ 排是 $1, 2$，違反這條邊。 (e)：對，依拓樸順�
 \item 一開始 $\mathit{in}[1..7] = 1, 2, 2, 0, 1, 3, 0$，$\mathit{Adj}[4] = 1, 2$，
 $\mathit{Adj}[7] = 2, 6$。
 \begin{enumerate}
-\item
+\item 每一步之後的 $\mathit{in}[1..7]$ 和佇列如下（「--」表示已經排出去）：
 \begin{center}
 \small
 \begin{tabular}{cc*{7}{c}l}

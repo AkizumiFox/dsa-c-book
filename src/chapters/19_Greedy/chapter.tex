@@ -230,12 +230,14 @@ int main(void)
     if (scanf("%d", &n) != 1 || n < 0) {
         return 1;
     }
-    Booking *b = malloc((n + 1) * sizeof *b);   // 多一格：n = 0 時不 malloc(0)
+    // 多要一格：n = 0 時才不會變成 malloc(0)
+    Booking *b = malloc((n + 1) * sizeof *b);
     if (b == NULL) {
         return 1;
     }
     for (int i = 0; i < n; i++) {
-        if (scanf("%d %d", &b[i].s, &b[i].f) != 2 || b[i].s >= b[i].f) {
+        if (scanf("%d %d", &b[i].s, &b[i].f) != 2
+            || b[i].s >= b[i].f) {
             free(b);
             return 1;
         }
@@ -244,7 +246,8 @@ int main(void)
     qsort(b, n, sizeof b[0], by_finish);
     int k = 0, last = 0;        // 選了幾筆、最後一筆選中的結束時刻
     for (int i = 0; i < n; i++) {
-        if (k == 0 || b[i].s >= last) {         // 半開區間：接著開始不算衝突
+        // 半開區間：前一筆剛結束就開始，不算衝突
+        if (k == 0 || b[i].s >= last) {
             printf("#%d [%d, %d)\n", b[i].id, b[i].s, b[i].f);
             k++;
             last = b[i].f;
@@ -275,7 +278,7 @@ $\sum x_i w_i \le W$ 的條件下讓 $\sum x_i v_i$ 最大，這叫\textbf{分�
 重量價值}。 貪心的做法是：依 $r_i$ 由大到小，能整批拿就整批拿，袋子快滿時拿最後一種
 的一部分把袋子裝滿。
 
-\begin{pseudo}[label=alg:gr-frac]{分數背包（已依 $v[i] / w[i]$ 由大到小排好）}
+\begin{pseudo}[label=alg:gr-frac, unbreakable]{分數背包（已依 $v[i] / w[i]$ 由大到小排好）}
 \Function{Fractional-Knapsack}{$w, v, n, W$}
     \State $\mathit{room} \gets W$
     \State $\mathit{total} \gets 0$
@@ -429,12 +432,12 @@ $n - 1$ 個內部節點（定理~\ref{thm:bt-n0n2}，$n_0 = n_2 + 1$）。 定�
     \State 建立最小優先佇列 $Q$，放進 $C$ 的每個符號（鍵是 $(\mathit{freq}, \mathit{id})$）
     \State $k \gets |C|$ \Comment{下一個內部節點的編號}
     \While{$Q$ 裡不只一個節點}
-        \State $x \gets \Call{Extract-Min}{Q}$
-        \State $y \gets \Call{Extract-Min}{Q}$
+        \State $x \gets$ \Call{Extract-Min}{$Q$}
+        \State $y \gets$ \Call{Extract-Min}{$Q$}
         \State 建立節點 $z$：$z.\mathit{left} \gets x$，$z.\mathit{right} \gets y$，
         $z.\mathit{freq} \gets x.\mathit{freq} + y.\mathit{freq}$，$z.\mathit{id} \gets k$
         \State $k \gets k + 1$
-        \State \Call{Insert}{$Q, z$}
+        \State \Call{Insert}{$Q, z, (z.\mathit{freq}, z.\mathit{id})$}
     \EndWhile
     \State \Return \Call{Extract-Min}{$Q$} \Comment{碼樹的根}
 \EndFunction
@@ -639,8 +642,8 @@ $8 + 16 + 28 + 38 + 62 + 100 = 252$。 原因是每個符號被它的每一個�
 霍夫曼樹的追蹤題，權重平手時選哪一個、誰當左子節點，會改變樹的形狀和每個符號的碼，甚至
 改變碼長。 例如頻率 $1, 1, 2, 2$：先合併兩個 $1$ 得到 $2$ 以後，三個 $2$ 平手。 合併
 兩個原本的 $2$，四個碼長都是 $2$；合併新的 $2$ 和一個原本的 $2$，碼長是 $1, 2, 3, 3$。
-兩種樹的總位元數都是 $12$，都是最佳的。 不同課本的平手規則和左右規則不同，作答時照題
-目的規定；題目沒有規定，就先寫出你用的規則（例如本書的「先比權重再比編號，先取出的放
+兩種樹的總位元數都是 $12$，都是最佳的。 各課本的規則不一樣：有的把權重小的放右邊（邊
+標 \texttt{1}），有的在權重平手時讓新建的內部節點先出來。 作答時照題目的規定；題目沒有規定，就先寫出你用的規則（例如本書的「先比權重再比編號，先取出的放
 左邊」），閱卷的人才能照你的規則核對。 總位元數不受這些規則影響，可以拿來驗算。
 \end{examnote}
 
@@ -741,12 +744,12 @@ $n > 2$ 時，演算法第一次合併取出頻率最小的兩個 $x$、$y$，�
 
 typedef struct Node {
     long long w;                // 頻率（內部節點是兩個子節點的和）
-    int id;                     // 葉節點 0..n-1 照輸入順序，內部節點照建立順序
+    int id;                     // 葉節點照輸入順序，內部節點接著編
     char sym;                   // 只有葉節點用到
     struct Node *left, *right;  // 葉節點兩個都是 NULL
 } Node;
 
-// 平手規則：先比頻率，頻率相同比 id。 id 都不同，所以建出的樹是唯一的。
+// 平手規則：先比頻率，再比 id。 id 都不同，所以建出的樹是唯一的。
 static int before(const Node *x, const Node *y)
 {
     return x->w < y->w || (x->w == y->w && x->id < y->id);
@@ -782,7 +785,8 @@ Node *pop(Node **h, int *size)          // 呼叫前要確定堆積不是空的
     return top;
 }
 
-// 前序走訪，buf[0..depth-1] 是從根到 t 的路徑；到了葉節點就抄進 code 的第 id 列。
+// 前序走訪：buf[0..depth-1] 是從根到 t 的路徑，
+// 到了葉節點就抄進 code 的第 id 列。
 void collect(const Node *t, char *buf, int depth, char *code, int n)
 {
     if (t->left == NULL) {
@@ -802,13 +806,17 @@ int main(void)
     if (scanf("%d", &n) != 1 || n < 2) {
         return 1;
     }
-    Node *pool = malloc((2 * n - 1) * sizeof *pool);   // n 個葉、n - 1 個內部節點
+    // pool：前 n 格是葉節點，後 n - 1 格是內部節點
+    Node *pool = malloc((2 * n - 1) * sizeof *pool);
     Node **heap = malloc(n * sizeof *heap);
-    char *code = malloc((size_t)n * n);    // 碼最長 n - 1 位，加 '\0' 共 n 格
+    // code 每列 n 格：碼最長 n - 1 位，再加結尾的 '\0'
+    char *code = malloc((size_t)n * n);
     char *buf = malloc(n);
-    int ok = pool != NULL && heap != NULL && code != NULL && buf != NULL;
+    int ok = pool != NULL && heap != NULL
+             && code != NULL && buf != NULL;
     for (int i = 0; ok && i < n; i++) {
-        ok = scanf(" %c %lld", &pool[i].sym, &pool[i].w) == 2 && pool[i].w > 0;
+        ok = scanf(" %c %lld", &pool[i].sym, &pool[i].w) == 2
+             && pool[i].w > 0;
         pool[i].id = i;
         pool[i].left = pool[i].right = NULL;
         if (ok) {
@@ -816,9 +824,9 @@ int main(void)
         }
     }
     if (ok) {
-        for (int k = n; k < 2 * n - 1; k++) {           // n - 1 次合併
+        for (int k = n; k < 2 * n - 1; k++) {   // n - 1 次合併
             Node *z = &pool[k];
-            z->left = pop(heap, &size);                 // 先取出的當左子節點（邊標 0）
+            z->left = pop(heap, &size);     // 先取出的當左子節點
             z->right = pop(heap, &size);
             z->w = z->left->w + z->right->w;
             z->id = k;
@@ -829,7 +837,7 @@ int main(void)
         Node *root = pop(heap, &size);
         collect(root, buf, 0, code, n);
         long long total = 0;
-        for (int i = 0; i < n; i++) {                   // 照輸入順序印，結果固定
+        for (int i = 0; i < n; i++) {   // 照輸入順序印
             const char *c = code + (size_t)i * n;
             printf("%c %lld %s\n", pool[i].sym, pool[i].w, c);
             total += pool[i].w * (long long)strlen(c);
@@ -1024,7 +1032,7 @@ $9$ 點五位同學同時送來工作，各要跑的小時數是：
 
 照送來的順序 A、B、C、D、E 跑：完成時間 $7, 9, 14, 15, 19$，總和 $64$，平均
 $12.8$ 小時。 把短的排前面，D、B、E、C、A：完成時間 $1, 3, 7, 12, 19$，總和 $42$，平
-均 $8.4$ 小時。 最後一個工作不管怎麼排都在 $19$ 點完成，差別在前面的工作：排在第 $k$
+均 $8.4$ 小時。 最後一個工作不管怎麼排，都在 $9$ 點之後第 $19$ 小時完成，差別在前面的工作：排在第 $k$
 個的工作，它的執行時間會加進它自己和後面每一個工作的完成時間裡，被算 $n - k + 1$ 次。
 寫成式子，順序是 $\pi(1), \pi(2), \ldots, \pi(n)$ 時
 \[
@@ -1095,7 +1103,7 @@ $t$ 個小時。 工作放在時段 $t$ 能趕上期限，條件是 $t \le d_i$�
 
 期限超過 $n$ 的工作和期限是 $n$ 的沒有差別（$n$ 件工作用不到第 $n$ 個時段以後），可以
 先把期限截到 $n$。 最直接的寫法是從期限往回一格一格找空時段，最壞每件工作走 $n$ 步，
-總共 $O(n^2)$；第~\ref{sec:gr-dsu}~小節用互斥集合把它降到幾乎線性。
+總共 $O(n^2)$；第~\ref{sec:gr-dsu}~節用互斥集合把它降到幾乎線性。
 
 依收費排好是 $3, 5, 1, 8, 4, 9, 6, 2, 7$。 照這個做法，時段 $1$ 到 $6$ 依序放工作
 $8, 1, 5, 3, 4, 7$，工作 $9, 6, 2$ 找不到位置，收費 $245$ 元；過程見下一小節的追蹤表。
@@ -1174,7 +1182,7 @@ $\ge$ $O$ 的收費（$p_k \le p_j$），也是最佳解，而且包含 $A \cup 
 第~13~章的 \proc{Union} 依大小合併，留下來的根不一定是空時段，所以另外用一個陣列
 $\mathit{latest}$，只在根上有意義：$\mathit{latest}[r]$ 是根 $r$ 那一組的空時段。
 
-\begin{pseudo}[label=alg:gr-deadline-dsu]{有期限的工作排程，用互斥集合（工作已依 $p$ 由大到小排好）}
+\begin{pseudo}[label=alg:gr-deadline-dsu, unbreakable]{有期限的工作排程，用互斥集合（工作已依 $p$ 由大到小排好）}
 \Function{Schedule-Jobs}{$d, p, n$}
     \State $D \gets \min(n, \max_{1 \le i \le n} d[i])$
     \For{$t \gets 0$ \To $D$}
@@ -1202,14 +1210,15 @@ $O(n \lg n)$ 主導。
 
 \textbf{追蹤。} 同樣的九件工作，$D = \min(9, 6) = 6$，時段 $0$ 到 $6$。 \proc{Union}
 照第~13~章的規則：依大小合併，一樣大時第二個參數的根接到第一個參數的根底下；
-\proc{Find-Set} 做路徑壓縮。 「$p[0..6]$」是做完這件工作之後的父節點陣列，
+\proc{Find-Set} 做路徑壓縮。 「$\mathit{parent}[0..6]$」是做完這件工作之後的父節點陣列
+（第~13~章寫成 $p[x]$；這裡的 $p$ 已經代表收費，所以換個名字），
 「$\mathit{latest}$」只列出各個根上的值（根:空時段）。
 
 \begin{center}
 \small
 \begin{tabular}{cccccl}
 \toprule
-工作 & $\min(d, D)$ & 根 & 空時段 $e$ & $p[0..6]$ & $\mathit{latest}$（根:空時段） \\
+工作 & $\min(d, D)$ & 根 & 空時段 $e$ & $\mathit{parent}[0..6]$ & $\mathit{latest}$（根:空時段） \\
 \midrule
 開始 & & & & 0 1 2 3 4 5 6 & 每個時段自己 \\
 3 & 4 & 4 & 4 & 0 1 2 4 4 5 6 & 0:0, 1:1, 2:2, 4:3, 5:5, 6:6 \\
@@ -1231,7 +1240,7 @@ $4$；但這一組的空時段是 $3$，所以 $\mathit{latest}[4] = 3$。 這�
 $4$ 那一組有 $5$ 個，依大小合併讓 $5$ 接到 $4$ 底下，$\mathit{latest}[4]$ 仍是 $0$。
 從此期限 $\le 5$ 的工作一律一次 \proc{Find-Set} 就知道沒有空位。
 
-另一種常見的寫法不依大小合併，填滿時段 $e$ 時直接設 $p[e] \gets \proc{Find-Set}(e - 1)$，
+另一種常見的寫法不依大小合併，填滿時段 $e$ 時直接設 $\mathit{parent}[e] \gets \proc{Find-Set}(e - 1)$，
 根永遠是空時段，不需要 $\mathit{latest}$；只靠路徑壓縮，總時間 $O(n \lg n)$。
 
 \subsection{C 程式}
@@ -1243,14 +1252,15 @@ $4$ 那一組有 $5$ 個，依大小合併讓 $5$ 接到 $4$ 底下，$\mathit{l
 範例~\ref{ex:ds-trace}（dsu\_trace.c）的寫法，只拿掉這裡用不到的欄位。
 \end{cbookrecap}
 
-程式讀進 $n$ 件工作，每件一列：期限和收費。 每接下一件工作，印出它放的時段和這時的
-父節點陣列；最後印出時段 $1$ 到 $D$ 各放了哪件工作（\texttt{-} 是空的）和總收費。
+程式讀進 $n$ 件工作，每件一列：期限和收費。 依收費由高到低，每看一件工作印一列：接下
+的印出它放的時段，\texttt{|} 後面是這時的父節點陣列；不接的印 \texttt{rejected}。 最
+後印出時段 $1$ 到 $D$ 各放了哪件工作（\texttt{-} 是空的）和總收費。
 
 \begin{example}[label=ex:gr-deadline]{c}{(deadline.c) 有期限的工作排程：用互斥集合找最晚的空時段}
 #include <stdio.h>
 #include <stdlib.h>
 
-// ---- 第 13 章的互斥集合：依大小合併、迴圈版路徑壓縮（只留用得到的欄位）----
+// ---- 第 13 章的互斥集合：依大小合併、迴圈版路徑壓縮 ----
 typedef struct {
     int *parent;    // parent[x] == x 表示 x 是根
     int *size;      // 只有根的 size 有意義
@@ -1284,7 +1294,8 @@ int find_iter(int *parent, int x)
     return root;
 }
 
-void dsu_union(DSU *d, int x, int y)    // 一樣大時 y 的根接到 x 的根底下
+// 依大小合併；一樣大時 y 的根接到 x 的根底下
+void dsu_union(DSU *d, int x, int y)
 {
     int rx = find_iter(d->parent, x), ry = find_iter(d->parent, y);
     if (rx == ry) {
@@ -1304,7 +1315,8 @@ typedef struct {
     int id, d, p;   // 編號、期限、收費
 } Job;
 
-int by_profit(const void *a, const void *b)    // 收費高的先；一樣時編號小的先
+// 收費高的排前面；收費一樣時編號小的在前
+int by_profit(const void *a, const void *b)
 {
     const Job *x = a, *y = b;
     if (x->p != y->p) {
@@ -1322,7 +1334,8 @@ int main(void)
     Job *job = malloc(n * sizeof *job);
     int ok = job != NULL;
     for (int i = 0; ok && i < n; i++) {
-        ok = scanf("%d %d", &job[i].d, &job[i].p) == 2 && job[i].d >= 1;
+        ok = scanf("%d %d", &job[i].d, &job[i].p) == 2
+             && job[i].d >= 1;
         job[i].id = i + 1;
         if (ok && job[i].d > D) {
             D = job[i].d;
@@ -1330,9 +1343,11 @@ int main(void)
     }
     D = D < n ? D : n;      // 時段 1..D；時段 0 是「沒有空位」的哨兵
     DSU ds = {NULL, NULL};
-    int *latest = malloc((D + 1) * sizeof *latest);  // latest[根]：這組的空時段
-    int *slot = calloc(D + 1, sizeof *slot);         // slot[t]：放在時段 t 的工作
-    ok = ok && latest != NULL && slot != NULL && dsu_init(&ds, D + 1);
+    // latest[根]：這一組的空時段；slot[t]：放在時段 t 的工作
+    int *latest = malloc((D + 1) * sizeof *latest);
+    int *slot = calloc(D + 1, sizeof *slot);
+    ok = ok && latest != NULL && slot != NULL
+         && dsu_init(&ds, D + 1);
     if (ok) {
         for (int t = 0; t <= D; t++) {
             latest[t] = t;
@@ -1342,17 +1357,18 @@ int main(void)
         for (int i = 0; i < n; i++) {
             int t = job[i].d < D ? job[i].d : D;
             int e = latest[find_iter(ds.parent, t)];
-            printf("job %d (d=%d, p=%d): ", job[i].id, job[i].d, job[i].p);
+            printf("job %d -> ", job[i].id);
             if (e == 0) {
                 printf("rejected\n");
                 continue;
             }
             slot[e] = job[i].id;
             total += job[i].p;
-            int left = latest[find_iter(ds.parent, e - 1)];  // 合併前先讀
+            // 合併之前先讀出左邊那一組的空時段
+            int left = latest[find_iter(ds.parent, e - 1)];
             dsu_union(&ds, e, e - 1);
             latest[find_iter(ds.parent, e)] = left;
-            printf("slot %d, parent =", e);
+            printf("slot %d |", e);
             for (int x = 0; x <= D; x++) {
                 printf(" %d", ds.parent[x]);
             }
@@ -1372,7 +1388,7 @@ int main(void)
     return ok ? 0 : 1;
 }
 \end{example}
-\iosample{9 \\ 3 45 \\ 1 20 \\ 4 60 \\ 5 35 \\ 4 50 \\ 1 25 \\ 6 15 \\ 3 40 \\ 2 30}{job 3 (d=4, p=60): slot 4, parent = 0 1 2 4 4 5 6 \\ job 5 (d=4, p=50): slot 3, parent = 0 1 4 4 4 5 6 \\ job 1 (d=3, p=45): slot 2, parent = 0 4 4 4 4 5 6 \\ job 8 (d=3, p=40): slot 1, parent = 4 4 4 4 4 5 6 \\ job 4 (d=5, p=35): slot 5, parent = 4 4 4 4 4 4 6 \\ job 9 (d=2, p=30): rejected \\ job 6 (d=1, p=25): rejected \\ job 2 (d=1, p=20): rejected \\ job 7 (d=6, p=15): slot 6, parent = 4 4 4 4 4 4 4 \\ schedule: 8 1 5 3 4 7 \\ total profit = 245}
+\iosample{9 \\ 3 45 \\ 1 20 \\ 4 60 \\ 5 35 \\ 4 50 \\ 1 25 \\ 6 15 \\ 3 40 \\ 2 30}{job 3 -> slot 4 | 0 1 2 4 4 5 6 \\ job 5 -> slot 3 | 0 1 4 4 4 5 6 \\ job 1 -> slot 2 | 0 4 4 4 4 5 6 \\ job 8 -> slot 1 | 4 4 4 4 4 5 6 \\ job 4 -> slot 5 | 4 4 4 4 4 4 6 \\ job 9 -> rejected \\ job 6 -> rejected \\ job 2 -> rejected \\ job 7 -> slot 6 | 4 4 4 4 4 4 4 \\ schedule: 8 1 5 3 4 7 \\ total profit = 245}
 
 每一列的父節點陣列都和手算的表一樣。 程式的元素直接用時段編號 $0..D$，不必像
 第~13~章那樣在輸入輸出時加減一。 \texttt{slot} 和 \texttt{latest} 都要 $D + 1$ 格，
@@ -1594,7 +1610,7 @@ $w_i = 1$ 時，這個結果變成什麼？
 \end{center}
 用虛擬碼~\ref{alg:gr-deadline-dsu}（\proc{Union} 依大小合併，一樣大時第二個參數的根接
 到第一個的根底下；\proc{Find-Set} 做路徑壓縮）排程。 寫出每接下一件工作後的父節點陣
-列 $p[0..D]$，以及最後的排程和總收費。
+列 $\mathit{parent}[0..D]$，以及最後的排程和總收費。
 
 \item \label{q:gr-coin}（計算）
 \begin{enumerate}
@@ -1756,7 +1772,7 @@ $w_i(t + p_i) + w_j(t + p_i + p_j)$，交換後 $w_j(t + p_j) + w_i(t + p_j + p_
 \begin{center}
 \begin{tabular}{cccl}
 \toprule
-工作 & $\min(d, D)$ & 結果 & $p[0..5]$ \\
+工作 & $\min(d, D)$ & 結果 & $\mathit{parent}[0..5]$ \\
 \midrule
 4 & 3 & 時段 3 & 0 1 3 3 4 5 \\
 6 & 4 & 時段 4 & 0 1 3 3 3 5 \\

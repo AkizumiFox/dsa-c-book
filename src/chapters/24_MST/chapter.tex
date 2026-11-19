@@ -17,6 +17,9 @@
     mst-lab/.style={font=\scriptsize, text=black!80},
     mst-pick/.style={-{Stealth[length=2mm]}, draw=optStroke, thick, shorten >=1pt},
 }
+% 後面至少要有 #1 的空間，否則換頁（避免虛擬碼框在開頭幾行就被切開）
+\providecommand{\mstneed}[1]{\par\penalty-100\begingroup\dimen0=\dimexpr\pagegoal-\pagetotal\relax
+    \ifdim #1>\dimen0 \ifdim\dimen0>0pt \vfil\fi\penalty-10000\fi\endgroup}
 % Prim 追蹤表：框起來的是這一回合取出的頂點，底色是這一回合改過的 key。
 \newcommand{\mstsel}[1]{\fbox{#1}}
 \newcommand{\mstchg}[1]{\colorbox{memFill}{#1}}
@@ -336,7 +339,10 @@ w'(e) = w(e) + \varepsilon \cdot r(e).
 1$，而 $\varepsilon\,|r(e) - r(f)| < \varepsilon m < 1$，所以 $w'(e) < w'(f)$；$w(e) = w(f)$
 時由 $r$ 決定。 所以照 $\prec$ 比較，等於照 $w'$ 比較。
 \item \textbf{$w'$ 的最小生成樹也是 $w$ 的最小生成樹}：任何一棵生成樹 $T$ 有 $n - 1$ 條
-邊，$0 < w'(T) - w(T) = \varepsilon \sum_{e \in T} r(e) \le \varepsilon \cdot (n - 1) m < 1$。
+邊，所以
+\[
+0 < w'(T) - w(T) = \varepsilon \sum_{e \in T} r(e) \le \varepsilon \cdot (n - 1) m < 1.
+\]
 設 $T'$ 是 $w'$ 的最小生成樹，$T$ 是任何一棵生成樹。 如果 $w(T) < w(T')$，因為都是整數，
 $w(T) \le w(T') - 1$，於是 $w'(T) < w(T) + 1 \le w(T') < w'(T')$，和 $T'$ 對 $w'$ 最小矛
 盾。 所以 $w(T') \le w(T)$。
@@ -371,10 +377,10 @@ Kruskal 演算法就是第~\ref{sec:mst-props}~節開頭那個貪心：把邊依
 \begin{pseudo}[label=alg:mst-kruskal]{Kruskal 演算法}
 \Procedure{MST-Kruskal}{$G, w$}
     \State $A \gets \emptyset$
-    \For{每個頂點 $v \in G.V$}
+    \For{每個頂點 $v \in V$}
         \State \Call{Make-Set}{$v$}
     \EndFor
-    \State 把 $G.E$ 的邊照 $\prec$ 由輕到重排序 \Comment{第~\ref{sec:mst-ties}~節的平手規則}
+    \State 把 $E$ 的邊照 $\prec$ 由輕到重排序 \Comment{第~\ref{sec:mst-ties}~節的平手規則}
     \For{依排好的順序，每條邊 $(u, v)$}
         \If{$\Call{Find-Set}{u} \ne \Call{Find-Set}{v}$}
             \State $A \gets A \cup \{(u, v)\}$
@@ -601,8 +607,8 @@ int main(void)
         int taken = 0;
         for (int i = 0; i < m && taken < n - 1; i++) {
             int take = union_set(&s, e[i].u, e[i].v);
-            printf("%d-%d (%d) %s\n", e[i].u + 1, e[i].v + 1, e[i].w,
-                   take ? "take" : "skip");
+            printf("%d-%d (%d) %s\n", e[i].u + 1, e[i].v + 1,
+                   e[i].w, take ? "take" : "skip");
             if (take) {
                 total += e[i].w;
                 taken++;
@@ -611,7 +617,8 @@ int main(void)
         if (taken == n - 1) {
             printf("MST weight %lld, %d edges\n", total, taken);
         } else {
-            printf("not connected: forest weight %lld, %d edges\n", total, taken);
+            printf("not connected: forest weight %lld, %d edges\n",
+                   total, taken);
         }
     }
     free(e);
@@ -623,7 +630,7 @@ int main(void)
 \iosample{8 13 \\ 1 2 7 \\ 2 3 12 \\ 3 4 14 \\ 5 6 9 \\ 6 7 4 \\ 7 8 13 \\ 1 5 1 \\ 2 6 6 \\ 3 7 11 \\ 4 8 3 \\ 1 6 10 \\ 2 7 5 \\ 3 8 8}{1-5 (1) take \\ 4-8 (3) take \\ 6-7 (4) take \\ 2-7 (5) take \\ 2-6 (6) skip \\ 1-2 (7) take \\ 3-8 (8) take \\ 5-6 (9) skip \\ 1-6 (10) skip \\ 3-7 (11) take \\ MST weight 39, 7 edges}
 
 輸出的十列和手算表的前十步一致。 程式把「找代表、比較、合併」寫成一個
-\texttt{union\_set}，回傳值同時當作第 7 行的判斷，所以一條邊只找兩次代表。 \texttt{malloc}
+\texttt{union\_set}，回傳值同時當作虛擬碼~\ref{alg:mst-kruskal} 第 7 行的判斷，所以一條邊只找兩次代表。 \texttt{malloc}
 的大小寫成 \texttt{m > 0 ? m : 1}，是為了 $m = 0$（只有一個頂點）時不配置 $0$ 個位元組。
 圖不連通時，迴圈把邊全部看完，選到的邊數少於 $n - 1$，最後一列改印最小生成森林的權重。
 
@@ -644,17 +651,18 @@ Prim 演算法只維護一棵樹。 從指定的起點 $r$ 開始，每一步在
 $\mathit{key}$ 最小的」和「把某個 $\mathit{key}$ 改小」正好是第~8~章最小優先佇列的
 \proc{Extract-Min} 和 \proc{Decrease-Key}。
 
+\mstneed{7cm}
 \begin{pseudo}[label=alg:mst-prim]{Prim 演算法（帶索引的最小堆積）}
 \Procedure{MST-Prim}{$G, w, r$}
-    \For{每個頂點 $v \in G.V$}
+    \For{每個頂點 $v \in V$}
         \State $\mathit{key}[v] \gets \infty$；$\pi[v] \gets \NIL$；$\mathit{inT}[v] \gets \FALSE$
     \EndFor
     \State $\mathit{key}[r] \gets 0$
     \State $Q \gets$ 含全部頂點、以 $\mathit{key}$ 為鍵的帶索引最小堆積
     \While{$Q$ 不是空的}
-        \State $u \gets \Call{Extract-Min}{Q}$ \Comment{$\mathit{key}$ 相同時取編號小的}
+        \State $u \gets$ \Call{Extract-Min}{$Q$} \Comment{$\mathit{key}$ 相同時取編號小的}
         \State $\mathit{inT}[u] \gets \TRUE$
-        \For{每個 $v \in G.\mathit{Adj}[u]$}
+        \For{每個 $v \in \mathit{Adj}[u]$}
             \If{$\mathit{inT}[v] = \FALSE$ \AND $w(u, v) < \mathit{key}[v]$}
                 \State $\pi[v] \gets u$
                 \State \Call{Decrease-Key}{$Q, v, w(u, v)$}
@@ -767,19 +775,19 @@ $\mathit{key}$ 變小時，不去改舊的那筆，直接再放一筆新的。 �
 
 \begin{pseudo}[label=alg:mst-prim-lazy]{Prim 演算法（允許重複放入）}
 \Procedure{MST-Prim-Lazy}{$G, w, r$}
-    \For{每個頂點 $v \in G.V$}
+    \For{每個頂點 $v \in V$}
         \State $\mathit{inT}[v] \gets \FALSE$
     \EndFor
     \State $A \gets \emptyset$；$Q \gets$ 空的最小堆積
-    \State \Call{Insert}{$Q, (0, r, \NIL)$}
+    \State \Call{Insert}{$Q, (0, r, \NIL)$} \Comment{三元組本身就是鍵}
     \While{$Q$ 不是空的}
-        \State $(k, u, p) \gets \Call{Extract-Min}{Q}$
+        \State $(k, u, p) \gets$ \Call{Extract-Min}{$Q$}
         \If{$\mathit{inT}[u] = \FALSE$} \Comment{否則是過期的資料，丟掉}
             \State $\mathit{inT}[u] \gets \TRUE$
             \If{$p \ne \NIL$}
                 \State $A \gets A \cup \{(p, u)\}$
             \EndIf
-            \For{每個 $v \in G.\mathit{Adj}[u]$}
+            \For{每個 $v \in \mathit{Adj}[u]$}
                 \If{$\mathit{inT}[v] = \FALSE$}
                     \State \Call{Insert}{$Q, (w(u, v), v, u)$}
                 \EndIf
@@ -1036,7 +1044,8 @@ typedef struct {
 
 static int before(const MinHeap *h, int u, int v)
 {
-    return h->key[u] < h->key[v] || (h->key[u] == h->key[v] && u < v);
+    return h->key[u] < h->key[v]
+           || (h->key[u] == h->key[v] && u < v);
 }
 
 static void swap_at(MinHeap *h, int i, int j)
@@ -1063,7 +1072,8 @@ static void sift_down(MinHeap *h, int i)
         if (j >= h->size) {
             return;
         }
-        if (j + 1 < h->size && before(h, h->heap[j + 1], h->heap[j])) {
+        if (j + 1 < h->size
+            && before(h, h->heap[j + 1], h->heap[j])) {
             j++;
         }
         if (!before(h, h->heap[j], h->heap[i])) {
@@ -1107,7 +1117,8 @@ int main(void)
         ok = scanf("%d %d %d", &u, &v, &w) == 3 && u >= 1 && u <= n
              && v >= 1 && v <= n;
         if (ok && u != v) {     // 自環不會在生成樹裡，直接丟掉
-            ok = add_arc(&g, u - 1, v - 1, w) && add_arc(&g, v - 1, u - 1, w);
+            ok = add_arc(&g, u - 1, v - 1, w)
+                 && add_arc(&g, v - 1, u - 1, w);
         }
     }
     if (ok) {
@@ -1130,7 +1141,8 @@ int main(void)
             if (pi[u] < 0) {
                 printf("add %d\n", u + 1);
             } else {
-                printf("add %d via %d-%d (%lld)\n", u + 1, pi[u] + 1, u + 1, h.key[u]);
+                printf("add %d via %d-%d (%lld)\n",
+                       u + 1, pi[u] + 1, u + 1, h.key[u]);
                 total += h.key[u];
             }
             for (Node *x = g.adj[u]; x != NULL; x = x->next) {
@@ -1146,7 +1158,8 @@ int main(void)
         if (added == n) {
             printf("MST weight %lld\n", total);
         } else {
-            printf("not connected: reached %d of %d vertices\n", added, n);
+            printf("not connected: reached %d of %d vertices\n",
+                   added, n);
         }
     }
     free_graph(&g);
@@ -1169,7 +1182,7 @@ $\mathit{key}$ 變得比較小。
 #include <stdlib.h>
 #include <limits.h>
 
-#define NO_EDGE INT_MAX     // 鄰接矩陣裡「沒有邊」，也當作 key 的無限大
+#define NO_EDGE INT_MAX     // 「沒有邊」，也當作 key 的無限大
 
 int main(void)
 {
@@ -1181,7 +1194,8 @@ int main(void)
     int *key = malloc(n * sizeof(int));
     int *pi = malloc(n * sizeof(int));
     int *in_tree = calloc(n, sizeof(int));
-    int ok = W != NULL && key != NULL && pi != NULL && in_tree != NULL;
+    int ok = W != NULL && key != NULL && pi != NULL
+             && in_tree != NULL;
     for (int i = 0; ok && i < n * n; i++) {
         W[i] = NO_EDGE;
     }
@@ -1204,7 +1218,7 @@ int main(void)
         int added = 0;
         for (int i = 0; i < n; i++) {
             int u = -1;
-            for (int v = 0; v < n; v++) {   // 找 key 最小的；平手時編號小的
+            for (int v = 0; v < n; v++) {   // 找 key 最小的
                 if (!in_tree[v] && (u < 0 || key[v] < key[u])) {
                     u = v;
                 }
@@ -1217,7 +1231,8 @@ int main(void)
             if (pi[u] < 0) {
                 printf("add %d\n", u + 1);
             } else {
-                printf("add %d via %d-%d (%d)\n", u + 1, pi[u] + 1, u + 1, key[u]);
+                printf("add %d via %d-%d (%d)\n",
+                       u + 1, pi[u] + 1, u + 1, key[u]);
                 total += key[u];
             }
             for (int v = 0; v < n; v++) {
@@ -1230,7 +1245,8 @@ int main(void)
         if (added == n) {
             printf("MST weight %lld\n", total);
         } else {
-            printf("not connected: reached %d of %d vertices\n", added, n);
+            printf("not connected: reached %d of %d vertices\n",
+                   added, n);
         }
     }
     free(W);
@@ -1264,15 +1280,15 @@ $C$ 裡、一端在外面），所以由切割性質，\textbf{單獨看}每一�
 \begin{pseudo}[label=alg:mst-sollin]{Sollin 演算法}
 \Procedure{MST-Sollin}{$G, w$}
     \State $A \gets \emptyset$
-    \For{每個頂點 $v \in G.V$}
+    \For{每個頂點 $v \in V$}
         \State \Call{Make-Set}{$v$}
     \EndFor
     \While{$|A| < n - 1$}
-        \For{每個頂點 $v \in G.V$}
+        \For{每個頂點 $v \in V$}
             \State $\mathit{cheap}[v] \gets \NIL$
         \EndFor
-        \For{每條邊 $e = (u, v) \in G.E$}
-            \State $a \gets \Call{Find-Set}{u}$；$b \gets \Call{Find-Set}{v}$
+        \For{每條邊 $e = (u, v) \in E$}
+            \State $a \gets$ \Call{Find-Set}{$u$}；$b \gets$ \Call{Find-Set}{$v$}
             \If{$a \ne b$}
                 \If{$\mathit{cheap}[a] = \NIL$ \OR $e \prec \mathit{cheap}[a]$}
                     \State $\mathit{cheap}[a] \gets e$
@@ -1330,7 +1346,7 @@ Karger、Klein、Tarjan 的線性期望時間演算法（見延伸閱讀）就�
 
 \begin{center}
 \begin{tabular}{cc}
-\begin{tikzpicture}[x=1.2cm, y=1.2cm]
+\begin{tikzpicture}[x=1.6cm, y=1.6cm]
 \node[mst-v] (a) at (0,0) {$1$};
 \node[mst-v] (b) at (2,0) {$2$};
 \node[mst-v] (c) at (1,1.6) {$3$};
@@ -1342,7 +1358,7 @@ Karger、Klein、Tarjan 的線性期望時間演算法（見延伸閱讀）就�
 \draw[mst-pick] (c) to[bend right=25] (ca);
 \end{tikzpicture}
 &
-\begin{tikzpicture}[x=1.2cm, y=1.2cm]
+\begin{tikzpicture}[x=1.6cm, y=1.6cm]
 \node[mst-v] (a) at (0,0) {$1$};
 \node[mst-v] (b) at (2,0) {$2$};
 \node[mst-v] (c) at (1,1.6) {$3$};
@@ -1510,7 +1526,7 @@ int main(void)
     }
     Edge *e = malloc((m > 0 ? m : 1) * sizeof *e);
     int *p = malloc(n * sizeof(int));
-    int *cheap = malloc(n * sizeof(int));  // cheap[r]：根 r 的元件挑到的邊（索引）
+    int *cheap = malloc(n * sizeof(int));  // cheap[r]：根 r 挑到的邊
     int ok = e != NULL && p != NULL && cheap != NULL;
     for (int i = 0; ok && i < m; i++) {
         int u, v, w;
@@ -1534,7 +1550,8 @@ int main(void)
             }
             // 每條邊兩端的元件各自比一次
             for (int i = 0; i < m; i++) {
-                int a = find_set(p, e[i].u), b = find_set(p, e[i].v);
+                int a = find_set(p, e[i].u);
+            int b = find_set(p, e[i].v);
                 if (a == b) {
                     continue;
                 }
@@ -1563,7 +1580,8 @@ int main(void)
                     }
                 }
                 const Edge *c = &e[cheap[r]];
-                printf("} picks %d-%d (%d)\n", c->u + 1, c->v + 1, c->w);
+                printf("} picks %d-%d (%d)\n", c->u + 1, c->v + 1,
+                       c->w);
             }
             // 把挑到的邊加進來；兩個元件挑到同一條時，第二次會被略過
             progress = 0;
@@ -1587,7 +1605,8 @@ int main(void)
         if (taken == n - 1) {
             printf("MST weight %lld, %d edges\n", total, taken);
         } else {
-            printf("not connected: forest weight %lld, %d edges\n", total, taken);
+            printf("not connected: forest weight %lld, %d edges\n",
+                   total, taken);
         }
     }
     free(e);
@@ -1804,7 +1823,7 @@ $1$--$5$、$2$--$3$、$2$--$7$、$7$--$8$、$8$--$4$ 這六條是共同的，頂
 
 \begin{center}
 \small
-\begin{tabular}{p{0.25\linewidth}p{0.51\linewidth}p{0.14\linewidth}}
+\begin{tabular}{>{\raggedright\arraybackslash}p{0.25\linewidth}>{\raggedright\arraybackslash}p{0.51\linewidth}>{\raggedright\arraybackslash}p{0.14\linewidth}}
 \toprule
 錯誤 & 例子 & 見 \\
 \midrule

@@ -235,7 +235,8 @@ int pop(Stack *s, int *x)   // 空的回傳 0
 int main(void)
 {
     Stack s = {NULL, 0};
-    int ops[] = {4, 7, 1, 0, 6, 2, 0, 0, 0, 0, 0, 5};  // 正數 x 是 push x，0 是 pop
+    // 正數 x 是 push x，0 是 pop
+    int ops[] = {4, 7, 1, 0, 6, 2, 0, 0, 0, 0, 0, 5};
     int m = sizeof ops / sizeof ops[0];
     for (int i = 0; i < m; i++) {
         int x;
@@ -382,9 +383,13 @@ $n - 1$ 個 push、$n + 1$ 個 pop。 反過來，任何 $n - 1$ 個 push、$n +
 乘就看得出來。
 \end{whybox}
 
-另一個角度：看 $1$ 是第幾個輸出的。 如果 $1$ 是第 $k + 1$ 個，那麼在它之前輸出的
-恰好是 $2, \ldots, k + 1$（它們都在 $1$ 上面進出），之後輸出的是
-$k + 2, \ldots, n$。 兩段各自是一個小一點的堆疊問題，所以
+另一個角度：看 $1$ 是第幾個輸出的。 設 $1$ 是第 $k + 1$ 個，pop 出 $1$ 的時候已經
+push 到 $j$。 $1$ 最先進去、壓在最底下，它出來時堆疊裡只剩它，所以 $2, \ldots, j$
+都已經輸出了；反過來，在 $1$ 之前輸出的 $k$ 個數也都已經 push 過。 兩群是同一群數，
+所以 $j = k + 1$，在 $1$ 之前輸出的恰好是 $2, \ldots, k + 1$。 它們都在 $1$ 上面進
+出，和 $k$ 個數用一個空堆疊一樣，有 $C_k$ 種順序。 $1$ 出來之後堆疊是空的，剩下的
+$k + 2, \ldots, n$ 共 $n - 1 - k$ 個數從頭來過，有 $C_{n-1-k}$ 種。 對 $k = 0, 1,
+\ldots, n - 1$ 加起來，
 $C_n = \sum_{k=0}^{n-1} C_k\, C_{n-1-k}$，$C_0 = 1$。 這個遞迴式在第~7~章數二元樹
 的形狀時會再出現。
 
@@ -537,9 +542,12 @@ $\mathit{rear}$ 指著下一個要放的 $Q[0]$，再往後一格就是 $\mathit
 \end{center}
 
 \begin{examnote}
-環狀佇列的題目，先看題目怎麼定義 $\mathit{front}$ 和 $\mathit{rear}$。 有的書讓
-$\mathit{front}$ 指向前端元素的\textbf{前一格}、$\mathit{rear}$ 指向尾端元素本身；
-這時空和滿的條件、元素個數的公式都要跟著改。 作答時先寫一句「依題意，
+環狀佇列的題目，先看題目怎麼定義 $\mathit{front}$ 和 $\mathit{rear}$。 本書和 CLRS
+一樣，$\mathit{front}$ 指向前端元素、$\mathit{rear}$ 指向下一個要放的位置（CLRS 把
+它們叫 $\mathit{head}$、$\mathit{tail}$，陣列從 $1$ 開始）。 Horowitz 等人的 \textit{Fundamentals of Data
+Structures in C} 則讓 $\mathit{front}$ 指向前端元素的\textbf{前一格}、
+$\mathit{rear}$ 指向尾端元素本身；這時空和滿的條件、元素個數的公式都要跟著改（觀念
+題第~\ref{q:sq-front-before}~題）。 作答時先寫一句「依題意，
 $\mathit{front}$ 指向……」，再照那個定義算，每做一個操作寫一列
 $\mathit{front}$、$\mathit{rear}$ 和陣列內容。
 \end{examnote}
@@ -594,7 +602,7 @@ $Q.\mathit{rear}$ 指向最後一個節點。 加入接在 $\mathit{rear}$ 後�
 $\mathit{front}$。 方向不能反過來：在單向串列的尾巴刪除要先找到前一個節點，是
 $\Theta(n)$；在尾巴加入只要改 $\mathit{rear}.\mathit{next}$，是 $\Theta(1)$。
 
-\begin{pseudo}[label=alg:sq-list-queue]{串列佇列}
+\begin{pseudo}[label=alg:sq-list-queue]{串列佇列：加入}
 \Procedure{Enqueue-List}{$Q, x$}
     \State 配置一個新節點 $p$
     \State $p.\mathit{key} \gets x$
@@ -606,7 +614,9 @@ $\Theta(n)$；在尾巴加入只要改 $\mathit{rear}.\mathit{next}$，是 $\The
     \EndIf
     \State $Q.\mathit{rear} \gets p$
 \EndProcedure
-\Statex
+\end{pseudo}
+
+\begin{pseudo}[label=alg:sq-list-dequeue, unbreakable]{串列佇列：取出}
 \Function{Dequeue-List}{$Q$}
     \If{$Q.\mathit{front} = \NIL$}
         \State \Error{underflow}
@@ -711,12 +721,12 @@ int main(void)
         total_wait += now - arrive[j];
         now = finish;
     }
-    printf("average wait = %.2f, longest queue = %d\n",
+    printf("average wait = %.2f\nlongest queue = %d\n",
            (double)total_wait / n, longest);
     return 0;
 }
 \end{example}
-\iosample{6 \\ 0 5 \\ 3 2 \\ 6 10 \\ 9 1 \\ 50 3 \\ 58 2}{job arrive start finish wait \\ 1 0 0 20 0 \\ 2 3 20 28 17 \\ 3 6 28 68 22 \\ 4 9 68 72 59 \\ 5 50 72 84 22 \\ 6 58 84 92 26 \\ average wait = 24.33, longest queue = 3}
+\iosample{6 \\ 0 5 \\ 3 2 \\ 6 10 \\ 9 1 \\ 50 3 \\ 58 2}{job arrive start finish wait \\ 1 0 0 20 0 \\ 2 3 20 28 17 \\ 3 6 28 68 22 \\ 4 9 68 72 59 \\ 5 50 72 84 22 \\ 6 58 84 92 26 \\ average wait = 24.33 \\ longest queue = 3}
 
 手算對一次：第 1 份在 $0$ 秒開始，$5$ 頁印到 $20$ 秒。 這段時間第 2、3、4 份陸續
 送來，$20$ 秒時佇列是 $\langle 2, 3, 4 \rangle$，這是排得最長的時候，所以
@@ -854,26 +864,6 @@ $\mathit{op}$ 先算」的意思是：$t$ 的優先順序比較高，或兩者�
 \item 讀完之後，把堆疊裡剩下的運算子依序 pop 並輸出。
 \end{enumerate}
 
-本書用的優先順序（越上面越先算）：
-
-\begin{center}
-\begin{tabular}{ccc}
-\toprule
-運算子 & 優先順序 & 結合性 \\
-\midrule
-\sqpow & 3 & 由右往左 \\
-$*$、$/$ & 2 & 由左往右 \\
-$+$、$-$ & 1 & 由左往右 \\
-\bottomrule
-\end{tabular}
-\end{center}
-
-第 4 條規則裡的「一樣高」決定了結合性。 讀 $a - b - c$ 的第二個 $-$ 時，頂端是第
-一個 $-$，一樣高、由左往右結合，所以先輸出第一個 $-$，得到 $a\;b\;-\;c\;-$，也就是
-$(a - b) - c$。 讀 $a \sqpow b \sqpow c$ 的第二個 \sqpow{} 時，一樣高但由右往左結
-合，不 pop，直接 push，最後得到 $a\;b\;c\;\sqpow\;\sqpow$，也就是
-$a \sqpow (b \sqpow c)$。
-
 \begin{pseudo}[label=alg:sq-infix-postfix]{中序轉後序}
 \Procedure{Infix-To-Postfix}{$T, m$}
     \State 建立空堆疊 $S$
@@ -903,6 +893,27 @@ $a \sqpow (b \sqpow c)$。
 每個運算子最多 push 一次、pop 一次，每個括號也一樣，所以總時間是 $\Theta(m)$。 內
 層的 \textbf{while} 有時一次 pop 好幾個，但全部加起來不會超過 push 的次數，這是
 第~3~章聚合法的典型例子。
+
+\begin{center}
+\begin{tabular}{@{}c@{}}
+本書用的優先順序（越上面越先算）\\[4pt]
+\begin{tabular}{ccc}
+\toprule
+運算子 & 優先順序 & 結合性 \\
+\midrule
+\sqpow & 3 & 由右往左 \\
+$*$、$/$ & 2 & 由左往右 \\
+$+$、$-$ & 1 & 由左往右 \\
+\bottomrule
+\end{tabular}
+\end{tabular}
+\end{center}
+
+第 4 條規則裡的「一樣高」決定了結合性。 讀 $a - b - c$ 的第二個 $-$ 時，頂端是第
+一個 $-$，一樣高、由左往右結合，所以先輸出第一個 $-$，得到 $a\;b\;-\;c\;-$，也就是
+$(a - b) - c$。 讀 $a \sqpow b \sqpow c$ 的第二個 \sqpow{} 時，一樣高但由右往左結
+合，不 pop，直接 push，最後得到 $a\;b\;c\;\sqpow\;\sqpow$，也就是
+$a \sqpow (b \sqpow c)$。
 
 \textbf{手算追蹤}：轉換 \texttt{A - B * (C + D \sqpow{} E \sqpow{} F) / G + H}。
 每讀一個記號寫一列，堆疊由底到頂寫。
@@ -940,15 +951,9 @@ H & 輸出 & $+$ & \ldots{} $+$ $*$ G $/$ $-$ H \\
 $D^{(E^F)}$，次方由右往左結合；$*$ 在 $/$ 前面，表示 $(B * (\ldots)) / G$，乘除
 由左往右結合。
 
-\begin{examnote}
-中序轉後序的追蹤題，表格固定寫四欄：讀到的記號、做了什麼、堆疊（寫明由底到頂或由
-頂到底）、目前為止的輸出。 遇到同優先順序時，在「動作」欄寫出你依據的結合性。 最
-後一列別忘了把堆疊清空。 寫完用「運算元順序沒變」檢查一次。
-\end{examnote}
-
 很多教科書和考卷把第 4 條規則寫成兩張數字表：運算子在堆疊裡時的優先順序
 （in-stack priority，isp），和剛讀進來時的優先順序（incoming priority，icp）。 規
-則變成「頂端的 isp 大於等於讀進來的 icp 就 pop」。 下面這組數字和本書的規則等價：
+則變成「頂端的 isp 大於等於讀進來的 icp 就 pop」。 下表這組數字和本書的規則等價。
 
 \begin{center}
 \begin{tabular}{ccccc}
@@ -965,6 +970,12 @@ icp（剛讀進來）& 5 & 4 & 2 & 1 \\
 pop 掉。 \sqpow{} 的 icp 比 isp 大，所以新讀到的 \sqpow{} 不會把堆疊裡的 \sqpow{}
 pop 出來，這就是由右往左結合。 $*$、$/$、$+$、$-$ 的 isp 和 icp 相等，一樣高時會
 pop，這就是由左往右結合。
+
+\begin{examnote}
+中序轉後序的追蹤題，表格固定寫四欄：讀到的記號、做了什麼、堆疊（寫明由底到頂或由
+頂到底）、目前為止的輸出。 遇到同優先順序時，在「動作」欄寫出你依據的結合性。 最
+後一列別忘了把堆疊清空。 寫完用「運算元順序沒變」檢查一次。
+\end{examnote}
 
 \subsection{C 程式}
 
@@ -1118,14 +1129,16 @@ $\Theta(1)$。
 recursion）。 這時目前這一層的資料之後用不到，不用存，直接把參數換成新的值、跳回
 開頭就好。 例如輾轉相除法：
 
-\begin{pseudo}[label=alg:sq-gcd]{最大公因數：遞迴和迴圈}
+\begin{pseudo}[label=alg:sq-gcd, unbreakable]{最大公因數：遞迴版}
 \Function{Gcd}{$a, b$}
     \If{$b = 0$}
         \State \Return $a$
     \EndIf
     \State \Return \Call{Gcd}{$b, a \bmod b$}
 \EndFunction
-\Statex
+\end{pseudo}
+
+\begin{pseudo}[label=alg:sq-gcd-iter, unbreakable]{最大公因數：迴圈版}
 \Function{Gcd-Iter}{$a, b$}
     \While{$b \ne 0$}
         \State $r \gets a \bmod b$
@@ -1146,7 +1159,7 @@ $a \gets b$、$b \gets a \bmod b$，第二行用到的已經是新的 $a$。
 $a$ 搬到柱子 $c$、以 $b$ 暫放，遞迴的做法分三步：先把上面 $k - 1$ 個從 $a$ 搬到
 $b$，再把最大的從 $a$ 搬到 $c$，最後把那 $k - 1$ 個從 $b$ 搬到 $c$。
 
-\begin{pseudo}[label=alg:sq-hanoi]{河內塔：遞迴版}
+\begin{pseudo}[label=alg:sq-hanoi, unbreakable]{河內塔：遞迴版}
 \Procedure{Hanoi}{$k, a, c, b$} \Comment{$k$ 個盤子從 $a$ 搬到 $c$，$b$ 暫放}
     \If{$k = 0$}
         \State \Return
@@ -1162,7 +1175,7 @@ $b$，再把最大的從 $a$ 搬到 $c$，最後把那 $k - 1$ 個從 $b$ 搬到
 每次 pop 出一個工作：$k = 1$ 就直接搬；否則把它拆成上面三步，放回堆疊。 因為堆疊
 後進先出，三步要\textbf{倒過來} push，最先要做的最後放，下一輪才會先拿到它。
 
-\begin{pseudo}[label=alg:sq-hanoi-iter]{河內塔：用堆疊的迴圈版}
+\begin{pseudo}[label=alg:sq-hanoi-iter, unbreakable]{河內塔：用堆疊的迴圈版}
 \Procedure{Hanoi-Iter}{$n, a, c, b$}
     \State 建立空堆疊 $S$
     \State \Call{Push}{$S, (n, a, c, b)$}
@@ -1215,10 +1228,12 @@ $(k, x, z, y)$ 簡寫成 $k{:}x{\to}z$（暫放的柱子可以從另外兩根推
 
 #define MAXN 10
 
-char rec[1 << MAXN][3], itr[1 << MAXN][3];  // 每一步存成 "AC" 這樣的字串
+// 每一步存成 "AC" 這樣的字串
+char rec[1 << MAXN][3], itr[1 << MAXN][3];
 int nrec, nitr;
 
-void hanoi_rec(int n, char a, char c, char b)   // n 個盤子從 a 搬到 c，b 暫放
+// n 個盤子從 a 搬到 c，b 暫放
+void hanoi_rec(int n, char a, char c, char b)
 {
     if (n == 0) {
         return;
@@ -1234,7 +1249,8 @@ typedef struct {
     char a, c, b;
 } Task;                     // 待辦的工作：n 個盤子從 a 搬到 c，b 暫放
 
-int hanoi_iter(int n, char a, char c, char b)   // 回傳堆疊最高時有幾個工作
+// 回傳堆疊最高時有幾個工作
+int hanoi_iter(int n, char a, char c, char b)
 {
     Task *st = malloc(2 * n * sizeof *st);
     if (st == NULL) {
@@ -1373,7 +1389,7 @@ $4$ 格，第 2 個（橘色）已經滿了，但第 1、3 個還有空格。}
 \label{sec:sq-pitfalls}
 
 \begin{center}
-\begin{tabular}{p{0.24\linewidth}p{0.50\linewidth}p{0.16\linewidth}}
+\begin{tabular}{p{0.24\linewidth}p{0.46\linewidth}p{0.20\linewidth}}
 \toprule
 錯誤 & 例子 & 見 \\
 \midrule
@@ -1426,7 +1442,7 @@ $\mathit{front} = \mathit{rear} = 0$。 依序做：E 10、E 20、E 30、E 40、
 E 60、E 70、E 80、D、E 90。 寫出每個操作之後的 $\mathit{front}$、
 $\mathit{rear}$，哪個操作失敗？ 最後陣列 $Q[0..5]$ 實際存的值是什麼？
 
-\item （計算）某課本的環狀佇列用 $Q[0..n-1]$，規定 $\mathit{front}$ 指向前端元素的
+\item \label{q:sq-front-before}（計算）某課本的環狀佇列用 $Q[0..n-1]$，規定 $\mathit{front}$ 指向前端元素的
 \textbf{前一格}，$\mathit{rear}$ 指向尾端元素本身，一開始
 $\mathit{front} = \mathit{rear} = 0$，一樣留一格不用。
 \begin{enumerate}
@@ -1679,7 +1695,7 @@ $1$ 進來馬上取出，之後 $2, 3, 4$ 都進來，取 4（尾）、2（前�
 （$1, 4, 2, 3$ 和 $3, 1, 2$ 都含「大、小、中」），這也說明雙端佇列比堆疊有彈性。
 
 \item 前端節點是 $\mathit{rear}.\mathit{next}$。
-\begin{pseudo}{環狀串列的佇列}
+\begin{pseudo}[unbreakable]{環狀串列的佇列}
 \Procedure{Enqueue-Ring}{$Q, x$}
     \State 配置新節點 $p$，$p.\mathit{key} \gets x$
     \If{$Q.\mathit{rear} = \NIL$}

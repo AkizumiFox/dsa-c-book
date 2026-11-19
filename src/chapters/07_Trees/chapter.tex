@@ -3,7 +3,7 @@
 
 % 本章的圖共用的樣式與巨集（名稱都以 bt 開頭，避免和其他章衝突）
 \tikzset{
-    btn/.style={circle, draw=black!65, minimum size=6.5mm, inner sep=0pt, font=\small},
+    btn/.style={circle, draw=black!65, line width=0.4pt, minimum size=6.5mm, inner sep=0pt, font=\small},
     bthl/.style={btn, fill=coreFill, draw=coreStroke},
     btop/.style={btn, fill=memFill, draw=memStroke},
     btthread/.style={-{Stealth[length=1.6mm]}, dashed, thick, draw=optStroke},
@@ -187,7 +187,7 @@ $2^k < n + 1 \le 2^{k+1}$，$\lceil \lg(n + 1) \rceil = k + 1$。 第~9、10~章
 樹每個操作都花 $\Theta(h)$，(3) 告訴我們 $h$ 最好是 $\Theta(\lg n)$、最壞是
 $\Theta(n)$，平衡樹要做的就是把 $h$ 壓在下界附近。
 
-下一個性質是考卷上最常出現的一個等式。 令 $n_0$、$n_1$、$n_2$ 分別是分支度為
+下一個性質是二元樹最常用的一個等式，計算題幾乎都會用到。 令 $n_0$、$n_1$、$n_2$ 分別是分支度為
 $0$、$1$、$2$ 的節點數。
 
 \begin{theorem}
@@ -216,15 +216,15 @@ n_0 = 1 + \sum_{i=2}^{k} (i - 1)\, n_i = 1 + n_2 + 2 n_3 + \cdots + (k - 1) n_k 
 裡也不一致，所以一併列出常見的叫法）：
 
 \begin{center}
-\begin{tabular}{p{0.2\linewidth}p{0.44\linewidth}p{0.26\linewidth}}
+\begin{tabular}{p{0.15\linewidth}p{0.37\linewidth}>{\raggedright\arraybackslash}p{0.38\linewidth}}
 \toprule
-本書用的名稱 & 定義 & 其他書的叫法 \\
+本書用語 & 定義 & 其他書的叫法 \\
 \midrule
 滿二元樹 & 每一層都是滿的；高度 $h$ 時恰有 $2^h - 1$ 個節點 & perfect binary tree；
-有些書叫 full binary tree \\
+CLRS 附錄 B 叫 complete binary tree；有些書叫 full binary tree \\
 完整二元樹 & 除了最後一層都是滿的，最後一層的節點都靠左邊 & complete binary tree；
-也有人譯作完全二元樹 \\
-嚴格二元樹 & 每個節點的分支度都是 $0$ 或 $2$ & CLRS 叫 full binary tree；也叫
+CLRS 第 6 章叫 nearly complete binary tree；也有人譯作完全二元樹 \\
+嚴格二元樹 & 每個節點的分支度都是 $0$ 或 $2$ & CLRS 附錄 B 叫 full binary tree；也叫
 proper binary tree \\
 \bottomrule
 \end{tabular}
@@ -360,7 +360,7 @@ $k$ 是樹的分支度。 這很浪費：$n$ 個節點共 $nk$ 個指標，用�
 
 \begin{center}
 \begin{tikzpicture}[bttree]
-\begin{scope}[level 1/.style={sibling distance=20mm}, level 2/.style={sibling distance=9mm}]
+\begin{scope}[level 1/.style={sibling distance=26mm}, level 2/.style={sibling distance=11mm}]
 \node[btn] (R) {R}
     child {node[btn] (P) {P} child {node[btn] (T) {T}} child {node[btn] (U) {U}}}
     child {node[btn] (Q) {Q}}
@@ -372,7 +372,7 @@ $k$ 是樹的分支度。 這很浪費：$n$ 個節點共 $nk$ 個指標，用�
 \draw[btthread, -] (W) -- (X);
 \node at (0, -2.9) {\small 一般的樹（虛線是兄弟相連）};
 \end{scope}
-\begin{scope}[xshift=8.2cm, level 1/.style={sibling distance=20mm}, level 2/.style={sibling distance=14mm}, level 3/.style={sibling distance=10mm}, level 4/.style={sibling distance=9mm}, level distance=8.5mm]
+\begin{scope}[xshift=8.8cm, level 1/.style={sibling distance=20mm}, level 2/.style={sibling distance=14mm}, level 3/.style={sibling distance=10mm}, level 4/.style={sibling distance=9mm}, level distance=7.2mm]
 \node[btn] {R}
     child {node[btn] {P}
         child {node[btn] {T} child[missing] child {node[btn] {U}}}
@@ -382,7 +382,7 @@ $k$ 是樹的分支度。 這很浪費：$n$ 個節點共 $nk$ 個指標，用�
                 child {node[btn] {V} child[missing] child {node[btn] {W} child[missing] child {node[btn] {X}}}}
                 child[missing]}}}
     child[missing];
-\node at (0, -5.9) {\small 對應的二元樹};
+\node[anchor=west] at (0.6, 0) {\small 對應的二元樹};
 \end{scope}
 \end{tikzpicture}
 \diagcaption{左：一棵有序樹，$R$ 有三個子節點 $P$、$Q$、$S$。 右：左孩子右兄弟轉成的
@@ -402,16 +402,16 @@ $B(\text{$T_1$ 的根的子樹們})$，右子樹是 $B(T_2, \ldots, T_m)$。 手
 
 \begin{center}
 \begin{tikzpicture}[bttree]
-\begin{scope}[level 1/.style={sibling distance=9mm}]
+\begin{scope}[level 1/.style={sibling distance=10mm}]
 \node[btn] {A} child {node[btn] {B}} child {node[btn] {C}} child {node[btn] {D}};
 \end{scope}
-\begin{scope}[xshift=2.2cm]
+\begin{scope}[xshift=2.4cm]
 \node[btn] {E} child {node[btn] {F}};
 \end{scope}
-\begin{scope}[xshift=4.0cm, level 1/.style={sibling distance=10mm}, level 2/.style={sibling distance=9mm}]
+\begin{scope}[xshift=4.2cm, level 1/.style={sibling distance=10mm}, level 2/.style={sibling distance=9mm}]
 \node[btn] {G} child {node[btn] {H} child {node[btn] {I}} child[missing]} child {node[btn] {J}};
 \end{scope}
-\node at (2.0, -2.7) {\small 三棵樹的森林};
+\node at (2.1, -2.7) {\small 三棵樹的森林};
 \begin{scope}[xshift=9.5cm, level 1/.style={sibling distance=30mm}, level 2/.style={sibling distance=14mm}, level 3/.style={sibling distance=10mm}, level distance=8.5mm]
 \node[btn] {A}
     child {node[btn] {B} child[missing] child {node[btn] {C} child[missing] child {node[btn] {D}}}}
@@ -432,11 +432,15 @@ $B(\text{$T_1$ 的根的子樹們})$，右子樹是 $B(T_2, \ldots, T_m)$。 手
 \textbf{前序}是：先拜訪 $T_1$ 的根，再用前序走 $T_1$ 的根的子樹們，最後用前序走
 $T_2, \ldots, T_m$；\textbf{後序}是：先用後序走 $T_1$ 的根的子樹們，再拜訪 $T_1$ 的
 根，最後用後序走 $T_2, \ldots, T_m$。 對照 $B(F)$ 的定義，根是 $T_1$ 的根，左子樹是
-$T_1$ 的子樹們，右子樹是其餘的樹，由歸納法立刻得到：
+$T_1$ 的子樹們，右子樹是其餘的樹，對森林的節點數歸納可以得到：
 \begin{itemize}
 \item 森林的前序 $=$ $B(F)$ 的前序；
 \item 森林的後序 $=$ $B(F)$ 的\textbf{中序}。
 \end{itemize}
+以第二條為例：$B(F)$ 的中序是「左子樹的中序、根、右子樹的中序」。 左子樹是
+$B(\text{$T_1$ 的根的子樹們})$，由歸納假設，它的中序就是那些子樹的後序；右子樹是
+$B(T_2, \ldots, T_m)$，它的中序就是 $T_2, \ldots, T_m$ 的後序。 三段接起來，正好是上面
+森林後序的定義。 第一條的做法相同。
 以圖~\ref{fig:bt-forest} 為例，森林的前序是 $A\,B\,C\,D\,E\,F\,G\,H\,I\,J$，後序是
 $B\,C\,D\,A\,F\,E\,I\,H\,J\,G$，正好是右邊二元樹的前序和中序。 有些書把森林的後序叫
 做森林的「中序」，就是因為這個對應。 二元樹的後序則沒有自然的對應：它會把 $T_1$
@@ -596,7 +600,8 @@ int height(const Node *t)       // 層數（節點數）；空樹是 0
     return 1 + (hl > hr ? hl : hr);
 }
 
-void count_degree(const Node *t, int cnt[3])    // cnt[d]：分支度 d 的個數
+// cnt[d] 累計分支度為 d 的節點個數
+void count_degree(const Node *t, int cnt[3])
 {
     if (t != NULL) {
         cnt[(t->left != NULL) + (t->right != NULL)]++;
@@ -628,7 +633,8 @@ int main(void)
             printf("\n");
         }
         count_degree(root, cnt);
-        printf("height %d, n0 %d, n1 %d, n2 %d\n", height(root), cnt[0], cnt[1], cnt[2]);
+        printf("height %d, n0 %d, n1 %d, n2 %d\n",
+               height(root), cnt[0], cnt[1], cnt[2]);
         free_tree(root);
     }
     return 0;
@@ -640,8 +646,14 @@ int main(void)
 放在兩個遞迴呼叫的前、中、後。 \texttt{height} 要先知道兩棵子樹的高度才能算出自己
 的，是後序；\texttt{free\_tree} 也是後序。 高度照本書的定義數節點，所以空樹回傳
 $0$，葉節點得到 $1 + \max(0, 0) = 1$；題目把高度定義成邊數時，空樹改回傳 $-1$ 就
-好。 第二棵樹 $A(-, B(-, C))$ 是只往右長的鏈，前序和中序相同，高度是 $3$。 層序和迴圈版的走訪，下
-面兩小節先講虛擬碼，C 的寫法留給實作練習的前幾題。
+好。 第二棵樹 $A(-, B(-, C))$ 是只往右長的鏈，前序和中序相同，高度是 $3$。
+
+章首的兩個問題都是走訪：「依職位由高到低列出所有人」是下一小節的層序走訪；
+「某個組長底下總共有幾個人」是以他為根的子樹的節點數減 $1$，和 \texttt{height} 一樣
+用後序算（先算兩棵子樹，再加上自己）。 這個程式假設每個人底下最多兩個人；人數不固定
+時，先用第~\ref{sec:bt-lcrs}~節的左孩子右兄弟轉成二元樹，這時「他底下的人」是他的左
+子樹裡的所有節點。 層序和迴圈版的走訪，下面兩小節先講虛擬碼，C 的寫法留給實作練習的
+前幾題。
 
 \subsection{層序走訪}
 \label{sec:bt-level}
@@ -815,7 +827,9 @@ $q_{k+1} \cdots q_n$。 左子樹有 $k - 1$ 個節點，前序是「根、左�
 \end{proof}
 
 這個證明本身就是演算法。 用一個表 $\mathit{pos}[c]$ 記住名稱 $c$ 在中序裡的位置，找
-根就是 $\Theta(1)$：
+根就是 $\Theta(1)$。 虛擬碼的變數原本都是區域變數（第~\ref{sec:ana-conventions}~節），
+這裡把 $\mathit{pre}$、$\mathit{in}$、$\mathit{pos}$ 三個陣列當成全域的，參數只傳位置
+和長度：
 
 \begin{pseudo}[label=alg:bt-pre-in]{由前序和中序建樹}
 \Function{Build-Pre-In}{$i, j, m$} \Comment{$\mathit{pre}[i..i{+}m{-}1]$ 和 $\mathit{in}[j..j{+}m{-}1]$ 是同一棵子樹}
@@ -910,7 +924,7 @@ typedef struct Node {
     struct Node *left, *right;
 } Node;
 
-static int pos[256];            // pos[c]：c 在中序裡的位置，不在就是 -1
+static int pos[256];            // c 在中序裡的位置；不在是 -1
 static int ok;                  // 序列互相矛盾時設成 0
 
 Node *new_node(char c)
@@ -1083,8 +1097,12 @@ $11$ 個空指標裡，$9$ 個變成引線，中序的第一個 $D$ 的左邊和
 $x.\mathit{left}$ 一路往右走到底。
 
 \proc{Threaded-Inorder} 只用幾個變數，不用堆疊。 單次 \proc{In-Succ} 最壞要走
-$\Theta(h)$ 步，但「一路往左」走過的都是往左的邊，每條往左的邊在整趟走訪中只走一次，
-所以總時間仍是 $\Theta(n)$，這是第~3~章聚合法的例子。
+$\Theta(h)$ 步，但整趟走訪加起來仍是 $\Theta(n)$。 從一個節點出發、沿著左子節點一路
+走到底的路線叫一條「左鏈」。 第 12--13 行走的是從根開始的左鏈；$\proc{In-Succ}(x)$
+的第 5--6 行走的是從 $x.\mathit{right}$ 開始的左鏈。 一個節點只會是一個父節點的右子
+節點，所以不同的 $x$ 走的是不同的左鏈，每條往左的邊在整趟走訪中最多走一次，合計不超
+過 $n - 1$ 步；再加上 $n$ 次呼叫本身的常數工作，總時間是 $\Theta(n)$。 這是第~3~章
+聚合法的例子。
 
 \textbf{追蹤。} 在圖~\ref{fig:bt-threads} 上找幾個後繼：
 \begin{itemize}
@@ -1098,11 +1116,12 @@ $\Theta(h)$ 步，但「一路往左」走過的都是往左的邊，每條往�
 \subsection{建立引線與插入節點}
 
 把一棵普通的二元樹加上引線，只要做一次中序走訪，用 $\mathit{prev}$ 記住上一個拜訪
-的節點：拜訪 $x$ 時，$x$ 的左邊空著就指向 $\mathit{prev}$，$\mathit{prev}$ 的右邊空
+的節點。 $\mathit{prev}$ 要在每一層遞迴之間共用，所以是全域變數（C 程式改成傳指標）。
+拜訪 $x$ 時，$x$ 的左邊空著就指向 $\mathit{prev}$，$\mathit{prev}$ 的右邊空
 著就指向 $x$。 中序最後一個節點的右邊，等走訪結束後再補上旗標。
 
 \begin{pseudo}[label=alg:bt-make-threads]{加上中序引線}
-\Procedure{Make-Threads}{$x$} \Comment{$\mathit{prev}$ 一開始是 \NIL}
+\Procedure{Make-Threads}{$x$} \Comment{全域的 $\mathit{prev}$ 一開始是 \NIL}
     \If{$x = \NIL$}
         \State \Return
     \EndIf
@@ -1241,7 +1260,7 @@ void insert_right(TNode *s, TNode *r)
     s->right = r;
     s->rthread = 0;
     if (!r->rthread) {              // r 下面有原本的右子樹
-        TNode *t = in_succ(r);      // 它最左邊的節點，左引線原本指向 s
+        TNode *t = in_succ(r);      // 左引線原本指向 s
         t->left = r;
     }
 }
@@ -1265,7 +1284,7 @@ int main(void)
     int pos = 0;
     TNode *root = build(s, &pos), *prev = NULL;
     make_threads(root, &prev);
-    prev->rthread = 1;              // 中序最後一個節點：右邊是 NULL 引線
+    prev->rthread = 1;              // 最後一個：右邊是 NULL 引線
     TNode *first = root;
     while (!first->lthread) {
         first = first->left;
@@ -1310,7 +1329,7 @@ int main(void)
 $n$ 個節點的二元樹有幾種不同的形狀？ $n = 3$ 時有下面五種。
 
 \begin{center}
-\begin{tikzpicture}[bttree, level distance=8mm, level 1/.style={sibling distance=10mm}, level 2/.style={sibling distance=8mm}]
+\begin{tikzpicture}[bttree, level distance=9mm, level 1/.style={sibling distance=12mm}, level 2/.style={sibling distance=11mm}]
 \node[btn] {} child {node[btn] {} child {node[btn] {}} child[missing]} child[missing];
 \begin{scope}[xshift=2.6cm]
 \node[btn] {} child {node[btn] {} child[missing] child {node[btn] {}}} child[missing];
@@ -1552,7 +1571,8 @@ ENode *build(char *line)
 {
     ENode *st[64];
     int top = 0, ok = 1;
-    for (char *tok = strtok(line, " \n"); tok != NULL && ok; tok = strtok(NULL, " \n")) {
+    char *tok = strtok(line, " \n");
+    for (; tok != NULL && ok; tok = strtok(NULL, " \n")) {
         ENode *p = malloc(sizeof *p);
         if (p == NULL) {
             exit(1);
@@ -1607,11 +1627,11 @@ void infix(const ENode *t)
         return;
     }
     const ENode *l = t->left, *r = t->right;
-    int right_assoc = (t->op == '^');
+    int rassoc = (t->op == '^');    // 由右往左結合
     int pl = l->op && (prec(l->op) < prec(t->op) ||
-                       (prec(l->op) == prec(t->op) && right_assoc));
+                       (prec(l->op) == prec(t->op) && rassoc));
     int pr = r->op && (prec(r->op) < prec(t->op) ||
-                       (prec(r->op) == prec(t->op) && !right_assoc));
+                       (prec(r->op) == prec(t->op) && !rassoc));
     if (pl) {
         printf("(");
     }
@@ -1682,11 +1702,16 @@ AddressSanitizer 會回報記憶體洩漏。
 \section{本章常見錯誤}
 \label{sec:bt-pitfalls}
 
-\begin{center}
-\begin{tabular}{p{0.22\linewidth}p{0.52\linewidth}p{0.16\linewidth}}
+\begingroup\setlength{\LTpre}{\smallskipamount}\setlength{\LTpost}{\medskipamount}
+\begin{longtable}{>{\raggedright\arraybackslash}p{0.22\linewidth}>{\raggedright\arraybackslash}p{0.52\linewidth}>{\raggedright\arraybackslash}p{0.16\linewidth}}
 \toprule
 錯誤 & 例子 & 見 \\
 \midrule
+\endfirsthead
+\toprule
+錯誤 & 例子 & 見 \\
+\midrule
+\endhead
 高度差一 & 題目的高度數邊，卻直接套本書數節點的 $2^h - 1$、$\lfloor \lg n \rfloor
 + 1$；空樹和葉節點的高度寫成同一個值 &
 第~\ref{sec:bt-terms}~節 \\
@@ -1709,8 +1734,8 @@ AddressSanitizer 會回報記憶體洩漏。
 運算式樹左右顛倒 & 由後序建樹時，先 pop 出來的接在左邊，$8\;3\;-$ 變成 $3 - 8$ &
 第~\ref{sec:bt-expr}~節 \\
 \bottomrule
-\end{tabular}
-\end{center}
+\end{longtable}
+\endgroup
 
 \section{觀念題}
 \label{sec:bt-exercises}
@@ -1809,11 +1834,16 @@ $A[1..n]$。 寫出編號 $i$ 的節點的三個子節點和父節點的編號�
 定的函式，不寫 \texttt{main}；評測程式會在同一次執行裡呼叫好幾次，所以函式不能依賴
 上一次呼叫留下的全域變數，用完的樹也要讓評測程式能逐一 \texttt{free}。
 
-\begin{center}
-\begin{tabular}{llc}
+\begingroup\setlength{\LTpre}{\smallskipamount}\setlength{\LTpost}{\medskipamount}
+\begin{longtable}{llc}
 \toprule
 小節 & 題目 & 難度 \\
 \midrule
+\endfirsthead
+\toprule
+小節 & 題目 & 難度 \\
+\midrule
+\endhead
 走訪 & \akiref{build-tree-and-traverse}{建立二元樹並進行各種遍歷} & 基本 \\
 走訪 & \akiref{height-and-size}{二元樹的高度與節點數} & 暖身 \\
 走訪 & \akiref{level-order-traversal}{二元樹的層序遍歷} & 基本 \\
@@ -1832,8 +1862,8 @@ $A[1..n]$。 寫出編號 $i$ 的節點的三個子節點和父節點的編號�
 一般的樹 & \akiref{bonsai-pruning-match}{盆栽修剪配對} & 進階 \\
 運算式樹 & \akiref{gate-tree-settle-time}{邏輯閘樹的訊號穩定時間} & 進階 \\
 \bottomrule
-\end{tabular}
-\end{center}
+\end{longtable}
+\endgroup
 
 幾題的提示：
 
@@ -2039,11 +2069,25 @@ $C\,A\,B\,E\,D$ 是 $3, 1, 2, 5, 4$，含 $3, 1, 2$，所以沒有。
 $-\bigl(/(+(a, *(b, c)), -(d, e)),\; *(f, g)\bigr)$。 前序式
 $-\;/\;+\;a\;*\;b\;c\;-\;d\;e\;*\;f\;g$，後序式
 $a\;b\;c\;*\;+\;d\;e\;-\;/\;f\;g\;*\;-$。
-\item 依序：$a$；$a$ $b$；$a$ $b$ $c$；$*$ 之後 $a$ $(b * c)$；$+$ 之後
-$(a + (b * c))$；$d$、$e$ 之後 $(a + (b * c))$ $d$ $e$；$-$ 之後 $(a + (b * c))$
-$(d - e)$；$/$ 之後 $((a + (b * c)) / (d - e))$；$f$、$g$ 之後再多兩項 $f$ $g$；$*$
-之後 $((a + (b * c)) / (d - e))$ $(f * g)$；$-$ 之後剩下一棵
-$(((a + (b * c)) / (d - e)) - (f * g))$。
+\item 連續的運算元併成一列，每讀一個運算元就多一項（底 $\to$ 頂）：
+\begin{center}
+\begin{tabular}{cl}
+\toprule
+記號 & 之後的堆疊 \\
+\midrule
+$a$, $b$, $c$ & $a$ \quad $b$ \quad $c$ \\
+$*$ & $a$ \quad $(b * c)$ \\
+$+$ & $(a + (b * c))$ \\
+$d$, $e$ & $(a + (b * c))$ \quad $d$ \quad $e$ \\
+$-$ & $(a + (b * c))$ \quad $(d - e)$ \\
+$/$ & $((a + (b * c)) / (d - e))$ \\
+$f$, $g$ & $((a + (b * c)) / (d - e))$ \quad $f$ \quad $g$ \\
+$*$ & $((a + (b * c)) / (d - e))$ \quad $(f * g)$ \\
+$-$ & $(((a + (b * c)) / (d - e)) - (f * g))$ \\
+\bottomrule
+\end{tabular}
+\end{center}
+最後堆疊裡只剩一棵，就是整棵運算式樹。
 \item $b * c = 6$，$a + 6 = 10$，$d - e = 2$，$10 / 2 = 5$，$f * g = 3$，$5 - 3 = 2$。
 \end{enumerate}
 

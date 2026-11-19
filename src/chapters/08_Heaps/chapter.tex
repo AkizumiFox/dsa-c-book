@@ -69,8 +69,8 @@
 
 \subsection{完整二元樹與陣列存法}
 
-堆積用的是第~7~章的\textbf{完整二元樹}（complete binary tree）：除了最後一層，每一層
-都填滿，最後一層的節點靠左排。 第~\ref{sec:bt-array}~節說過，把完整二元樹一層一層、
+堆積用的是第~7~章的\textbf{完整二元樹}（complete binary tree，CLRS 第 6 章叫 nearly
+complete binary tree）：除了最後一層，每一層都填滿，最後一層的節點靠左排。 第~\ref{sec:bt-array}~節說過，把完整二元樹一層一層、
 每層由左到右編號 $1, 2, \ldots, n$，就能剛好填滿陣列 $A[1..n]$，不需要任何指標，父子的
 位置都用算的：
 \[
@@ -185,7 +185,7 @@ $A[i]$ 是原本三個數裡最大的，所以 $i$ 和兩個子節點之間沒�
 \textbf{取出最大值}：最大值在 $A[1]$。 把最後一個元素搬到 $A[1]$，堆積少一格，形狀仍是
 完整二元樹；唯一可能違反的地方是新的根，它的兩棵子樹都沒動過，所以做一次下沉。
 
-\begin{pseudo}[label=alg:hp-insert-extract]{插入與取出最大值}
+\begin{pseudo}[label=alg:hp-insert-extract, unbreakable]{插入與取出最大值}
 \Procedure{Heap-Insert}{$A, x$} \Comment{假設陣列還有空間}
     \State $A.\mathit{size} \gets A.\mathit{size} + 1$
     \State $A[A.\mathit{size}] \gets x$
@@ -259,6 +259,7 @@ $A[2] = 47$ 交換，再和 $A[1] = 62$ 交換，共兩次；$47$ 被換到 $A[5
 堆積的追蹤題通常要求「每插入（刪除）一個元素後畫出堆積」。 樹和陣列可以只畫一種，
 但要看清楚題目要哪一種；畫樹時節點的左右位置要對，因為左右決定了陣列的順序。 兩個
 子節點相等時，下沉換哪一邊會影響之後的形狀，本書一律換左邊（虛擬碼~\ref{alg:hp-sift} 第 8 行用 $>$），
+CLRS 的 \textsc{Max-Heapify} 也是先看左子節點、右邊要嚴格比較大才換右邊，結果一樣。
 作答時寫一句你用的規則。
 \end{examnote}
 
@@ -460,8 +461,8 @@ $A[10] = 61$ 換。 下圖左邊是開始時的樹，右邊是建好的堆積。
 
 \begin{examnote}
 題目說「建立堆積」（build a heap）而沒有指定方法時，先看題目有沒有「依序插入」之類的
-字。 有就逐一插入，沒有的話多數題目指的是由下而上的方法；作答時先寫明你用哪一種，再
-寫追蹤。 由下而上的方法要從 $\lfloor n/2 \rfloor$ 開始倒著做，從 $1$ 往下做是錯的。
+字。 有就逐一插入；沒有的話，通常指的是由下而上的方法，CLRS 6.3 節的
+\textsc{Build-Max-Heap} 就是這一種。 作答時先寫明你用哪一種，再寫追蹤。 由下而上的方法要從 $\lfloor n/2 \rfloor$ 開始倒著做，從 $1$ 往下做是錯的。
 \end{examnote}
 
 \subsection{為什麼是 $O(n)$}
@@ -557,7 +558,8 @@ $\Theta(n^2)$ 降到 $O(n \lg n)$。
 
 \subsection{decrease-key 要先知道元素在哪裡}
 
-堆積不支援搜尋：給一個鍵，它可能在任何一個葉節點，最壞要看 $\Theta(n)$ 格。 所以
+堆積不支援搜尋：在最小堆積裡找鍵 $k$，只能跳過根比 $k$ 大的子樹，其他的都得往下看，
+最壞要看 $\Theta(n)$ 格（例如 $k$ 比所有的鍵都大）。 所以
 \proc{Decrease-Key}$(Q, x, k)$ 的 $x$ 不能只是一個鍵，必須能直接找到它在陣列的位置。 常
 見的做法是給每個元素一個編號 $v = 1, 2, \ldots, m$（例如圖的點、病人的掛號序號），陣列
 $H.A$ 裡存的是編號，另外開兩個以編號為索引的陣列：
@@ -671,7 +673,8 @@ static void sift_down(ERQueue *q, int i)
         if (j >= q->size) {
             return;
         }
-        if (j + 1 < q->size && before(q, q->heap[j + 1], q->heap[j])) {
+        if (j + 1 < q->size &&
+            before(q, q->heap[j + 1], q->heap[j])) {
             j++;
         }
         if (!before(q, q->heap[j], q->heap[i])) {
@@ -714,12 +717,12 @@ int main(void)
     // 一個晚上的紀錄。A x：新病人到達，x 級；T：叫號看診；
     // U x y：x 號病人改成 y 級；L x：x 號病人離開。
     struct { char op; int x, y; } ops[] = {
-        {'A', 4, 0}, {'A', 4, 0}, {'A', 5, 0}, {'A', 3, 0}, {'A', 4, 0},
-        {'A', 2, 0}, {'A', 3, 0}, {'L', 2, 0}, {'U', 3, 1}, {'A', 3, 0},
-        {'T', 0, 0}, {'T', 0, 0}};
+        {'A', 4, 0}, {'A', 4, 0}, {'A', 5, 0}, {'A', 3, 0},
+        {'A', 4, 0}, {'A', 2, 0}, {'A', 3, 0}, {'L', 2, 0},
+        {'U', 3, 1}, {'A', 3, 0}, {'T', 0, 0}, {'T', 0, 0}};
     int m = sizeof ops / sizeof ops[0];      // 病人最多 m 個
-    ERQueue q = {malloc(m * sizeof(int)), malloc((m + 1) * sizeof(int)),
-                 malloc((m + 1) * sizeof(int)), 0};
+    size_t sz = (m + 1) * sizeof(int);       // 編號從 1 用到 m
+    ERQueue q = {malloc(sz), malloc(sz), malloc(sz), 0};
     if (q.heap == NULL || q.pos == NULL || q.level == NULL) {
         free(q.heap);
         free(q.pos);
@@ -733,7 +736,7 @@ int main(void)
             er_arrive(&q, next, x);
             printf("arrive %d(%d):", next, x);
             next++;
-        } else if (ops[k].op == 'T') {       // 這份紀錄看診時一定有人
+        } else if (ops[k].op == 'T') {       // 看診時一定有人
             int v = q.heap[0];
             er_remove(&q, v);
             printf("treat %d(%d):", v, q.level[v]);
@@ -901,7 +904,7 @@ $\{17, 12, 28\}$ 中的 $12$ 交換，到了位置 $3$，子節點只剩 $70$、
 二元堆積有兩個做不到的地方。 第一，最小堆積找最大值要看所有的葉節點，$\Theta(n)$；想同時
 取最小和最大，就要另外想辦法。 第二，兩個堆積合併成一個，只能把兩個陣列接起來重建，
 $\Theta(n)$。 這一節的三種結構分別處理這兩件事：最小最大堆積處理第一件，左傾樹和二項堆
-積處理第二件。 它們在考卷上通常以手算題出現，所以重點放在追蹤。
+積處理第二件。 三種都以手算追蹤為主。
 
 \subsection{最小最大堆積}
 
@@ -1051,7 +1054,8 @@ $A[2]$。 到了位置 $5$，它的子節點 $34, 23$ 裡最小的是 $A[11] = 2
 
 對每個節點 $x$，令 $s(x)$ 是從 $x$ 往下走到最近的空位（\NIL）要經過幾個節點：
 $s(\NIL) = 0$，$s(x) = 1 + \min\bigl(s(x.\mathit{left}), s(x.\mathit{right})\bigr)$。 葉節點的
-$s$ 是 $1$；只有一個子節點的節點，$s$ 也是 $1$。
+$s$ 是 $1$；只有一個子節點的節點，$s$ 也是 $1$。 實作時每個節點用一個欄位 $x.s$ 存
+$s(x)$，$s(\NIL)$ 直接當成 $0$。
 
 \begin{definition}[左傾樹]
 \label{def:hp-leftist}
@@ -1103,13 +1107,13 @@ $n \ge 2^{s(\text{根})} - 1$，所以右邊的路徑長 $s(\text{根}) \le \lg(
 都很簡單：\textbf{插入}是和只有一個節點的樹合併；\textbf{取出最小值}是拿掉根，把左右兩棵
 子樹合併。 兩者都是 $O(\lg n)$。
 
-\textbf{手算追蹤}。 下圖把 $A$、$B$ 兩棵最小左傾樹合併，節點右上角的小字是 $s$。 考卷上
+\textbf{手算追蹤}。 下圖把 $A$、$B$ 兩棵最小左傾樹合併，節點右邊的小字是 $s$。 考卷上
 的做法分兩步：先把兩條右邊路徑依鍵的大小合成一條，掛在右邊（圖 (c)）；再從下往上，遇
 到左邊的 $s$ 比右邊小就對調左右，同時更新 $s$（圖 (d)）。 兩步的結果和虛擬碼的遞迴完
 全一樣，只是把「往下」和「回來」分開畫。
 
 \begin{center}
-\tikzset{lt/.style={hpn, label={[hpidx]north east:#1}},
+\tikzset{lt/.style={hpn, label={[hpidx, inner sep=1pt]east:#1}},
     ltlev/.style={level distance=0.95cm, edge from parent/.style={hpedge, draw},
         level 1/.style={sibling distance=2.0cm},
         level 2/.style={sibling distance=1.0cm},
@@ -1188,15 +1192,15 @@ length（npl），規定 $\mathrm{npl}(\NIL) = -1$、葉節點是 $0$，每個�
     btlev/.style={level distance=0.7cm, edge from parent/.style={hpedge, draw}}}
 \begin{tikzpicture}[btlev]
 \node[bt] {};
-\node[font=\small] at (0,-2.9) {$B_0$};
+\node[font=\small] at (0,-2.6) {$B_0$};
 \end{tikzpicture}\hspace{1.0cm}%
 \begin{tikzpicture}[btlev]
 \node[bt] {} child {node[bt] {}};
-\node[font=\small] at (0,-2.9) {$B_1$};
+\node[font=\small] at (0,-2.6) {$B_1$};
 \end{tikzpicture}\hspace{1.0cm}%
 \begin{tikzpicture}[btlev, level 1/.style={sibling distance=0.8cm}]
 \node[bt] {} child {node[bt] {} child {node[bt] {}}} child {node[bt] {}};
-\node[font=\small] at (0,-2.9) {$B_2$};
+\node[font=\small] at (0,-2.6) {$B_2$};
 \end{tikzpicture}\hspace{1.0cm}%
 \begin{tikzpicture}[btlev, level 1/.style={sibling distance=1.0cm},
     level 2/.style={sibling distance=0.6cm}]
@@ -1204,7 +1208,7 @@ length（npl），規定 $\mathrm{npl}(\NIL) = -1$、葉節點是 $0$，每個�
     child {node[bt] {} child {node[bt] {} child {node[bt] {}}} child {node[bt] {}}}
     child {node[bt] {} child {node[bt] {}}}
     child {node[bt] {}};
-\node[font=\small] at (0,-2.9) {$B_3$};
+\node[font=\small] at (0,-2.6) {$B_3$};
 \end{tikzpicture}
 \diagcaption{二項樹 $B_0$ 到 $B_3$。 $B_3$ 的根有三個子節點，由左到右是 $B_2$、$B_1$、
 $B_0$ 的根。}
@@ -1228,6 +1232,11 @@ $1$ 就有一棵 $B_k$。 例如 $n = 13 = 1101_2$，就是 $B_3$、$B_2$、$B_0
 $\lfloor \lg n \rfloor + 1$ 棵，每棵的階數不超過 $\lfloor \lg n \rfloor$，高度不超過
 $\lfloor \lg n \rfloor + 1$。 各樹的
 根用串列串起來，叫\textbf{根串列}（root list），依階數由小到大排。
+
+每個節點的子節點個數不固定，所以用第~\ref{sec:bt-lcrs}~節的左孩子右兄弟存：
+$x.\mathit{child}$ 指向最左邊的子節點，$x.\mathit{sibling}$ 指向右邊的下一個兄弟，另外
+$x.p$ 指向父節點，$x.\mathit{degree}$ 記子節點個數。 根串列就是用各棵樹的根的
+$\mathit{sibling}$ 串起來的。
 
 基本的動作是把兩棵同階的樹連成一棵：根比較大的那棵掛到另一棵的根底下，成為最左邊的子
 節點。 一棵 $B_k$ 和一棵 $B_k$ 連成 $B_{k+1}$，堆積性質仍然成立，$O(1)$。
@@ -1416,7 +1425,7 @@ $t(H)$ 那一項被位能的下降抵銷了，這就是「前面插入時多付�
 \end{whybox}
 
 \begin{examnote}
-費氏堆積的題目常考「哪些操作是 $O(1)$」。 作答時要寫清楚是平攤還是最壞：
+費氏堆積的題目如果問「哪些操作是 $O(1)$」，作答時要寫清楚是平攤還是最壞：
 \proc{Extract-Min} 的平攤是 $O(\lg n)$，單獨一次最壞可以是 $\Theta(n)$；
 \proc{Decrease-Key} 的平攤是 $O(1)$，單獨一次的連鎖剪下可能很長。 只寫「費氏堆積的插入
 是 $O(1)$」而不說平攤或實際，在證明題裡會被認為不完整。
@@ -1426,7 +1435,7 @@ $t(H)$ 那一項被位能的下降抵銷了，這就是「前面插入時多付�
 \label{sec:hp-pitfalls}
 
 \begin{center}
-\begin{tabular}{p{0.24\linewidth}p{0.50\linewidth}p{0.16\linewidth}}
+\begin{tabular}{>{\raggedright\arraybackslash}p{0.24\linewidth}>{\raggedright\arraybackslash}p{0.50\linewidth}>{\raggedright\arraybackslash}p{0.16\linewidth}}
 \toprule
 錯誤 & 例子 & 見 \\
 \midrule
@@ -1453,7 +1462,7 @@ $d$ 元堆積公式混用編號 & 從 $1$ 編號卻寫子節點 $di + 1$ & 第~\
 第~\ref{sec:hp-mergeable}~節 \\
 二項堆積連結錯樹 & 把不同階的樹連在一起；連結後子節點的順序放錯 &
 第~\ref{sec:hp-mergeable}~節 \\
-平攤和最壞混為一談 & 說「費氏堆積的 Extract-Min 最壞是 $O(\lg n)$」 &
+平攤和最壞混為一談 & 說「費氏堆積的 \proc{Extract-Min} 最壞是 $O(\lg n)$」 &
 第~\ref{sec:hp-fib}~節 \\
 \bottomrule
 \end{tabular}

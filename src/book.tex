@@ -111,9 +111,11 @@
 \input{chapters/29_Approximation/chapter}
 
 % 附錄（章號改成 A、B，標題改成「附錄 A」）
+% BEGIN-APPENDIX-SETUP（單章編譯時 Makefile 會刪掉這一段）
 \appendix
 \titleformat{\chapter}{\normalfont\huge\bfseries}{附錄~\thechapter}{1em}{}
 \renewcommand{\chaptermark}[1]{\markboth{附錄~\thechapter\quad #1}{}}
+% END-APPENDIX-SETUP
 \input{chapters/A_MathTools/chapter}
 \input{chapters/B_ExamWriting/chapter}
 

@@ -128,7 +128,7 @@ $\mathit{mid} = 4$，$A[4] = 15$，馬上回傳 $4$。 $15$ 出現在第 $2$、$
 於 $x$ 時回傳 $n + 1$。
 \end{itemize}
 
-\proc{Lower-Bound} 的虛擬碼和正確性證明在第~1~章觀念題第 11 題。 它用的是
+\proc{Lower-Bound} 的虛擬碼和正確性證明在第~1~章觀念題第~\ref{ana-q-lower-bound}~題。 它用的是
 \textbf{半開區間}：答案一定在 $\mathit{lo}..\mathit{hi}$ 之間（可能等於
 $\mathit{hi}$），$\mathit{hi}$ 從 $n + 1$ 開始，迴圈條件是 $\mathit{lo} <
 \mathit{hi}$，往左縮時寫 $\mathit{hi} \gets \mathit{mid}$。 \proc{Upper-Bound} 只
@@ -182,6 +182,8 @@ $15$ 佔了第 $2$ 到第 $4$ 格，下界 $2$ 指到第一個 $15$，上界 $5$
 的下一格，$5 - 2 = 3$ 正好是 $15$ 的個數。
 
 \begin{center}
+\begin{minipage}{\linewidth}
+\centering
 \begin{tikzpicture}
 \foreach \v [count=\k] in {12,15,15,15,23,31,31,40} {
     \ifnum\k>1 \ifnum\k<5
@@ -203,6 +205,7 @@ $15$ 佔了第 $2$ 到第 $4$ 格，下界 $2$ 指到第一個 $15$，上界 $5$
 \diagcaption{兩個邊界版本的回傳值。 藍底是 $15$ 佔的範圍，$5 - 2 = 3$ 格；第 $9$ 格是虛線，表示
 「超過最後一格」的 $n + 1$。}
 \label{fig:dc-bounds}
+\end{minipage}
 \end{center}
 
 有了這兩個函式，常見的邊界問題都可以直接寫出來：
@@ -212,12 +215,12 @@ $15$ 佔了第 $2$ 到第 $4$ 格，下界 $2$ 指到第一個 $15$，上界 $5$
 \toprule
 要找的 & 寫法 \\
 \midrule
-$x$ 出現幾次 & \proc{Upper-Bound}$(x) - $\proc{Lower-Bound}$(x)$ \\
-第一個 $x$ 的位置 & $i = $\proc{Lower-Bound}$(x)$，還要檢查 $i \le n$ 且 $A[i] = x$ \\
-最後一個 $x$ 的位置 & $i = $\proc{Upper-Bound}$(x) - 1$，還要檢查 $i \ge 1$ 且 $A[i] = x$ \\
+$x$ 出現幾次 & \proc{Upper-Bound}$(x) - {}$\proc{Lower-Bound}$(x)$ \\
+第一個 $x$ 的位置 & $i = {}$\proc{Lower-Bound}$(x)$，還要檢查 $i \le n$ 且 $A[i] = x$ \\
+最後一個 $x$ 的位置 & $i = {}$\proc{Upper-Bound}$(x) - 1$，還要檢查 $i \ge 1$ 且 $A[i] = x$ \\
 最後一個小於 $x$ 的位置 & \proc{Lower-Bound}$(x) - 1$（$0$ 表示沒有）\\
 最後一個不大於 $x$ 的位置 & \proc{Upper-Bound}$(x) - 1$（$0$ 表示沒有）\\
-落在 $[u, v]$ 裡的個數 & \proc{Upper-Bound}$(v) - $\proc{Lower-Bound}$(u)$（$u \le v$）\\
+落在 $[u, v]$ 裡的個數 & \proc{Upper-Bound}$(v) - {}$\proc{Lower-Bound}$(u)$（$u \le v$）\\
 \bottomrule
 \end{tabular}
 \end{center}
@@ -452,7 +455,8 @@ $F_n \bmod m$ 只要 $\Theta(\lg n)$ 次 $2 \times 2$ 矩陣乘法，每次 $8$ 
 \end{cbookrecap}
 
 C 版只寫迴圈版，每次乘完就取餘數。 測資裡
-$1000000007$ 是質數，由費馬小定理 $5^{1000000006} \bmod 1000000007 = 1$，可以拿來檢
+$1000000007$ 是質數。 數論的\textbf{費馬小定理}說：$p$ 是質數、$a$ 不是 $p$ 的倍數時，
+$a^{p-1} \bmod p = 1$。 所以 $5^{1000000006} \bmod 1000000007$ 一定是 $1$，可以拿來檢
 查。 最後一組 $m = 1$：任何數除以 $1$ 的餘數都是 $0$，所以 $e = 0$ 時要回傳
 \texttt{1 \% m}，不是 \texttt{1}。
 
@@ -582,6 +586,9 @@ $A[q+1]$ 往右加。 兩邊合起來只看過 $A[p..r]$ 每一格一次，$\The
 \EndFunction
 \end{pseudo}
 
+兩個程序都回傳三個值。 虛擬碼把它們當成一個物件的三個欄位：開頭、結尾、和；依第~1~章
+$x.\mathit{key}$ 的寫法，第 9 行的 $C.\mathit{sum}$ 就是 $C$ 的「和」這一欄。
+
 \textbf{正確性}：對 $n = r - p + 1$ 用強歸納法。 $n = 1$ 時唯一的一段就是
 $A[p..p]$。 $n \ge 2$ 時兩半的規模都比 $n$ 小，由歸納假設 $L$、$R$ 分別是兩半的最
 佳段；由引理~\ref{lem:dc-crossing}，$C$ 是跨中點的最佳段。 每一段都屬於三種之一，
@@ -633,6 +640,8 @@ $A$ & 4 & $-6$ & 3 & 5 & $-2$ & 7 & $-9$ & 6 \\
 回傳的段，以及這一段來自三種情形的哪一種。
 
 \begin{center}
+\begin{minipage}{\linewidth}
+\centering
 \begin{tikzpicture}[x=1.75cm, y=1.35cm]
 \foreach \v [count=\k] in {4,-6,3,5,-2,7,-9,6} {
     \node[dc-leaf] (l\k) at (\k, -3) {$\v$};
@@ -651,6 +660,7 @@ $A$ & 4 & $-6$ & 3 & 5 & $-2$ & 7 & $-9$ & 6 \\
 \diagcaption{\proc{Max-Subarray} 在八天盈虧上的遞迴樹。 最下面一列是每天的盈虧，
 其他節點寫「範圍、最佳段的來源、最佳段：和」。}
 \label{fig:dc-maxsub-tree}
+\end{minipage}
 \end{center}
 
 \subsection{線性的做法}
@@ -1061,7 +1071,7 @@ $T(n) = \Theta(n^{\lg 7}) \approx \Theta(n^{2.81})$。 加法從 $4$ 次變成 $
 只影響 $f(n)$ 的常數；少掉的那一次乘法卻讓遞迴樹每一層少分出一個分支，改變了葉節
 點的個數 $7^{\lg n} = n^{\lg 7}$。
 
-\begin{whybox}[為什麼 \texorpdfstring{$C_{11} = M_1 + M_4 - M_5 + M_7$}{C11 = M1 + M4 - M5 + M7}]
+\begin{whybox}[\texorpdfstring{$C_{11} = M_1 + M_4 - M_5 + M_7$}{C11 = M1 + M4 - M5 + M7} 的驗證]
 把四個乘積展開（子矩陣的乘法不能交換，但有分配律，展開時保持左右順序）：
 \[
 \begin{aligned}
@@ -1221,6 +1231,8 @@ $\delta_0 / \sqrt{2} < \delta_0$；但 $L$ 裡任兩點的距離都至少是 $L$
 \end{proof}
 
 \begin{center}
+\begin{minipage}{\linewidth}
+\centering
 \begin{tikzpicture}[scale=1]
 \def\d{2.6}
 \fill[coreFill] (-\d,0) rectangle (\d,\d);
@@ -1246,6 +1258,7 @@ $\delta_0 / \sqrt{2} < \delta_0$；但 $L$ 裡任兩點的距離都至少是 $L$
 $\delta_0$，底邊通過 $S[i]$。 左右各切成四個邊長 $\delta_0/2$ 的正方形，同一邊的兩
 點距離至少 $\delta_0$，每個正方形最多一個點，所以 $\mathcal{R}$ 裡最多 $8$ 個點。}
 \label{fig:dc-cp-box}
+\end{minipage}
 \end{center}
 
 \begin{theorem}
@@ -1297,6 +1310,8 @@ $(x \text{ 差})^2$、$(y \text{ 差})^2$ 比。 帶狀區域的條件 $|x - x_m
 寫成 $(x - x_m)^2 < \delta^2$。
 
 \begin{center}
+\begin{minipage}{\linewidth}
+\centering
 \begin{tikzpicture}[x=0.62cm, y=0.48cm]
 \fill[coreFill] (7.838,0) rectangle (14.162,15.3);
 \draw[-{Stealth[length=2mm]}, black!60] (0,0) -- (19.6,0) node[right, font=\small] {$x$};
@@ -1314,6 +1329,7 @@ $(x \text{ 差})^2$、$(y \text{ 差})^2$ 比。 帶狀區域的條件 $|x - x_m
 \diagcaption{十個點。 藍底是最上層的帶狀區域 $|x - 11| < \sqrt{10}$；虛線是左右兩
 半各自的最近點對（AC、FG），紅色粗線是答案 EG。}
 \label{fig:dc-cp-points}
+\end{minipage}
 \end{center}
 
 遞迴依後序展開，每一列是一次呼叫做完時的結果。 帶狀區域裡的點依 $y$ 排列；「比
@@ -1321,7 +1337,7 @@ $(x \text{ 差})^2$、$(y \text{ 差})^2$ 比。 帶狀區域的條件 $|x - x_m
 
 \begin{center}
 \small
-\begin{tabular}{lcccp{0.22\linewidth}p{0.27\linewidth}c}
+\begin{tabular}{lccc>{\raggedright\arraybackslash}p{0.22\linewidth}>{\raggedright\arraybackslash}p{0.27\linewidth}c}
 \toprule
 範圍 & $x_m$ & $\delta_L^2$ & $\delta_R^2$ & 帶狀區域（依 $y$） & 比較 & 結果 $\delta^2$ \\
 \midrule
@@ -1417,7 +1433,6 @@ long long closest(Point *p, Point *tmp, int lo, int hi)
     long long dl = closest(p, tmp, lo, mid);
     long long dr = closest(p, tmp, mid + 1, hi);
     best = dl < dr ? dl : dr;
-
     memcpy(tmp + lo, p + lo, (hi - lo + 1) * sizeof *p);   // 依 y 合併兩半
     for (int k = lo, i = lo, j = mid + 1; k <= hi; k++) {
         if (i <= mid && (j > hi || cmp_y(&tmp[i], &tmp[j]) <= 0)) {
@@ -1519,7 +1534,8 @@ $\binom{n}{2}$。 第~1~章證明了插入排序的挪動次數等於逆序數�
 \EndFunction
 \end{pseudo}
 
-\proc{Merge-Count} 和虛擬碼~\ref{alg:so-merge} 的 \proc{Merge} 只差 $c$ 和第 10 行。
+\proc{Merge-Count} 和虛擬碼~\ref{alg:so-merge} 的 \proc{Merge} 只多了計數器 $c$：第 4 行
+設成 $0$，第 10 行累加，第 11 行回傳。
 
 \begin{lemma}
 \label{lem:dc-cross}
@@ -1592,7 +1608,7 @@ C 程式只要在第~14~章範例 \texttt{merge\_sort.c} 的 \texttt{merge} 裡�
 \label{sec:dc-pitfalls}
 
 \begin{center}
-\begin{tabular}{p{0.25\linewidth}p{0.50\linewidth}p{0.15\linewidth}}
+\begin{tabular}{p{0.22\linewidth}p{0.57\linewidth}p{0.13\linewidth}}
 \toprule
 錯誤 & 例子 & 見 \\
 \midrule
@@ -1815,7 +1831,7 @@ $2(n/2)^2 = \frac{1}{2} n^2$，主定理情況 3 給出 $\Theta(n^2)$。
 (e)：帶狀區域最多 $n$ 個點，重排 $O(n \lg n)$，$T(n) = 2T(n/2) + O(n \lg n) =
 O(n \lg^2 n)$（定理~\ref{thm:rec-master2}，$k = 1$）。
 
-\item
+\item 三次搜尋每一輪的值如下表。
 \begin{center}
 \begin{tabular}{cccccl}
 \toprule
@@ -1896,7 +1912,7 @@ $x^6 = x^3 \cdot x^3$，$x^{12} = x^6 \cdot x^6$，$x^{15} = x^{12} \cdot x^3$�
 最佳段是第 2 到 4 個，和 $8$；右半 $\langle -7, 6, -2 \rangle$ 是第 6 個，和 $6$。
 答案是第 2 到 4 個，和 $8$，來自左半。 往右累加的最大值是負的，但跨中點的段一定要
 包含第 5 個，所以只能取 $-1$。
-\item
+\item 每一輪結束時的值如下表，答案同樣是第 2 到 4 個，和 $8$。
 \begin{center}
 \begin{tabular}{cccl}
 \toprule
@@ -1925,7 +1941,7 @@ $M = \max(M_L,\ M_R,\ S_L + P_R)$：最後一項就是引理~\ref{lem:dc-crossin
 題把以後會用到的前綴、後綴資訊一起交回來，合併時就不必再看陣列。
 \end{enumerate}
 
-\item
+\item 七個乘積：
 \[
 \begin{aligned}
 M_1 &= (2 + 4)(2 + (-1)) = 6, & M_2 &= (1 + 4) \times 2 = 10, \\

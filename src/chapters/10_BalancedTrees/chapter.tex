@@ -12,7 +12,7 @@
     tnG/.style={tn, draw=black!50, fill=black!25},              % 紅黑都可以
     tnil/.style={rectangle, fill=black!85, minimum size=0.17cm, inner sep=0pt},
     te/.style={draw=black!60},
-    bfl/.style={anchor=south west, font=\scriptsize, text=black!60, inner sep=0.5pt},
+    bfl/.style={anchor=north west, font=\scriptsize, text=black!70, inner sep=0.5pt},
     annl/.style={font=\small\bfseries, inner sep=0.8pt, text=memStroke},
     plab/.style={font=\small},
     tarr/.style={-{Stealth[length=2mm]}, thick, draw=black!70},
@@ -40,8 +40,8 @@
 
 本章的\textbf{高度}和全書一樣用第~7~章的定義：從根往下最長的一條路徑上的
 \textbf{節點數}，也就是層數，空樹的高度是 $0$，只有一個節點的樹高度是 $1$；深度仍然數
-邊，根的深度是 $0$。 有些書（例如 CLRS）數的是邊數，葉節點的高度是 $0$、空
-樹是 $-1$，兩種數法只差 $1$。 本章用到的平衡因子是兩邊高度相減，不受影響；但
+邊，根的深度是 $0$。 有些書（例如 CLRS）數的是邊數，葉節點的高度是 $0$；用這種
+數法的書常把空樹的高度定成 $-1$。 兩種數法只差 $1$。 本章用到的平衡因子是兩邊高度相減，不受影響；但
 「高度 $h$ 的 AVL 樹最少幾個節點」這類題目，答案會跟著差一格，考卷有給定義時照題目
 的定義算。
 
@@ -304,9 +304,11 @@ tree）。 圖~\ref{fig:bal-fib} 是 $h = 1$ 到 $5$ 的樣子（左右對調也
 \label{fig:bal-fib}
 \end{center}
 
-先用一個粗略的估計看出它是對數：$N(h) = N(h-1) + N(h-2) + 1 > 2N(h-2)$，每往下兩
-層節點數至少減半，從 $N(1) = 1$、$N(2) = 2$ 往上推，得到 $N(h) \ge 2^{(h-1)/2}$。 所
-以 $n \ge 2^{(h-1)/2}$，$h \le 2\lg n + 1$。 精確的常數要用費氏數。 令 $F_1 = F_2 =
+先用一個粗略的估計看出它是對數：$N$ 是遞增的，所以 $N(h) = N(h-1) + N(h-2) + 1 >
+2N(h-2)$，每往下兩層節點數至少減半。 $h$ 是奇數時連用 $(h-1)/2$ 次，得到
+$N(h) \ge 2^{(h-1)/2} N(1) = 2^{(h-1)/2}$；$h$ 是偶數時連用 $(h-2)/2$ 次，得到
+$N(h) \ge 2^{(h-2)/2} N(2) = 2^{h/2}$，也不小於 $2^{(h-1)/2}$。 所以
+$n \ge N(h) \ge 2^{(h-1)/2}$，取對數得到 $h \le 2\lg n + 1$。 精確的常數要用費氏數。 令 $F_1 = F_2 =
 1$、$F_k = F_{k-1} + F_{k-2}$，$\varphi = (1 + \sqrt5)/2 \approx 1.618$ 是
 $\varphi^2 = \varphi + 1$ 的正根。
 
@@ -390,7 +392,8 @@ $k - 1$，$T_4$（$A$ 的右子樹）高 $k$。 新節點讓 $T_2$ 或 $T_3$ 其
 結果 $C$ 是根，左邊是 $B$（子樹 $T_1$、$T_2$），右邊是 $A$（子樹 $T_3$、$T_4$），
 $B$、$A$ 的高度都是 $k + 1$，$C$ 是 $k + 2$，也和插入前一樣。
 
-\begin{center}
+\begin{figure}[htbp]
+\centering
 \begin{tikzpicture}[x=0.8cm, y=0.82cm]
 % LL 之前
 \node[tn, tnA] (A) at (0,0) {$A$};
@@ -449,7 +452,7 @@ $B$、$A$ 的高度都是 $k + 1$，$C$ 是 $k + 2$，也和插入前一樣。
 $T_3$（$k = 0$ 時 $C$ 自己就是新節點）。 兩種修完之後，這一段的高度都回到插入
 前的 $k + 2$。}
 \label{fig:bal-ll-lr}
-\end{center}
+\end{figure}
 
 兩種情況修完，這一段的高度都和插入前一樣，所以 $A$ 上面的祖先，高度和平衡因子都
 回到插入前的樣子，不會再失衡。 這證明了：
@@ -463,7 +466,7 @@ AVL 樹插入一個鍵，最多做一次單旋轉或一次雙旋轉（也就是�
 雙旋轉之後 $A$、$B$ 的平衡因子是多少，要看新節點落在 $T_2$ 還是 $T_3$，觀念題第 5
 題會整理。 程式不用記這張表：每個節點存高度，旋轉後重算就好。
 
-\begin{pseudo}[label=alg:bal-avl-insert]{AVL 樹的插入，回傳新的根}
+\begin{pseudo}[unbreakable, label=alg:bal-avl-insert]{AVL 樹的插入，回傳新的根}
 \Function{AVL-Insert}{$t, k$}
     \If{$t = \NIL$}
         \State \Return 新節點（$\mathit{key} = k$、$\mathit{height} = 1$、兩個子指標都是 \NIL）
@@ -512,10 +515,11 @@ $h(\NIL) = 0$。 這裡的 \proc{Rotate-Right}、\proc{Rotate-Left} 是虛擬碼
 \[
 52,\ 41,\ 16,\ 34,\ 89,\ 94,\ 64,\ 46,\ 56,\ 58 .
 \]
-下面每張圖的節點右上方是平衡因子，藍底是剛插入的節點，橘框是第一個失衡的節點
+圖~\ref{fig:bal-avl-trace1} 到圖~\ref{fig:bal-avl-trace3} 的節點右上方是平衡因子，藍底是剛插入的節點，橘框是第一個失衡的節點
 $A$。 沒有引起旋轉的插入合併成一張。
 
-\begin{center}
+\begin{figure}[htbp]
+\centering
 \begin{tikzpicture}[x=0.5cm,y=0.72cm,baseline=(current bounding box.north)]
 \node[tn] (aia41) at (0,-1) {41};
 \node[tn] (aia52) at (1,0) {52};
@@ -602,12 +606,13 @@ $A$。 沒有引起旋轉的插入合併成一張。
 \diagcaption{插入 $52$ 到 $94$。 (b) 從 $16$ 往上，$41$ 變 $+1$，$52$ 變 $+2$，兩步
 都往左，是 LL。 (e) $89$ 變 $-1$，$52$ 變 $-2$，兩步都往右，是 RR。 根 $41$ 是 $-1$，沒有失衡。}
 \label{fig:bal-avl-trace1}
-\end{center}
+\end{figure}
 
 插入 $64$、$46$ 都沒有失衡：$64$ 讓 $52$ 變 $-1$、$89$ 變 $+1$、$41$ 變 $-1$；
 $46$ 讓 $52$ 回到 $0$，$52$ 的高度沒變，再往上的節點都不受影響。
 
-\begin{center}
+\begin{figure}[htbp]
+\centering
 \begin{tikzpicture}[x=0.5cm,y=0.72cm,baseline=(current bounding box.north)]
 \node[tn] (aig16) at (0,-1) {16};
 \node[tn] (aig34) at (1,-2) {34};
@@ -694,9 +699,10 @@ $46$ 讓 $52$ 回到 $0$，$52$ 的高度沒變，再往上的節點都不受影
 $89$ 往 $56$ 先左（$52$）再右（$64$），是 LR：先對 $52$ 左旋，再對 $89$ 右旋，
 $64$ 升到這一段的根。 $64$ 原本的左子節點 $56$ 換到 $52$ 的右邊。}
 \label{fig:bal-avl-trace2}
-\end{center}
+\end{figure}
 
-\begin{center}
+\begin{figure}[htbp]
+\centering
 \begin{tikzpicture}[x=0.5cm,y=0.72cm,baseline=(current bounding box.north)]
 \node[tn] (aij16) at (0,-1) {16};
 \node[tn] (aij34) at (1,-2) {34};
@@ -765,10 +771,10 @@ $-2$。 從 $41$ 先右（$64$）再左（$52$），是 RL：先對 $64$ 右旋�
 $52$ 升到根。 $52$ 原本的左子樹 $46$ 接到 $41$ 的右邊，右子樹 $56$ 接到 $64$ 的
 左邊。}
 \label{fig:bal-avl-trace3}
-\end{center}
+\end{figure}
 
-整理成表：
-
+四次旋轉整理成表：
+\par\nopagebreak
 \begin{center}
 \begin{tabular}{cccl}
 \toprule
@@ -821,7 +827,7 @@ typedef struct Node {
 } Node;
 
 typedef struct {
-    const char *type;           // "LL"、"RR"、"LR"、"RL"；沒有旋轉時是 NULL
+    const char *type;           // "LL"、"RR"、"LR"、"RL" 或 NULL
     int at;                     // 失衡節點的鍵
 } Rotation;
 
@@ -963,11 +969,13 @@ int main(void)
         for (int k = 1; k <= m; k++) {
             root = avl_insert(root, k, &rot);
         }
-        int lg = 0;                     // lg = ceil(lg(m + 1))，m 個節點的最小高度
+        // lg = ceil(lg(m + 1))：m 個節點的最小高度
+        int lg = 0;
         while ((1L << lg) < m + 1) {
             lg++;
         }
-        printf("sorted m = %d: height = %d, minimum = %d\n", m, height(root), lg);
+        printf("sorted m = %d: height = %d, minimum = %d\n",
+               m, height(root), lg);
         free_tree(root);
     }
     return 0;
@@ -1043,7 +1051,7 @@ $\mathrm{BF}(B) = \pm 1$ 時，計算和插入的 LL、LR 一樣，修完的高�
         \State 釋放 $t$
         \State \Return $c$
     \Else
-        \State $s \gets t.\mathit{right}$ 一路往左走到底的節點 \Comment{後繼}
+        \State $s \gets \Call{Tree-Minimum}{t.\mathit{right}}$ \Comment{後繼，虛擬碼~\ref{alg:bst-minmax}}
         \State $t.\mathit{key} \gets s.\mathit{key}$
         \State $t.\mathit{right} \gets \Call{AVL-Delete}{t.\mathit{right}, s.\mathit{key}}$
     \EndIf
@@ -1061,7 +1069,8 @@ $\mathrm{BF}(B) = \pm 1$ 時，計算和插入的 LL、LR 一樣，修完的高�
 \textbf{例 1}。 從圖~\ref{fig:bal-avl-trace3}(k) 的樹開始，依序刪除
 $41, 16, 34, 46$。 兩個子節點的節點用後繼取代。
 
-\begin{center}
+\begin{figure}[htbp]
+\centering
 \begin{tikzpicture}[x=0.5cm,y=0.72cm,baseline=(current bounding box.north)]
 \node[tn] (adb16) at (0,-2) {16};
 \node[tn] (adb34) at (1,-3) {34};
@@ -1205,7 +1214,7 @@ $41, 16, 34, 46$。 兩個子節點的節點用後繼取代。
 \diagcaption{依序刪除 $41, 16, 34, 46$，開始的樹是圖~\ref{fig:bal-avl-trace3}(k)。 橘框是失衡
 的節點。 刪 $16$ 沒有旋轉，沒有另外畫。}
 \label{fig:bal-avl-del}
-\end{center}
+\end{figure}
 
 \begin{itemize}
 \item 刪 $41$：$41$ 有兩個子節點，後繼是右子樹最小的 $46$。 $46$ 取代 $41$，再刪掉原
@@ -1222,8 +1231,9 @@ $52$ 左旋，(f)。 這一段變矮，往上檢查根 $64$：左高 $2$、右�
 \textbf{例 2}。 刪除可能一路旋轉上去。 圖~\ref{fig:bal-avl-cascade}(a) 是一棵高度
 $5$、只有 $12$ 個節點的 AVL 樹，也就是一棵費氏樹（$N(5) = 12$）。 刪除 $70$：
 
-\begin{center}
-\begin{tikzpicture}[x=0.47cm,y=0.72cm,baseline=(current bounding box.north)]
+\begin{figure}[htbp]
+\centering
+\begin{tikzpicture}[x=0.53cm,y=0.72cm,baseline=(current bounding box.north)]
 \node[tn] (aca5) at (0,-3) {5};
 \node[tn] (aca12) at (1,-2) {12};
 \node[tn] (aca18) at (2,-1) {18};
@@ -1260,7 +1270,7 @@ $5$、只有 $12$ 個節點的 AVL 樹，也就是一棵費氏樹（$N(5) = 12$�
 \node[bfl] at (aca63.north east) {$+1$};
 \node[bfl] at (aca70.north east) {$0$};
 \node[plab] at (5.5,-4.75) {(a) 開始：$h = 5$};
-\end{tikzpicture}\hspace{0.6cm}\begin{tikzpicture}[x=0.47cm,y=0.72cm,baseline=(current bounding box.north)]
+\end{tikzpicture}\hspace{0.6cm}\begin{tikzpicture}[x=0.53cm,y=0.72cm,baseline=(current bounding box.north)]
 \node[tn] (acb5) at (0,-3) {5};
 \node[tn] (acb12) at (1,-2) {12};
 \node[tn] (acb18) at (2,-1) {18};
@@ -1295,7 +1305,7 @@ $5$、只有 $12$ 個節點的 AVL 樹，也就是一棵費氏樹（$N(5) = 12$�
 \node[bfl] at (acb63.north east) {$+2$};
 \node[plab] at (5.0,-4.75) {(b) 刪 70：63 失衡};
 \end{tikzpicture}\\*[0.6em]
-\begin{tikzpicture}[x=0.47cm,y=0.72cm,baseline=(current bounding box.north)]
+\begin{tikzpicture}[x=0.53cm,y=0.72cm,baseline=(current bounding box.north)]
 \node[tn] (acc5) at (0,-3) {5};
 \node[tn] (acc12) at (1,-2) {12};
 \node[tn] (acc18) at (2,-1) {18};
@@ -1329,7 +1339,7 @@ $5$、只有 $12$ 個節點的 AVL 樹，也就是一棵費氏樹（$N(5) = 12$�
 \node[bfl] at (acc57.north east) {$0$};
 \node[bfl] at (acc63.north east) {$0$};
 \node[plab] at (5.0,-4.75) {(c) 右旋 63：換 44 失衡};
-\end{tikzpicture}\hspace{0.6cm}\begin{tikzpicture}[x=0.47cm,y=0.72cm,baseline=(current bounding box.north)]
+\end{tikzpicture}\hspace{0.6cm}\begin{tikzpicture}[x=0.53cm,y=0.72cm,baseline=(current bounding box.north)]
 \node[tn] (acd5) at (0,-3) {5};
 \node[tn] (acd12) at (1,-2) {12};
 \node[tn] (acd18) at (2,-1) {18};
@@ -1367,7 +1377,7 @@ $5$、只有 $12$ 個節點的 AVL 樹，也就是一棵費氏樹（$N(5) = 12$�
 \diagcaption{在費氏樹裡刪除 $70$，先在 $63$ 做一次單旋轉，這一段變矮，又讓根 $44$
 失衡，再做一次雙旋轉。}
 \label{fig:bal-avl-cascade}
-\end{center}
+\end{figure}
 
 \begin{itemize}
 \item $63$ 左高 $2$、右高 $0$，$+2$；左子節點 $57$ 是 $+1$，是 R1，對 $63$ 右旋。
@@ -1553,7 +1563,8 @@ $g$ 變紅之後，它的父節點可能是紅的。 把 $z$ 移到 $g$，往上
 迴圈結束時（$p$ 是黑的，或 $z$ 走到了根），最後把根塗黑。 情況 1 只有在 $g$ 變紅時
 才可能讓根變紅，這一步正是處理它。
 
-\begin{center}
+\begin{figure}[htbp]
+\centering
 \begin{tikzpicture}[x=0.75cm, y=0.8cm]
 % 情況 1
 \node[font=\small\bfseries, anchor=west] at (-2.4,0.7) {情況 1};
@@ -1581,10 +1592,10 @@ $g$ 變紅之後，它的父節點可能是紅的。 把 $z$ 移到 $g$，往上
 \node[tnB] (u) at (1.2,-1) {$u$};
 \node[tnR] (z) at (-0.6,-2) {$z$};
 \draw[te] (g) -- (p); \draw[te] (g) -- (u); \draw[te] (p) -- (-1.8,-2.0); \draw[te] (p) -- (z);
-\draw[te] (z) -- (-1.0,-3.0); \draw[te] (z) -- (-0.2,-3.0);
+\draw[te] (z) -- (-1.1,-3.0); \draw[te] (z) -- (-0.1,-3.0);
 \subtri[0.7]{-1.8}{-2.0}{1}
-\subtri[0.7]{-1.0}{-3.0}{2}
-\subtri[0.7]{-0.2}{-3.0}{3}
+\subtri[0.7]{-1.1}{-3.0}{2}
+\subtri[0.7]{-0.1}{-3.0}{3}
 \draw[tarr] (2.0,-1) -- node[above, font=\scriptsize] {左旋 $p$} (3.3,-1);
 \begin{scope}[xshift=4.4cm]
 \node[tnB] (g) at (0,0) {$g$};
@@ -1592,9 +1603,9 @@ $g$ 變紅之後，它的父節點可能是紅的。 把 $z$ 移到 $g$，往上
 \node[tnB] (u) at (1.2,-1) {$u$};
 \node[tnR] (p) at (-1.8,-2) {$p'$};
 \draw[te] (g) -- (z); \draw[te] (g) -- (u); \draw[te] (z) -- (p); \draw[te] (z) -- (-0.6,-2.0);
-\draw[te] (p) -- (-2.2,-3.0); \draw[te] (p) -- (-1.4,-3.0);
-\subtri[0.7]{-2.2}{-3.0}{1}
-\subtri[0.7]{-1.4}{-3.0}{2}
+\draw[te] (p) -- (-2.3,-3.0); \draw[te] (p) -- (-1.3,-3.0);
+\subtri[0.7]{-2.3}{-3.0}{1}
+\subtri[0.7]{-1.3}{-3.0}{2}
 \subtri[0.7]{-0.6}{-2.0}{3}
 \end{scope}
 \end{scope}
@@ -1623,7 +1634,7 @@ $z$ 本身的子樹沒有畫。 情況 1 的 $z$ 也可以是 $p$ 的右子節�
 左旋之後，$z'$（原本的 $z$）和 $p'$（原本的 $p$）換了上下，再接情況 3：這時的
 「$z$」是 $p'$，「$p$」是 $z'$。}
 \label{fig:bal-rb-insert-cases}
-\end{center}
+\end{figure}
 
 \proc{RB-Insert}$(T, k)$ 和第~9~章的插入相同：從根往下找到位置，新節點 $z$ 的父指標
 設成找到的父節點，兩個子指標是 \NIL，顏色是紅色；接好之後呼叫
@@ -1649,7 +1660,7 @@ $z$ 本身的子樹沒有畫。 情況 1 的 $z$ 也可以是 $p$ 的右子節�
                 \State \Call{Right-Rotate}{$T, g$}
             \EndIf
         \Else
-            \State 和第 6 到 16 行相同，$\mathit{left}$、$\mathit{right}$ 對調，\proc{Left-Rotate}、\proc{Right-Rotate} 對調
+            \State 和第 6--16 行相同，$\mathit{left}$、$\mathit{right}$ 對調，\proc{Left-Rotate}、\proc{Right-Rotate} 對調
         \EndIf
     \EndWhile
     \State $T.\mathit{root}$ 改黑
@@ -1673,7 +1684,8 @@ $O(\lg n)$。
 圖上深色是黑節點，紅底是紅節點，「$z$」標的是目前要檢查的節點。 每一步的說明寫
 在圖下；「情況 3」之類的字，指的是\textbf{接下來}要做的事。
 
-\begin{center}
+\begin{figure}[htbp]
+\centering
 \begin{tikzpicture}[x=0.5cm,y=0.7cm,baseline=(current bounding box.north)]
 \node[tnB] (ria85) at (0,0) {85};
 \node[plab] at (0.0,-2.75) {(a) 插入 85，根改黑};
@@ -1683,7 +1695,7 @@ $O(\lg n)$。
 \node[tnB] (rib85) at (2,0) {85};
 \draw[te] (rib85) -- (rib28);
 \draw[te] (rib28) -- (rib24);
-\node[annl, anchor=south east] at (rib24.north west) {$z$};
+\node[annl, anchor=east] at (rib24.west) {$z$};
 \node[plab] at (1.0,-2.75) {(b) 插入 28、24：情況 3};
 \end{tikzpicture}\hspace{0.5cm}\begin{tikzpicture}[x=0.5cm,y=0.7cm,baseline=(current bounding box.north)]
 \node[tnR] (ric24) at (0,-1) {24};
@@ -1701,7 +1713,7 @@ $O(\lg n)$。
 \draw[te] (rid28) -- (rid24);
 \draw[te] (rid28) -- (rid85);
 \draw[te] (rid85) -- (rid87);
-\node[annl, anchor=south east] at (rid87.north west) {$z$};
+\node[annl, anchor=east] at (rid87.west) {$z$};
 \node[plab] at (1.5,-2.75) {(d) 插入 87：情況 1};
 \end{tikzpicture}\hspace{0.6cm}\begin{tikzpicture}[x=0.5cm,y=0.7cm,baseline=(current bounding box.north)]
 \node[tnB] (rie24) at (0,-1) {24};
@@ -1715,7 +1727,7 @@ $O(\lg n)$。
 \end{tikzpicture}
 \diagcaption{插入 $85$ 到 $87$。}
 \label{fig:bal-rb-trace1}
-\end{center}
+\end{figure}
 
 \begin{itemize}
 \item $85$：樹是空的，$z$ 是根，改黑。 $28$：父節點 $85$ 是黑的，不用修。
@@ -1726,7 +1738,8 @@ $28$，它是根，迴圈結束，根改回黑。 這是黑高增加的唯一方
 被改紅再改黑，整棵樹的每條路徑同時多一個黑色。
 \end{itemize}
 
-\begin{center}
+\begin{figure}[htbp]
+\centering
 \begin{tikzpicture}[x=0.5cm,y=0.7cm,baseline=(current bounding box.north)]
 \node[tnB] (rif24) at (0,-1) {24};
 \node[tnB] (rif28) at (1,0) {28};
@@ -1739,7 +1752,7 @@ $28$，它是根，迴圈結束，根改回黑。 這是黑高增加的唯一方
 \draw[te] (rif85) -- (rif75);
 \draw[te] (rif75) -- (rif50);
 \draw[te] (rif85) -- (rif87);
-\node[annl, anchor=south east] at (rif50.north west) {$z$};
+\node[annl, anchor=east] at (rif50.west) {$z$};
 \node[plab] at (2.5,-4.75) {(f) 插入 75、50：情況 1};
 \end{tikzpicture}\hspace{0.4cm}\begin{tikzpicture}[x=0.5cm,y=0.7cm,baseline=(current bounding box.north)]
 \node[tnB] (rig24) at (0,-1) {24};
@@ -1768,7 +1781,7 @@ $28$，它是根，迴圈結束，根改回黑。 這是黑高增加的唯一方
 \draw[te] (rih75) -- (rih50);
 \draw[te] (rih50) -- (rih69);
 \draw[te] (rih85) -- (rih87);
-\node[annl, anchor=south east] at (rih69.north west) {$z$};
+\node[annl, anchor=east] at (rih69.west) {$z$};
 \node[plab] at (3.0,-4.75) {(h) 插入 69：情況 2};
 \end{tikzpicture}\\*[0.6em]
 \begin{tikzpicture}[x=0.5cm,y=0.7cm,baseline=(current bounding box.north)]
@@ -1785,7 +1798,7 @@ $28$，它是根，迴圈結束，根改回黑。 這是黑高增加的唯一方
 \draw[te] (rii75) -- (rii69);
 \draw[te] (rii69) -- (rii50);
 \draw[te] (rii85) -- (rii87);
-\node[annl, anchor=south east] at (rii50.north west) {$z$};
+\node[annl, anchor=east] at (rii50.west) {$z$};
 \node[plab] at (3.0,-4.75) {(i) 左旋 50：情況 3};
 \end{tikzpicture}\hspace{0.4cm}\begin{tikzpicture}[x=0.5cm,y=0.7cm,baseline=(current bounding box.north)]
 \node[tnB] (rij24) at (0,-1) {24};
@@ -1805,7 +1818,7 @@ $28$，它是根，迴圈結束，根改回黑。 這是黑高增加的唯一方
 \end{tikzpicture}
 \diagcaption{插入 $75$、$50$、$69$。}
 \label{fig:bal-rb-trace2}
-\end{center}
+\end{figure}
 
 \begin{itemize}
 \item $75$：父 $85$ 黑，不用修。
@@ -1817,7 +1830,8 @@ $69$ 是 $50$ 的右子節點，在內側，情況 2：$z$ 移到 $50$，左旋 
 旋 $75$，(j)。
 \end{itemize}
 
-\begin{center}
+\begin{figure}[htbp]
+\centering
 \begin{tikzpicture}[x=0.5cm,y=0.7cm,baseline=(current bounding box.north)]
 \node[tnB] (rik24) at (0,-1) {24};
 \node[tnB] (rik28) at (1,0) {28};
@@ -1834,7 +1848,7 @@ $69$ 是 $50$ 的右子節點，在內側，情況 2：$z$ 移到 $50$，左旋 
 \draw[te] (rik50) -- (rik46);
 \draw[te] (rik69) -- (rik75);
 \draw[te] (rik85) -- (rik87);
-\node[annl, anchor=south east] at (rik46.north west) {$z$};
+\node[annl, anchor=east] at (rik46.west) {$z$};
 \node[plab] at (3.5,-4.75) {(k) 插入 46：情況 1};
 \end{tikzpicture}\hspace{0.4cm}\begin{tikzpicture}[x=0.5cm,y=0.7cm,baseline=(current bounding box.north)]
 \node[tnB] (ril24) at (0,-1) {24};
@@ -1852,7 +1866,7 @@ $69$ 是 $50$ 的右子節點，在內側，情況 2：$z$ 移到 $50$，左旋 
 \draw[te] (ril50) -- (ril46);
 \draw[te] (ril69) -- (ril75);
 \draw[te] (ril85) -- (ril87);
-\node[annl, anchor=south east] at (ril69.north west) {$z$};
+\node[annl, anchor=east] at (ril69.west) {$z$};
 \node[plab] at (3.5,-4.75) {(l) 改色後 $z = 69$：情況 2};
 \end{tikzpicture}\\*[0.6em]
 \begin{tikzpicture}[x=0.5cm,y=0.7cm,baseline=(current bounding box.north)]
@@ -1871,7 +1885,7 @@ $69$ 是 $50$ 的右子節點，在內側，情況 2：$z$ 移到 $50$，左旋 
 \draw[te] (rim69) -- (rim85);
 \draw[te] (rim85) -- (rim75);
 \draw[te] (rim85) -- (rim87);
-\node[annl, anchor=south east] at (rim85.north west) {$z$};
+\node[annl, anchor=east] at (rim85.west) {$z$};
 \node[plab] at (3.5,-4.75) {(m) 右旋 85：情況 3};
 \end{tikzpicture}\hspace{0.4cm}\begin{tikzpicture}[x=0.5cm,y=0.7cm,baseline=(current bounding box.north)]
 \node[tnB] (rin24) at (0,-2) {24};
@@ -1893,7 +1907,7 @@ $69$ 是 $50$ 的右子節點，在內側，情況 2：$z$ 移到 $50$，左旋 
 \end{tikzpicture}
 \diagcaption{插入 $46$：情況 1 之後接著情況 2、情況 3。}
 \label{fig:bal-rb-trace3}
-\end{center}
+\end{figure}
 
 \begin{itemize}
 \item $46$：父 $50$ 紅，叔叔 $75$ 紅，情況 1：$50$、$75$ 改黑，$69$ 改紅，$z$ 移到
@@ -1903,7 +1917,8 @@ $69$，(l)。 $69$ 的父節點 $85$ 是紅的，還要修。 這次 $p = 85$ �
 改紅，左旋 $28$，$69$ 成為新的根，(n)。
 \end{itemize}
 
-\begin{center}
+\begin{figure}[htbp]
+\centering
 \begin{tikzpicture}[x=0.5cm,y=0.7cm,baseline=(current bounding box.north)]
 \node[tnB] (rio24) at (0,-2) {24};
 \node[tnR] (rio28) at (1,-1) {28};
@@ -1924,7 +1939,7 @@ $69$，(l)。 $69$ 的父節點 $85$ 是紅的，還要修。 這次 $p = 85$ �
 \draw[te] (rio69) -- (rio85);
 \draw[te] (rio85) -- (rio75);
 \draw[te] (rio85) -- (rio87);
-\node[annl, anchor=south east] at (rio35.north west) {$z$};
+\node[annl, anchor=east] at (rio35.west) {$z$};
 \node[plab] at (4.5,-4.75) {(o) 插入 52、35：情況 1};
 \end{tikzpicture}\hspace{0.5cm}\begin{tikzpicture}[x=0.5cm,y=0.7cm,baseline=(current bounding box.north)]
 \node[tnB] (rip24) at (0,-2) {24};
@@ -1946,7 +1961,7 @@ $69$，(l)。 $69$ 的父節點 $85$ 是紅的，還要修。 這次 $p = 85$ �
 \draw[te] (rip69) -- (rip85);
 \draw[te] (rip85) -- (rip75);
 \draw[te] (rip85) -- (rip87);
-\node[annl, anchor=south east] at (rip50.north west) {$z$};
+\node[annl, anchor=east] at (rip50.west) {$z$};
 \node[plab] at (4.5,-4.75) {(p) 改色後 $z = 50$：情況 1};
 \end{tikzpicture}\\*[0.6em]
 \begin{tikzpicture}[x=0.5cm,y=0.7cm,baseline=(current bounding box.north)]
@@ -1973,7 +1988,7 @@ $69$，(l)。 $69$ 的父節點 $85$ 是紅的，還要修。 這次 $p = 85$ �
 \end{tikzpicture}
 \diagcaption{插入 $52$、$35$：情況 1 連續兩次，改色一路到根。}
 \label{fig:bal-rb-trace4}
-\end{center}
+\end{figure}
 
 \begin{itemize}
 \item $52$：父 $50$ 黑，不用修。
@@ -2004,7 +2019,9 @@ $69$ 改紅，$z$ 移到根 $69$。 最後根改回黑，(q)。
 
 \begin{examnote}
 紅黑樹的追蹤題，每一步先寫出 $z$、父節點、叔叔的顏色和用了哪個情況，再畫樹；情況
-1 之後 $z$ 往上移了兩層，要用新的 $z$ 重新判斷。 考卷通常只能用一種顏色的筆，紅色
+1 之後 $z$ 往上移了兩層，要用新的 $z$ 重新判斷。 本章插入的情況 1、2、3，編號和條件都
+和 CLRS 相同；其他課本的編號可能不同，作答時寫出條件（例如「叔叔是紅的」），不要只寫
+編號。 考卷通常只能用一種顏色的筆，紅色
 節點畫成雙圈或在旁邊標 R，並在答案開頭說明記號。
 \end{examnote}
 
@@ -2051,7 +2068,8 @@ static void replace_child(RBTree *t, RBNode *x, RBNode *child)
     }
 }
 
-static void rotate_left(RBTree *t, RBNode *x)   // x 的右子節點 y 轉上來
+// x 的右子節點 y 轉上來
+static void rotate_left(RBTree *t, RBNode *x)
 {
     RBNode *y = x->right;
     x->right = y->left;
@@ -2063,7 +2081,8 @@ static void rotate_left(RBTree *t, RBNode *x)   // x 的右子節點 y 轉上來
     x->parent = y;
 }
 
-static void rotate_right(RBTree *t, RBNode *x)  // x 的左子節點 y 轉上來
+// x 的左子節點 y 轉上來
+static void rotate_right(RBTree *t, RBNode *x)
 {
     RBNode *y = x->left;
     x->left = y->right;
@@ -2086,16 +2105,17 @@ static void report(const char *what, char side)
     }
 }
 
-// 修正紅紅相連。印出用到的情況：1、2、3 後面的 L／R 表示父節點是祖父的
-// 左／右子節點。
+// 修正紅紅相連。印出用到的情況：1、2、3 後面的 L／R
+// 表示父節點是祖父的左／右子節點。
 static void insert_fixup(RBTree *t, RBNode *z)
 {
     while (is_red(z->parent)) {
-        RBNode *p = z->parent, *g = p->parent;  // p 是紅的，所以不是根，g 存在
+        // p 是紅的，所以不是根，祖父 g 一定存在
+        RBNode *p = z->parent, *g = p->parent;
         int left = (p == g->left);
         RBNode *u = left ? g->right : g->left;  // 叔叔
         char side = left ? 'L' : 'R';
-        if (is_red(u)) {                        // 情況 1：叔叔是紅的，改色
+        if (is_red(u)) {                // 情況 1：叔叔紅，改色
             report("1", side);
             p->color = BLACK;
             u->color = BLACK;
@@ -2103,7 +2123,8 @@ static void insert_fixup(RBTree *t, RBNode *z)
             z = g;
             continue;
         }
-        if (left && z == p->right) {            // 情況 2：z 在內側，先轉成外側
+        // 情況 2：z 在內側，先轉成外側
+        if (left && z == p->right) {
             report("2", side);
             z = p;
             rotate_left(t, z);
@@ -2112,7 +2133,7 @@ static void insert_fixup(RBTree *t, RBNode *z)
             z = p;
             rotate_right(t, z);
         }
-        report("3", side);                      // 情況 3：z 在外側
+        report("3", side);              // 情況 3：z 在外側
         z->parent->color = BLACK;
         g->color = RED;
         if (left) {
@@ -2131,7 +2152,7 @@ static void insert_fixup(RBTree *t, RBNode *z)
 void rb_insert(RBTree *t, int key)
 {
     RBNode *y = NULL, *x = t->root;
-    while (x != NULL) {                         // 和二元搜尋樹一樣找位置
+    while (x != NULL) {                 // 和 BST 一樣找位置
         y = x;
         if (key == x->key) {
             return;
@@ -2143,7 +2164,7 @@ void rb_insert(RBTree *t, int key)
         exit(1);
     }
     z->key = key;
-    z->color = RED;                             // 新節點一律是紅的
+    z->color = RED;                     // 新節點一律是紅的
     z->left = z->right = NULL;
     z->parent = y;
     if (y == NULL) {
@@ -2161,7 +2182,7 @@ void rb_insert(RBTree *t, int key)
 static int black_count(const RBNode *x)
 {
     if (x == NULL) {
-        return 1;                               // NIL 是黑的
+        return 1;                       // NIL 是黑的
     }
     if (is_red(x) && (is_red(x->left) || is_red(x->right))) {
         return -1;
@@ -2269,7 +2290,8 @@ $s$ 右旋。 $n$ 升上來當 $x$ 的新兄弟，它的遠側子節點是紅的
 
 $x$ 是右子節點時，以上全部左右對調。
 
-\begin{center}
+\begin{figure}[htbp]
+\centering
 \begin{tikzpicture}[x=0.64cm, y=0.78cm]
 % 情況 1
 \node[font=\small\bfseries, anchor=west] at (-2.2,0.7) {情況 1};
@@ -2319,14 +2341,14 @@ $x$ 是右子節點時，以上全部左右對調。
 \node[tnB] (f) at (1.8,-2) {$f$};
 \draw[te] (p) -- (x); \draw[te] (p) -- (s); \draw[te] (s) -- (n); \draw[te] (s) -- (f);
 \draw[tarr] (2.6,-1) -- node[above, font=\scriptsize] {右旋 $s$} (4.0,-1);
-\begin{scope}[xshift=5.0cm]
+\begin{scope}[xshift=4.4cm]
 \node[tnG] (p) at (0,0) {$p$};
 \node[tnB] (x) at (-1.2,-1) {$x$};
 \node[tnB] (n) at (1.2,-1) {$n$};
 \node[tnR] (s) at (1.8,-2) {$s$};
 \node[tnB] (f) at (2.4,-3) {$f$};
 \draw[te] (p) -- (x); \draw[te] (p) -- (n); \draw[te] (n) -- (s); \draw[te] (s) -- (f);
-\node[annl, anchor=south west] at (n.north east) {新的 $s$};
+\node[annl, anchor=west] at (n.east) {新的 $s$};
 \end{scope}
 \end{scope}
 % 情況 4
@@ -2354,12 +2376,12 @@ $x$ 是右子節點時，以上全部左右對調。
 子樹都沒有畫，它們跟著原本的父節點走，$n$ 的子樹在情況 3 會分給 $s$ 和 $n$，照
 旋轉的規則（圖~\ref{fig:bal-rotation}）接。}
 \label{fig:bal-rb-delete-cases}
-\end{center}
+\end{figure}
 
 \begin{pseudo}[label=alg:bal-rb-delete]{紅黑樹的刪除}
 \Procedure{RB-Delete}{$T, z$}
     \If{$z.\mathit{left} \ne \NIL$ \AND $z.\mathit{right} \ne \NIL$}
-        \State $y \gets z.\mathit{right}$ 一路往左走到底的節點
+        \State $y \gets \Call{Tree-Minimum}{z.\mathit{right}}$ \Comment{後繼}
         \State $z.\mathit{key} \gets y.\mathit{key}$
         \State $z \gets y$ \Comment{改成拿掉後繼}
     \EndIf
@@ -2398,7 +2420,7 @@ $x$ 是右子節點時，以上全部左右對調。
                 \State $x \gets T.\mathit{root}$
             \EndIf
         \Else
-            \State 和第 4 到 20 行相同，$\mathit{left}$、$\mathit{right}$ 對調，\proc{Left-Rotate}、\proc{Right-Rotate} 對調
+            \State 和第 4--20 行相同，$\mathit{left}$、$\mathit{right}$ 對調，\proc{Left-Rotate}、\proc{Right-Rotate} 對調
         \EndIf
     \EndWhile
     \If{$x \ne \NIL$}
@@ -2423,7 +2445,8 @@ $x$ 是 NIL 時，第 3 行的 $x = p.\mathit{left}$ 看的是 $p$ 的左邊是�
 
 從第~\ref{sec:bal-rb-trace}~節最後的樹刪除 $24$。 這個例子依序用到情況 1、3、4。
 
-\begin{center}
+\begin{figure}[htbp]
+\centering
 \begin{tikzpicture}[x=0.41cm,y=0.7cm,baseline=(current bounding box.north)]
 \node[tnB] (rda24) at (0,-2) {24};
 \node[tnB] (rda28) at (1,-1) {28};
@@ -2444,7 +2467,7 @@ $x$ 是 NIL 時，第 3 行的 $x = p.\mathit{left}$ 看的是 $p$ 的左邊是�
 \draw[te] (rda69) -- (rda85);
 \draw[te] (rda85) -- (rda75);
 \draw[te] (rda85) -- (rda87);
-\node[annl, anchor=south east] at (rda24.north west) {刪除};
+\node[annl, anchor=east] at (rda24.west) {刪除};
 \node[plab] at (4.5,-4.75) {(a) 刪除 24 之前};
 \end{tikzpicture}\hspace{0.4cm}\begin{tikzpicture}[x=0.41cm,y=0.7cm,baseline=(current bounding box.north)]
 \node[tnil] (rdbNIL) at (0,-2) {};
@@ -2466,8 +2489,8 @@ $x$ 是 NIL 時，第 3 行的 $x = p.\mathit{left}$ 看的是 $p$ 的左邊是�
 \draw[te] (rdb69) -- (rdb85);
 \draw[te] (rdb85) -- (rdb75);
 \draw[te] (rdb85) -- (rdb87);
-\node[annl, anchor=south east] at (rdbNIL.north west) {$x$};
-\node[annl, anchor=south east] at (rdb50.north west) {$s$};
+\node[annl, anchor=east] at (rdbNIL.west) {$x$};
+\node[annl, anchor=east] at (rdb50.west) {$s$};
 \node[plab] at (4.5,-4.75) {(b) 拿掉 24：情況 1};
 \end{tikzpicture}\hspace{0.4cm}\begin{tikzpicture}[x=0.41cm,y=0.7cm,baseline=(current bounding box.north)]
 \node[tnil] (rdcNIL) at (0,-3) {};
@@ -2489,8 +2512,8 @@ $x$ 是 NIL 時，第 3 行的 $x = p.\mathit{left}$ 看的是 $p$ 的左邊是�
 \draw[te] (rdc69) -- (rdc85);
 \draw[te] (rdc85) -- (rdc75);
 \draw[te] (rdc85) -- (rdc87);
-\node[annl, anchor=south east] at (rdcNIL.north west) {$x$};
-\node[annl, anchor=south east] at (rdc46.north west) {$s$};
+\node[annl, anchor=east] at (rdcNIL.west) {$x$};
+\node[annl, anchor=east] at (rdc46.west) {$s$};
 \node[plab] at (4.5,-4.75) {(c) 情況 1 之後：情況 3};
 \end{tikzpicture}\\*[0.6em]
 \begin{tikzpicture}[x=0.41cm,y=0.7cm,baseline=(current bounding box.north)]
@@ -2513,8 +2536,8 @@ $x$ 是 NIL 時，第 3 行的 $x = p.\mathit{left}$ 看的是 $p$ 的左邊是�
 \draw[te] (rdd69) -- (rdd85);
 \draw[te] (rdd85) -- (rdd75);
 \draw[te] (rdd85) -- (rdd87);
-\node[annl, anchor=south east] at (rddNIL.north west) {$x$};
-\node[annl, anchor=south east] at (rdd35.north west) {$s$};
+\node[annl, anchor=east] at (rddNIL.west) {$x$};
+\node[annl, anchor=east] at (rdd35.west) {$s$};
 \node[plab] at (4.5,-4.75) {(d) 情況 3 之後：情況 4};
 \end{tikzpicture}\hspace{0.6cm}\begin{tikzpicture}[x=0.41cm,y=0.7cm,baseline=(current bounding box.north)]
 \node[tnB] (rde28) at (0,-3) {28};
@@ -2538,7 +2561,7 @@ $x$ 是 NIL 時，第 3 行的 $x = p.\mathit{left}$ 看的是 $p$ 的左邊是�
 \end{tikzpicture}
 \diagcaption{刪除 $24$。 小方塊是 $x$ 所在的 NIL，$s$ 是它的兄弟。}
 \label{fig:bal-rb-del}
-\end{center}
+\end{figure}
 
 \begin{enumerate}
 \item $24$ 是葉節點，被拿掉的就是它自己，黑色。 $x$ 是它留下的 NIL，黑的，所以 $x$ 是
@@ -2554,6 +2577,13 @@ $50$ 改黑、$28$ 改紅，左旋 $28$，(c)。 這一步之後 $x$ 還是 $28$
 檢查第 5 條：從根 $69$ 往下，經過 $50 \to 35 \to 28 \to \text{NIL}$ 的黑色是 $50$、
 $28$、NIL，經過 $85 \to 75 \to \text{NIL}$ 的是 $85$、$75$、NIL，都是 $3$ 個，黑高
 沒變。 這次刪除用了三次旋轉，正好是上限。
+
+\begin{examnote}
+刪除題先寫出真正被拿掉的節點和它的顏色、$x$ 和 $p$ 是誰；被拿掉的是紅色就直接結束。
+接著每一步寫出兄弟 $s$ 和它兩個子節點的顏色，再寫用哪個情況。 本章刪除的情況 1 到 4
+和 CLRS 的編號、條件相同；CLRS 把兩個子節點的節點換成後繼時搬的是節點本身，並讓後繼
+繼承 $z$ 的顏色，所以它看的也是後繼原本的顏色，畫出來的樹和本章相同。
+\end{examnote}
 
 \section{紅黑樹和 2-3-4 樹}
 \label{sec:bal-234}
@@ -2972,6 +3002,7 @@ $+2$（左高 $4$、右高 $2$）。 要修的是最近的 $72$，不是根：�
 
 \item
 \begin{center}
+\begin{minipage}{\linewidth}\centering
 \begin{tikzpicture}[x=0.46cm,y=0.75cm,baseline=(current bounding box.north)]
 \node[tn] (xba12) at (0,-3) {12};
 \node[tn] (xba18) at (1,-2) {18};
@@ -3079,6 +3110,7 @@ $+2$（左高 $4$、右高 $2$）。 要修的是最近的 $72$，不是根：�
 \node[bfl] at (xbd84.north east) {$0$};
 \node[plab] at (3.0,-3.75) {(d) 刪 12};
 \end{tikzpicture}
+\end{minipage}
 \end{center}
 \begin{itemize}
 \item 刪 $47$：後繼是 $62$，$62$ 取代根，再刪掉原本的 $62$。 $71$ 左邊空了、右邊 $84$
@@ -3111,8 +3143,10 @@ $C$ 是新節點（$k = 0$） & $0$ & $0$ & $0$ \\
 $-1 \Rightarrow (B, A) = (+1, 0)$；$0 \Rightarrow (0, 0)$；$C$ 一律設成 $0$。 RL 的規則
 左右對調。
 
-\item $v$ 的平衡因子從插入前的值變成 $0$，插入前只可能是 $\pm 1$（插入只讓一邊高度最多
-加 $1$），而且新節點加在原本比較矮的那一邊，讓兩邊一樣高。 $v$ 的高度是
+\item 更新走到 $v$ 時，$v$ 底下在路徑上的那個子節點，子樹高度剛好加了 $1$（插入一個節點，
+子樹高度最多加 $1$；沒有加高的話，前一個節點就已經停了）。 另一棵子樹沒有動，所以
+$\mathrm{BF}(v)$ 恰好改變 $1$。 更新後變成 $0$，插入前只可能是 $\pm 1$，而且新節點加在原
+本比較矮的那一邊，讓兩邊一樣高。 $v$ 的高度是
 $1 + \max(h_\ell, h_r)$，比較高的那一邊沒有變，所以 $v$ 的高度不變。 $v$ 的祖先只透過
 子樹的高度受影響，$v$ 這棵子樹的高度沒變，祖先的高度和平衡因子都不變，可以停止。
 

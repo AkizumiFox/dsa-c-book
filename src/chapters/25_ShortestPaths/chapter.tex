@@ -122,12 +122,9 @@ w(p) = \sum_{i=1}^{k} w(v_{i-1}, v_i).
 \draw[spt-neg] (n2) to[bend left=25] node[spt-wn, above] {$-3$} (n3);
 \draw[spt-a] (n3) to[bend left=25] node[spt-w, below] {$1$} (n2);
 \draw[spt-a] (n3) -- node[spt-w, above] {$2$} (n4);
-\node[spt-d, below=2pt of n5] {$\infty$};
-\node[spt-d, below=2pt of n1] {$0$};
-\node[spt-d, below=6pt of n2] {$-\infty$};
-\node[spt-d, below=6pt of n3] {$-\infty$};
-\node[spt-d, below=2pt of n4] {$-\infty$};
-\end{tikzpicture}
+\foreach \nd/\lab in {n5/\infty, n1/0, n2/-\infty, n3/-\infty, n4/-\infty}
+    \node[spt-d, anchor=north] at ([yshift=-6pt]\nd.south) {$\lab$};
+\end{tikzpicture}\par\nopagebreak
 \diagcaption{從 $1$ 出發的最短距離（藍字）。 $2 \to 3 \to 2$ 是負環，負的邊畫成紅色。}
 \label{fig:spt-negcycle}
 \end{center}
@@ -433,7 +430,7 @@ $S$ 外面的頂點放在一個最小優先佇列 $Q$ 裡，鍵是 $d$。 用到
 \node[spt-d, below=1pt of b7] {$12$};
 \node[font=\small] at (3.3, -2.8) {(b) 最短路徑樹，藍字是 $\delta(1, v)$};
 \end{scope}
-\end{tikzpicture}
+\end{tikzpicture}\par\nopagebreak
 \diagcaption{外送路網 $G_1$ 和 Dijkstra 演算法從 $1$ 出發得到的最短路徑樹。}
 \label{fig:spt-g1}
 \end{center}
@@ -674,7 +671,7 @@ $11 + 1 = 12$ 也不比 $6$ 小）。
 \draw[spt-sa] (p6) to[bend right=30] (p2);
 \node[font=\small] at (3.6, -3.1) {第 6 輪：取出 $6$};
 \end{scope}
-\end{tikzpicture}
+\end{tikzpicture}\par\nopagebreak
 \diagcaption{Dijkstra 演算法在 $G_1$ 上前六輪結束時的 $d$ 和 $\pi$。 第 7 輪取出 $7$，
 不再改變任何值。}
 \label{fig:spt-snap}
@@ -746,7 +743,7 @@ $\delta(1, 2) = 5 - 4 = 1$（$1 \to 3 \to 2$）、$\delta(1, 4) = 1 + 2 = 3$（$
 \draw[spt-a] (m1) -- node[spt-w, below left] {$5$} (m3);
 \draw[spt-neg] (m3) -- node[spt-wn, right] {$-4$} (m2);
 \draw[spt-a] (m2) -- node[spt-w, above] {$2$} (m4);
-\end{tikzpicture}
+\end{tikzpicture}\par\nopagebreak
 \diagcaption{$N_1$：一條負邊就足以讓 Dijkstra 演算法出錯。}
 \label{fig:spt-neg}
 \end{center}
@@ -963,7 +960,8 @@ int main(void)
             return 1;
         }
         for (int i = 0; i < m; i++) {
-            if (scanf("%d %d %lld", &u, &v, &w) != 3 || !add_edge(head, u - 1, v - 1, w)) {
+            if (scanf("%d %d %lld", &u, &v, &w) != 3
+                || !add_edge(head, u - 1, v - 1, w)) {
                 return 1;
             }
         }
@@ -1049,12 +1047,10 @@ $\mathit{Adj}[2]$、\ldots。
 
 圖~\ref{fig:spt-bf} 的 $B$ 有兩條負邊 $3 \to 2$、$4 \to 5$，沒有負環（唯一的環
 $3 \to 2 \to 4 \to 5 \to 3$ 權重 $-3 + 2 - 1 + 3 = 1$）。 起點是 $1$，邊依約定的順序是
-\[
-(1, 2),\ (1, 3),\ (2, 4),\ (2, 5),\ (3, 2),\ (3, 4),\ (4, 5),\ (5, 3).
-\]
+$(1, 2)$、$(1, 3)$、$(2, 4)$、$(2, 5)$、$(3, 2)$、$(3, 4)$、$(4, 5)$、$(5, 3)$。
 
 \begin{center}
-\begin{tikzpicture}[x=1cm, y=1cm]
+\begin{tikzpicture}[x=1cm, y=0.8cm]
 \node[spt-v] (c1) at (0, 0) {1};
 \node[spt-v] (c2) at (2.4, 1.2) {2};
 \node[spt-v] (c3) at (2.4, -1.2) {3};
@@ -1067,8 +1063,11 @@ $3 \to 2 \to 4 \to 5 \to 3$ 權重 $-3 + 2 - 1 + 3 = 1$）。 起點是 $1$，�
 \draw[spt-a] (c2) -- node[spt-w, above] {$6$} (c5);
 \draw[spt-a] (c3) -- node[spt-w, above] {$4$} (c4);
 \draw[spt-neg] (c4) -- node[spt-wn, below right] {$-1$} (c5);
-\draw[spt-a] (c5) to[out=-100, in=-60, looseness=1.15] node[spt-w, below] {$3$} (c3);
-\end{tikzpicture}
+\begin{pgfinterruptboundingbox}
+\draw[spt-a] (c5) to[out=-100, in=-60, looseness=1.0] node[spt-w, below] {$3$} (c3);
+\end{pgfinterruptboundingbox}
+\path (0, -2.8);   % 只把弧線真正畫到的地方算進圖的範圍
+\end{tikzpicture}\par\nopagebreak
 \diagcaption{圖 $B$。 紅色是負邊。 把 $5 \to 3$ 的權重從 $3$ 改成 $1$ 就得到第~\ref{sec:spt-negcycle}~節的 $B'$。}
 \label{fig:spt-bf}
 \end{center}
@@ -1076,6 +1075,7 @@ $3 \to 2 \to 4 \to 5 \to 3$ 權重 $-3 + 2 - 1 + 3 = 1$）。 起點是 $1$，�
 先把第 1 輪一條邊一條邊寫出來：
 
 \begin{center}
+\small
 \begin{tabular}{clcl}
 \toprule
 邊 & 計算 & 成功？ & 之後的 $d[1..5]$ \\
@@ -1232,7 +1232,11 @@ $\pi[4] = 2$，從 $2$ 往回走 $5$ 步是 $2, 3, 5, 4, 2, 3$，停在 $3$；�
 
 \begin{whybox}[為什麼往回走 $n$ 步會落在負環上]
 先證明一個不變量：第 $i$ 輪結束後，$d[v]$ 不大於任何一條最多 $i$ 條邊、從 $s$ 到 $v$ 的路
-徑的權重。 對 $i$ 歸納，最後一條邊在第 $i$ 輪被鬆弛過即可。
+徑的權重。 對 $i$ 歸納。 $i = 0$ 時只有 $s$ 有長度 $0$ 的路徑，$d[s] = 0$。 $i \ge 1$ 時，設 $p$ 是
+一條最多 $i$ 條邊、從 $s$ 到 $v$ 的路徑；長度 $0$ 的情形同上，否則設最後一條邊是 $(u, v)$，前面那段
+$p'$ 最多 $i - 1$ 條邊。 由歸納假設，第 $i - 1$ 輪結束時 $d[u] \le w(p')$；$d$ 只會變小，所以第
+$i$ 輪鬆弛 $(u, v)$ 的時候仍有 $d[u] \le w(p')$，鬆弛之後 $d[v] \le d[u] + w(u, v) \le w(p)$，之後
+也只會更小。
 
 設第 $n$ 輪（檢查那一輪）把 $d[x]$ 變小。 從 $x$ 沿著 $\pi$ 往回走，假設會走到 \NIL。
 $d$ 有限而 $\pi = \NIL$ 的頂點只有 $s$，而且這時 $d[s]$ 從沒被改過，還是 $0$。 這條
@@ -1273,7 +1277,8 @@ typedef struct {                // 一條邊 u -> v，權重 w
     long long w;
 } Edge;
 
-// 照 e[0..m-1] 的順序把每條邊鬆弛一次；回傳最後一個 d 變小的頂點，沒有就回傳 -1
+// 照 e[0..m-1] 的順序把每條邊鬆弛一次
+// 回傳最後一個 d 變小的頂點，沒有就回傳 -1
 int relax_all(const Edge *e, int m, long long *d, int *pi)
 {
     int last = -1;
@@ -1334,7 +1339,8 @@ int main(void)
             return 1;
         }
         for (int i = 0; i < m; i++) {
-            if (scanf("%d %d %lld", &e[i].u, &e[i].v, &e[i].w) != 3) {
+            if (scanf("%d %d %lld", &e[i].u, &e[i].v,
+                      &e[i].w) != 3) {
                 return 1;
             }
             e[i].u--;
@@ -1351,7 +1357,8 @@ int main(void)
             snprintf(label, sizeof label, "round %d:", r);
             print_row(label, d, n);
         }
-        int x = relax_all(e, m, d, pi);         // 第 n 輪：還有邊能鬆弛就是有負環
+        // 第 n 輪：還有邊能鬆弛就是有負環
+        int x = relax_all(e, m, d, pi);
         if (x == -1) {
             printf("pi:");
             for (int v = 0; v < n; v++) {
@@ -1388,7 +1395,7 @@ int main(void)
 從前到後排的。 只要依拓樸順序處理頂點，每處理一個頂點就鬆弛它所有的出邊，任何一條路徑
 的邊都會照路徑上的先後被鬆弛到，路徑鬆弛性質直接給出答案。
 
-\begin{pseudo}[label=alg:spt-dag]{有向無環圖上的單一起點最短路徑}
+\begin{pseudo}[label=alg:spt-dag, unbreakable]{有向無環圖上的單一起點最短路徑}
 \Procedure{DAG-Shortest-Paths}{$G, w, s$}
     \State 把 $G$ 的頂點依拓樸順序排好 \Comment{虛擬碼~\ref{alg:tps-kahn} 或 \ref{alg:tps-dfs}}
     \State \Call{Initialize-Single-Source}{$G, s$}
@@ -1407,8 +1414,8 @@ $d[v] = \delta(s, v)$，$\pi$ 構成最短路徑樹。 時間是 $\Theta(n + m)$
 \end{theorem}
 
 \begin{proof}
-沒有環就沒有負環，引理~\ref{lem:spt-simple} 成立。 $s$ 走得到 $v$ 時，取一條最短路徑
-$\langle v_0 = s, v_1, \ldots, v_k = v \rangle$。 拓樸順序裡 $v_0, v_1, \ldots, v_k$ 依序出現，
+沒有環就沒有負環，引理~\ref{lem:spt-simple} 成立。 設 $s$ 走得到 $v$，取一條從 $s$ 到 $v$ 的
+最短路徑 $\langle v_0, v_1, \ldots, v_k \rangle$，$v_0 = s$、$v_k = v$。 拓樸順序裡 $v_0, v_1, \ldots, v_k$ 依序出現，
 第 4 行依序處理它們，處理 $v_{i-1}$ 時鬆弛了 $(v_{i-1}, v_i)$；這 $k$ 條邊依路徑的順序被鬆弛
 過，由路徑鬆弛性質 $d[v] = \delta(s, v)$。 走不到的由無路徑性質是 $\infty$。 $\pi$ 由
 定理~\ref{thm:spt-tree}。 拓樸排序 $\Theta(n + m)$，第 4--6 行每個頂點一次、每條邊一次，也是
@@ -1436,7 +1443,7 @@ $d[u] = \infty$，鬆弛什麼都不做。 所以也可以從 $s$ 在順序裡�
 \draw[spt-a] (g3) to[bend left=40] node[spt-w, above] {$4$} (g5);
 \draw[spt-a] (g2) to[bend right=40] node[spt-w, below] {$6$} (g4);
 \draw[spt-a] (g4) to[bend right=40] node[spt-w, below] {$5$} (g6);
-\end{tikzpicture}
+\end{tikzpicture}\par\nopagebreak
 \diagcaption{有向無環圖 $D$，頂點依拓樸順序由左到右。}
 \label{fig:spt-dag}
 \end{center}
@@ -1538,8 +1545,9 @@ $\Theta(n^2 m)$，稠密圖上是 $\Theta(n^4)$。 下面三個方法都比後�
 $L^{(k)} = L^{(k-1)} \otimes W$，答案是 $W$ 自己「乘」$n - 2$ 次，每次 $\Theta(n^3)$，共
 $\Theta(n^4)$。
 
-這種乘法和一般乘法一樣有結合律（$\min$ 和 $+$ 的關係，和 $+$ 和 $\times$ 的關係一樣：$a +
-\min(b, c) = \min(a + b, a + c)$）。 所以可以用第~\ref{sec:dc-power}~節快速冪的反覆平方：
+這種乘法和一般矩陣乘法一樣有結合律。 一般矩陣乘法的結合律靠的是分配律 $a(b + c) = ab + ac$；
+這裡 $\min$ 扮演 $+$、$+$ 扮演 $\times$，對應的分配律 $a + \min(b, c) = \min(a + b, a + c)$ 也成
+立，同樣的證明照搬過來就好。 所以可以用第~\ref{sec:dc-power}~節快速冪的反覆平方：
 \[
 L^{(1)} = W,\quad L^{(2)} = W \otimes W,\quad L^{(4)} = L^{(2)} \otimes L^{(2)},\quad \ldots
 \]
@@ -1625,7 +1633,7 @@ $D[i, k]$、$D[k, j]$、$\Pi[k, j]$ 都還是第 $k - 1$ 層的值。
 \draw[spt-a] (f2) to[bend left=25] node[spt-w] {$6$} (f4);
 \draw[spt-a] (f4) to[bend left=25] node[spt-w] {$1$} (f2);
 \draw[spt-a] (f3) to[out=-90, in=-90, looseness=1.6] node[spt-w, below] {$4$} (f1);
-\end{tikzpicture}
+\end{tikzpicture}\par\nopagebreak
 \diagcaption{圖 $F$。 $1$、$4$ 之間和 $2$、$4$ 之間兩個方向各有一條邊。}
 \label{fig:spt-fw}
 \end{center}
@@ -1724,7 +1732,7 @@ void floyd_warshall(void)
     for (int k = 0; k < n; k++) {
         printf("k=%d:", k + 1);
         for (int i = 0; i < n; i++) {
-            if (d[i][k] == INF) {               // 走不到 k：這一列不會變
+            if (d[i][k] == INF) {               // 這一列不會變
                 continue;
             }
             for (int j = 0; j < n; j++) {
@@ -1772,9 +1780,13 @@ int main(void)
         neg = 0;
         for (int i = 0; i < n; i++) {
             if (d[i][i] < 0) {
-                printf("vertex %d is on a negative cycle\n", i + 1);
+                printf(neg ? " %d" : "on a negative cycle: %d",
+                       i + 1);
                 neg = 1;
             }
+        }
+        if (neg) {
+            printf("\n");
         }
         for (int i = 0; i < n && !neg; i++) {
             printf("D%d:", i + 1);
@@ -1814,11 +1826,11 @@ int main(void)
     return 0;
 }
 \end{example}
-\iosample{4 8 \\ 1 2 3 1 4 8 2 3 -2 2 4 6 \\ 3 1 4 3 4 2 4 2 1 4 1 2 \\ 3 3 2 2 1 1 4 \\ 3 3 \\ 1 2 1 2 3 -3 3 1 1 \\ 0 \\ 3 1 \\ 1 2 5 \\ 1 2 1}{k=1: (3,2) \\ k=2: (1,3) (4,3) \\ k=3: (1,4) (2,1) (2,4) \\ k=4: (3,2) \\ D1: 0 3 1 3 P1: - 1 2 3 \\ D2: 2 0 -2 0 P2: 3 - 2 3 \\ D3: 4 3 0 2 P3: 3 4 - 3 \\ D4: 2 1 -1 0 P4: 4 4 2 - \\ 3 -> 2: 3 4 2 (length 3) \\ 2 -> 1: 2 3 1 (length 2) \\ 1 -> 4: 1 2 3 4 (length 3) \\ k=1: (3,2) \\ k=2: (1,3) (3,3) \\ k=3: (1,1) (1,2) (1,3) (2,1) (2,2) (2,3) (3,1) (3,2) (3,3) \\ vertex 1 is on a negative cycle \\ vertex 2 is on a negative cycle \\ vertex 3 is on a negative cycle \\ k=1: \\ k=2: \\ k=3: \\ D1: 0 5 inf P1: - 1 - \\ D2: inf 0 inf P2: - - - \\ D3: inf inf 0 P3: - - - \\ 2 -> 1: no path}
+\iosample{4 8 \\ 1 2 3 1 4 8 2 3 -2 2 4 6 \\ 3 1 4 3 4 2 4 2 1 4 1 2 \\ 2 3 2 1 4 \\ 2 2 \\ 1 2 1 2 1 -3 \\ 0 \\ 2 1 \\ 1 2 5 \\ 1 2 1}{k=1: (3,2) \\ k=2: (1,3) (4,3) \\ k=3: (1,4) (2,1) (2,4) \\ k=4: (3,2) \\ D1: 0 3 1 3 P1: - 1 2 3 \\ D2: 2 0 -2 0 P2: 3 - 2 3 \\ D3: 4 3 0 2 P3: 3 4 - 3 \\ D4: 2 1 -1 0 P4: 4 4 2 - \\ 3 -> 2: 3 4 2 (length 3) \\ 1 -> 4: 1 2 3 4 (length 3) \\ k=1: (2,2) \\ k=2: (1,1) (1,2) (2,1) (2,2) \\ on a negative cycle: 1 2 \\ k=1: \\ k=2: \\ D1: 0 5 P1: - 1 \\ D2: inf 0 P2: - - \\ 2 -> 1: no path}
 
 第一張圖是 $F$，每一層改的格子就是上面粗體的位置，最後的 \texttt{D}、\texttt{P} 兩列一組，
-分別是 $D^{(4)}$ 和 $\Pi^{(4)}$ 的每一列。 第二張圖 $1 \to 2 \to 3 \to 1$ 的權重是 $1 - 3 + 1 =
--1$，三個頂點的 $d_{ii}$ 都變成負的。 第三張圖只有一條邊 $1 \to 2$，$2$ 到 $1$ 沒有路。
+分別是 $D^{(4)}$ 和 $\Pi^{(4)}$ 的每一列。 第二張圖 $1 \to 2 \to 1$ 的權重是 $1 - 3 = -2$，兩個頂點的
+$d_{ii}$ 都變成負的。 第三張圖只有兩個頂點和一條邊 $1 \to 2$，$2$ 到 $1$ 沒有路。
 
 \subsection{遞移閉包}
 
@@ -1874,7 +1886,7 @@ $4$，$4$ 和 $5$ 互相連。
 \draw[spt-a] (t3) -- (t4);
 \draw[spt-a] (t4) to[bend left=20] (t5);
 \draw[spt-a] (t5) to[bend left=20] (t4);
-\end{tikzpicture}
+\end{tikzpicture}\par\nopagebreak
 \diagcaption{圖 $C$：求遞移閉包用的有向圖。}
 \label{fig:spt-tc}
 \end{center}
@@ -1980,7 +1992,8 @@ int main(void)
         printf("on a cycle:");
         int any = 0;
         for (int i = 0; i < n; i++) {
-            if (get_bit(&t[i * w], i)) {        // T[i][i] = 1：i 走得回自己
+            // T[i][i] = 1：i 走得回自己
+            if (get_bit(&t[i * w], i)) {
                 printf(" %d", i + 1);
                 any = 1;
             }
@@ -2103,7 +2116,7 @@ $\hat{w}(3, 4) = -3 + (-1) - (-4) = 0$。
 \node[spt-h, right=2pt of k4] {$h = -4$};
 \node[font=\small] at (2.2, -2.3) {(b) 改過的權重 $\hat{w}$，橘字是 $h$};
 \end{scope}
-\end{tikzpicture}
+\end{tikzpicture}\par\nopagebreak
 \diagcaption{Johnson 演算法的改權重。 最短路徑上的邊改完之後權重常常變成 $0$。}
 \label{fig:spt-johnson}
 \end{center}
@@ -2118,12 +2131,12 @@ $\hat{w}$ 上最短路徑的邊很多是 $0$：$h(v) = \delta(q, v)$ 時，由 $
 
 \begin{center}
 \small
-\begin{tabular}{p{0.17\linewidth}p{0.11\linewidth}p{0.17\linewidth}p{0.25\linewidth}p{0.16\linewidth}}
+\begin{tabular}{>{\raggedright\arraybackslash}p{0.17\linewidth}>{\raggedright\arraybackslash}p{0.10\linewidth}>{\raggedright\arraybackslash}p{0.14\linewidth}>{\raggedright\arraybackslash}p{0.27\linewidth}>{\raggedright\arraybackslash}p{0.18\linewidth}}
 \toprule
 演算法 & 問題 & 權重 & 時間 & 負環 \\
 \midrule
 BFS（第~21~章） & 單一起點 & 全部相同 & $\Theta(n + m)$ & 不會有 \\
-Dijkstra & 單一起點 & $\ge 0$ & 陣列 $\Theta(n^2)$；二元堆積 $O(m \lg n)$；費氏堆積 $O(m + n \lg n)$ & 不會有 \\
+Dijkstra & 單一起點 & $\ge 0$ & 陣列 $\Theta(n^2)$；二元堆積 $O((n + m) \lg n)$；費氏堆積 $O(m + n \lg n)$ & 不會有 \\
 Bellman--Ford & 單一起點 & 任意 & $\Theta(nm)$ & 偵測從 $s$ 走得到的 \\
 DAG 最短路徑 & 單一起點 & 任意，無環 & $\Theta(n + m)$ & 不會有 \\
 反覆平方 & 所有點對 & 任意 & $\Theta(n^3 \lg n)$ & 對角線變負 \\
@@ -2142,7 +2155,7 @@ Johnson（沒有負邊時直接跑 $n$ 次 Dijkstra）。
 \label{sec:spt-pitfalls}
 
 \begin{center}
-\begin{tabular}{p{0.26\linewidth}p{0.48\linewidth}p{0.16\linewidth}}
+\begin{tabular}{>{\raggedright\arraybackslash}p{0.26\linewidth}>{\raggedright\arraybackslash}p{0.48\linewidth}>{\raggedright\arraybackslash}p{0.16\linewidth}}
 \toprule
 錯誤 & 例子 & 見 \\
 \midrule
@@ -2422,7 +2435,7 @@ Optimization Algorithms''，\textit{Journal of the ACM} 34(3)，1987：費氏堆
 \item 鄰接串列：$\mathit{Adj}[1] = 2, 3$；$\mathit{Adj}[2] = 1, 3, 4$；$\mathit{Adj}[3] = 1, 2, 4, 5$；
 $\mathit{Adj}[4] = 2, 3, 5, 6$；$\mathit{Adj}[5] = 3, 4, 6$；$\mathit{Adj}[6] = 4, 5$。
 \begin{enumerate}
-\item
+\item 每一輪取出的頂點和鬆弛之後的 $d$：
 \begin{center}
 \begin{tabular}{cc*{6}{c}}
 \toprule
@@ -2457,7 +2470,8 @@ $k$ 條邊的路徑被加了 $3k$，邊數不同的路徑加的量不同。 (c) 
 $h(v_0) - h(v_k)$（引理~\ref{lem:spt-reweight}），只和兩端有關，同一對端點之間的每條路徑都加
 同一個數。
 
-\item (a)
+\item (a) 第 1 輪掃 $(3, 5)$、$(4, 3)$、$(2, 3)$ 時起點都還是 $\infty$；第 2 輪才用 $d[4] = 7$
+得到 $d[3] = 4$，第 3 輪才用 $d[3]$ 得到 $d[5] = 2$，之後不再改變。 每一輪結束時的 $d$：
 \begin{center}
 \begin{tabular}{c*{5}{c}}
 \toprule
@@ -2470,8 +2484,7 @@ $h(v_0) - h(v_k)$（引理~\ref{lem:spt-reweight}），只和兩端有關，同�
 \bottomrule
 \end{tabular}
 \end{center}
-第 1 輪掃 $(3, 5)$、$(4, 3)$、$(2, 3)$ 時起點都還是 $\infty$；第 2 輪才用 $d[4] = 7$ 得到
-$d[3] = 4$，第 3 輪才用 $d[3]$ 得到 $d[5] = 2$。 第 3 輪之後不再改變。 $\pi[2..5] = 1, 4, 1, 3$。
+最後的 $\pi[2..5] = 1, 4, 1, 3$。
 (b) 例如 $(1,4), (4,3), (3,5), (1,2), (2,3), (2,5), (4,5), (5,1)$：第 1 輪依序得到 $d[4] = 7$、
 $d[3] = 4$、$d[5] = 2$、$d[2] = 6$，之後的邊都鬆弛不動，已經全部正確。
 (c) 依定理~\ref{thm:spt-bf} 和定理~\ref{thm:spt-tree}，存在一棵以 $s$ 為根的最短路徑樹 $T$（例
@@ -2494,7 +2507,7 @@ $7$ 沒有邊進來，是 $\infty$。 注意 $d[6] = 5$ 是對的：$6$ 和負�
 \item (a) 入度 $\mathit{in}[1..7] = 0, 0, 2, 1, 2, 3, 2$，佇列一開始是 $1, 2$。 取出 $1$：$\mathit{in}[3]
 = 1$。 取出 $2$：$\mathit{in}[3] = 0$ 進佇列，$\mathit{in}[6] = 2$。 之後依序取出 $3, 4, 5, 6, 7$，每次
 剛好放進下一個。 拓樸順序 $1, 2, 3, 4, 5, 6, 7$。
-(b)
+(b) 每處理一個頂點之後的 $d$：
 \begin{center}
 \begin{tabular}{c*{7}{c}}
 \toprule

@@ -126,7 +126,8 @@ $d - 1$，各自最多 $2^{d-1}$ 個葉節點，合起來最多 $2^d$ 個。
 
 設最壞情況的比較次數是 $d$，也就是最深的葉節點深度是 $d$。 由兩步得到 $2^d \ge n!$，
 $d \ge \lg(n!)$，$d$ 是整數，所以 $d \ge \lceil \lg(n!) \rceil$。 第~1~章第~\ref{sec:ana-functions}~節已經
-證明 $\lg(n!) \ge \frac{n}{2}\lg\frac{n}{2}$，$n \ge 4$ 時這至少是 $\frac{n}{4}\lg n$，
+證明 $\lg(n!) \ge \frac{n}{2}\lg\frac{n}{2} = \frac{n}{2}(\lg n - 1)$。 $n \ge 4$ 時
+$\lg n \ge 2$，所以 $\lg n - 1 \ge \frac{1}{2}\lg n$，這至少是 $\frac{n}{4}\lg n$，
 所以 $d = \Omega(n \lg n)$。 每次比較至少花常數時間，執行時間也是 $\Omega(n \lg n)$。
 \end{proof}
 
@@ -185,8 +186,11 @@ $\sum 2^{-d_i}$ 不超過 $\frac{1}{2}$，最多兩個子樹，合起來不超�
 
 圖~\ref{fig:lin-dtree} 的平均是 $8/3 \approx 2.67$，下界是 $\lg 6 \approx 2.58$，差
 得不多。 用第~1~章的估計，平均情況一樣是 $\Omega(n \lg n)$。 所以快速排序的平均
-$\Theta(n \lg n)$ 也是最佳的。 隨機化也突破不了：把隨機選擇固定下來就是一棵決策樹，
-由此可以推出，任何隨機化比較排序都有某個輸入，在它上面的期望比較次數至少 $\lg(n!)$。
+$\Theta(n \lg n)$ 也是最佳的。 隨機化也突破不了。 把隨機選擇的結果固定下來，隨機化的
+比較排序就變成一個普通的比較排序，由定理~\ref{thm:lin-avg}，它對 $n!$ 種順序的平均至
+少是 $\lg(n!)$。 每一種隨機結果都是這樣，再對隨機結果取平均也至少 $\lg(n!)$，而這個
+數就是 $n!$ 種輸入各自的期望比較次數的平均。 平均至少 $\lg(n!)$，所以一定有某個輸入，
+在它上面的期望比較次數至少 $\lg(n!)$。
 
 \subsection{同樣的方法用在別的問題}
 
@@ -544,8 +548,8 @@ $j$ 裡的數都在 $[j/n, (j+1)/n)$，比桶子 $j + 1$ 的數小，所以串�
 
 \textbf{期望時間。} 除了第 6 行，其他都是 $\Theta(n)$。 設桶子 $j$ 最後有 $n_j$ 個
 數，插入排序最壞 $O(n_j^2)$，所以總時間是 $\Theta(n) + \sum_j O(n_j^2)$，只要算
-$\mathrm{E}[n_j^2]$。 每個數獨立地以機率 $1/n$ 落進桶子 $j$，所以 $n_j$ 是二項分布
-$B(n, 1/n)$：
+$\mathrm{E}[n_j^2]$。 每個數獨立地以機率 $1/n$ 落進桶子 $j$，所以 $n_j$ 是 $n$ 個獨立
+指示變數的和，也就是二項分布 $B(n, 1/n)$，用附錄~A 定理~\ref{thm:mth-binomial}：
 \[
 \mathrm{E}[n_j] = n \cdot \frac{1}{n} = 1, \qquad
 \mathrm{Var}[n_j] = n \cdot \frac{1}{n}\left(1 - \frac{1}{n}\right) = 1 - \frac{1}{n},
@@ -765,7 +769,7 @@ $\infty$。 \proc{Beats}$(a, b)$ 表示串 $a$ 贏串 $b$：$\mathit{key}[a] <
 \mathit{key}[b]$，或者兩者相等而 $a < b$（鍵相同時編號小的串贏，這讓合併是穩定
 的）。 $L[0..k-1]$ 是敗者樹，$W[1..k-1]$ 只在建樹時暫存每場比賽的贏家。
 
-\begin{pseudo}[label=alg:lin-loser]{敗者樹：由下往上建樹、沿路徑調整}
+\begin{pseudo}[label=alg:lin-loser, unbreakable]{敗者樹：由下往上建樹}
 \Procedure{Build-Loser-Tree}{$k$}
     \For{$t \gets k - 1$ \DownTo $1$}
         \State $a \gets$ 節點 $2t$ 的贏家 \Comment{葉節點 $c$ 的贏家是串 $c - k + 1$；內部節點 $c$ 是 $W[c]$}
@@ -778,6 +782,9 @@ $\infty$。 \proc{Beats}$(a, b)$ 表示串 $a$ 贏串 $b$：$\mathit{key}[a] <
     \EndFor
     \State $L[0] \gets W[1]$
 \EndProcedure
+\end{pseudo}
+
+\begin{pseudo}[label=alg:lin-adjust, unbreakable]{敗者樹：串 $s$ 換了新的鍵之後沿路徑調整}
 \Procedure{Adjust}{$s$} \Comment{串 $s$ 剛換了新的鍵}
     \State $t \gets \lfloor (s + k - 1) / 2 \rfloor$ \Comment{串 $s$ 的葉節點的父節點}
     \While{$t > 0$}
@@ -808,11 +815,12 @@ $\infty$。 \proc{Beats}$(a, b)$ 表示串 $a$ 贏串 $b$：$\mathit{key}[a] <
 \textbf{手算追蹤。} 用勝者樹那四個串。 建樹時由下往上：節點 2 是 $R_1$ 的 $15$ 對
 $R_2$ 的 $27$，$15$ 贏，記下輸家 $R_2$；節點 3 是 $8$ 對 $19$，記下輸家 $R_4$；節點 1
 是兩邊的贏家 $15$ 對 $8$，記下輸家 $R_1$，冠軍 $R_3$ 放進節點 $0$。 建樹比了 $k - 1 =
-3$ 次。 之後每輸出一筆，就沿著那個串的葉節點往上調整一次。 下圖畫出前三次輸出之後的
+3$ 次。 之後每輸出一筆，就沿著那個串的葉節點往上調整一次。 圖~\ref{fig:lin-loser} 畫出前三次輸出之後的
 樹：方框是節點 $0$ 的冠軍，圓圈是內部節點記的輸家，橘色是這次調整中換了選手的節點，
 綠色是剛補上新鍵的葉節點。
 
-\begin{center}
+\begin{figure}[!tb]
+\centering
 \begin{tabular}{c@{\hspace{1.2cm}}c}
 \begin{tikzpicture}[x=0.70cm,y=1.00cm]
 \draw[lte] (3,-1) -- (1,-2);
@@ -941,13 +949,13 @@ $R_2$ 的 $27$，$15$ 贏，記下輸家 $R_2$；節點 3 是 $8$ 對 $19$，記
 $19$ 往上；在節點 1 輸給 $15$，$19$ 留下、$15$ 成為冠軍。 (d)：$22$ 在節點 3 贏
 $56$、在節點 1 贏 $27$，一路上都沒有換人，直接成為冠軍。}
 \label{fig:lin-loser}
-\end{center}
+\end{figure}
 
 全部十二次輸出列成下表。 「路徑上的比賽」寫出每個節點那場比賽的結果，例如「3：19
 勝 56」是在節點 3，$19$ 贏了 $56$；最後一欄是調整完的 $L[0], L[1], L[2], L[3]$。
 
 \begin{center}
-\small
+\footnotesize
 \begin{tabular}{ccclc}
 \toprule
 輸出 & 來自 & 補上的鍵 & 路徑上的比賽（節點：結果） & $L[0..3]$ \\
@@ -1427,7 +1435,7 @@ $j$ & 放到第幾格 & 放完後的 $B[1..7]$ \\
 $17$，第二趟要保持第一趟「$08$ 在 $72$ 前」的順序，靠的是穩定；$3105$ 與 $3172$、
 $5408$ 與 $5472$ 也一樣。
 
-\item (a) $n_j$ 是二項分布 $B(n, 1/m)$：$\mathrm{E}[n_j] = n/m$，
+\item (a) $n_j$ 是二項分布 $B(n, 1/m)$，由附錄~A 定理~\ref{thm:mth-binomial}：$\mathrm{E}[n_j] = n/m$，
 $\mathrm{Var}[n_j] = \frac{n}{m}(1 - \frac{1}{m})$，所以
 $\mathrm{E}[n_j^2] = \frac{n}{m}\left(1 - \frac{1}{m}\right) + \frac{n^2}{m^2}$。 $m$ 個桶子加
 起來，插入排序的期望時間是
