@@ -1,0 +1,1272 @@
+\chapter{近似演算法}
+\label{ch:approximation}
+
+% 本章的圖共用的樣式（前綴 apx-）
+\tikzset{
+    apx-v/.style={circle, draw=black!70, thick, minimum size=0.62cm, inner sep=0pt, font=\small, fill=white},
+    apx-vC/.style={apx-v, draw=coreStroke, fill=coreFill},
+    apx-vO/.style={apx-v, draw=greenStroke, fill=greenFill},
+    apx-e/.style={draw=black!55, thick},
+    apx-m/.style={draw=memStroke, line width=2.2pt},
+    apx-pt/.style={circle, draw=black!70, thick, minimum size=0.5cm, inner sep=0pt, font=\scriptsize, fill=white},
+    apx-grid/.style={draw=black!12, thin},
+    apx-tree/.style={draw=coreStroke, very thick},
+    apx-tour/.style={draw=memStroke, thick, -{Stealth[length=2mm]}},
+    apx-opt/.style={draw=greenStroke, thick, -{Stealth[length=2mm]}},
+    apx-w/.style={font=\scriptsize, text=black!70, inner sep=1pt, fill=white},
+    apx-dot/.style={circle, fill=black!70, minimum size=0.16cm, inner sep=0pt},
+    apx-row/.style={draw=greenStroke, thick, rounded corners=3pt},
+    apx-blk/.style={draw=memStroke, thick, rounded corners=3pt, dashed},
+    apx-cap/.style={font=\small},
+}
+
+校園裡有七個收件點，工友每天下午推著推車從收發室出發，每個點都要去一次，最後回到收發室。
+路是棋盤狀的，兩點之間的距離就是橫向加縱向走的格數。 第~20~章的分支限界、第~18~章的動態規劃
+都能算出最短的路線，可是點數一多，它們要花的時間都會爆炸；第~28~章更說明了，這類問題很可能
+根本沒有快的精確解法。 換個要求：如果有一個很快的做法，保證排出來的路線\textbf{不會超過最
+短路線的兩倍}，你願意用嗎？ 再想一件事：最短路線有多長你根本不知道，要怎麼保證「不超過它的兩
+倍」？ 往下讀之前，先想一想。
+
+第~28~章說，NP 完備問題目前都沒有已知的多項式時間演算法。 這些問題的最佳化版本還是每天都要
+解，常見的出路有三條：輸入很小的時候用回溯或分支限界（第~20~章）；輸入有特殊結構的時候找專
+用的演算法（例如樹上的問題常常可以用動態規劃）；或者放棄「一定最佳」，改求\textbf{保證離最佳
+不遠}的解。 這一章講第三條路。
+
+上面那個問題的答案，是這一章所有證明共用的想法：最佳解的值不知道，但可以找一個算得出來的量，
+證明最佳解一定不比它好，再證明演算法的答案不超過這個量的某個倍數。 第~\ref{sec:apx-ratio}~節
+定義近似比；第~\ref{sec:apx-vc}~節用頂點覆蓋示範最簡單的 $2$-近似；第~\ref{sec:apx-tsp}~節用最
+小生成樹做度量 TSP 的 $2$-近似，並證明沒有三角不等式的一般 TSP 連常數倍都保證不了；
+第~\ref{sec:apx-sc}~節的集合覆蓋用貪心，近似比是 $H_d \le \ln d + 1$；
+第~\ref{sec:apx-knap}~節回到第~18~章的 0/1 背包，看怎麼用動態規劃做到「誤差要多小都可以」。
+每個近似比都附證明；前三個問題還各附一個讓比值逼近上界的例子，說明分析已經不能再改進。
+
+這一章用到第~19~章的貪心與交換論證、第~21~章的圖論名詞、第~24~章的最小生成樹和第~28~章的 NP
+完備，都只引用，不重講。 C 程式用到《C 程式設計基礎》第~12~章的位元運算、第~14~章的結構和第~19~章的
+\texttt{malloc}。
+
+\section{近似比}
+\label{sec:apx-ratio}
+
+\subsection{最佳化問題與近似演算法}
+
+這一章的問題都是\textbf{最佳化問題}：每個輸入有很多個\textbf{可行解}（feasible solution），每
+個可行解有一個\textbf{成本}（或價值），要找成本最小（或價值最大）的那一個。 最佳解的值寫成
+$C^*$，演算法找到的解的值寫成 $C$。 本章假設所有可行解的值都是正的，比值才有意義。
+
+\begin{definition}[近似比]
+\label{def:apx-ratio}
+一個演算法對大小 $n$ 的每一個輸入都滿足
+\[
+\max\left(\frac{C}{C^*},\ \frac{C^*}{C}\right) \le \rho(n),
+\]
+就說它的\textbf{近似比}（approximation ratio）是 $\rho(n)$，這個演算法叫\textbf{$\rho(n)$-近似演算
+法}（$\rho(n)$-approximation algorithm）。 本章說的近似演算法都要在多項式時間內跑完。
+\end{definition}
+
+最小化問題 $C \ge C^*$，所以上式就是 $C \le \rho(n) \cdot C^*$；最大化問題 $C \le C^*$，上式是
+$C \ge C^* / \rho(n)$。 兩種情形的 $\rho(n)$ 都 $\ge 1$，越接近 $1$ 越好，$\rho(n) = 1$ 就是精確
+的演算法。 $\rho(n)$ 可以是常數（例如 $2$），也可以隨 $n$ 變大（例如 $\ln n + 1$）。
+
+\begin{examnote}
+近似比的寫法各本書不同。 有的書對最大化問題寫 $C \ge \alpha C^*$，$\alpha \le 1$，於是同一個
+演算法在那裡叫「$\frac12$-近似」，在本書叫「$2$-近似」；有的書把「近似比 $\rho$」寫成「效能
+保證」或「$\rho$ 倍近似」。 看清楚題目用哪一種，答案寫成「$C \le 2C^*$」或「$C \ge C^*/2$」這種
+不等式，不會被誤解。
+\end{examnote}
+
+\subsection{不知道最佳解，怎麼證明}
+
+證明 $C \le \rho C^*$ 最難的地方，是 $C^*$ 算不出來（算得出來就不必近似了）。 本章每個證明都
+照同一個模式（以最小化為例）：
+
+\begin{enumerate}
+\item 找一個多項式時間算得出來、或至少能在證明裡談論的量 $L$，證明 $L \le C^*$。 $L$ 叫
+\textbf{下界}（lower bound）。
+\item 證明演算法的答案 $C \le \rho L$。
+\item 合起來，$C \le \rho L \le \rho C^*$。
+\end{enumerate}
+
+章首的問題也是這樣回答：任何一條巡迴路線拿掉一段之後都是一棵生成樹，所以最短路線不會比最小
+生成樹短；只要排出來的路線不超過最小生成樹的兩倍，就不超過最短路線的兩倍。 本章用到的下界
+整理如下，後面各節再一一證明。
+
+\begin{center}
+\begin{tabular}{lll}
+\toprule
+問題 & 下界 $L$ & 近似比 \\
+\midrule
+頂點覆蓋 & 一組兩兩不共用端點的邊的條數 & $2$ \\
+度量 TSP & 最小生成樹的權重 & $2$ \\
+集合覆蓋 & 把成本分攤到元素上的「價格」 & $H_d$ \\
+0/1 背包（最大化） & 四捨五入前後的價值差 & $1/(1 - \varepsilon)$ \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\subsection{近似比是緊的}
+
+證明了 $C \le 2C^*$，只說明這個演算法\textbf{最差不會超過} $2$ 倍，沒說它真的會差到 $2$ 倍。 也
+許更仔細的分析能證明 $1.5$ 倍。 如果能找到一族輸入，讓 $C / C^*$ 等於 $\rho$，或是任意接近
+$\rho$，就說這個近似比的分析是\textbf{緊的}（tight）：對這個演算法，$\rho$ 已經不能再改小。
+
+「緊」說的是\textbf{這個演算法}的分析，不是說這個問題不可能有更好的演算法。 例如
+第~\ref{sec:apx-tsp}~節的 TSP 演算法，近似比 $2$ 是緊的，但另有一個演算法可以做到 $1.5$。 舉
+緊的例子時，演算法的答案 $C$ 和最佳解 $C^*$ 都要算出來，而且 $C^*$ 要附理由（為什麼不可能更
+好），只算演算法這一邊不夠。
+
+\section{頂點覆蓋}
+\label{sec:apx-vc}
+
+\subsection{問題}
+
+社區的巷弄畫成一張無向圖：路口是頂點，巷子是邊。 晚上要排志工在路口站崗，站在一個路口的志工
+看得到從這個路口出去的每一條巷子；每條巷子至少要有一端的路口有人。 最少要排幾個人？
+
+\begin{definition}[頂點覆蓋]
+\label{def:apx-vc}
+無向圖 $G = (V, E)$ 的\textbf{頂點覆蓋}（vertex cover）是一個頂點集合 $C \subseteq V$，使得每
+一條邊 $(u, v) \in E$ 都有 $u \in C$ 或 $v \in C$（也可以兩端都在）。 \textbf{最小頂點覆蓋}問
+題要找頂點數最少的頂點覆蓋。
+\end{definition}
+
+整個 $V$ 一定是頂點覆蓋，難的是找最小的。 第~28~章證明了頂點覆蓋的判定版本（「有沒有大小
+$\le k$ 的頂點覆蓋」）是 NP 完備的，所以除非 P $=$ NP，最小頂點覆蓋沒有多項式時間的演算法。
+
+\subsection{演算法}
+
+想法很簡單：看到一條還沒被蓋住的邊 $(u, v)$，不知道 $u$、$v$ 哪一個在最佳解裡，就兩個都拿。
+這樣浪費最多一半，下面會證明。
+
+\begin{pseudo}[label=alg:apx-vc]{頂點覆蓋的 $2$-近似}
+\Function{Approx-Vertex-Cover}{$G$}
+    \State $C \gets \emptyset$
+    \For{$E$ 裡的每一條邊 $(u, v)$} \Comment{依邊表的順序}
+        \If{$u \notin C$ \AND $v \notin C$}
+            \State $C \gets C \cup \{u, v\}$
+        \EndIf
+    \EndFor
+    \State \Return $C$
+\EndFunction
+\end{pseudo}
+
+用一個長度 $n$ 的布林陣列記錄「在不在 $C$ 裡」，第 4、5 行都是 $O(1)$，總時間 $\Theta(n + m)$。
+第 5 行把兩端都加進來的那些邊，叫做\textbf{被選中的邊}，集合寫成 $M$。
+
+\subsection{手算追蹤}
+
+圖~\ref{fig:apx-vc} 左邊的圖有 $n = 8$ 個路口、$m = 10$ 條巷子。 邊表依字典順序排好：
+$(1,2), (1,3), (2,3), (2,4), (3,4), (4,5), (4,6), (5,7), (6,7), (7,8)$。
+
+\begin{center}
+\begin{tabular}{clc}
+\toprule
+邊 & 動作 & $C$ \\
+\midrule
+$(1, 2)$ & 兩端都不在 $C$，選中 & $\{1, 2\}$ \\
+$(1, 3)$ & $1 \in C$，已蓋住 & \\
+$(2, 3)$ & 已蓋住 & \\
+$(2, 4)$ & 已蓋住 & \\
+$(3, 4)$ & 兩端都不在 $C$，選中 & $\{1, 2, 3, 4\}$ \\
+$(4, 5)$、$(4, 6)$ & 已蓋住 & \\
+$(5, 7)$ & 兩端都不在 $C$，選中 & $\{1, 2, 3, 4, 5, 7\}$ \\
+$(6, 7)$、$(7, 8)$ & 已蓋住 & \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+演算法排了 $6$ 個人。 最少要幾個？ 三角形 $1, 2, 3$ 的三條邊，一個頂點最多蓋兩條，所以
+$\{1, 2, 3\}$ 裡至少要選兩個；$4, 5, 7, 6$ 圍成一個四邊形，四條邊也至少要兩個頂點才蓋得住。
+兩組頂點沒有重疊，所以 $C^* \ge 4$；$\{1, 2, 4, 7\}$ 是大小 $4$ 的頂點覆蓋（右圖），$C^* = 4$。
+這個例子 $C / C^* = 1.5$。
+
+\begin{center}
+\begin{tikzpicture}[x=1cm, y=1cm]
+\begin{scope}
+\node[apx-vC] (a1) at (0, 0) {1};
+\node[apx-vC] (a2) at (1.2, 0.85) {2};
+\node[apx-vC] (a3) at (1.2, -0.85) {3};
+\node[apx-vC] (a4) at (2.4, 0) {4};
+\node[apx-vC] (a5) at (3.6, 0.85) {5};
+\node[apx-v] (a6) at (3.6, -0.85) {6};
+\node[apx-vC] (a7) at (4.8, 0) {7};
+\node[apx-v] (a8) at (6.0, 0) {8};
+\foreach \a/\b in {1/3, 2/3, 2/4, 4/5, 4/6, 6/7, 7/8}
+    \draw[apx-e] (a\a) -- (a\b);
+\foreach \a/\b in {1/2, 3/4, 5/7}
+    \draw[apx-m] (a\a) -- (a\b);
+\node[apx-cap] at (3, -1.6) {演算法：$C = \{1, 2, 3, 4, 5, 7\}$};
+\end{scope}
+\begin{scope}[xshift=7.4cm]
+\node[apx-vO] (b1) at (0, 0) {1};
+\node[apx-vO] (b2) at (1.2, 0.85) {2};
+\node[apx-v] (b3) at (1.2, -0.85) {3};
+\node[apx-vO] (b4) at (2.4, 0) {4};
+\node[apx-v] (b5) at (3.6, 0.85) {5};
+\node[apx-v] (b6) at (3.6, -0.85) {6};
+\node[apx-vO] (b7) at (4.8, 0) {7};
+\node[apx-v] (b8) at (6.0, 0) {8};
+\foreach \a/\b in {1/2, 1/3, 2/3, 2/4, 3/4, 4/5, 4/6, 5/7, 6/7, 7/8}
+    \draw[apx-e] (b\a) -- (b\b);
+\node[apx-cap] at (3, -1.6) {最佳解：$C^* = \{1, 2, 4, 7\}$};
+\end{scope}
+\end{tikzpicture}
+\diagcaption{左：虛擬碼~\ref{alg:apx-vc} 的結果，粗的橘色邊是被選中的三條邊，藍色頂點在 $C$ 裡。
+右：最小頂點覆蓋（綠色）。}
+\label{fig:apx-vc}
+\end{center}
+
+\subsection{為什麼是 2-近似}
+
+\begin{theorem}
+\label{thm:apx-vc}
+\proc{Approx-Vertex-Cover} 傳回的 $C$ 是頂點覆蓋，而且 $|C| \le 2\,|C^*|$。
+\end{theorem}
+
+\begin{proof}
+\textbf{是覆蓋。} 看任何一條邊 $(u, v)$。 第 3 行輪到它的時候，要不是 $u$ 或 $v$ 已經在 $C$
+裡，就是它被選中、兩端都加進 $C$。 $C$ 只會變大，所以結束時 $(u, v)$ 一定被蓋住。
+
+\textbf{下界。} 被選中的邊兩兩沒有共用端點：一條邊被選中時，它的兩端都還不在 $C$ 裡，所以沒有
+碰到之前選中的任何一條邊；選中之後兩端都進了 $C$，之後碰到這兩點的邊都不會再被選中。 任何
+頂點覆蓋，包括最佳的 $C^*$，都要蓋住 $M$ 的每一條邊，每條至少用掉一個端點；$M$ 的邊沒有共用
+端點，用掉的端點兩兩不同。 所以 $|C^*| \ge |M|$。
+
+\textbf{上界。} 每選中一條邊，$C$ 剛好多兩個頂點（兩端原本都不在 $C$ 裡），所以 $|C| = 2|M|$。
+合起來，$|C| = 2|M| \le 2|C^*|$。
+\end{proof}
+
+證明裡的 $M$ 在圖論裡叫做\textbf{匹配}（matching）：兩兩沒有共用端點的一群邊。 演算法結束時，
+每條邊都至少碰到 $M$ 的一個端點，所以 $M$ 不能再多加任何一條邊，這叫\textbf{極大匹配}
+（maximal matching）。 「極大」是加不進去，不是最多；邊數最多的匹配叫\textbf{最大匹配}
+（maximum matching），第~26~章用網路流求二分圖的最大匹配。 圖~\ref{fig:apx-vc} 的 $M$ 有三條
+邊，於是 $C^* \ge 3$；實際上 $C^* = 4$，這個下界不一定剛好等於 $C^*$。
+
+\subsection{近似比是緊的}
+
+讓 $C / C^*$ 剛好是 $2$ 的例子很多。 最簡單的是 $k$ 條互不相連的邊：每一條都被選中，
+$|C| = 2k$，而每條邊各要一個端點，$C^* = k$。 連通的例子也有：完全二分圖 $K_{k,k}$，左邊是
+$1..k$，右邊是 $k+1..2k$，每個左邊的點和每個右邊的點都有邊，邊表依字典順序。 掃到 $(i, k+i)$
+時，前面選中的邊是 $(1, k+1), \ldots, (i-1, k+i-1)$，都碰不到 $i$ 和 $k+i$，所以它被選中；其他的
+邊 $(i, k+j)$，$j \ne i$，一定有一端已經在 $C$ 裡（$j < i$ 時 $k+j$ 已經在，$j > i$ 時 $i$ 已經
+在）。 結果 $C$ 是全部 $2k$ 個點；只取左邊 $k$ 個點就蓋住了所有邊，而 $(1, k+1), \ldots,
+(k, 2k)$ 這 $k$ 條邊沒有共用端點，至少要 $k$ 個點，所以 $C^* = k$。
+
+還有一個問題：證明裡用的下界 $|M|$ 本身會不會太鬆？ 會。 $2k+1$ 個點的完全圖 $K_{2k+1}$，任何
+匹配最多 $k$ 條邊，但頂點覆蓋至少要 $2k$ 個點（漏掉兩個點，它們之間的邊就沒蓋到）。 所以只靠
+「$C^* \ge |M|$」這個下界，不可能證明比 $2$ 更好的近似比。 目前沒有人知道比 $2$ 好一個常數的
+多項式時間演算法；這是近似演算法裡很有名的未解問題。
+
+\subsection{兩個看起來更聰明的做法}
+
+\textbf{只拿一端。} 每條沒蓋住的邊只拿一個端點，例如編號小的那個，好像比較省。 星狀圖（中心
+$n$ 連到 $1, 2, \ldots, n-1$）就會讓它拿了 $n - 1$ 片葉子，最佳解只要中心一個點。 不知道該拿哪
+一端時，兩端都拿，反而能保證比值。
+
+\textbf{先拿度數最大的。} 每次拿目前蓋住最多條還沒蓋住的邊的頂點，直覺上很合理，第~19~章也
+提醒過這種貪心要先找反例。 一隻三條腿的「蜘蛛」：中心 $7$ 連到 $1, 2, 3$，再接上 $(1,4)$、
+$(2,5)$、$(3,6)$。 中心的度數是 $3$，其他點都 $\le 2$，貪心先拿 $7$；剩下的三條邊 $(1,4), (2,5), (3,6)$ 互不相連，還要再拿三個點，共
+$4$ 個。 最佳解是 $\{1, 2, 3\}$，$3$ 個。
+
+這個貪心其實是第~\ref{sec:apx-sc}~節集合覆蓋貪心的特例，由定理~\ref{thm:apx-sc} 它的近似比不超過
+$H_\Delta \le \ln \Delta + 1$，$\Delta$ 是最大度數；已經知道有些圖會讓它差到 $\Theta(\log n)$ 倍，
+所以它\textbf{沒有}常數的近似比，雖然在一般的圖上它常常比虛擬碼~\ref{alg:apx-vc} 的結果小。
+
+\subsection{C 程式}
+
+\texttt{approx\_vc} 照虛擬碼~\ref{alg:apx-vc} 掃描邊表；\texttt{optimal\_vc} 試遍 $2^n$ 個頂點子集
+合（第~20~章的窮舉，用 \texttt{unsigned} 的位元表示子集合），求出最小頂點覆蓋的大小，只能用在很小
+的圖上。 \texttt{main} 先跑圖~\ref{fig:apx-vc} 的例子，再產生 $2000$ 張 $12$ 個點的隨機圖，統計比
+值的分布。 書上的頂點是 $1..n$，程式裡一律減一，用 $0..n-1$。
+
+\begin{cbookrecap}[第~12~章位元運算、第~19~章 19.3 節]
+\texttt{(s >> x) \& 1u} 取出 \texttt{s} 的第 \texttt{x} 個位元：子集合 \texttt{s} 含頂點
+\texttt{x} 時是 $1$。 \texttt{1u << n} 是 $2^n$，\texttt{u} 表示無號整數，$n \le 20$ 時不會溢位。
+\texttt{malloc} 要到的記憶體用完要 \texttt{free}；本書的程式都用 \texttt{-fsanitize=address} 檢
+查，漏掉一個 \texttt{free} 也會被抓到。
+\end{cbookrecap}
+
+\begin{example}[label=ex:apx-vc]{c}{(vc\_approx.c) 頂點覆蓋的 2-近似和暴力最佳解}
+#include <stdio.h>
+#include <stdlib.h>
+
+#define N 12                    // 隨機圖的頂點數
+
+struct edge {
+    int u, v;                   // 兩個端點，0..n-1
+};
+
+// 2-近似：依邊的順序掃描，兩端都還沒選的邊就把兩端都選進來。
+// in_c[x] 記錄 x 有沒有被選，回傳選了幾個點。
+int approx_vc(int n, int m, const struct edge *e, char *in_c)
+{
+    int size = 0;
+    for (int x = 0; x < n; x++) {
+        in_c[x] = 0;
+    }
+    for (int i = 0; i < m; i++) {
+        if (!in_c[e[i].u] && !in_c[e[i].v]) {
+            in_c[e[i].u] = in_c[e[i].v] = 1;
+            size += 2;
+        }
+    }
+    return size;
+}
+
+// 暴力：試遍 2^n 個子集合 s，回傳最小頂點覆蓋的大小。
+int optimal_vc(int n, int m, const struct edge *e)
+{
+    int opt = n;                // 全部的頂點一定是覆蓋
+    for (unsigned s = 0; s < (1u << n); s++) {
+        int cnt = 0, ok = 1;
+        for (int x = 0; x < n; x++) {
+            cnt += (s >> x) & 1u;
+        }
+        for (int i = 0; i < m && ok; i++) {
+            ok = ((s >> e[i].u) & 1u) || ((s >> e[i].v) & 1u);
+        }
+        if (ok && cnt < opt) {
+            opt = cnt;
+        }
+    }
+    return opt;
+}
+
+// 線性同餘亂數，每次執行都產生一樣的圖。
+static unsigned long long seed = 2029;
+static unsigned next_rand(void)
+{
+    seed = seed * 6364136223846793005ULL + 1442695040888963407ULL;
+    return (unsigned)(seed >> 33);
+}
+
+int main(void)
+{
+    // 圖 29.1 的例子：8 個點，邊依字典順序，頂點寫成 1..8。
+    const int ex[10][2] = {{1, 2}, {1, 3}, {2, 3}, {2, 4}, {3, 4},
+                           {4, 5}, {4, 6}, {5, 7}, {6, 7}, {7, 8}};
+    struct edge *e = malloc(N * (N - 1) / 2 * sizeof *e);
+    char *in_c = malloc(N);
+    if (e == NULL || in_c == NULL) {
+        free(e);
+        free(in_c);
+        return 1;
+    }
+    for (int i = 0; i < 10; i++) {
+        e[i].u = ex[i][0] - 1;  // 程式裡用 0..n-1
+        e[i].v = ex[i][1] - 1;
+    }
+    printf("approx (%d):", approx_vc(8, 10, e, in_c));
+    for (int x = 0; x < 8; x++) {
+        if (in_c[x]) {
+            printf(" %d", x + 1);
+        }
+    }
+    printf("\noptimal: %d\n", optimal_vc(8, 10, e));
+
+    // 2000 張隨機圖，每一對頂點以 1/4 的機率有邊。
+    int cnt[3] = {0, 0, 0};     // 比值是 1、在 1 和 2 之間、是 2
+    for (int t = 0; t < 2000; t++) {
+        int m = 0;
+        for (int u = 0; u < N; u++) {
+            for (int v = u + 1; v < N; v++) {
+                if (next_rand() % 4 == 0) {
+                    e[m].u = u;
+                    e[m].v = v;
+                    m++;
+                }
+            }
+        }
+        int a = approx_vc(N, m, e, in_c);
+        int o = optimal_vc(N, m, e);
+        cnt[a == o ? 0 : (a == 2 * o ? 2 : 1)]++;
+    }
+    printf("ratio 1: %d, between: %d, ratio 2: %d\n", cnt[0], cnt[1], cnt[2]);
+    free(e);
+    free(in_c);
+    return 0;
+}
+\end{example}
+\iosample{}{approx (6): 1 2 3 4 5 7 \\ optimal: 4 \\ ratio 1: 7, between: 1576, ratio 2: 417}
+
+前兩行和上面的手算一致。 隨機圖的部分，$2000$ 張圖沒有一張超過 $2$ 倍，符合
+定理~\ref{thm:apx-vc}；比值剛好是 $1$ 的只有 $7$ 張，剛好是 $2$ 的反而有 $417$ 張。 比值是 $2$
+表示 $|C^*| = |M|$，也就是最小覆蓋在每一條被選中的邊上只用了一個端點；這種很稀疏的圖常常是這
+樣。 近似比是最壞情況的保證，實際的比值要看輸入。
+
+\section{度量 TSP}
+\label{sec:apx-tsp}
+
+\subsection{問題與三角不等式}
+
+第~20~章用分支限界解過\textbf{旅行推銷員問題}（TSP）。 這一節用對稱的版本：$G = (V, E)$ 是
+完全無向圖（每一對頂點都有邊），每條邊有成本 $c(u, v) = c(v, u) \ge 0$。 一條\textbf{巡迴路線}
+（tour）從某個頂點出發，每個頂點恰好經過一次，再回到出發點，也就是一個經過所有頂點的環
+（\textbf{哈密頓環}，Hamiltonian cycle）；它的成本是環上 $n$ 條邊的成本和。 要找成本最小的巡迴
+路線，最小成本寫成 $c(H^*)$。 第~28~章說明了 TSP 是 NP-難的。
+
+章首的工友走的是棋盤狀的路，成本有一個特別的性質：從 $u$ 直接走到 $w$，不會比繞經 $v$ 遠。
+
+\begin{definition}[三角不等式]
+\label{def:apx-triangle}
+成本函數 $c$ 滿足\textbf{三角不等式}（triangle inequality），如果對任意三個頂點 $u, v, w$，
+\[
+c(u, w) \le c(u, v) + c(v, w).
+\]
+滿足三角不等式的 TSP 叫\textbf{度量 TSP}（metric TSP）。
+\end{definition}
+
+平面上的直線距離、棋盤狀街道的曼哈頓距離 $|x_1 - x_2| + |y_1 - y_2|$，還有「在一張道路圖上
+的最短路徑長」（第~25~章），都滿足三角不等式。 把三角不等式用很多次，可以得到：沿著任何一條
+路徑 $\langle v_0, v_1, \ldots, v_k \rangle$ 走，成本不會比直接從 $v_0$ 走到 $v_k$ 少，
+\[
+c(v_0, v_k) \le c(v_0, v_1) + c(v_1, v_2) + \cdots + c(v_{k-1}, v_k).
+\]
+這個性質叫「抄捷徑不會變遠」，下面的證明就靠它。
+
+\subsection{下界：最小生成樹}
+
+\begin{lemma}
+\label{lem:apx-mst-lb}
+$T$ 是 $G$ 的最小生成樹，$H^*$ 是最佳巡迴路線，則 $c(T) \le c(H^*)$。 這個引理不需要三角不等
+式，只需要成本 $\ge 0$。
+\end{lemma}
+
+\begin{proof}
+從 $H^*$ 拿掉任何一條邊，剩下一條經過所有頂點的路徑，它連通、沒有環，是一棵生成樹，成本
+$\le c(H^*)$（拿掉的邊成本 $\ge 0$）。 最小生成樹的成本不超過任何一棵生成樹，所以
+$c(T) \le c(H^*)$。
+\end{proof}
+
+\subsection{演算法：最小生成樹的前序走訪}
+
+從根出發，沿著最小生成樹 $T$ 做深度優先的走訪，每條樹邊走下去一次、走回來一次，最後回到根，
+這樣的\textbf{完整走訪}（full walk）經過每個頂點，成本剛好 $2c(T)$。 但它會重複經過頂點，不是巡
+迴路線。 把重複的頂點刪掉，只留每個頂點第一次出現的位置，剩下的順序就是 $T$ 的\textbf{前序走
+訪}（第~7~章）；刪掉一個重複的頂點，等於從它前一個點直接走到它後一個點，由三角不等式成本不會
+變大。
+
+\begin{pseudo}[label=alg:apx-tsp]{度量 TSP 的 $2$-近似}
+\Function{Approx-TSP-Tour}{$G, c$}
+    \State $r \gets 1$ \Comment{任選一個頂點當根}
+    \State $T \gets$ 以 $r$ 為根的最小生成樹 \Comment{第~24~章的 Prim}
+    \State $L \gets$ 空串列
+    \State \Call{Preorder}{$T, r, L$}
+    \State \Return 依 $L$ 的順序走過每個頂點，最後回到 $r$
+\EndFunction
+\Statex
+\Function{Preorder}{$T, u, L$}
+    \State 把 $u$ 接在 $L$ 的尾端
+    \For{$u$ 在 $T$ 裡的每一個孩子 $v$} \Comment{編號由小到大}
+        \State \Call{Preorder}{$T, v, L$}
+    \EndFor
+\EndFunction
+\end{pseudo}
+
+完全圖有 $m = n(n-1)/2$ 條邊，第 3 行用陣列版的 Prim（不用堆積）是 $\Theta(n^2)$，前序走訪
+$\Theta(n)$，總時間 $\Theta(n^2)$，和輸入（成本矩陣）的大小同階。
+
+\begin{theorem}
+\label{thm:apx-tsp}
+成本滿足三角不等式時，\proc{Approx-TSP-Tour} 傳回的巡迴路線 $H$ 滿足 $c(H) \le 2\,c(H^*)$。
+\end{theorem}
+
+\begin{proof}
+令 $W$ 是 $T$ 從 $r$ 開始的完整走訪（孩子的順序和 \proc{Preorder} 一樣）。 每條樹邊在 $W$ 裡剛
+好走兩次，一次往下、一次往上，所以 $c(W) = 2c(T)$。
+
+$W$ 裡每個頂點第一次出現的順序，就是 \proc{Preorder} 產生的 $L$：\proc{Preorder} 第一次碰到 $u$ 時
+把它接到 $L$，完整走訪也是在這時第一次走到 $u$。 從 $W$ 刪掉不是第一次出現的頂點（最後回到 $r$
+的那一次保留），得到的就是 $H$。 $H$ 的每一條邊 $(x, y)$ 都對應到 $W$ 裡從 $x$ 到 $y$ 的一段
+路，中間經過的都是被刪掉的頂點；不同的邊對應的段落不重疊，合起來正好是整個 $W$。 由三角不等
+式，$c(x, y)$ 不超過那一段路的成本，加總得到 $c(H) \le c(W)$。
+
+合起來，$c(H) \le c(W) = 2c(T) \le 2c(H^*)$，最後一步是引理~\ref{lem:apx-mst-lb}。
+\end{proof}
+
+\subsection{手算追蹤}
+
+章首的七個收件點，座標（單位是一個街區）如下，$1$ 是收發室；成本是曼哈頓距離，例如
+$c(1, 5) = |0 - 5| + |2 - 3| = 6$。
+\[
+1\,(0, 2),\quad 2\,(0, 5),\quad 3\,(2, 1),\quad 4\,(2, 2),\quad 5\,(5, 3),\quad 6\,(5, 5),\quad 7\,(7, 0)
+\]
+
+\textbf{第一步：最小生成樹。} 用第~24~章的 Prim 從 $1$ 開始，頂點加入的順序是
+$1, 4, 3, 2, 5, 6, 7$，樹邊和成本是
+\[
+(1,4)\ 2,\quad (4,3)\ 1,\quad (1,2)\ 3,\quad (4,5)\ 4,\quad (5,6)\ 2,\quad (5,7)\ 5,
+\]
+$c(T) = 17$。 這張圖的最小生成樹只有這一棵（Kruskal 也得到同樣的邊），所以平手規則不影響結果。
+以 $1$ 為根，$1$ 的孩子是 $2, 4$；$4$ 的孩子是 $3, 5$；$5$ 的孩子是 $6, 7$。
+
+\textbf{第二步：完整走訪與前序。} 孩子依編號由小到大，完整走訪是
+\[
+1,\ 2,\ 1,\ 4,\ 3,\ 4,\ 5,\ 6,\ 5,\ 7,\ 5,\ 4,\ 1,
+\]
+成本 $2 \times 17 = 34$。 只留第一次出現的頂點，得到前序 $1, 2, 4, 3, 5, 6, 7$，巡迴路線是
+$1 \to 2 \to 4 \to 3 \to 5 \to 6 \to 7 \to 1$。
+
+\textbf{第三步：抄捷徑省了多少。} 下表列出每一段捷徑和它取代的那段完整走訪：
+
+\begin{center}
+\begin{tabular}{ccccc}
+\toprule
+捷徑 & 取代的路 & 原本成本 & 捷徑成本 & 省下 \\
+\midrule
+$2 \to 4$ & $2, 1, 4$ & $3 + 2 = 5$ & $5$ & $0$ \\
+$3 \to 5$ & $3, 4, 5$ & $1 + 4 = 5$ & $5$ & $0$ \\
+$6 \to 7$ & $6, 5, 7$ & $2 + 5 = 7$ & $7$ & $0$ \\
+$7 \to 1$ & $7, 5, 4, 1$ & $5 + 4 + 2 = 11$ & $9$ & $2$ \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+其他三段 $1 \to 2$、$4 \to 3$、$5 \to 6$ 本來就是樹邊。 巡迴路線的成本是
+$3 + 5 + 1 + 5 + 2 + 7 + 9 = 32 = 34 - 2$。 曼哈頓距離下，只要繞的路沒有「折回頭」，捷徑就省不
+到東西，所以前三段都沒省。
+
+最佳路線是 $1 \to 2 \to 6 \to 5 \to 7 \to 3 \to 4 \to 1$，成本 $3 + 5 + 2 + 5 + 6 + 1 + 2 = 24$。
+為什麼不可能更短？ 七個點的 $x$ 座標從 $0$ 到 $7$，任何巡迴路線都要從最左邊走到最右邊、再走回
+來，橫向至少走 $2 \times 7 = 14$；同理縱向至少 $2 \times 5 = 10$。 曼哈頓距離是橫向加縱向，所以
+每條路線至少 $24$。 三個數的關係是
+\[
+c(T) = 17 \;\le\; c(H^*) = 24 \;\le\; c(H) = 32 \;\le\; 2c(T) = 34 ,
+\]
+比值 $32 / 24 \approx 1.33$。 注意證明用的是 $c(H) \le 2c(T)$，不需要知道 $24$ 這個數。
+
+\begin{center}
+\begin{tikzpicture}[x=0.55cm, y=0.55cm]
+\foreach \k/\ttl in {0/最小生成樹 $T$（$17$）, 1/近似路線 $H$（$32$）, 2/最佳路線 $H^*$（$24$）} {
+    \begin{scope}[xshift=\k*5.06cm]
+    \draw[apx-grid] (0, 0) grid (7, 5);
+    \node[apx-cap] at (3.5, -1) {\ttl};
+    \node[apx-pt] (p1-\k) at (0, 2) {1};
+    \node[apx-pt] (p2-\k) at (0, 5) {2};
+    \node[apx-pt] (p3-\k) at (2, 1) {3};
+    \node[apx-pt] (p4-\k) at (2, 2) {4};
+    \node[apx-pt] (p5-\k) at (5, 3) {5};
+    \node[apx-pt] (p6-\k) at (5, 5) {6};
+    \node[apx-pt] (p7-\k) at (7, 0) {7};
+    \end{scope}
+}
+\begin{scope}[on background layer]
+\foreach \a/\b in {1/4, 4/3, 1/2, 4/5, 5/6, 5/7}
+    \draw[apx-tree] (p\a-0) -- (p\b-0);
+\end{scope}
+\foreach \a/\b in {1/2, 2/4, 4/3, 3/5, 5/6, 6/7, 7/1}
+    \draw[apx-tour] (p\a-1) -- (p\b-1);
+\foreach \a/\b in {1/2, 2/6, 6/5, 5/7, 7/3, 3/4, 4/1}
+    \draw[apx-opt] (p\a-2) -- (p\b-2);
+\end{tikzpicture}
+\diagcaption{七個收件點。 圖上畫的是直線，實際的成本是曼哈頓距離（沿著格線走）。}
+\label{fig:apx-tsp}
+\end{center}
+
+\begin{examnote}
+追蹤題寫出三樣東西：最小生成樹的邊（和用哪個演算法、從哪個點開始）、前序走訪的順序（孩子依什麼
+順序）、路線的總成本。 總成本要包含\textbf{最後回到起點}的那一段，這一段最常漏。 題目沒規定孩子
+的順序時，寫一句你的約定；換一個順序，路線和成本都可能不同，但都不超過 $2c(T)$。
+\end{examnote}
+
+\subsection{近似比是緊的}
+
+要讓 $c(H)$ 接近 $2c(H^*)$，需要兩件事同時發生：抄捷徑幾乎沒省到（$c(H) \approx 2c(T)$），而且
+最佳路線幾乎和最小生成樹一樣便宜（$c(H^*) \approx c(T)$）。 下面的例子成本只有 $1$ 和 $2$ 兩種，
+任何這樣的成本都滿足三角不等式（$2 \le 1 + 1$）。
+
+取 $n = k + 1$ 個頂點，$k \ge 2$：頂點 $1$ 是中心，$2, 3, \ldots, k + 1$ 是「葉」。 成本規定為
+\[
+c(u, v) =
+\begin{cases}
+1 & u, v \text{ 有一個是 } 1\text{，或 } u, v \text{ 都是葉而且 } |u - v| = 2, \\
+2 & \text{其他。}
+\end{cases}
+\]
+也就是說，中心到每片葉都是 $1$；葉之間只有編號差 $2$ 的是 $1$，編號差 $1$ 的都是 $2$。
+圖~\ref{fig:apx-tsp-tight} 是 $k = 6$ 的情形。
+
+\textbf{演算法的結果。} Prim 從 $1$ 開始，第一步就把每片葉的 key 設成 $c(1, v) = 1$，這已經是最小
+的成本，之後不會再變，所以每片葉的父節點都是 $1$，$T$ 是以 $1$ 為中心的星狀樹，$c(T) = k$。 前序
+走訪是 $1, 2, 3, \ldots, k + 1$，相鄰兩片葉的編號差 $1$，成本都是 $2$：
+\[
+c(H) = \underbrace{1}_{1 \to 2} + \underbrace{2(k - 1)}_{\text{葉到葉}} + \underbrace{1}_{k+1 \to 1}
+= 2k = 2c(T).
+\]
+
+\textbf{最佳路線。} 路線 $1$，所有偶數葉由小到大，所有奇數葉由大到小，再回到 $1$，只有「最大的偶數
+葉到最大的奇數葉」這一段成本是 $2$（兩者編號差 $1$），其他都是 $1$，總成本 $n + 1 = k + 2$。 不
+可能更便宜：路線有 $n$ 段，每段至少 $1$；如果全部是 $1$，拿掉中心之後，剩下的是一條只用成本 $1$
+的邊、經過所有葉的路徑，但成本 $1$ 的葉間邊只連編號同奇偶的葉，偶數葉和奇數葉之間沒有這種邊，
+走不通。 所以 $c(H^*) = k + 2$，
+\[
+\frac{c(H)}{c(H^*)} = \frac{2k}{k + 2} \;\longrightarrow\; 2 \qquad (k \to \infty).
+\]
+
+\begin{center}
+\begin{tikzpicture}[x=1cm, y=1cm]
+\foreach \k/\ttl in {0/$T$ 和成本 $1$ 的葉間邊, 1/近似路線（$12$）, 2/最佳路線（$8$）} {
+    \begin{scope}[xshift=\k*4.6cm]
+    \node[apx-v] (c-\k) at (0, 0) {1};
+    \foreach \v [count=\i] in {2, 3, 4, 5, 6, 7}
+        \node[apx-v] (l\v-\k) at ({150 - 60 * (\i - 1)}:1.6) {\v};
+    \node[apx-cap] at (0, -2.3) {\ttl};
+    \end{scope}
+}
+\foreach \v in {2, 3, 4, 5, 6, 7}
+    \draw[apx-tree] (c-0) -- (l\v-0);
+\foreach \a/\b in {2/4, 4/6, 3/5, 5/7}
+    \draw[apx-e] (l\a-0) -- (l\b-0);
+\draw[apx-tour] (c-1) -- (l2-1);
+\foreach \a/\b in {2/3, 3/4, 4/5, 5/6, 6/7}
+    \draw[apx-tour] (l\a-1) -- (l\b-1);
+\draw[apx-tour] (l7-1) -- (c-1);
+\draw[apx-opt] (c-2) -- (l2-2);
+\foreach \a/\b in {2/4, 4/6, 6/7, 7/5, 5/3}
+    \draw[apx-opt] (l\a-2) -- (l\b-2);
+\draw[apx-opt] (l3-2) -- (c-2);
+\end{tikzpicture}
+\diagcaption{$k = 6$ 的緊例子。 左圖畫出的邊成本是 $1$，沒畫出的是 $2$。 近似路線有五段葉到葉、
+成本都是 $2$；最佳路線只有 $6 \to 7$ 一段成本 $2$。}
+\label{fig:apx-tsp-tight}
+\end{center}
+
+$2$ 不是度量 TSP 最好的近似比。 Christofides（1976）把演算法改成：在 $T$ 裡度數是奇數的頂點之間
+加一組成本最小的完美匹配，讓每個頂點的度數都變成偶數，再走一條經過每條邊一次的路線（歐拉迴路），
+最後抄捷徑。 他證明這樣的成本不超過 $1.5\,c(H^*)$。 這個 $1.5$ 保持了四十多年，2021 年 Karlin、
+Klein 與 Oveis Gharan 才用隨機的方法把它改進了一個極小的量。 本書不證明這些結果。
+
+\subsection{一般的 TSP 不能近似}
+\label{sec:apx-tsp-general}
+
+拿掉三角不等式，情況完全不同：連「不超過最佳的一百萬倍」都做不到。
+
+\begin{theorem}
+\label{thm:apx-tsp-hard}
+如果 P $\ne$ NP，那麼對任何常數 $\rho \ge 1$，一般的（成本不一定滿足三角不等式的）TSP 都沒有多
+項式時間的 $\rho$-近似演算法。
+\end{theorem}
+
+\begin{proof}
+用反證法。 假設某個多項式時間的演算法 $A$ 是 $\rho$-近似的。 用它在多項式時間內判斷任何無向圖
+$G = (V, E)$ 有沒有哈密頓環；第~28~章說明了這個判定問題是 NP 完備的，所以這會推出 P $=$ NP。
+
+給 $G$，$n = |V|$，在同一組頂點上建一個完全圖，成本定為
+\[
+c(u, v) =
+\begin{cases}
+1 & (u, v) \in E, \\
+\rho n + 1 & (u, v) \notin E .
+\end{cases}
+\]
+$\rho$ 是常數，這個成本矩陣有 $n^2$ 格，每一格的數只要 $O(\lg n)$ 個位元，建表是多項式時間。
+
+\begin{itemize}
+\item 如果 $G$ 有哈密頓環，那條環的每一段都是 $G$ 的邊，成本 $n$，所以 $c(H^*) = n$（每段至少
+$1$）。 $A$ 傳回的路線成本 $\le \rho n$。
+\item 如果 $G$ 沒有哈密頓環，任何巡迴路線都至少有一段不是 $G$ 的邊，成本至少
+$(\rho n + 1) + (n - 1) > \rho n$。 $A$ 傳回的路線成本也一樣 $> \rho n$。
+\end{itemize}
+
+所以「$A$ 傳回的成本 $\le \rho n$」若且唯若「$G$ 有哈密頓環」。 建表、執行 $A$、比較一次，都是多
+項式時間，這就在多項式時間內判定了哈密頓環問題。
+\end{proof}
+
+這個證明裡，$c(u, w) = \rho n + 1$ 卻有 $c(u, v) + c(v, w) = 2$ 的情形，三角不等式被嚴重破壞；
+定理~\ref{thm:apx-tsp} 的捷徑論證在這裡完全失效。 證明的技巧值得記住：把一個 NP 完備的判定問題
+變成最佳化問題，讓「是」的實例最佳值很小、「否」的實例最佳值超過 $\rho$ 倍，兩者之間留一個近似
+演算法跨不過去的\textbf{間隙}（gap）。
+
+\section{集合覆蓋}
+\label{sec:apx-sc}
+
+\subsection{問題}
+
+營隊有 $12$ 項工作（編號 $1$ 到 $12$），六位志工報名，每位會做其中幾項：
+
+\begin{center}
+\begin{tabular}{cl}
+\toprule
+志工 & 會做的工作 \\
+\midrule
+$S_1$ & $2, 5, 7$ \\
+$S_2$ & $4, 5, 12$ \\
+$S_3$ & $7, 9, 11, 12$ \\
+$S_4$ & $4, 6, 8, 10$ \\
+$S_5$ & $3, 4, 5, 6, 7, 10$ \\
+$S_6$ & $1, 2, 3, 5$ \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+最少要找幾位，才能讓每項工作都有人會做？
+
+\begin{definition}[集合覆蓋]
+\label{def:apx-sc}
+給一個有限集合 $X$（$|X| = n$）和一族子集合 $\mathcal{F} = \{S_1, S_2, \ldots, S_k\}$，每個
+$S_i \subseteq X$，而且 $S_1 \cup \cdots \cup S_k = X$。 $\mathcal{C} \subseteq \mathcal{F}$ 是一
+個\textbf{集合覆蓋}（set cover），如果 $\mathcal{C}$ 裡的集合聯集起來是 $X$。 \textbf{最小集合覆
+蓋}問題要找集合個數最少的覆蓋。 \textbf{加權}的版本每個集合有成本 $c(S) > 0$，要讓總成本最小；
+所有 $c(S) = 1$ 就是不加權的版本。 另外記 $d = \max_{S \in \mathcal{F}} |S|$，最大的集合有幾個元素。
+\end{definition}
+
+頂點覆蓋是集合覆蓋的特例：令 $X = E$，每個頂點 $v$ 對應一個集合 $S_v$，內容是和 $v$ 關聯的邊。
+選一群頂點蓋住每條邊，就是選一群 $S_v$ 把 $E$ 聯集出來；這時 $d$ 是最大度數 $\Delta$。 所以集合
+覆蓋至少和頂點覆蓋一樣難，判定版本也是 NP 完備的。
+
+\subsection{貪心演算法}
+
+不加權時，每次選\textbf{涵蓋最多個還沒被涵蓋的元素}的集合。 加權時，比較的是「每多涵蓋一個新
+元素，平均要花多少」，也就是 $c(S) / |S \cap U|$，$U$ 是還沒被涵蓋的元素；選平均花費最少的。
+不加權時 $c(S) = 1$，平均花費最少就是新元素最多。
+
+\begin{pseudo}[label=alg:apx-sc]{集合覆蓋的貪心}
+\Function{Greedy-Set-Cover}{$X, \mathcal{F}, c$}
+    \State $U \gets X$ \Comment{還沒被涵蓋的元素}
+    \State $\mathcal{C} \gets \emptyset$
+    \While{$U \ne \emptyset$}
+        \State 選 $|S \cap U| > 0$ 而且 $c(S) / |S \cap U|$ 最小的 $S \in \mathcal{F}$ \Comment{平手取編號小的}
+        \For{$S \cap U$ 裡的每一個元素 $e$}
+            \State $\mathit{price}[e] \gets c(S) / |S \cap U|$ \Comment{只為了分析}
+        \EndFor
+        \State $U \gets U - S$
+        \State $\mathcal{C} \gets \mathcal{C} \cup \{S\}$
+    \EndWhile
+    \State \Return $\mathcal{C}$
+\EndFunction
+\end{pseudo}
+
+第 6、7 行不影響結果，只是把這一輪花的成本 $c(S)$ 平均分給這一輪新涵蓋的元素，叫做元素的
+\textbf{價格}。 每一輪新涵蓋的元素價格加起來剛好是 $c(S)$，所以
+\[
+c(\mathcal{C}) = \sum_{e \in X} \mathit{price}[e]. \tag{29.1}\label{eq:apx-price}
+\]
+用一個長度 $n$ 的布林陣列標記哪些元素還在 $U$ 裡，第 5 行一次掃過所有集合的所有元素，花
+$O\bigl(\sum_{S \in \mathcal{F}} |S|\bigr)$；每一輪至少涵蓋一個新元素、也至少用掉一個集合，最多
+$\min(n, k)$ 輪，總時間 $O\bigl(\min(n, k) \sum_{S} |S|\bigr)$，是輸入大小的多項式。
+
+\subsection{手算追蹤}
+
+不加權，平手取編號小的。 表中每一格是 $|S_i \cap U|$，方框是這一輪選中的。
+
+\begin{center}
+\begin{tabular}{cl*{6}{c}l}
+\toprule
+輪 & $U$ & $S_1$ & $S_2$ & $S_3$ & $S_4$ & $S_5$ & $S_6$ & 新元素的價格 \\
+\midrule
+1 & $1..12$ & 3 & 3 & 4 & 4 & \fbox{6} & 4 & $3, 4, 5, 6, 7, 10$ 各 $\frac16$ \\
+2 & $1, 2, 8, 9, 11, 12$ & 1 & 1 & \fbox{3} & 1 & 0 & 2 & $9, 11, 12$ 各 $\frac13$ \\
+3 & $1, 2, 8$ & 1 & 0 & -- & 1 & -- & \fbox{2} & $1, 2$ 各 $\frac12$ \\
+4 & $8$ & 0 & 0 & -- & \fbox{1} & -- & -- & $8$ 是 $1$ \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+貪心選了 $S_5, S_3, S_6, S_4$，$4$ 位。 但 $S_3, S_4, S_6$ 三位就夠了：三個集合各 $4$ 項，沒有重疊，
+合起來正好是 $1..12$。 兩位不夠，因為最大的兩個集合加起來只有 $6 + 4 = 10 < 12$ 項。 所以
+$|\mathcal{C}^*| = 3$，貪心多用了一位。 錯在第一步：$S_5$ 最大，可是它的工作和其他人重疊很多，
+選了它之後，剩下的工作分散在好幾個人身上。
+
+價格加起來是 $6 \cdot \frac16 + 3 \cdot \frac13 + 2 \cdot \frac12 + 1 = 4$，正好是貪心選的人數，
+這就是式~\eqref{eq:apx-price}。
+
+\begin{examnote}
+集合覆蓋的追蹤題，每一輪寫出還沒被涵蓋的元素和每個集合「還能涵蓋幾個」，不要寫集合原本的大
+小；平手時照題目的規則，題目沒說就寫明你的規則（例如編號小的先）。 加權的版本比的是
+$c(S) / |S \cap U|$，不是 $c(S)$，也不是 $|S \cap U|$。
+\end{examnote}
+
+\subsection{為什麼是 \texorpdfstring{$H_d$}{H\_d}-近似}
+
+記 $H_t = 1 + \frac12 + \frac13 + \cdots + \frac1t$，第 $t$ 個\textbf{調和數}。 由第~1~章的積分
+估計，$\ln(t + 1) \le H_t \le \ln t + 1$。
+
+\begin{theorem}
+\label{thm:apx-sc}
+\proc{Greedy-Set-Cover} 傳回的 $\mathcal{C}$ 滿足 $c(\mathcal{C}) \le H_d \cdot c(\mathcal{C}^*)$，
+$\mathcal{C}^*$ 是成本最小的集合覆蓋，$d$ 是最大集合的大小。 因為 $d \le n$，也有
+$c(\mathcal{C}) \le (\ln n + 1)\, c(\mathcal{C}^*)$。
+\end{theorem}
+
+\begin{proof}
+關鍵是下面這個性質：\textbf{任何一個集合 $T \in \mathcal{F}$，它的元素的價格總和不超過
+$H_{|T|} \cdot c(T)$。}
+
+把 $T$ 的元素依被涵蓋的先後排成 $t_1, t_2, \ldots, t_s$（$s = |T|$；同一輪被涵蓋的，順序任意）。
+看 $t_j$ 被涵蓋的那一輪，演算法選了集合 $S$。 這一輪開始時，$t_j, t_{j+1}, \ldots, t_s$ 都還沒被
+涵蓋（它們不比 $t_j$ 早），所以 $|T \cap U| \ge s - j + 1$，選 $T$ 的平均花費
+\[
+\frac{c(T)}{|T \cap U|} \le \frac{c(T)}{s - j + 1}.
+\]
+演算法選的 $S$ 平均花費最小，所以 $\mathit{price}[t_j] = c(S) / |S \cap U| \le c(T) / (s - j + 1)$。
+對 $j$ 加總，
+\[
+\sum_{j=1}^{s} \mathit{price}[t_j] \le c(T) \left(\frac1s + \frac1{s-1} + \cdots + \frac11\right)
+= H_s\, c(T) \le H_d\, c(T).
+\]
+
+接著用式~\eqref{eq:apx-price}。 $\mathcal{C}^*$ 是覆蓋，每個元素至少屬於 $\mathcal{C}^*$ 的一個集合，
+價格又都是正的，所以
+\[
+c(\mathcal{C}) = \sum_{e \in X} \mathit{price}[e]
+\le \sum_{T \in \mathcal{C}^*} \sum_{e \in T} \mathit{price}[e]
+\le \sum_{T \in \mathcal{C}^*} H_d\, c(T) = H_d\, c(\mathcal{C}^*). \qedhere
+\]
+\end{proof}
+
+這個證明的下界是「價格」：它沒有直接算出 $c(\mathcal{C}^*)$，而是說明每個最佳解裡的集合，最多只
+「吸收」得了 $H_d$ 倍自己成本的價格。 手算例子裡 $\mathcal{C}^* = \{S_3, S_4, S_6\}$，三個集合的價
+格和分別是 $\frac16 + 3 \cdot \frac13 = \frac76$、$3 \cdot \frac16 + 1 = \frac32$、
+$2 \cdot \frac16 + 2 \cdot \frac12 = \frac43$，都不超過 $H_4 = \frac{25}{12}$，加起來是 $4$。
+
+套到頂點覆蓋：第~\ref{sec:apx-vc}~節「先拿度數最大的」正是不加權的集合覆蓋貪心，所以它是
+$H_\Delta$-近似；第~\ref{sec:apx-vc}~節的蜘蛛 $\Delta = 3$，$4 \le H_3 \cdot 3 = 5.5$。 $\Delta$
+很大時 $H_\Delta$ 比 $2$ 大，但\textbf{加權}的頂點覆蓋，虛擬碼~\ref{alg:apx-vc} 完全不能用（觀念
+題第~\ref{q:apx-wvc}~題），這個貪心還是 $H_\Delta$-近似。
+
+\subsection{近似比是緊的}
+
+\textbf{加權：剛好 $H_n$。} 一個串流平台有 $n$ 個頻道 $e_1, \ldots, e_n$。 可以買全餐方案
+$X$，價錢 $1 + \delta$（$\delta > 0$ 很小）；也可以單買頻道 $e_i$，價錢 $1/i$。 輪到還沒買的是
+$e_1, \ldots, e_j$ 時，全餐的平均花費是 $(1 + \delta)/j$，單買 $e_i$ 是 $1/i$，最小的是單買 $e_j$
+的 $1/j < (1 + \delta)/j$。 所以貪心依序單買 $e_n, e_{n-1}, \ldots, e_1$，總共
+$\frac1n + \frac1{n-1} + \cdots + 1 = H_n$；最佳是直接買全餐，$1 + \delta$（$n \ge 2$ 時，不買全餐
+就得單買全部，花 $H_n > 1 + \delta$）。 比值 $H_n/(1 + \delta)$，$\delta \to 0$ 時趨近
+$H_n$，而這裡 $d = n$，所以定理~\ref{thm:apx-sc} 的 $H_d$ 不能再改小。
+
+\textbf{不加權。} 不加權的貪心也會差到 $\Theta(\log n)$ 倍。 一種造法：元素排成三列，最佳解是
+三個「整列」的集合；另外把各行從左到右切成寬度大約每次乘 $\frac32$ 的幾段，每一段的三列合起來是
+一個集合，而且每一段都比它左邊剩下的一整列略大。 貪心每一輪都會選目前最右邊的那一段，一共選了
+$\Theta(\log n)$ 段（觀念題第~\ref{q:apx-rows}~題）。 所以不加權時，定理~\ref{thm:apx-sc} 的界也只
+差常數倍。
+
+集合覆蓋的近似比幾乎不可能再改進：Dinur 與 Steurer（2014）證明，如果 P $\ne$ NP，對任何常數
+$\varepsilon > 0$，都沒有多項式時間的 $(1 - \varepsilon)\ln n$-近似演算法。 這個簡單的貪心，已經
+差不多是能做到的最好了。
+
+\section{0/1 背包的近似方案}
+\label{sec:apx-knap}
+
+前面三個問題的近似比都是固定的數（或隨 $n$ 變大）。 有些問題可以做得更好：使用者自己指定誤差
+$\varepsilon$，演算法保證答案在最佳解的 $(1 + \varepsilon)$ 倍以內，$\varepsilon$ 越小跑得越久。
+
+\begin{definition}[近似方案]
+\label{def:apx-scheme}
+一個演算法多吃一個參數 $\varepsilon > 0$，對每個固定的 $\varepsilon$ 都是 $(1 + \varepsilon)$-近似演算
+法，叫\textbf{近似方案}（approximation scheme）。 對每個固定的 $\varepsilon$，時間都是 $n$ 的多項式
+（例如 $O(n^{1/\varepsilon})$），叫\textbf{多項式時間近似方案}（PTAS）；時間是 $n$ 和
+$1/\varepsilon$ 兩者的多項式（例如 $O(n^3/\varepsilon)$），叫\textbf{完全多項式時間近似方案}
+（FPTAS）。
+\end{definition}
+
+這一節把第~18~章的 0/1 背包做成 FPTAS：$n$ 件物品，重量 $w_i$、價值 $v_i$ 都是正整數，背包容量
+$W$，要讓裝進去的總價值最大。 第~\ref{sec:dp-pseudo-poly}~節說過，以容量為索引的動態規劃要
+$\Theta(nW)$，是擬多項式時間。
+
+\subsection{以價值為索引的動態規劃}
+
+第~\ref{sec:dp-pseudo-poly}~節的最後提到另一種表：令 $M[i, p]$ 是「只用前 $i$ 件、總價值剛好是 $p$」的最小總重量，做不
+到時是 $\infty$。 第 $i$ 件拿或不拿，和以容量為索引的表一樣分兩種情形：
+\[
+M[i, p] = \min\bigl(M[i-1, p],\ w_i + M[i-1, p - v_i]\bigr),
+\]
+第二項只在 $p \ge v_i$ 時才有。 答案是使 $M[n, p] \le W$ 的最大 $p$。
+
+\begin{pseudo}[label=alg:apx-knap-value]{0/1 背包，以價值為索引}
+\Function{Knapsack-By-Value}{$w, v, n, W$}
+    \State $V \gets v_1 + v_2 + \cdots + v_n$
+    \State $M[0, 0] \gets 0$
+    \For{$p \gets 1$ \To $V$}
+        \State $M[0, p] \gets \infty$
+    \EndFor
+    \For{$i \gets 1$ \To $n$}
+        \For{$p \gets 0$ \To $V$}
+            \State $M[i, p] \gets M[i-1, p]$
+            \If{$p \ge v_i$ \AND $w_i + M[i-1, p - v_i] < M[i, p]$}
+                \State $M[i, p] \gets w_i + M[i-1, p - v_i]$
+            \EndIf
+        \EndFor
+    \EndFor
+    \State \Return 使 $M[n, p] \le W$ 的最大 $p$
+\EndFunction
+\end{pseudo}
+
+表有 $(n + 1)(V + 1)$ 格，時間 $\Theta(nV)$；還原拿了哪些物品的方法和第~18~章的
+\proc{Knapsack-Items} 一樣，從 $M[n, p]$ 往回看 $M[i, p]$ 和 $M[i-1, p]$ 相不相等。 這也是擬多項
+式的，但時間只和\textbf{價值的總和}有關，和容量、重量無關。 想法於是很自然：價值太大，就把價值
+等比例縮小再取整數，讓 $V$ 變小；縮小造成的誤差，用 $\varepsilon$ 控制。
+
+\subsection{縮小價值}
+
+\begin{pseudo}[label=alg:apx-fptas]{0/1 背包的 FPTAS}
+\Function{Knapsack-FPTAS}{$w, v, n, W, \varepsilon$}
+    \State 刪掉 $w_i > W$ 的物品（一定放不下），$n$ 改成剩下的件數
+    \State $K \gets \varepsilon \cdot v_{\max} / n$ \Comment{$v_{\max}$ 是最大的 $v_i$}
+    \For{$i \gets 1$ \To $n$}
+        \State $v'_i \gets \lfloor v_i / K \rfloor$
+    \EndFor
+    \State 用 \Call{Knapsack-By-Value}{$w, v', n, W$} 找出 $v'$ 總和最大的可行集合 $S'$
+    \State \Return $S'$
+\EndFunction
+\end{pseudo}
+
+\begin{theorem}
+\label{thm:apx-fptas}
+\proc{Knapsack-FPTAS} 傳回的 $S'$ 放得進背包，而且 $v(S') \ge (1 - \varepsilon)\, v(S^*)$，$S^*$ 是
+最佳解；時間 $O(n^3 / \varepsilon)$。 所以它是 FPTAS（$1/(1-\varepsilon) \le 1 + 2\varepsilon$
+當 $\varepsilon \le \frac12$，要 $(1 + \varepsilon')$-近似就取 $\varepsilon = \varepsilon'/2$）。
+\end{theorem}
+
+\begin{proof}
+第 2 行刪掉的物品不在任何可行解裡，不影響最佳解。 刪完之後，價值最大的那一件自己就放得進背包，
+所以 $v_{\max} \le v(S^*)$。
+
+由取整數的定義，$K v'_i \le v_i < K(v'_i + 1)$，也就是每件物品縮小再放大之後，損失不到 $K$。 $S'$ 在
+價值 $v'$ 下最大，$S^*$ 也是可行解，所以 $v'(S') \ge v'(S^*)$。 於是
+\[
+v(S') \ge K\, v'(S') \ge K\, v'(S^*) > \sum_{i \in S^*} (v_i - K) \ge v(S^*) - nK
+= v(S^*) - \varepsilon v_{\max} \ge (1 - \varepsilon)\, v(S^*).
+\]
+
+時間：每個 $v'_i \le v_i / K \le v_{\max}/K = n/\varepsilon$，所以 $V' = \sum v'_i \le n^2/\varepsilon$，
+\proc{Knapsack-By-Value} 花 $\Theta(nV') = O(n^3/\varepsilon)$，其他步驟 $O(n)$。
+\end{proof}
+
+證明的下界和前幾節不一樣：最大化問題要的是「最佳解不會比演算法好太多」，這裡用的量是
+$K\,v'(S^*)$，它算是最佳解在縮小後的價值，和最佳解只差每件不到 $K$。 誤差的總量 $nK$ 被設計成
+$\varepsilon v_{\max}$，而 $v_{\max}$ 又不超過最佳解，這就是 $K$ 取 $\varepsilon v_{\max}/n$ 的原因。
+
+\subsection{例子}
+
+容量 $W = 10$，五件物品，$\varepsilon = \frac12$：
+
+\begin{center}
+\begin{tabular}{c*{5}{c}}
+\toprule
+物品 $i$ & 1 & 2 & 3 & 4 & 5 \\
+\midrule
+重量 $w_i$ & 6 & 8 & 4 & 9 & 4 \\
+價值 $v_i$ & 35 & 60 & 15 & 54 & 29 \\
+$v'_i = \lfloor v_i / 6 \rfloor$ & 5 & 10 & 2 & 9 & 4 \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+每件都放得下，$v_{\max} = 60$，$K = \frac12 \cdot 60 / 5 = 6$。 重量不超過 $10$ 的組合只有單獨一件，以
+及 $\{1, 3\}$（重 $10$）、$\{1, 5\}$（重 $10$）、$\{3, 5\}$（重 $8$）三對，任何三件都超重。 用 $v'$
+比，$\{2\}$ 的 $10$ 最大（$\{1, 5\}$ 和 $\{4\}$ 都是 $9$），演算法傳回 $\{2\}$，價值 $60$。 真正的最佳
+解是 $\{1, 5\}$，價值 $64$。 物品 1、5 取整數時各損失 $5$（$35 \to 30$、$29 \to 24$），物品 2 剛好
+是 $6$ 的倍數，沒有損失，所以縮小之後 $\{1, 5\}$ 看起來比 $\{2\}$ 差。
+
+結果 $60 \ge (1 - \frac12) \cdot 64 = 32$，符合定理，而且實際的比值 $60/64 \approx 0.94$ 比保證的
+$0.5$ 好得多。 證明裡的 $nK$ 假設最佳解的每一件都損失將近 $K$，而且最佳解只比 $v_{\max}$ 大一點，
+這兩件事很難同時發生，所以這個界通常不會碰到。 對近似方案來說，重點不在某一個 $\varepsilon$ 的界
+緊不緊，而在 $\varepsilon$ 可以任意小：要 $1\%$ 以內，就取 $\varepsilon = 0.01$，代價是時間多
+$100$ 倍。
+
+不是每個 NP-難問題都有 FPTAS。 0/1 背包有，是因為它有擬多項式時間的演算法，縮小數值就能把時間
+壓下來。 第~28~章提到的\textbf{強 NP 完備}問題（數值很小時仍然是 NP 完備的），只要目標值是整數、
+而且不超過輸入大小和數值的某個多項式，除非 P $=$ NP 都沒有 FPTAS；度量 TSP 也已經知道連 PTAS 都沒有（除非 P $=$ NP）。
+
+\section{本章常見錯誤}
+\label{sec:apx-pitfalls}
+
+\begin{center}
+\begin{tabular}{p{0.24\linewidth}p{0.50\linewidth}p{0.16\linewidth}}
+\toprule
+錯誤 & 例子 & 見 \\
+\midrule
+證明裡直接用 $C^*$ 的值 & 寫「設最佳解有 $k$ 個點，演算法選了 $2k$ 個」，卻沒說明演算法的答案和 $k$ 有
+什麼關係；應該先找一個下界，再拿演算法的答案和下界比 & 第~\ref{sec:apx-ratio}~節 \\
+最大化問題的比值寫反 & 背包寫成 $C \le \rho C^*$；或把 $\frac12$-近似和 $2$-近似當成兩件事 &
+第~\ref{sec:apx-ratio}~節 \\
+緊的例子只算一邊 & 算出演算法得到 $2k$，就說比值是 $2$，沒有證明最佳解是 $k$ &
+第~\ref{sec:apx-ratio}~節 \\
+頂點覆蓋只拿一端 & 每條沒蓋住的邊只拿一個端點，星狀圖會差 $n - 1$ 倍 & 第~\ref{sec:apx-vc}~節 \\
+極大和最大匹配搞混 & 以為被選中的邊是最大匹配；它只是加不進去的極大匹配 & 第~\ref{sec:apx-vc}~節 \\
+路線成本漏了最後一段 & 前序走訪的成本只加到最後一個頂點，沒加回到起點的那段 &
+第~\ref{sec:apx-tsp}~節 \\
+沒有三角不等式也套 $2$ 倍 & 成本矩陣裡有 $c(u, w) > c(u, v) + c(v, w)$，還說 MST 走訪是 $2$-近似 &
+第~\ref{sec:apx-tsp-general}~節 \\
+間隙的權重取太小 & 不可近似的證明裡，非邊的成本取 $\rho$ 或 $\rho n$ 以下，「否」的實例也可能落在
+$\rho n$ 以內 & 第~\ref{sec:apx-tsp-general}~節 \\
+貪心比的量弄錯 & 加權集合覆蓋比 $c(S)$ 或 $|S|$，不是 $c(S)/|S \cap U|$；或用集合原本的大小，不是
+還沒被涵蓋的個數 & 第~\ref{sec:apx-sc}~節 \\
+$H_d$ 的 $d$ 弄錯 & 把 $d$ 寫成集合個數；$d$ 是最大集合的元素個數 & 第~\ref{sec:apx-sc}~節 \\
+沒先刪掉放不下的物品 & FPTAS 的 $v_{\max}$ 來自一件放不進背包的物品，$v_{\max} \le C^*$ 不成立，
+誤差界失效 & 第~\ref{sec:apx-knap}~節 \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\section{觀念題}
+\label{sec:apx-exercises}
+
+題型和研究所考試、期中期末考的筆試相近，有選擇、計算、追蹤和證明。 解答在本章最後。
+
+\begin{enumerate}
+\item \label{q:apx-mc}（選擇，可能不只一個答案）下列哪些敘述正確？
+\begin{enumerate}
+\item $2$-近似演算法對每一個輸入，傳回的答案都比最佳解差。
+\item 某個最小化問題的最佳值一定 $\ge 10$，而某個演算法對每個輸入都保證 $C \le C^* + 5$，那麼它是
+$1.5$-近似演算法。
+\item 定理~\ref{thm:apx-tsp-hard} 說明，除非 P $=$ NP，度量 TSP 沒有多項式時間的常數近似演算法。
+\item 虛擬碼~\ref{alg:apx-vc} 傳回的頂點個數一定是偶數。
+\item 如果 P $=$ NP，最小頂點覆蓋就有多項式時間的 $1$-近似演算法。
+\item 每個集合都最多兩個元素時，集合覆蓋的貪心演算法是 $1.5$-近似。
+\item 一個演算法的近似比是緊的，表示這個問題沒有任何多項式時間演算法能做得更好。
+\end{enumerate}
+
+\item \label{q:apx-vc-trace}（追蹤）$3 \times 3$ 的格子圖：頂點
+\[
+\begin{matrix} 1 & 2 & 3 \\ 4 & 5 & 6 \\ 7 & 8 & 9 \end{matrix}
+\]
+左右相鄰、上下相鄰的兩點之間有邊，共 $12$ 條。
+\begin{enumerate}
+\item 邊表的順序是 $(2,5), (4,7), (6,9)$，接著其他邊依字典順序。 寫出虛擬碼~\ref{alg:apx-vc} 選中的
+邊和 $C$。
+\item 邊表全部依字典順序，結果呢？
+\item 求最小頂點覆蓋的大小，並證明不能更小。
+\item 證明：不論邊表的順序如何，$|C| \ge 6$。
+\end{enumerate}
+
+\item \label{q:apx-matching}（證明）$M$ 是無向圖 $G$ 的任何一個極大匹配，$M^*$ 是最大匹配。 證明
+$|M| \ge |M^*| / 2$，並舉一個 $|M| = |M^*|/2$ 的例子。
+
+\item \label{q:apx-wvc}（證明）\textbf{加權頂點覆蓋}：每個頂點有權重 $w(v) > 0$，要讓覆蓋的總權重最小。
+\begin{enumerate}
+\item 舉例說明虛擬碼~\ref{alg:apx-vc} 的總權重可以是最佳解的任意多倍。
+\item 改成「沒蓋住的邊只拿權重比較小的那一端」，舉例說明它也可以差任意多倍。
+\item 說明怎麼用加權的 \proc{Greedy-Set-Cover} 得到 $H_\Delta$-近似，$\Delta$ 是最大度數。
+\end{enumerate}
+
+\item \label{q:apx-tsp-trace}（追蹤）六個點的座標是 $1\,(1, 0)$、$2\,(2, 2)$、$3\,(4, 1)$、$4\,(5, 4)$、
+$5\,(6, 2)$、$6\,(6, 4)$，成本是曼哈頓距離。
+\begin{enumerate}
+\item 用 Prim 從 $1$ 開始求最小生成樹（key 一樣時取編號小的），寫出頂點加入的順序和樹邊。
+\item 照虛擬碼~\ref{alg:apx-tsp}，以 $1$ 為根，寫出巡迴路線和成本。
+\item 改用 $6$ 當根（孩子仍依編號由小到大），路線和成本是多少？
+\item 最佳路線的成本是 $18$。 驗證 (b)、(c) 都符合定理~\ref{thm:apx-tsp}。
+\end{enumerate}
+
+\item \label{q:apx-tsp-better}（證明）$n \ge 3$，成本滿足三角不等式。
+\begin{enumerate}
+\item 證明 $c(T) \le (1 - \frac1n)\, c(H^*)$。
+\item 由此證明 \proc{Approx-TSP-Tour} 的路線滿足 $c(H) \le 2(1 - \frac1n)\, c(H^*)$。
+\item 和第~\ref{sec:apx-tsp}~節的緊例子比較：$n = k + 1$ 時，(b) 的界和實際的比值各是多少？
+\end{enumerate}
+
+\item \label{q:apx-gap}（計算）定理~\ref{thm:apx-tsp-hard} 的證明裡，非邊的成本取 $\rho n + 1$。
+\begin{enumerate}
+\item 如果改成取整數 $x$，$x$ 至少要多大，證明才成立？ 用 $\rho$、$n$ 表示。
+\item $\rho = 1$ 時，(a) 的答案是多少？ 這時「近似」的意思是什麼？
+\end{enumerate}
+
+\item \label{q:apx-sc-trace}（追蹤）加權集合覆蓋，$X = \{1, \ldots, 8\}$：
+\begin{center}
+\begin{tabular}{clc}
+\toprule
+集合 & 元素 & 成本 \\
+\midrule
+$S_1$ & $1, 3, 4, 5, 6$ & 3 \\
+$S_2$ & $6, 8$ & 7 \\
+$S_3$ & $1, 3, 6, 7, 8$ & 4 \\
+$S_4$ & $2, 4, 5$ & 5 \\
+$S_5$ & $1, 8$ & 7 \\
+\bottomrule
+\end{tabular}
+\end{center}
+\begin{enumerate}
+\item 用虛擬碼~\ref{alg:apx-sc} 求覆蓋，寫出每一輪各集合的 $c(S)/|S \cap U|$ 和每個元素的價格。
+\item 求最佳覆蓋，並檢查定理~\ref{thm:apx-sc} 證明裡的性質：最佳解的每個集合 $T$，價格和
+$\le H_{|T|}\, c(T)$。
+\end{enumerate}
+
+\item \label{q:apx-rows}（證明）$3L$ 個元素排成 $3$ 列、$L$ 行。 $R_1, R_2, R_3$ 各是一整列。 把 $L$ 行從左到
+右切成寬度 $w_1, \ldots, w_k$ 的段，$B_j$ 是第 $j$ 段的 $3w_j$ 個元素；寬度取 $w_1 = 1$，
+$w_j = \lfloor s_{j-1}/2 \rfloor + 1$，$s_j = w_1 + \cdots + w_j$，$L = s_k$。 集合的編號順序是
+$R_1, R_2, R_3, B_1, \ldots, B_k$，不加權。
+\begin{enumerate}
+\item 寫出 $k = 4$ 的寬度，並追蹤貪心。
+\item 證明 $k \ge 3$ 時最佳解是 $3$ 個集合，貪心選了 $k$ 個。
+\item 證明 $k > \log_{3/2}(n/6)$，$n = 3L$；所以貪心和最佳的比值是 $\Omega(\log n)$。
+\end{enumerate}
+
+\item \label{q:apx-knap-half}（證明）0/1 背包，每件物品都放得進背包（$w_i \le W$）。 把物品依
+$v_i / w_i$ 由大到小排好，從第一件開始依序放，遇到第一件放不下的就停，得到集合 $P$。 令
+$A = \max\bigl(v(P),\ v_{\max}\bigr)$。
+\begin{enumerate}
+\item 證明 $A \ge \frac12 C^*$。（提示：第~\ref{sec:gr-knapsack}~節的分數背包。）
+\item 舉一族例子，讓 $C^* / A$ 任意接近 $2$。
+\item 只用 $v(P)$、不和 $v_{\max}$ 比，為什麼不行？
+\end{enumerate}
+
+\item \label{q:apx-additive}（證明）0/1 背包的價值都是正整數。 證明：如果 P $\ne$ NP，就沒有多項式時
+間演算法能保證 $C^* - C \le 1$。 （提示：把每件的價值乘以 $2$。 0/1 背包的判定版本是 NP 完備的。）
+
+\end{enumerate}
+
+\section{實作練習}
+\label{sec:apx-practice}
+
+Aki-Judge 目前沒有和本章對應的題目。 請用觀念題和範例~\ref{ex:apx-vc} 練習；例如把
+\texttt{approx\_vc} 換成「先拿度數最大的」，在同樣的隨機圖上比較兩種做法。
+
+\section{讀完你應該會}
+\label{sec:apx-checklist}
+
+\begin{itemize}
+\item 寫出近似比的定義，分清楚最小化和最大化問題的不等式方向；說明「近似比是緊的」要證明哪兩件事。
+\item 手算頂點覆蓋的 $2$-近似，用被選中的邊（極大匹配）當下界證明 $2$ 倍，舉出比值剛好是 $2$ 的例子。
+\item 手算度量 TSP 的 MST 前序走訪，寫出完整走訪、抄捷徑和總成本；證明 $2$ 倍並說明三角不等式用在
+哪裡。
+\item 用哈密頓環的歸約證明一般 TSP 沒有常數近似（除非 P $=$ NP），說出「間隙」的取法。
+\item 手算加權與不加權的集合覆蓋貪心和每個元素的價格，證明 $H_d$ 倍，並用串流方案的例子說明它
+是緊的。
+\item 說出 PTAS 和 FPTAS 的差別，照縮小價值的做法求背包的近似解，並證明 $(1 - \varepsilon)$ 的保證。
+\end{itemize}
+
+\textbf{延伸閱讀}（書末會整理完整的參考資料）
+
+\begin{itemize}
+\item Thomas H. Cormen 等，\textit{Introduction to Algorithms}，第 4 版，第 35 章：頂點覆蓋、TSP、
+集合覆蓋，另外有用線性規劃做加權頂點覆蓋（35.4 節）和子集合和的 FPTAS（35.5 節）。
+\item Steven S. Skiena，\textit{The Algorithm Design Manual}，第 3 版，第 12 章 12.1--12.5 節：先講直
+覺再講證明，也介紹了區域搜尋、模擬退火這些沒有保證但很實用的啟發式方法。
+\item Jon Kleinberg 與 Éva Tardos，\textit{Algorithm Design}，第 11 章：負載平衡、中心選址、定價法
+（pricing method）做加權頂點覆蓋和背包的近似方案，證明寫得很細。
+\item Vijay V. Vazirani，\textit{Approximation Algorithms}，Springer，2001，第 1--3、8 章：集合覆蓋、
+頂點覆蓋、TSP 和背包的近似演算法，是這個領域的入門專書。
+\item David P. Williamson 與 David B. Shmoys，\textit{The Design of Approximation Algorithms}，
+Cambridge University Press，2011（作者網站提供免費電子版），第 1--3 章：用集合覆蓋示範好幾種設計
+方法，第 2 章有 Christofides 演算法的完整證明。
+\end{itemize}
+
+\addcontentsline{toc}{section}{觀念題解答}
+\section*{觀念題解答}
+
+\begin{enumerate}
+\item (b)、(d)、(e)、(f) 正確。 (a)：$2$-近似只保證不超過 $2$ 倍，也可能剛好是最佳解。 例如三角形：虛擬碼~\ref{alg:apx-vc}
+選中一條邊、拿到兩個點，最小頂點覆蓋也是兩個點。 (b)：$C \le C^* + 5
+\le C^* + \frac12 C^* = 1.5\, C^*$。 (c)：定理說的是\textbf{一般的} TSP；度量 TSP 有
+定理~\ref{thm:apx-tsp} 的 $2$-近似。 (d)：每次加兩個點，而且兩點原本都不在 $C$ 裡。 (e)：P $=$ NP
+時，最小頂點覆蓋可以在多項式時間求出（用判定版本對 $k = 0, 1, \ldots, n$ 一一問，再用同樣的方法
+逐點確定覆蓋），比值是 $1$。 (f)：$d \le 2$，$H_2 = 1.5$。 (g)：緊只說這個演算法的分析不能再改
+進，例如度量 TSP 的 MST 走訪是緊的 $2$，Christofides 卻是 $1.5$。
+
+\item
+\begin{enumerate}
+\item 選中 $(2,5)$、$(4,7)$、$(6,9)$，之後依字典順序：$(1,2)$ 有 $2$、$(1,4)$ 有 $4$、$(2,3)$ 有 $2$、
+$(3,6)$ 有 $6$、$(4,5)$、$(5,6)$、$(5,8)$ 有 $5$、$(7,8)$ 有 $7$、$(8,9)$ 有 $9$，都已蓋住。
+$C = \{2, 4, 5, 6, 7, 9\}$，$6$ 個點。
+\item 選中 $(1,2)$、$(3,6)$、$(4,5)$、$(7,8)$，$C = \{1, \ldots, 8\}$，$8$ 個點。
+\item $\{2, 4, 6, 8\}$ 是頂點覆蓋：每條邊都連著一個「邊中點」（$2, 4, 6, 8$）。 $(1,2)$、$(3,6)$、
+$(4,7)$、$(5,8)$ 沒有共用端點，至少要 $4$ 個點。 最小是 $4$。
+\item 被選中的邊 $M$ 是極大匹配，$|C| = 2|M|$，只要說明 $|M| \ge 3$。 假設 $|M| \le 2$，至少有
+$5$ 個點不是 $M$ 的端點；它們兩兩不相鄰（否則它們之間的邊還沒被蓋住，演算法會選它），是一組
+至少 $5$ 個點的\textbf{獨立集合}（兩兩不相鄰的頂點）。 把頂點分成 $\{1,2\}$、$\{3,6\}$、
+$\{9,8\}$、$\{7,4\}$、$\{5\}$ 五組，前四組各是一條邊，獨立集合每組最多取一個，所以最多 $5$ 個；
+剛好 $5$ 個時一定取了 $5$，而 $5$ 和 $2, 4, 6, 8$ 都相鄰，於是只能是 $\{1, 3, 5, 7, 9\}$。 這樣
+$M$ 的 $4$ 個端點就是 $2, 4, 6, 8$，但這四點兩兩不相鄰，$M$ 裡的邊無從連起，矛盾。
+\end{enumerate}
+
+\item $M^*$ 的每一條邊 $e$ 都和 $M$ 的某條邊共用端點：$e \in M$ 時顯然；否則 $e$ 加不進 $M$，表示
+它的某一端已經被 $M$ 用掉。 讓 $e$ 對應到「它碰到的 $M$ 的某個端點」。 $M^*$ 的邊兩兩不共用端點，
+所以不同的 $e$ 對應到不同的端點；$M$ 的端點一共 $2|M|$ 個，所以 $|M^*| \le 2|M|$。 例子：路徑
+$a - b - c - d$，$M = \{(b, c)\}$ 是極大匹配，$M^* = \{(a, b), (c, d)\}$。 這和
+定理~\ref{thm:apx-vc} 是同一個論證：極大匹配的端點同時是頂點覆蓋。
+
+\item
+\begin{enumerate}
+\item 一條邊 $(1, 2)$，$w(1) = 1$、$w(2) = N$。 演算法兩點都拿，總權重 $N + 1$；只拿 $1$ 就夠，
+比值 $N + 1$，$N$ 可以任意大。
+\item 星狀圖：中心權重 $2$，$N$ 片葉各權重 $1$。 每條邊比較輕的是葉，於是 $N$ 片葉全拿，總權重
+$N$；只拿中心是 $2$。 比值 $N/2$。
+\item 照第~\ref{sec:apx-sc}~節的對應：$X = E$，頂點 $v$ 對應集合 $S_v$（和 $v$ 關聯的邊），成本
+$w(v)$。 頂點覆蓋就是集合覆蓋，最大的集合有 $\Delta$ 個元素，由定理~\ref{thm:apx-sc} 得到
+$H_\Delta$ 倍。 每一輪選的是 $w(v)$ 除以「$v$ 還沒蓋住的邊數」最小的頂點。
+\end{enumerate}
+
+\item
+\begin{enumerate}
+\item 加入順序 $1, 2, 3, 5, 6, 4$（key 依序是 $0, 3, 3, 3, 2, 1$）。 樹邊 $(1,2)\ 3$、$(2,3)\ 3$、
+$(3,5)\ 3$、$(5,6)\ 2$、$(6,4)\ 1$，$c(T) = 12$；這棵樹是一條路徑 $1 - 2 - 3 - 5 - 6 - 4$。
+\item 前序 $1, 2, 3, 5, 6, 4$，路線 $1 \to 2 \to 3 \to 5 \to 6 \to 4 \to 1$，成本
+$3 + 3 + 3 + 2 + 1 + 8 = 20$。
+\item 最小生成樹只有這一棵，換根只改變父子方向。 以 $6$ 為根，$6$ 的孩子是 $4, 5$；$5$ 的孩子是 $3$，$3$ 的孩子是 $2$，$2$ 的孩子是 $1$。 前序
+$6, 4, 5, 3, 2, 1$，成本 $c(6,4) + c(4,5) + c(5,3) + c(3,2) + c(2,1) + c(1,6) = 1 + 3 + 3 + 3 + 3 + 9
+= 22$。
+\item $20 \le 22 \le 2 \cdot 12 = 24 \le 2 \cdot 18 = 36$。 同一棵樹，根不同，路線成本可以不同，
+但都不超過 $2c(T)$。 最佳成本 $18$ 也可以用正文的方法驗證下界：橫向至少 $2 \times 5$，縱向至少
+$2 \times 4$。
+\end{enumerate}
+
+\item
+\begin{enumerate}
+\item $H^*$ 有 $n$ 條邊，最貴的一條 $e$ 成本至少是平均值 $c(H^*)/n$。 拿掉 $e$ 得到一棵生成樹，所以
+$c(T) \le c(H^*) - c(H^*)/n$。
+\item $c(H) \le 2c(T) \le 2(1 - \frac1n)\, c(H^*)$。
+\item 界是 $2(1 - \frac1{k+1}) = \frac{2k}{k+1}$，實際比值 $\frac{2k}{k+2}$，兩者只差一點點，$k$ 變大
+時都趨近 $2$。
+\end{enumerate}
+
+\item
+\begin{enumerate}
+\item 「是」的實例最佳值仍然是 $n$，$A$ 傳回 $\le \rho n$。 「否」的實例每條路線至少一段成本 $x$，
+其他 $n - 1$ 段至少 $1$，成本 $\ge x + n - 1$。 要讓它 $> \rho n$，需要 $x > (\rho - 1)n + 1$，最小的整數是
+$x = \lfloor (\rho - 1)n \rfloor + 2$。 證明裡的 $\rho n + 1$ 比這個大，當然成立；取得比較大只是
+為了好記。
+\item $\rho = 1$ 時 $x = 2$：非邊成本 $2$、邊成本 $1$，最佳值 $= n$ 若且唯若有哈密頓環。 $1$-近似
+就是求出最佳解，這說明一般 TSP（甚至只有成本 $1$、$2$ 的 TSP）求最佳解是 NP-難的。 注意成本
+只有 $1$、$2$ 時滿足三角不等式，所以這也說明度量 TSP 求最佳解是 NP-難的；它只是沒辦法放大到
+$\rho > 1$。
+\end{enumerate}
+
+\item
+\begin{enumerate}
+\item 第 1 輪：$S_1\ 3/5$、$S_2\ 7/2$、$S_3\ 4/5$、$S_4\ 5/3$、$S_5\ 7/2$，選 $S_1$，元素
+$1, 3, 4, 5, 6$ 價格各 $\frac35$。 剩 $\{2, 7, 8\}$。 第 2 輪：$S_2\ 7/1$、$S_3\ 4/2$、$S_4\ 5/1$、
+$S_5\ 7/1$，選 $S_3$，$7, 8$ 各 $2$。 剩 $\{2\}$，只有 $S_4$ 含它，選 $S_4$，$2$ 的價格 $5$。 覆蓋
+$\{S_1, S_3, S_4\}$，成本 $3 + 4 + 5 = 12$，價格和 $5 \cdot \frac35 + 2 \cdot 2 + 5 = 12$。
+\item 元素 $2$ 只在 $S_4$ 裡，元素 $7$ 只在 $S_3$ 裡，所以 $S_3$、$S_4$ 一定要選，成本 $9$，而
+$S_3 \cup S_4 = X$。 最佳成本 $9$，貪心多花了 $3$。 檢查：$S_3$ 的價格和
+$3 \cdot \frac35 + 2 + 2 = 5.8 \le H_5 \cdot 4 \approx 9.13$；$S_4$ 的價格和
+$5 + \frac35 + \frac35 = 6.2 \le H_3 \cdot 5 \approx 9.17$。 兩者加起來 $12$，正好是貪心的成本。
+\end{enumerate}
+
+\item
+\begin{enumerate}
+\item 寬度 $1, 1, 2, 3$，$L = 7$，$n = 21$。 第 1 輪：每列還有 $7$ 個，$B_1, B_2, B_3, B_4$ 各
+$3, 3, 6, 9$ 個，選 $B_4$。 第 2 輪：每列 $4$ 個，$B_3$ 有 $6$ 個，選 $B_3$。 第 3 輪：每列 $2$ 個，
+$B_1$、$B_2$ 各 $3$ 個，平手選 $B_1$。 第 4 輪：每列 $1$ 個，選 $B_2$。 貪心 $4$ 個，最佳 $3$ 個。
+\item 三個列集合是覆蓋。 一個覆蓋如果少用了某一列 $R_r$，第 $r$ 列的元素只能靠段集合蓋，每一行都
+屬於某一段，所以 $k$ 個段集合全都要用，至少 $k \ge 3$ 個。 所以最佳是 $3$。 貪心：寬度的規則保證
+$2w_j > s_{j-1}$，也就是 $3w_j > s_j$，而且寬度不會變小。 用歸納法，假設已經選了
+$B_k, \ldots, B_{j+1}$，還沒涵蓋的是左邊 $s_j$ 行：每個列集合還能涵蓋 $s_j$ 個，$B_j$ 能涵蓋
+$3w_j > s_j$ 個，比 $B_j$ 左邊的段都不少。 所以貪心選 $B_j$（只有 $w_1 = w_2$ 時會先選 $B_1$，結果
+一樣），從來不選列集合，一共 $k$ 個。
+\item $w_j \le s_{j-1}/2 + 1$，所以 $s_j \le \frac32 s_{j-1} + 1$。 對 $j$ 歸納可得
+$s_j \le 2\bigl((\frac32)^j - 1\bigr)$（$j = 1$ 時 $1 \le 1$；歸納步驟
+$\frac32 \cdot 2\bigl((\frac32)^{j-1} - 1\bigr) + 1 = 2(\frac32)^j - 2$）。 所以
+$L = s_k < 2(\frac32)^k$，$k > \log_{3/2}(L/2) = \log_{3/2}(n/6)$。 比值 $k/3 = \Omega(\log n)$。
+\end{enumerate}
+
+\item
+\begin{enumerate}
+\item 設第一件放不下的是排序後的第 $j$ 件（沒有這一件的話 $P$ 就是全部物品，$v(P) = C^*$）。 由
+定理~\ref{thm:gr-frac}，分數背包的最佳值是：前 $j - 1$ 件全拿，第 $j$ 件拿一部分，所以分數背包的
+最佳值 $< v(P) + v_j$。 0/1 背包的解也是分數背包的解，$C^* \le$ 分數背包的最佳值
+$< v(P) + v_j \le v(P) + v_{\max} \le 2A$。
+\item 容量 $2N$：物品 $a$ 重 $1$、值 $2$；物品 $b$、$c$ 各重 $N$、值 $N$。 依比值，$a$ 排第一（$2$），
+$b$、$c$ 都是 $1$。 $P = \{a, b\}$（重 $N + 1$），放 $c$ 會超重，停。 $A = \max(N + 2, N) = N + 2$，
+最佳是 $\{b, c\}$，$2N$。 比值 $\frac{2N}{N + 2} \to 2$。
+\item 容量 $N$：物品 $a$ 重 $1$、值 $2$；物品 $b$ 重 $N$、值 $N$。 $P = \{a\}$，$v(P) = 2$，最佳是
+$N$，比值 $N/2$，任意大。 第~19~章觀念題的反例就是這種情形。
+\end{enumerate}
+
+\item 假設演算法 $A$ 保證 $C^* - C \le 1$。 給一個背包實例，把每件的價值乘以 $2$，其他不變。 新實例
+的可行解和舊的一樣，每個解的價值都是偶數，最佳值是 $2C^*_{\text{舊}}$。 $A$ 在新實例上的答案 $C$ 是偶數，
+$2C^*_{\text{舊}} - C \le 1$ 又是偶數，所以等於 $0$：$A$ 找到了最佳解，價值除以 $2$ 就是原實例的最
+佳解。 這樣在多項式時間解出了 0/1 背包，它的判定版本是 NP 完備的，所以 P $=$ NP。 乘上 $2$ 這一招
+說明「加法的誤差」對有數值的問題沒有意義，近似演算法都用比值。
+
+\end{enumerate}

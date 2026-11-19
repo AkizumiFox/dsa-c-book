@@ -1,0 +1,1526 @@
+\chapter{字串比對}
+\label{ch:stringmatching}
+
+% 本章的圖共用的樣式（前綴 stm-）。 比對過程的對齊圖、失敗函數表、KMP 追蹤表和
+% 自動機轉移表都由模擬程式照虛擬碼逐步執行後產生，再和本章的 C 程式輸出對過。
+\tikzset{
+    stm-c/.style={draw=black!55, minimum width=0.5cm, minimum height=0.5cm, inner sep=0pt, font=\ttfamily\small},
+    stm-ok/.style={stm-c, fill=coreFill, draw=coreStroke},
+    stm-bad/.style={stm-c, fill=optFill, draw=optStroke, thick},
+    stm-known/.style={stm-c, fill=greenFill, draw=greenStroke},
+    stm-idle/.style={stm-c, draw=black!25, text=black!40},
+    stm-lab/.style={anchor=east, font=\small},
+    stm-note/.style={font=\scriptsize, text=black!70},
+}
+
+生物系的實驗室定序出一條很長的 DNA，幾百萬個鹼基，每個鹼基是 A、C、G、T 其中一
+個。 研究助理手上有一段十個鹼基的片段，想知道它在長序列裡出現在哪些位置，重疊的
+也要算。 最直接的做法是從長序列的每一個位置開始，把片段一個一個對上去，對不上就換
+下一個位置重來。 片段裡有很多重複的鹼基時，這個做法會把同一段長序列看上好幾次。
+往下讀之前，先想想：前一個位置已經對上的那幾個鹼基，能不能告訴我們下一個位置不必
+再從頭比？
+
+這一章講在一段文字裡找出一個字串所有出現位置的方法。 第~\ref{sec:stm-naive}~節先
+寫清楚問題，再分析最直接的樸素比對，它的最壞情況是 $\Theta(nm)$ 這一級。
+第~\ref{sec:stm-rk}~節的 Rabin--Karp 演算法把字串看成數字，用第~12~章的雜湊先篩
+掉大部分位置，平均很快，但最壞情況沒有比較好。 第~\ref{sec:stm-kmp}~節的 KMP 演算
+法事先算好模式自己和自己重疊的情形（失敗函數），比對時文字的每個字元只往前讀一次，
+總時間 $\Theta(n + m)$；證明它是線性時間要用第~3~章的平攤分析。
+第~\ref{sec:stm-dfa}~節換一個角度，把 KMP 看成一台有限自動機。
+
+C 程式用到《C 程式設計基礎》第~11~章的字串（以 \texttt{'\textbackslash 0'} 結尾的
+字元陣列、\texttt{strlen}、\texttt{strncmp}）和第~19~章的 \texttt{malloc}，用到時會
+先在框裡複習。
+
+\section{問題與樸素比對}
+\label{sec:stm-naive}
+
+\subsection{符號}
+
+\textbf{字母表}（alphabet）$\Sigma$ 是一個有限的字元集合，例如 DNA 的
+$\Sigma = \{\mathtt{A}, \mathtt{C}, \mathtt{G}, \mathtt{T}\}$，或是 $26$ 個小寫英文
+字母。 \textbf{字串}（string）是由 $\Sigma$ 裡的字元排成的有限序列，長度記成
+$|x|$；長度 $0$ 的字串叫\textbf{空字串}，記成 $\varepsilon$。 這一章的字串和陣列一
+樣從 $1$ 編號，$x[i..j]$ 是第 $i$ 到第 $j$ 個字元組成的子字串，$i > j$ 時是空字串。
+
+\begin{definition}
+\label{def:stm-problem}
+給\textbf{文字}（text）$T[1..n]$ 和\textbf{模式}（pattern）$P[1..m]$，$1 \le m \le
+n$。 整數 $s$ 滿足 $0 \le s \le n - m$ 而且
+\[
+T[s + 1 .. s + m] = P[1..m]
+\]
+時，說 $P$ 以\textbf{位移}（shift）$s$ 出現在 $T$ 裡，$s$ 是一個\textbf{有效位移}
+（valid shift）。 \textbf{字串比對}（string matching）問題要找出所有有效位移。
+\end{definition}
+
+位移 $s$ 的意思是把 $P$ 往右移 $s$ 格，和 $T$ 對齊；$P[1]$ 對到 $T[s + 1]$。 C 程式
+裡字串從 $0$ 編號，位移 $s$ 剛好就是出現位置的起點 \texttt{t[s]}，兩邊的數字一樣，
+不用換算。 出現的位置可以重疊：$P = \mathtt{AA}$ 在 $T = \mathtt{AAAA}$ 裡的有效位
+移是 $0, 1, 2$。
+
+後面講 KMP 時還要用到前綴和後綴。 $x[1..k]$（$0 \le k \le |x|$）叫 $x$ 的
+\textbf{前綴}（prefix），$x[|x| - k + 1 .. |x|]$ 叫 $x$ 的\textbf{後綴}（suffix）；
+$k < |x|$ 時加上「真」字，叫\textbf{真前綴}、\textbf{真後綴}。 空字串是每個字串的
+前綴，也是後綴。 例如 \texttt{AAC} 是 \texttt{AACAA} 的前綴，\texttt{CAA} 是它的後
+綴。
+
+\subsection{樸素比對}
+
+最直接的做法是把每一個可能的位移都試一次：$s$ 從 $0$ 到 $n - m$，從左往右比
+$P[j]$ 和 $T[s + j]$，全部相同就是有效位移，遇到第一個不同的字元就換下一個 $s$。
+
+\begin{pseudo}[label=alg:stm-naive]{樸素比對}
+\Procedure{Naive-Match}{$T, P, n, m$}
+    \For{$s \gets 0$ \To $n - m$}
+        \State $j \gets 1$
+        \While{$j \le m$ \AND $P[j] = T[s + j]$}
+            \State $j \gets j + 1$
+        \EndWhile
+        \If{$j = m + 1$}
+            \State 輸出 $s$ \Comment{$P[1..m]$ 全部對上}
+        \EndIf
+    \EndFor
+\EndProcedure
+\end{pseudo}
+
+用 $T = \mathtt{AACAACAACAAAC}$（$n = 13$）、$P = \mathtt{AACAACAAAC}$（$m = 10$）跑
+一次。 下圖每一列是一個位移，藍底是比對成功的字元，粉紅是第一個不同的字元，灰字是
+沒有比到的字元；右邊是這個位移比了幾次（第 4 行的 $P[j] = T[s + j]$ 執行的次數，
+$j = m + 1$ 那次因為 \textbf{and} 左邊不成立，不算）。
+
+\begin{center}\begin{minipage}{\linewidth}\centering
+\begin{tikzpicture}
+\node[stm-lab] at (-0.20,0.00) {$T$};
+\node[stm-c] at (0.00,0.00) {A};
+\node[stm-c] at (0.50,0.00) {A};
+\node[stm-c] at (1.00,0.00) {C};
+\node[stm-c] at (1.50,0.00) {A};
+\node[stm-c] at (2.00,0.00) {A};
+\node[stm-c] at (2.50,0.00) {C};
+\node[stm-c] at (3.00,0.00) {A};
+\node[stm-c] at (3.50,0.00) {A};
+\node[stm-c] at (4.00,0.00) {C};
+\node[stm-c] at (4.50,0.00) {A};
+\node[stm-c] at (5.00,0.00) {A};
+\node[stm-c] at (5.50,0.00) {A};
+\node[stm-c] at (6.00,0.00) {C};
+\node[idxlbl] at (0.00,0.42) {1};
+\node[idxlbl] at (0.50,0.42) {2};
+\node[idxlbl] at (1.00,0.42) {3};
+\node[idxlbl] at (1.50,0.42) {4};
+\node[idxlbl] at (2.00,0.42) {5};
+\node[idxlbl] at (2.50,0.42) {6};
+\node[idxlbl] at (3.00,0.42) {7};
+\node[idxlbl] at (3.50,0.42) {8};
+\node[idxlbl] at (4.00,0.42) {9};
+\node[idxlbl] at (4.50,0.42) {10};
+\node[idxlbl] at (5.00,0.42) {11};
+\node[idxlbl] at (5.50,0.42) {12};
+\node[idxlbl] at (6.00,0.42) {13};
+\node[stm-lab] at (-0.20,-0.75) {$s=0$};
+\node[stm-ok] at (0.00,-0.75) {A};
+\node[stm-ok] at (0.50,-0.75) {A};
+\node[stm-ok] at (1.00,-0.75) {C};
+\node[stm-ok] at (1.50,-0.75) {A};
+\node[stm-ok] at (2.00,-0.75) {A};
+\node[stm-ok] at (2.50,-0.75) {C};
+\node[stm-ok] at (3.00,-0.75) {A};
+\node[stm-ok] at (3.50,-0.75) {A};
+\node[stm-bad] at (4.00,-0.75) {A};
+\node[stm-idle] at (4.50,-0.75) {C};
+\node[stm-note, anchor=west] at (4.95,-0.75) {9 次};
+\node[stm-lab] at (-0.20,-1.40) {$s=1$};
+\node[stm-ok] at (0.50,-1.40) {A};
+\node[stm-bad] at (1.00,-1.40) {A};
+\node[stm-idle] at (1.50,-1.40) {C};
+\node[stm-idle] at (2.00,-1.40) {A};
+\node[stm-idle] at (2.50,-1.40) {A};
+\node[stm-idle] at (3.00,-1.40) {C};
+\node[stm-idle] at (3.50,-1.40) {A};
+\node[stm-idle] at (4.00,-1.40) {A};
+\node[stm-idle] at (4.50,-1.40) {A};
+\node[stm-idle] at (5.00,-1.40) {C};
+\node[stm-note, anchor=west] at (5.45,-1.40) {2 次};
+\node[stm-lab] at (-0.20,-2.05) {$s=2$};
+\node[stm-bad] at (1.00,-2.05) {A};
+\node[stm-idle] at (1.50,-2.05) {A};
+\node[stm-idle] at (2.00,-2.05) {C};
+\node[stm-idle] at (2.50,-2.05) {A};
+\node[stm-idle] at (3.00,-2.05) {A};
+\node[stm-idle] at (3.50,-2.05) {C};
+\node[stm-idle] at (4.00,-2.05) {A};
+\node[stm-idle] at (4.50,-2.05) {A};
+\node[stm-idle] at (5.00,-2.05) {A};
+\node[stm-idle] at (5.50,-2.05) {C};
+\node[stm-note, anchor=west] at (5.95,-2.05) {1 次};
+\node[stm-lab] at (-0.20,-2.70) {$s=3$};
+\node[stm-ok] at (1.50,-2.70) {A};
+\node[stm-ok] at (2.00,-2.70) {A};
+\node[stm-ok] at (2.50,-2.70) {C};
+\node[stm-ok] at (3.00,-2.70) {A};
+\node[stm-ok] at (3.50,-2.70) {A};
+\node[stm-ok] at (4.00,-2.70) {C};
+\node[stm-ok] at (4.50,-2.70) {A};
+\node[stm-ok] at (5.00,-2.70) {A};
+\node[stm-ok] at (5.50,-2.70) {A};
+\node[stm-ok] at (6.00,-2.70) {C};
+\node[stm-note, anchor=west] at (6.45,-2.70) {10 次};
+\end{tikzpicture}
+\diagcaption{樸素比對試過的四個位移。 $s = 3$ 是唯一的有效位移，總共比較了
+$9 + 2 + 1 + 10 = 22$ 次。}
+\label{fig:stm-naive}
+\end{minipage}\end{center}
+
+\subsection{分析}
+
+外層迴圈跑 $n - m + 1$ 次，每次內層最多比 $m$ 次，所以時間是
+$O((n - m + 1)m)$。 這個上界會達到：$T = \mathtt{A}^n$（$n$ 個 \texttt{A}）、
+$P = \mathtt{A}^{m-1}\mathtt{C}$ 時，每個位移都要比到最後一個字元才失敗，剛好比
+$(n - m + 1)m$ 次。 $P = \mathtt{A}^m$ 時每個位移都是有效位移，也一樣多。 所以樸素
+比對的最壞情況是 $\Theta((n - m + 1)m)$；$m = \lfloor n/2 \rfloor$ 時是
+$\Theta(n^2)$。
+
+最好的情況是每個位移的第一個字元就不同，共比 $n - m + 1$ 次。 一般的文字介於兩者
+之間。 如果 $T$ 和 $P$ 的字元都像是從 $|\Sigma|$ 個字元裡隨機挑的，每個位移第一個
+字元相同的機率是 $1/|\Sigma|$，前兩個都相同是 $1/|\Sigma|^2$，所以每個位移平均比不
+到 $1 + 1/|\Sigma| + 1/|\Sigma|^2 + \cdots = |\Sigma| / (|\Sigma| - 1)$ 次；DNA 是
+$4/3$。 真實的資料不是隨機的，DNA 和文章裡常有大段的重複，最壞情況就會出現。
+
+浪費在哪裡，從圖~\ref{fig:stm-naive} 就看得出來。 $s = 0$ 時已經知道 $T[1..8] =
+\mathtt{AACAACAA}$，$s = 1$ 和 $s = 2$ 卻又從頭去讀 $T[2]$、$T[3]$。 其實光憑已經對
+上的這 $8$ 個字元，就能算出 $s = 1$、$s = 2$ 不可能成功，而 $s = 3$ 的前 $5$ 個字元
+一定對得上。 第~\ref{sec:stm-kmp}~節的 KMP 演算法就是把這個推理事先算好。
+
+\subsection{C 程式}
+
+\begin{cbookrecap}[第~11~章 11.1--11.3、11.5 節，第~19~章 19.3 節]
+C 的字串是一個字元陣列，最後放一個 \texttt{'\textbackslash 0'} 表示結束；
+\texttt{strlen(s)} 從頭數到 \texttt{'\textbackslash 0'} 之前有幾個字元，每呼叫一次
+就走一遍，花 $\Theta(|s|)$ 的時間，所以不要寫在迴圈條件裡。 \texttt{scanf("\%100000s",
+t)} 讀一個不含空白的字，最多 $100000$ 個字元，陣列至少要開 $100001$ 格放
+\texttt{'\textbackslash 0'}；不寫寬度的 \texttt{\%s} 可能寫出陣列外。
+\texttt{strncmp(a, b, k)} 比較前 $k$ 個字元，相同時回傳 $0$。 標準函式庫的
+\texttt{strstr(t, p)} 也能找子字串，但 C 標準沒有規定它用什麼方法、花多少時間。
+陣列用 \texttt{malloc} 向系統要，用完 \texttt{free}。
+\end{cbookrecap}
+
+下面的程式讀進好幾組 $T$、$P$，印出所有有效位移，以及比較的次數和
+$(n - m + 1)m$。 第一組是圖~\ref{fig:stm-naive} 的例子，第二組是一段普通的 DNA，最
+後兩組是上面說的最壞情況。
+
+\begin{example}[label=ex:stm-naive]{c}{(naive\_match.c) 樸素比對並計算比較次數}
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+
+#define MAXLEN 100000           // T、P 最長的長度
+
+// 樸素比對：印出 P 在 T 裡的每一個有效位移，回傳字元比較的次數。
+long long naive_match(const char *t, int n, const char *p, int m)
+{
+    long long cmp = 0;
+    int found = 0;
+    printf("shifts:");
+    for (int s = 0; s <= n - m; s++) {
+        int j = 0;
+        while (j < m) {          // 從左往右比，第一個不同就停
+            cmp++;
+            if (p[j] != t[s + j]) {
+                break;
+            }
+            j++;
+        }
+        if (j == m) {
+            printf(" %d", s);
+            found++;
+        }
+    }
+    printf("%s\n", found ? "" : " none");
+    return cmp;
+}
+
+int main(void)
+{
+    char *t = malloc(MAXLEN + 1);
+    char *p = malloc(MAXLEN + 1);
+    int cases;
+    if (t == NULL || p == NULL || scanf("%d", &cases) != 1) {
+        free(t);
+        free(p);
+        return 1;
+    }
+    while (cases--) {
+        if (scanf("%100000s %100000s", t, p) != 2) {
+            break;
+        }
+        int n = (int)strlen(t), m = (int)strlen(p);
+        long long cmp = naive_match(t, n, p, m);
+        long long bound = (n >= m) ? (long long)(n - m + 1) * m : 0;
+        printf("comparisons = %lld, (n-m+1)m = %lld\n", cmp, bound);
+    }
+    free(t);
+    free(p);
+    return 0;
+}
+\end{example}
+\iosample{4 \\ AACAACAACAAAC AACAACAAAC \\ TGCCTCAGTCATCC CAGT \\ AAAAAAAAAAAA AAAAC \\ AAAAAAAAAAAA AAAA}{shifts: 3 \\ comparisons = 22, (n-m+1)m = 40 \\ shifts: 5 \\ comparisons = 18, (n-m+1)m = 44 \\ shifts: none \\ comparisons = 40, (n-m+1)m = 40 \\ shifts: 0 1 2 3 4 5 6 7 8 \\ comparisons = 36, (n-m+1)m = 36}
+
+普通的 DNA 那一組只比了 $18$ 次，比 $n = 14$ 多一點；最壞的兩組都剛好比了
+$(n - m + 1)m$ 次。
+
+\section{Rabin--Karp 演算法}
+\label{sec:stm-rk}
+
+\subsection{把字串當成數字}
+
+先假設字母表只有十個數字 $0$ 到 $9$。 長度 $m$ 的字串可以看成一個 $m$ 位數，兩個字
+串相同若且唯若兩個數相同。 如果能很快算出 $T$ 每一個長度 $m$ 的視窗代表的數，比對
+就變成比較兩個整數，一次 $O(1)$。
+
+一般的字母表也一樣。 把每個字元對應到 $0$ 到 $d - 1$ 的一個數字（$d = |\Sigma|$），
+字串就是一個 $d$ 進位的數。 這一節的 DNA 例子用 $d = 4$，
+$\mathtt{A} = 0$、$\mathtt{C} = 1$、$\mathtt{G} = 2$、$\mathtt{T} = 3$。 令
+\[
+t_s = \sum_{j=1}^{m} T[s + j] \cdot d^{m-j}
+\]
+是第 $s$ 個視窗 $T[s + 1 .. s + m]$ 的值（這裡 $T[i]$ 指字元對應的數字），$p$ 是
+$P$ 的值。 $p$ 和 $t_0$ 用第~4~章的 Horner 法（虛擬碼~\ref{alg:arr-horner}）各花
+$\Theta(m)$ 算出來。 之後的視窗不用重算：從 $t_s$ 到 $t_{s+1}$，最高位的
+$T[s + 1]$ 離開，其他位數往左移一位，$T[s + m + 1]$ 從最低位進來：
+\begin{equation}
+t_{s+1} = d \bigl( t_s - T[s + 1] \cdot d^{m-1} \bigr) + T[s + m + 1].
+\label{eq:stm-roll}
+\end{equation}
+這叫\textbf{滾動雜湊}（rolling hash），每次只要常數個算術運算。
+
+問題是 $t_s$ 有 $m$ 位，$m$ 一大就放不進一個字組，算術運算不能再算一步（第~1~章
+1.9 節）。 解法是全部對一個質數 $q$ 取餘數，也就是第~12~章字串鍵的雜湊函數
+（第~\ref{sec:hash-func}~節）：
+\[
+p \bmod q, \qquad t_s \bmod q, \qquad
+t_{s+1} \equiv d \bigl( t_s - T[s + 1] \cdot h \bigr) + T[s + m + 1] \pmod q,
+\]
+其中 $h = d^{m-1} \bmod q$ 事先算好。 取餘數之後，$t_s \not\equiv p$ 一定表示視窗和
+$P$ 不同，可以直接跳過；但 $t_s \equiv p$ 不保證相同，可能只是兩個不同的字串雜湊到
+同一個值，也就是第~12~章的\textbf{碰撞}。 雜湊值相等叫\textbf{命中}（hit），命中了
+但字串其實不同，叫\textbf{偽命中}（spurious hit）。 所以命中之後還要逐字確認一次。
+
+\begin{pseudo}[label=alg:stm-rk]{Rabin--Karp 比對，$\bmod$ 的結果一律在 $0$ 到 $q - 1$}
+\Procedure{Rabin-Karp}{$T, P, n, m, d, q$}
+    \State $h \gets d^{m-1} \bmod q$
+    \State $p \gets 0$
+    \State $t \gets 0$
+    \For{$i \gets 1$ \To $m$} \Comment{Horner 法}
+        \State $p \gets (d \cdot p + P[i]) \bmod q$
+        \State $t \gets (d \cdot t + T[i]) \bmod q$
+    \EndFor
+    \For{$s \gets 0$ \To $n - m$}
+        \If{$p = t$} \Comment{命中}
+            \If{$P[1..m] = T[s + 1 .. s + m]$} \Comment{逐字確認}
+                \State 輸出 $s$
+            \EndIf
+        \EndIf
+        \If{$s < n - m$}
+            \State $t \gets \bigl( d \, (t - T[s + 1] \cdot h) + T[s + m + 1] \bigr) \bmod q$
+        \EndIf
+    \EndFor
+\EndProcedure
+\end{pseudo}
+
+第 8 行的迴圈每次開始時，$t = t_s \bmod q$；第 13 行用式~\eqref{eq:stm-roll} 把它換
+成 $t_{s+1} \bmod q$，所以這個性質一直成立。
+
+\subsection{手算}
+
+$T = \mathtt{TGCCTCAGTCATCC}$（$n = 14$），$P = \mathtt{CAGT}$（$m = 4$），$d = 4$，
+$q = 11$。 先算 $h = 4^3 \bmod 11 = 64 \bmod 11 = 9$，
+$p = 1 \cdot 64 + 0 \cdot 16 + 2 \cdot 4 + 3 = 75$，$75 \bmod 11 = 9$。 下表列出每
+個視窗；考試時「視窗的值」那一欄可以不寫，直接用滾動的式子算餘數，這裡列出來是為了
+驗算。
+
+\begin{center}
+\begin{tabular}{cccccl}
+\toprule
+$s$ & 視窗 & 視窗的值 $t_s$ & $t_s \bmod 11$ & 命中？ & 結果 \\
+\midrule
+0 & \texttt{TGCC} & 229 & 9 & 是 & 偽命中 \\
+1 & \texttt{GCCT} & 151 & 8 &  &  \\
+2 & \texttt{CCTC} & 93 & 5 &  &  \\
+3 & \texttt{CTCA} & 116 & 6 &  &  \\
+4 & \texttt{TCAG} & 210 & 1 &  &  \\
+5 & \texttt{CAGT} & 75 & 9 & 是 & 有效位移 \\
+6 & \texttt{AGTC} & 45 & 1 &  &  \\
+7 & \texttt{GTCA} & 180 & 4 &  &  \\
+8 & \texttt{TCAT} & 211 & 2 &  &  \\
+9 & \texttt{CATC} & 77 & 0 &  &  \\
+10 & \texttt{ATCC} & 53 & 9 & 是 & 偽命中 \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+三次命中裡只有 $s = 5$ 是真的，$s = 0$ 和 $s = 10$ 是偽命中，各要多做一次逐字比較
+才知道。 從 $s = 0$ 滾到 $s = 1$ 的計算：離開的是 $T[1] = \mathtt{T} = 3$，進來的是
+$T[5] = \mathtt{T} = 3$，
+\[
+t_1 \equiv 4 \, (9 - 3 \cdot 9) + 3 = 4 \cdot (-18) + 3 = -69 \equiv -69 + 77 = 8
+\pmod{11},
+\]
+和表上 $151 \bmod 11 = 8$ 一樣。 中間出現負數是正常的，取餘數時加上 $q$ 的倍數變回
+$0$ 到 $q - 1$ 就好。
+
+\begin{examnote}
+Rabin--Karp 的計算題先看清楚三件事：字元怎麼對應到數字（題目可能用
+$\mathtt{a} = 1$，或直接用 ASCII 碼）、$d$ 和 $q$ 是多少、字串的第一個字元是最高位
+還是最低位。 先寫出 $h = d^{m-1} \bmod q$ 和 $p \bmod q$，再一個視窗一列，列出
+$t_s \bmod q$、有沒有命中、是有效位移還是偽命中。 題目問「偽命中幾次」時，有效位移
+不算在內。
+\end{examnote}
+
+\subsection{時間}
+
+前處理（第 2--7 行）花 $\Theta(m)$；第 2 行的 $d^{m-1} \bmod q$ 連乘 $m - 1$ 次就
+夠。 比對的部分，每個位移花 $O(1)$ 算雜湊、比雜湊值，命中時再加 $O(m)$ 確認。 設有
+$v$ 個有效位移、$x$ 次偽命中，比對時間是
+\[
+\Theta(n - m + 1) + O\bigl(m (v + x)\bigr).
+\]
+最壞情況沒有比較好：$T = \mathtt{A}^n$、$P = \mathtt{A}^m$ 時每個位移都要逐字確
+認，又是 $\Theta((n - m + 1)m)$。 偽命中也可能很多，例如 $q$ 選得不好時（觀念題
+第~\ref{q:stm-power-mod}~題）。
+
+偽命中有多少，要看雜湊值像不像隨機。 照第~12~章的習慣先做一個假設：每個不是有效位
+移的視窗，雜湊值等於 $p \bmod q$ 的機率大約是 $1/q$。 那麼偽命中的期望次數大約是
+$(n - m + 1)/q$，比對時間的期望值是
+\[
+O\Bigl(n + m \Bigl(v + \frac{n}{q}\Bigr)\Bigr),
+\]
+有效位移不多、$q \ge m$ 時就是 $O(n + m)$。 上面的例子有 $11$ 個視窗、$q = 11$，期
+望大約 $1$ 次偽命中，實際上有 $2$ 次。
+
+這個假設不能證明，因為 $d$ 和 $q$ 是固定的，有心人可以專挑會碰撞的文字。 要得到真
+正的保證，可以像第~12~章的通用雜湊（第~\ref{sec:hash-dynamic}~節）一樣，把隨機性
+放進演算法裡：質數 $q$ 固定，底數不用 $d$，改成每次執行時從 $0$ 到 $q - 1$ 隨機挑
+一個 $x$，字串 $a_1 a_2 \cdots a_m$ 的雜湊值是
+$H_x(a) = \bigl( \sum_{j=1}^{m} a_j \, x^{m-j} \bigr) \bmod q$。 滾動更新的式子不
+變，只是把 $d$ 換成 $x$。
+
+\begin{theorem}
+\label{thm:stm-rk-random}
+$q$ 是質數，字元對應的數字都小於 $q$，$x$ 從 $\{0, 1, \ldots, q - 1\}$ 均勻隨機挑
+選。 對任兩個長度 $m$ 的不同字串 $a$、$b$，
+\[
+\Pr\bigl[ H_x(a) = H_x(b) \bigr] \le \frac{m - 1}{q}.
+\]
+所以偽命中的期望次數不超過 $(n - m + 1)(m - 1)/q$。
+\end{theorem}
+
+\begin{proof}
+令 $D(x) = \sum_{j=1}^{m} (a_j - b_j) \, x^{m-j}$，這是次數不超過 $m - 1$ 的多項
+式。 $a \ne b$，所以有某個 $j$ 使 $a_j \ne b_j$；兩個數都在 $0$ 到 $q - 1$ 之間，差
+不是 $q$ 的倍數，所以 $D$ 在模 $q$ 下不是零多項式。 數論的一個基本事實是：模質數
+時，次數 $k \ge 0$ 的非零多項式最多有 $k$ 個根。 $H_x(a) = H_x(b)$ 正是
+$D(x) \equiv 0 \pmod q$，在 $q$ 個可能的 $x$ 裡最多 $m - 1$ 個會讓它成立。 第二句：
+每個不是有效位移的視窗都是一對不同的字串，偽命中的機率不超過 $(m - 1)/q$，對最多
+$n - m + 1$ 個視窗用期望值的線性加起來。
+\end{proof}
+
+選 $q > nm$ 的質數，偽命中的期望次數就小於 $1$。 這種「結果一定對、時間是隨機的」
+演算法叫 Las Vegas 型；如果為了省時間，命中就直接回報、不逐字確認，結果就有一點機會
+錯，那叫 Monte Carlo 型。 Rabin--Karp 的好處是容易推廣：同時找很多個長度相同的模
+式時，把它們的雜湊值放進一張雜湊表，每個視窗查一次表就好，KMP 做不到這麼簡單。
+
+\subsection{C 程式}
+
+程式把 \texttt{A}、\texttt{C}、\texttt{G}、\texttt{T} 換成 $0$ 到 $3$，固定 $d = 4$，
+$q$ 由輸入給。 C 的 \texttt{\%} 對負數會得到負的餘數（\texttt{-69 \% 11} 是
+\texttt{-3}），所以減掉最高位時先加 $q$，讓結果保持在 $0$ 到 $q - 1$。 $q$ 不超過
+$10^9$ 時，\texttt{ht * D} 和 \texttt{code(t[s]) * h} 都放得進 \texttt{long long}。
+
+\begin{example}[label=ex:stm-rk]{c}{(rabin\_karp.c) Rabin--Karp 比對，列出每一次命中}
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+
+#define MAXLEN 100000
+#define D 4                     // 字母表大小：A C G T
+
+// 把鹼基換成 0..3。題目保證只有 A、C、G、T。
+int code(char c)
+{
+    switch (c) {
+    case 'A': return 0;
+    case 'C': return 1;
+    case 'G': return 2;
+    default:  return 3;         // 'T'
+    }
+}
+
+// Rabin-Karp：模數 q。印出每一次命中，回傳偽命中的次數。
+int rabin_karp(const char *t, int n, const char *p, int m,
+               long long q)
+{
+    long long h = 1;            // h = D^(m-1) mod q
+    for (int i = 1; i < m; i++) {
+        h = h * D % q;
+    }
+    long long hp = 0, ht = 0;   // P 和第一個視窗的雜湊值
+    for (int i = 0; i < m; i++) {
+        hp = (hp * D + code(p[i])) % q;
+        ht = (ht * D + code(t[i])) % q;
+    }
+    int spurious = 0;
+    for (int s = 0; s <= n - m; s++) {
+        if (hp == ht) {                       // 命中：再逐字確認
+            if (strncmp(t + s, p, m) == 0) {
+                printf("s = %d: hit, match\n", s);
+            } else {
+                printf("s = %d: hit, spurious\n", s);
+                spurious++;
+            }
+        }
+        if (s < n - m) {                      // 滾到下一個視窗
+            // 先減掉最高位；加 q 讓結果不是負數
+            ht = (ht - code(t[s]) * h % q + q) % q;
+            ht = (ht * D + code(t[s + m])) % q;
+        }
+    }
+    return spurious;
+}
+
+int main(void)
+{
+    char *t = malloc(MAXLEN + 1);
+    char *p = malloc(MAXLEN + 1);
+    int cases;
+    if (t == NULL || p == NULL || scanf("%d", &cases) != 1) {
+        free(t);
+        free(p);
+        return 1;
+    }
+    while (cases--) {
+        long long q;
+        if (scanf("%lld %100000s %100000s", &q, t, p) != 3) {
+            break;
+        }
+        int n = (int)strlen(t), m = (int)strlen(p);
+        if (m == 0 || m > n) {
+            continue;
+        }
+        printf("q = %lld\n", q);
+        int sp = rabin_karp(t, n, p, m, q);
+        printf("spurious hits = %d\n", sp);
+    }
+    free(t);
+    free(p);
+    return 0;
+}
+\end{example}
+\iosample{2 \\ 11 TGCCTCAGTCATCC CAGT \\ 1000003 TGCCTCAGTCATCC CAGT}{q = 11 \\ s = 0: hit, spurious \\ s = 5: hit, match \\ s = 10: hit, spurious \\ spurious hits = 2 \\ q = 1000003 \\ s = 5: hit, match \\ spurious hits = 0}
+
+$q = 11$ 的結果和手算的表一樣。 $q$ 換成質數 $1000003$ 以後，同一段文字只剩真正的
+那次命中。
+
+\section{KMP 演算法}
+\label{sec:stm-kmp}
+
+Knuth、Morris 和 Pratt 在 1970 年代提出這個演算法，所以叫 KMP。 它的比對時間是
+$\Theta(n)$，而且不靠任何機率。
+
+\subsection{對上的字元告訴我們什麼}
+
+回到圖~\ref{fig:stm-naive}。 位移 $s$ 已經對上了 $q$ 個字元，第 $q + 1$ 個不同。 這
+時我們知道 $T[s + 1 .. s + q] = P[1..q]$，這段文字是什麼，完全由 $P$ 決定，不用再
+讀 $T$。 下一個可能成功的位移 $s' > s$ 要滿足：把 $P$ 移到 $s'$ 以後，和已知的這段
+文字重疊的部分要對得上。 重疊的部分是 $P$ 的一個前綴 $P[1..k]$，對著
+$P[1..q]$ 的後綴，其中 $k = s + q - s' < q$。 所以要找的是
+\[
+\text{同時是 } P[1..q] \text{ 的真前綴和真後綴的字串，越長越好。}
+\]
+越長，$s'$ 越小，才不會跳過任何一個可能的位移；而且新位移的前 $k$ 個字元已知相同，
+直接從 $P[k + 1]$ 接著比。
+
+圖~\ref{fig:stm-naive} 裡 $q = 8$，$P[1..8] = \mathtt{AACAACAA}$。 它的前綴和後綴相
+同的有 \texttt{AACAA}（長度 $5$）、\texttt{AA}、\texttt{A}，最長的是 $5$。 所以下一個
+要試的位移是 $s' = 0 + 8 - 5 = 3$，而且前 $5$ 個字元不必比，從 $P[6]$ 開始。 樸素
+比對在 $s = 1$、$s = 2$ 花的 $3$ 次比較全部省掉，前 $5$ 個字元也不用重比。 這個
+「最長的長度」只和 $P$ 有關，可以事先對每個 $q$ 算好。
+
+\subsection{邊界與失敗函數}
+
+\begin{definition}
+\label{def:stm-border}
+字串 $x$ 的\textbf{邊界}（border）是同時為 $x$ 的真前綴和真後綴的字串。 空字串是
+每個非空字串的邊界。 模式 $P[1..m]$ 的\textbf{失敗函數}（failure function）$\pi$ 定
+義在 $q = 1, 2, \ldots, m$ 上：
+\[
+\pi[q] = P[1..q] \text{ 最長的邊界的長度}.
+\]
+\end{definition}
+
+邊界是真前綴，所以 $0 \le \pi[q] < q$，特別是 $\pi[1] = 0$。 失敗函數也叫\textbf{前
+綴函數}（prefix function），名字來自它記錄的是 $P$ 的前綴之間的關係；Aki-Judge 的題
+目用的是這個名字。 本章的例子 $P = \mathtt{AACAACAAAC}$ 的失敗函數如下，下一小節會
+示範怎麼算。
+
+\begin{center}
+\begin{tabular}{c*{10}{c}}
+\toprule
+$q$ & 1 & 2 & 3 & 4 & 5 & 6 & 7 & 8 & 9 & 10 \\
+$P[q]$ & \texttt{A} & \texttt{A} & \texttt{C} & \texttt{A} & \texttt{A} & \texttt{C} & \texttt{A} & \texttt{A} & \texttt{A} & \texttt{C} \\
+$\pi[q]$ & 0 & 1 & 0 & 1 & 2 & 3 & 4 & 5 & 2 & 3 \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+最長的邊界有了，其他的邊界怎麼找？ 下面的引理說：邊界的邊界還是邊界，而且所有的邊
+界都可以這樣一層一層找到。
+
+\begin{lemma}[邊界的鏈]
+\label{lem:stm-chain}
+對 $1 \le q \le m$，$P[1..q]$ 所有邊界的長度，由大到小恰好是
+\[
+\pi[q], \quad \pi[\pi[q]], \quad \pi[\pi[\pi[q]]], \quad \ldots
+\]
+一直到 $0$ 為止。
+\end{lemma}
+
+\begin{proof}
+鏈上的每一個都是邊界：$\pi[q]$ 是 $P[1..q]$ 的邊界。 如果 $u$ 是 $v$ 的邊界、$v$ 是
+$x$ 的邊界，$u$ 是 $v$ 的前綴，$v$ 是 $x$ 的前綴，所以 $u$ 是 $x$ 的前綴；後綴同理，
+而且 $|u| < |v| < |x|$，所以 $u$ 也是 $x$ 的邊界。 鏈上每一項嚴格變小，一定會走到
+$0$。
+
+沒有漏掉：假設 $P[1..b]$ 是 $P[1..q]$ 的邊界，但 $b$ 不在鏈上。 $b \le \pi[q]$（因
+為 $\pi[q]$ 最大），又 $b \ne \pi[q]$，所以鏈上有比 $b$ 大的數；令 $c$ 是其中最小
+的一個。 $P[1..b]$ 和 $P[1..c]$ 都是 $P[1..q]$ 的後綴，$b < c$，所以 $P[1..b]$ 是
+$P[1..c]$ 的後綴，它本來就是 $P[1..c]$ 的前綴，因此是 $P[1..c]$ 的邊界，
+$b \le \pi[c]$。 $\pi[c]$ 是鏈上 $c$ 的下一項，比 $c$ 小；由 $c$ 的選法，它不會比
+$b$ 大，所以 $\pi[c] = b$，$b$ 在鏈上，矛盾。
+\end{proof}
+
+下圖是 $q = 8$ 的鏈。 每一列把 $P$ 的前綴對齊在 $P[1..8]$ 的尾巴下面，對得上的部分
+就是一個邊界。
+
+\begin{center}\begin{minipage}{\linewidth}\centering
+\begin{tikzpicture}
+\node[stm-lab] at (-0.20,0.00) {$P[1..8]$};
+\node[stm-c] at (0.00,0.00) {A};
+\node[stm-c] at (0.50,0.00) {A};
+\node[stm-c] at (1.00,0.00) {C};
+\node[stm-c] at (1.50,0.00) {A};
+\node[stm-c] at (2.00,0.00) {A};
+\node[stm-c] at (2.50,0.00) {C};
+\node[stm-c] at (3.00,0.00) {A};
+\node[stm-c] at (3.50,0.00) {A};
+\node[idxlbl] at (0.00,0.42) {1};
+\node[idxlbl] at (0.50,0.42) {2};
+\node[idxlbl] at (1.00,0.42) {3};
+\node[idxlbl] at (1.50,0.42) {4};
+\node[idxlbl] at (2.00,0.42) {5};
+\node[idxlbl] at (2.50,0.42) {6};
+\node[idxlbl] at (3.00,0.42) {7};
+\node[idxlbl] at (3.50,0.42) {8};
+\node[stm-lab] at (-0.20,-0.75) {$\pi[8]=5$};
+\node[stm-ok] at (1.50,-0.75) {A};
+\node[stm-ok] at (2.00,-0.75) {A};
+\node[stm-ok] at (2.50,-0.75) {C};
+\node[stm-ok] at (3.00,-0.75) {A};
+\node[stm-ok] at (3.50,-0.75) {A};
+\node[stm-lab] at (-0.20,-1.40) {$\pi[5]=2$};
+\node[stm-ok] at (3.00,-1.40) {A};
+\node[stm-ok] at (3.50,-1.40) {A};
+\node[stm-lab] at (-0.20,-2.05) {$\pi[2]=1$};
+\node[stm-ok] at (3.50,-2.05) {A};
+\node[stm-lab] at (-0.20,-2.70) {$\pi[1]=0$};
+\node[stm-note, anchor=west] at (0.00,-2.70) {空字串};
+\end{tikzpicture}
+\diagcaption{$P[1..8] = \mathtt{AACAACAA}$ 的邊界：長度 $5, 2, 1, 0$，依序是
+$\pi[8]$、$\pi[5]$、$\pi[2]$、$\pi[1]$。}
+\label{fig:stm-borders}
+\end{minipage}\end{center}
+
+\subsection{計算失敗函數}
+
+$\pi[q]$ 可以從前面的值推出來。 設 $P[1..r]$ 是 $P[1..q]$ 的邊界，$r \ge 1$。 拿掉
+兩邊的最後一個字元，$P[1..r - 1]$ 是 $P[1..q - 1]$ 的邊界，而且 $P[r] = P[q]$。 反
+過來，$P[1..k]$ 是 $P[1..q - 1]$ 的邊界、$P[k + 1] = P[q]$ 時，$P[1..k + 1]$ 是
+$P[1..q]$ 的邊界。 所以
+\[
+\pi[q] = 1 + \max\bigl\{ k : k \text{ 是 } P[1..q-1] \text{ 的邊界長度，且 }
+P[k + 1] = P[q] \bigr\},
+\]
+集合是空的時候 $\pi[q] = 0$。 由引理~\ref{lem:stm-chain}，$P[1..q - 1]$ 的邊界長度
+就是從 $\pi[q - 1]$ 開始的鏈，從大往小試，第一個 $P[k + 1] = P[q]$ 的就是最大的。
+這也順便說明了 $\pi[q] \le \pi[q - 1] + 1$：失敗函數每往右一格，最多加一。
+
+\begin{pseudo}[label=alg:stm-failure]{計算失敗函數}
+\Function{Compute-Failure}{$P, m$}
+    \State $\pi[1] \gets 0$
+    \State $k \gets 0$ \Comment{$k = \pi[q - 1]$}
+    \For{$q \gets 2$ \To $m$}
+        \While{$k > 0$ \AND $P[k + 1] \ne P[q]$}
+            \State $k \gets \pi[k]$ \Comment{換成下一個較短的邊界}
+        \EndWhile
+        \If{$P[k + 1] = P[q]$}
+            \State $k \gets k + 1$
+        \EndIf
+        \State $\pi[q] \gets k$
+    \EndFor
+    \State \Return $\pi$
+\EndFunction
+\end{pseudo}
+
+第 5 行的迴圈從 $k = \pi[q - 1]$ 開始沿著鏈往下走，走到 $P[k + 1] = P[q]$ 或
+$k = 0$ 為止。 停在 $k = 0$ 時，第 7 行還要看 $P[1]$ 和 $P[q]$ 是否相同，因為空字串
+接上一個字元也可能是邊界。
+
+下表是 $P = \mathtt{AACAACAAAC}$ 的計算過程。 「比較」一欄依序寫出每一次比較
+$P[k + 1]$ 和 $P[q]$ 的結果；不同時 $k$ 退到 $\pi[k]$ 再比。
+
+\begin{center}
+\small
+\begin{tabular}{ccc>{\raggedright\arraybackslash}p{0.56\linewidth}c}
+\toprule
+$q$ & $P[q]$ & 開始的 $k$ & 比較 & $\pi[q]$ \\
+\midrule
+1 & \texttt{A} & & 定義 & 0 \\
+2 & \texttt{A} & 0 & $P[1]=\mathtt{A}$ 相同，$k\gets1$ & 1 \\
+3 & \texttt{C} & 1 & $P[2]=\mathtt{A}\ne\mathtt{C}$，$k\gets\pi[1]=0$；$P[1]=\mathtt{A}\ne\mathtt{C}$，$k=0$ & 0 \\
+4 & \texttt{A} & 0 & $P[1]=\mathtt{A}$ 相同，$k\gets1$ & 1 \\
+5 & \texttt{A} & 1 & $P[2]=\mathtt{A}$ 相同，$k\gets2$ & 2 \\
+6 & \texttt{C} & 2 & $P[3]=\mathtt{C}$ 相同，$k\gets3$ & 3 \\
+7 & \texttt{A} & 3 & $P[4]=\mathtt{A}$ 相同，$k\gets4$ & 4 \\
+8 & \texttt{A} & 4 & $P[5]=\mathtt{A}$ 相同，$k\gets5$ & 5 \\
+9 & \texttt{A} & 5 & $P[6]=\mathtt{C}\ne\mathtt{A}$，$k\gets\pi[5]=2$；$P[3]=\mathtt{C}\ne\mathtt{A}$，$k\gets\pi[2]=1$；$P[2]=\mathtt{A}$ 相同，$k\gets2$ & 2 \\
+10 & \texttt{C} & 2 & $P[3]=\mathtt{C}$ 相同，$k\gets3$ & 3 \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+$q = 9$ 那一列最值得看：$P[1..8]$ 的最長邊界 $5$ 接不上 \texttt{A}，退到 $\pi[5] = 2$
+也接不上，再退到 $\pi[2] = 1$，$P[2] = \mathtt{A}$ 接上了，得到 $\pi[9] = 2$。 這三個
+$k$ 正是圖~\ref{fig:stm-borders} 的鏈。
+
+\subsection{KMP 比對}
+
+比對文字的做法和計算失敗函數幾乎一樣，只是拿 $T$ 去對 $P$。 變數 $q$ 記錄目前對上
+了幾個字元。 讀進 $T[i]$ 時，如果 $P[q + 1] = T[i]$，就多對上一個；不同的話，把 $q$
+換成 $\pi[q]$（相當於把 $P$ 往右移 $q - \pi[q]$ 格），再試，直到對上或 $q = 0$。
+$q = m$ 時找到一次出現，接著把 $q$ 設成 $\pi[m]$，繼續找可能和它重疊的下一次。
+
+\begin{pseudo}[label=alg:stm-kmp]{KMP 比對}
+\Procedure{KMP-Match}{$T, P, n, m$}
+    \State $\pi \gets$ \Call{Compute-Failure}{$P, m$}
+    \State $q \gets 0$ \Comment{已經對上的字元數}
+    \For{$i \gets 1$ \To $n$}
+        \While{$q > 0$ \AND $P[q + 1] \ne T[i]$}
+            \State $q \gets \pi[q]$ \Comment{失配，退到較短的邊界}
+        \EndWhile
+        \If{$P[q + 1] = T[i]$}
+            \State $q \gets q + 1$
+        \EndIf
+        \If{$q = m$}
+            \State 輸出 $i - m$ \Comment{$T[i - m + 1 .. i] = P$}
+            \State $q \gets \pi[q]$
+        \EndIf
+    \EndFor
+\EndProcedure
+\end{pseudo}
+
+\begin{theorem}
+\label{thm:stm-kmp-correct}
+\proc{KMP-Match} 輸出的恰好是所有有效位移。
+\end{theorem}
+
+\begin{whybox}[定理~\ref{thm:stm-kmp-correct}]
+令 $f(i)$ 是「$P$ 的前綴之中，是 $T[1..i]$ 的後綴的最長長度」，$g(i)$ 是同樣的東西
+但只考慮長度小於 $m$ 的前綴；$f(0) = g(0) = 0$。 證明這個不變量：第 4 行的迴圈每
+一輪開始時，$q = g(i - 1)$。 有了它，第 5--8 行之後 $q = f(i)$（下面證明），而
+$f(i) = m$ 正好表示 $T[i - m + 1 .. i] = P$，也就是位移 $i - m$ 有效，所以第 10 行
+輸出的恰好是所有有效位移。
+
+初始：$i = 1$ 時 $q = 0 = g(0)$。
+
+第 5--8 行算出 $f(i)$：如果 $P[1..k]$ 是 $T[1..i]$ 的後綴而且 $k \ge 1$，拿掉最後一
+個字元，$P[1..k - 1]$ 是 $T[1..i - 1]$ 的後綴，而且 $P[k] = T[i]$。 所以 $f(i)$ 是
+$j + 1$ 的最大值，$j$ 跑遍「$P[1..j]$ 是 $T[1..i - 1]$ 的後綴、$j < m$、
+$P[j + 1] = T[i]$」的所有 $j$；沒有這樣的 $j$ 時 $f(i) = 0$。 這些 $j$ 都不超過
+$g(i - 1) = q$；$P[1..j]$ 和 $P[1..q]$ 都是 $T[1..i - 1]$ 的後綴，所以 $j = q$ 或
+$P[1..j]$ 是 $P[1..q]$ 的邊界。 由引理~\ref{lem:stm-chain}，候選的 $j$ 恰好是
+$q, \pi[q], \pi[\pi[q]], \ldots, 0$。 第 5--6 行由大到小試，停在第一個
+$P[j + 1] = T[i]$ 的 $j$（或 $0$），第 7--8 行再加一，得到的就是 $f(i)$。
+
+維持：若 $f(i) < m$，$g(i) = f(i)$，下一輪開始時 $q = g(i)$。 若 $f(i) = m$，
+$T[1..i]$ 以 $P$ 結尾；長度 $k < m$ 的前綴 $P[1..k]$ 是 $T[1..i]$ 的後綴，等於說它
+是 $P$ 的後綴，也就是 $P$ 的邊界，所以 $g(i) = \pi[m]$，正是第 11 行設的值。
+\end{whybox}
+
+\subsection{手算追蹤}
+
+$T = \mathtt{AACAACAACAAACAACAAAGT}$（$n = 21$），$P$ 同上。 下表一個字元一列：讀
+$T[i]$ 之前的 $q$、失配時依序退到的 $q$（第 6 行），以及讀完之後的 $q$。
+
+\begin{center}
+\small
+\begin{tabular}{ccccc>{\raggedright\arraybackslash}p{0.38\linewidth}}
+\toprule
+$i$ & $T[i]$ & 開始的 $q$ & 退到 & 結束的 $q$ & 說明 \\
+\midrule
+1 & \texttt{A} & 0 & -- & 1 &  \\
+2 & \texttt{A} & 1 & -- & 2 &  \\
+3 & \texttt{C} & 2 & -- & 3 &  \\
+4 & \texttt{A} & 3 & -- & 4 &  \\
+5 & \texttt{A} & 4 & -- & 5 &  \\
+6 & \texttt{C} & 5 & -- & 6 &  \\
+7 & \texttt{A} & 6 & -- & 7 &  \\
+8 & \texttt{A} & 7 & -- & 8 &  \\
+9 & \texttt{C} & 8 & 5 & 6 &  \\
+10 & \texttt{A} & 6 & -- & 7 &  \\
+11 & \texttt{A} & 7 & -- & 8 &  \\
+12 & \texttt{A} & 8 & -- & 9 &  \\
+13 & \texttt{C} & 9 & -- & 10 & 找到，位移 $s=3$；$q\gets\pi[10]=3$ \\
+14 & \texttt{A} & 3 & -- & 4 &  \\
+15 & \texttt{A} & 4 & -- & 5 &  \\
+16 & \texttt{C} & 5 & -- & 6 &  \\
+17 & \texttt{A} & 6 & -- & 7 &  \\
+18 & \texttt{A} & 7 & -- & 8 &  \\
+19 & \texttt{A} & 8 & -- & 9 &  \\
+20 & \texttt{G} & 9 & 2 $\to$ 1 $\to$ 0 & 0 &  \\
+21 & \texttt{T} & 0 & -- & 0 &  \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+同一個過程畫成對齊圖：每次 $q$ 退到 $\pi[q]$，就等於把 $P$ 移到一個新的位移。 綠底
+是不用比就知道相同的字元（前一個位移留下來的邊界），藍底是這個位移比對成功的字元，
+粉紅是失配的字元。 超出 $T$ 的部分不畫。
+
+\begin{center}\begin{minipage}{\linewidth}\centering
+\begin{tikzpicture}
+\node[stm-lab] at (-0.20,0.00) {$T$};
+\node[stm-c] at (0.00,0.00) {A};
+\node[stm-c] at (0.50,0.00) {A};
+\node[stm-c] at (1.00,0.00) {C};
+\node[stm-c] at (1.50,0.00) {A};
+\node[stm-c] at (2.00,0.00) {A};
+\node[stm-c] at (2.50,0.00) {C};
+\node[stm-c] at (3.00,0.00) {A};
+\node[stm-c] at (3.50,0.00) {A};
+\node[stm-c] at (4.00,0.00) {C};
+\node[stm-c] at (4.50,0.00) {A};
+\node[stm-c] at (5.00,0.00) {A};
+\node[stm-c] at (5.50,0.00) {A};
+\node[stm-c] at (6.00,0.00) {C};
+\node[stm-c] at (6.50,0.00) {A};
+\node[stm-c] at (7.00,0.00) {A};
+\node[stm-c] at (7.50,0.00) {C};
+\node[stm-c] at (8.00,0.00) {A};
+\node[stm-c] at (8.50,0.00) {A};
+\node[stm-c] at (9.00,0.00) {A};
+\node[stm-c] at (9.50,0.00) {G};
+\node[stm-c] at (10.00,0.00) {T};
+\node[idxlbl] at (0.00,0.42) {1};
+\node[idxlbl] at (0.50,0.42) {2};
+\node[idxlbl] at (1.00,0.42) {3};
+\node[idxlbl] at (1.50,0.42) {4};
+\node[idxlbl] at (2.00,0.42) {5};
+\node[idxlbl] at (2.50,0.42) {6};
+\node[idxlbl] at (3.00,0.42) {7};
+\node[idxlbl] at (3.50,0.42) {8};
+\node[idxlbl] at (4.00,0.42) {9};
+\node[idxlbl] at (4.50,0.42) {10};
+\node[idxlbl] at (5.00,0.42) {11};
+\node[idxlbl] at (5.50,0.42) {12};
+\node[idxlbl] at (6.00,0.42) {13};
+\node[idxlbl] at (6.50,0.42) {14};
+\node[idxlbl] at (7.00,0.42) {15};
+\node[idxlbl] at (7.50,0.42) {16};
+\node[idxlbl] at (8.00,0.42) {17};
+\node[idxlbl] at (8.50,0.42) {18};
+\node[idxlbl] at (9.00,0.42) {19};
+\node[idxlbl] at (9.50,0.42) {20};
+\node[idxlbl] at (10.00,0.42) {21};
+\node[stm-lab] at (-0.20,-0.75) {$s=0$};
+\node[stm-ok] at (0.00,-0.75) {A};
+\node[stm-ok] at (0.50,-0.75) {A};
+\node[stm-ok] at (1.00,-0.75) {C};
+\node[stm-ok] at (1.50,-0.75) {A};
+\node[stm-ok] at (2.00,-0.75) {A};
+\node[stm-ok] at (2.50,-0.75) {C};
+\node[stm-ok] at (3.00,-0.75) {A};
+\node[stm-ok] at (3.50,-0.75) {A};
+\node[stm-bad] at (4.00,-0.75) {A};
+\node[stm-idle] at (4.50,-0.75) {C};
+\node[stm-note, anchor=west] at (4.95,-0.75) {比 9 次};
+\node[stm-lab] at (-0.20,-1.40) {$s=3$};
+\node[stm-known] at (1.50,-1.40) {A};
+\node[stm-known] at (2.00,-1.40) {A};
+\node[stm-known] at (2.50,-1.40) {C};
+\node[stm-known] at (3.00,-1.40) {A};
+\node[stm-known] at (3.50,-1.40) {A};
+\node[stm-ok] at (4.00,-1.40) {C};
+\node[stm-ok] at (4.50,-1.40) {A};
+\node[stm-ok] at (5.00,-1.40) {A};
+\node[stm-ok] at (5.50,-1.40) {A};
+\node[stm-ok] at (6.00,-1.40) {C};
+\node[stm-note, anchor=west] at (6.45,-1.40) {已知 5，比 5 次};
+\node[stm-lab] at (-0.20,-2.05) {$s=10$};
+\node[stm-known] at (5.00,-2.05) {A};
+\node[stm-known] at (5.50,-2.05) {A};
+\node[stm-known] at (6.00,-2.05) {C};
+\node[stm-ok] at (6.50,-2.05) {A};
+\node[stm-ok] at (7.00,-2.05) {A};
+\node[stm-ok] at (7.50,-2.05) {C};
+\node[stm-ok] at (8.00,-2.05) {A};
+\node[stm-ok] at (8.50,-2.05) {A};
+\node[stm-ok] at (9.00,-2.05) {A};
+\node[stm-bad] at (9.50,-2.05) {C};
+\node[stm-note, anchor=west] at (9.95,-2.05) {已知 3，比 7 次};
+\node[stm-lab] at (-0.20,-2.70) {$s=17$};
+\node[stm-known] at (8.50,-2.70) {A};
+\node[stm-known] at (9.00,-2.70) {A};
+\node[stm-bad] at (9.50,-2.70) {C};
+\node[stm-idle] at (10.00,-2.70) {A};
+\node[stm-note, anchor=west] at (10.55,-2.70) {已知 2，比 1 次};
+\node[stm-lab] at (-0.20,-3.35) {$s=18$};
+\node[stm-known] at (9.00,-3.35) {A};
+\node[stm-bad] at (9.50,-3.35) {A};
+\node[stm-idle] at (10.00,-3.35) {C};
+\node[stm-note, anchor=west] at (10.55,-3.35) {已知 1，比 1 次};
+\node[stm-lab] at (-0.20,-4.00) {$s=19$};
+\node[stm-bad] at (9.50,-4.00) {A};
+\node[stm-idle] at (10.00,-4.00) {A};
+\node[stm-note, anchor=west] at (10.55,-4.00) {比 1 次};
+\node[stm-lab] at (-0.20,-4.65) {$s=20$};
+\node[stm-bad] at (10.00,-4.65) {A};
+\node[stm-note, anchor=west] at (10.55,-4.65) {比 1 次};
+\end{tikzpicture}
+\diagcaption{KMP 在 $T = \mathtt{AACAACAACAAACAACAAAGT}$ 上試過的位移。 $s = 1, 2$
+、$s = 4$ 到 $9$、$s = 11$ 到 $16$ 都直接跳過，$T$ 的每個字元只有失配時才會再比一次。}
+\label{fig:stm-kmp-align}
+\end{minipage}\end{center}
+
+$i = 20$ 那一列：已經對上 $9$ 個字元，$T[20] = \mathtt{G}$ 卻不是 $P[10] =
+\mathtt{C}$。 $q$ 沿著鏈退成 $\pi[9] = 2$、$\pi[2] = 1$、$\pi[1] = 0$，每一次都接不上
+\texttt{G}，最後 $q = 0$。 字母 \texttt{G} 根本不在 $P$ 裡，任何位移只要蓋到
+$T[20]$ 都不可能成功，所以結果一定是 $0$；但演算法不知道這件事，還是一層一層退下來。
+
+\begin{examnote}
+KMP 的追蹤題，常見的兩種寫法是：像上表一個字元一列寫出 $q$ 的變化，或像
+圖~\ref{fig:stm-kmp-align} 每換一個位移畫一列對齊。 兩種都要寫出失配時退到哪裡，
+不能只寫最後的 $q$。 找到一次出現之後，記得 $q$ 是設成 $\pi[m]$，不是 $0$，否則會
+漏掉重疊的出現。 題目問比較次數時，先說明你怎麼數（例如第 5 行和第 7 行比的是同一
+對字元時只算一次），再照那個數法算。
+\end{examnote}
+
+\subsection{時間：平攤分析}
+
+第 5 行的 \textbf{while} 迴圈在某些字元上可能跑很多次。 例如
+$P = \mathtt{A}^{m-1}\mathtt{C}$、$T = \mathtt{A}^{m-1}\mathtt{G}\cdots$，讀到
+\texttt{G} 時 $q$ 從 $m - 1$ 一路退到 $0$，退了 $m - 1$ 次。 所以單看一個字元，最
+壞是 $\Theta(m)$；照第~1~章的方法把每個字元的最壞情況乘起來，只能得到
+$O(nm)$。 這和第~3~章的多重 pop 堆疊是同一種情形：要退很多次，之前一定先往上加過
+很多次。
+
+\begin{theorem}
+\label{thm:stm-kmp-time}
+\proc{Compute-Failure} 的時間是 $\Theta(m)$，\proc{KMP-Match} 除了第 2 行以外的時
+間是 $\Theta(n)$。 因此 KMP 的總時間是 $\Theta(n + m)$。
+\end{theorem}
+
+\begin{proof}
+先看 \proc{KMP-Match}。 用第~\ref{sec:amo-potential}~節的位能法，位能取
+$\Phi = q$。 一開始 $q = 0$，之後 $q$ 永遠不是負的，所以
+$\Phi(D_i) \ge \Phi(D_0) = 0$，定理~\ref{thm:potential} 可以用。
+
+第 $i$ 輪（讀 $T[i]$）的實際成本記成 $1 + w_i$，$w_i$ 是第 6 行執行的次數，其他的
+行都是常數。 第 6 行每執行一次，$q$ 變成 $\pi[q] < q$，至少減少 $1$；第 8 行最多加
+$1$；第 11 行只會讓 $q$ 變小。 所以這一輪的位能變化 $\Delta\Phi \le 1 - w_i$，平攤成
+本
+\[
+\hat{c}_i = (1 + w_i) + \Delta\Phi \le (1 + w_i) + (1 - w_i) = 2.
+\]
+$n$ 輪的總成本不超過 $2n$，是 $O(n)$；迴圈至少跑 $n$ 輪，所以是 $\Theta(n)$。
+
+\proc{Compute-Failure} 完全一樣，位能取 $\Phi = k$：$k$ 從 $0$ 開始、不會變成負的，
+每執行一次第 6 行至少減 $1$，每一輪第 8 行最多加 $1$，所以 $m - 1$ 輪的總成本不超過
+$2(m - 1)$，是 $\Theta(m)$。
+\end{proof}
+
+用第~\ref{sec:amo-aggregate}~節的聚合法也可以講：$q$ 每一輪最多加 $1$，總共最多加
+$n$；每執行一次第 6 行至少減 $1$，而 $q$ 不會變成負的，所以總共減的量不超過加的
+量，第 6 行全部加起來最多執行 $n$ 次。 位能 $\Phi = q$ 就是記帳法裡「已經對上的字
+元身上存的錢」：每對上一個字元多存 $1$，失配退回時拿來付。
+
+也可以直接數字元比較的次數。 把第 5 行和第 7 行比的同一對字元只算一次（C 程式就是
+這樣寫），讀 $T[i]$ 時比較的次數是 $1 + w_i$，總數是 $n + \sum w_i \le 2n$。 和樸素
+比對的 $(n - m + 1)m$ 比，差別在 $T$ 的指標 $i$ 從不往回走：每次比較不是讓 $i$ 前
+進，就是讓 $P$ 往右移至少一格。
+
+\subsection{C 程式}
+
+C 的陣列從 $0$ 編號，失敗函數也跟著整段改：\texttt{pi[j]} 是 \texttt{p[0..j]} 最長
+邊界的長度，也就是虛擬碼的 $\pi[j + 1]$。 $q$ 的意思不變（已經對上的字元數），所以
+下一個要比的字元是 \texttt{p[q]}，失配時退到 \texttt{pi[q - 1]}。 為了數比較次數，
+把 \textbf{while} 和後面的 \textbf{if} 合成一個迴圈：比一次，相同就前進並結束；不同
+而且 $q = 0$ 也結束；否則退一格再比。 最後一行印出建失敗函數和比對各比了幾次，以及
+$2m + 2n$。
+
+\begin{example}[label=ex:stm-kmp]{c}{(kmp.c) 失敗函數與 KMP 比對，並計算比較次數}
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+
+#define MAXLEN 100000
+
+// 失敗函數。pi[j] 是 p[0..j] 最長邊界的長度，等於虛擬碼的第 j+1 格。
+// 回傳字元比較的次數。
+long long compute_failure(const char *p, int m, int *pi)
+{
+    long long cmp = 0;
+    int k = 0;                  // 目前的邊界長度
+    pi[0] = 0;
+    for (int q = 1; q < m; q++) {
+        for (;;) {
+            cmp++;
+            if (p[k] == p[q]) { // 邊界可以往後接一個字元
+                k++;
+                break;
+            }
+            if (k == 0) {
+                break;
+            }
+            k = pi[k - 1];      // 換成次長的邊界再試
+        }
+        pi[q] = k;
+    }
+    return cmp;
+}
+
+// KMP 比對：印出每一個有效位移，回傳字元比較的次數。
+long long kmp_match(const char *t, int n, const char *p, int m,
+                    const int *pi)
+{
+    long long cmp = 0;
+    int q = 0;                  // 已經對上的字元數
+    int found = 0;
+    printf("shifts:");
+    for (int i = 0; i < n; i++) {
+        for (;;) {
+            cmp++;
+            if (p[q] == t[i]) {
+                q++;
+                break;
+            }
+            if (q == 0) {
+                break;
+            }
+            q = pi[q - 1];
+        }
+        if (q == m) {
+            printf(" %d", i - m + 1);
+            found++;
+            q = pi[q - 1];      // 接著找可能重疊的下一次
+        }
+    }
+    printf("%s\n", found ? "" : " none");
+    return cmp;
+}
+
+int main(void)
+{
+    char *t = malloc(MAXLEN + 1);
+    char *p = malloc(MAXLEN + 1);
+    int *pi = malloc(MAXLEN * sizeof *pi);
+    int cases;
+    if (t == NULL || p == NULL || pi == NULL
+        || scanf("%d", &cases) != 1) {
+        free(t);
+        free(p);
+        free(pi);
+        return 1;
+    }
+    while (cases--) {
+        if (scanf("%100000s %100000s", t, p) != 2) {
+            break;
+        }
+        int n = (int)strlen(t), m = (int)strlen(p);
+        long long c1 = compute_failure(p, m, pi);
+        printf("pi:");
+        for (int j = 0; j < m; j++) {
+            printf(" %d", pi[j]);
+        }
+        printf("\n");
+        long long c2 = kmp_match(t, n, p, m, pi);
+        printf("comparisons: %lld + %lld <= %d\n",
+               c1, c2, 2 * (m + n));
+    }
+    free(t);
+    free(p);
+    free(pi);
+    return 0;
+}
+\end{example}
+\iosample{4 \\ AACAACAACAAACAACAAAGT AACAACAAAC \\ AACAACAAACAACAAAC AACAACAAAC \\ AAAAAAAAAAAA AAAAC \\ AAAAAAAAAAAA AAAA}{pi: 0 1 0 1 2 3 4 5 2 3 \\ shifts: 3 \\ comparisons: 12 + 25 <= 62 \\ pi: 0 1 0 1 2 3 4 5 2 3 \\ shifts: 0 7 \\ comparisons: 12 + 17 <= 54 \\ pi: 0 1 2 3 0 \\ shifts: none \\ comparisons: 7 + 20 <= 34 \\ pi: 0 1 2 3 \\ shifts: 0 1 2 3 4 5 6 7 8 \\ comparisons: 3 + 12 <= 32}
+
+第一組是上面的手算例子，比對用了 $25$ 次比較，建失敗函數用了 $12$ 次。 第二組的兩次出現重疊了 $3$ 個字
+元（$\pi[10] = 3$），找到第一次之後 $q$ 設成 $3$ 才找得到第二次。 後兩組是樸素比對的
+最壞情況：範例~\ref{ex:stm-naive} 分別比了 $40$ 次和 $36$ 次，這裡只要 $20$ 次和
+$12$ 次。 $n$ 越大差得越多：樸素比對是 $(n - m + 1)m$，KMP 不超過 $2n$。 每一組都在定理~\ref{thm:stm-kmp-time} 的證明給的 $2(m - 1) + 2n$ 以內，程式印的
+$2m + 2n$ 是更寬一點的上界。
+
+\subsection{不同課本的失敗函數}
+
+失敗函數的寫法，各本書不一樣。 有的從 $0$ 編號，有的值從 $-1$ 開始，有的記「下一個
+要比的位置」而不是邊界的長度。 意思都一樣，換算的時候整排一起換。
+
+\begin{examnote}
+寫失敗函數之前先看題目的定義，下表是常見的四種，用本章的 $P = \mathtt{AACAACAAAC}$
+對照。
+\begin{center}
+\small
+\begin{tabular}{p{0.17\linewidth}p{0.42\linewidth}l}
+\toprule
+寫法 & 定義 & 值 \\
+\midrule
+本書（CLRS） & $\pi[q]$，$q = 1..m$：$P[1..q]$ 最長邊界的長度 & $0\ 1\ 0\ 1\ 2\ 3\ 4\ 5\ 2\ 3$ \\
+C 程式、競賽常用 & \texttt{pi[j]}，$j = 0..m-1$：$= \pi[j + 1]$ & $0\ 1\ 0\ 1\ 2\ 3\ 4\ 5\ 2\ 3$ \\
+Horowitz 系列 & $f(j)$，$j = 0..m-1$：$= \pi[j + 1] - 1$，沒有邊界時 $-1$ & $-1\ 0\ -1\ 0\ 1\ 2\ 3\ 4\ 1\ 2$ \\
+$\mathit{next}$ 陣列 & $\mathit{next}[1] = 0$，$j \ge 2$ 時 $= \pi[j - 1] + 1$ & $0\ 1\ 2\ 1\ 2\ 3\ 4\ 5\ 6\ 3$ \\
+\bottomrule
+\end{tabular}
+\end{center}
+前兩種只是編號不同，值完全一樣。 Horowitz 等人的資料結構課本（C 版）用 $f$，比對時
+在 $p_j$ 失配就改比 $p_{f(j-1)+1}$，等於本書的 $q \gets \pi[q]$。 $\mathit{next}[j]$
+記的是「在 $P[j]$ 失配後，下一個拿來比的是 $P$ 的第幾個字元」，$0$ 表示 $T$ 往前一
+格、從 $P[1]$ 重來。 有些書還有改良版（常叫 $\mathit{nextval}$）：如果
+$P[\mathit{next}[j]] = P[j]$，跳到那裡一定又失配，就直接沿用
+$\mathit{nextval}[\mathit{next}[j]]$；這個版本的值和上面四種都不同，題目沒有指定就
+不要用。
+\end{examnote}
+
+\section{比對自動機}
+\label{sec:stm-dfa}
+
+KMP 失配時要沿著鏈退好幾步，才知道下一個 $q$ 是多少。 如果事先把「目前對上 $q$ 個、
+讀到字元 $a$ 之後變成幾個」全部算好存成表，每個字元就只要查一次表。 這張表就是一台
+\textbf{有限自動機}（finite automaton）：狀態是 $0, 1, \ldots, m$，代表目前對上了幾個
+字元；從狀態 $q$ 讀到字元 $a$，移到狀態
+\[
+\delta(q, a) = \text{$P$ 的前綴之中，是 $P[1..q]\,a$ 的後綴的最長長度}.
+\]
+定理~\ref{thm:stm-kmp-correct} 的證明說的就是：讀完 $T[i]$ 之後的狀態是 $f(i)$，而
+$f(i) = \delta(f(i - 1), T[i])$。 進入狀態 $m$ 就表示找到一次出現。
+
+\begin{pseudo}[label=alg:stm-dfa-match]{用自動機比對}
+\Procedure{Automaton-Match}{$T, n, \delta, m$}
+    \State $q \gets 0$
+    \For{$i \gets 1$ \To $n$}
+        \State $q \gets \delta(q, T[i])$
+        \If{$q = m$}
+            \State 輸出 $i - m$
+        \EndIf
+    \EndFor
+\EndProcedure
+\end{pseudo}
+
+這裡不需要特別處理找到之後的情形，$\delta(m, a)$ 本來就照定義算。 比對時間是
+$\Theta(n)$，而且每個字元剛好查一次表，比 KMP 的平攤 $O(1)$ 更整齊。 代價是轉移表有
+$(m + 1)|\Sigma|$ 格。 用失敗函數可以一格 $O(1)$ 填完：
+
+\begin{pseudo}[label=alg:stm-dfa-build]{用失敗函數建轉移表}
+\Function{Build-Automaton}{$P, m, \Sigma$}
+    \State $\pi \gets$ \Call{Compute-Failure}{$P, m$}
+    \For{每個 $a \in \Sigma$}
+        \State $\delta(0, a) \gets 0$
+    \EndFor
+    \State $\delta(0, P[1]) \gets 1$
+    \For{$q \gets 1$ \To $m$}
+        \For{每個 $a \in \Sigma$}
+            \If{$q < m$ \AND $a = P[q + 1]$}
+                \State $\delta(q, a) \gets q + 1$
+            \Else
+                \State $\delta(q, a) \gets \delta(\pi[q], a)$ \Comment{$\pi[q] < q$，已經填好}
+            \EndIf
+        \EndFor
+    \EndFor
+    \State \Return $\delta$
+\EndFunction
+\end{pseudo}
+
+第 11 行的理由：$a$ 接不上 $P[q + 1]$ 時，新的前綴一定是 $P[1..q]$ 某個邊界接上 $a$，
+這和 KMP 沿著鏈退的情形一樣；而從 $\pi[q]$ 開始找，正是 $\delta(\pi[q], a)$ 的定義。
+（$q = m$ 時也一樣，因為長度 $m + 1$ 的前綴不存在。） 前處理的時間是
+$\Theta(m |\Sigma|)$。
+
+$P = \mathtt{AACAACAAAC}$ 的轉移表如下。 \texttt{G} 和 \texttt{T} 不在 $P$ 裡，那
+兩欄全部是 $0$，表上省略。 對照第~\ref{sec:stm-kmp}~節的追蹤：狀態 $9$ 讀到
+\texttt{G} 直接到 $0$，KMP 要退三次；狀態 $8$ 讀到 \texttt{C} 到 $6$，就是 $i = 9$
+那一列退到 $\pi[8] = 5$ 再加一。
+
+\begin{center}
+\small
+\begin{tabular}{clcc}
+\toprule
+狀態 $q$ & 已對上的前綴 & $\delta(q, \mathtt{A})$ & $\delta(q, \mathtt{C})$ \\
+\midrule
+0 & $\varepsilon$ & 1 & 0 \\
+1 & \texttt{A} & 2 & 0 \\
+2 & \texttt{AA} & 2 & 3 \\
+3 & \texttt{AAC} & 4 & 0 \\
+4 & \texttt{AACA} & 5 & 0 \\
+5 & \texttt{AACAA} & 2 & 6 \\
+6 & \texttt{AACAAC} & 7 & 0 \\
+7 & \texttt{AACAACA} & 8 & 0 \\
+8 & \texttt{AACAACAA} & 9 & 6 \\
+9 & \texttt{AACAACAAA} & 2 & 10 \\
+10 & \texttt{AACAACAAAC} & 4 & 0 \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+KMP 可以看成「不存整張表，需要時才沿著鏈現算」的自動機：前處理只要 $\Theta(m)$，和
+$|\Sigma|$ 無關，比對時間仍是 $\Theta(n)$。 字母表很大時（例如 Unicode），KMP 比較
+划算；字母表很小、同一個模式要在很多段文字裡找時，自動機每個字元固定一次查表，常數
+比較小。
+
+本章的四種方法整理如下（$v$ 是有效位移的個數）。
+
+\begin{center}
+\small
+\begin{tabular}{lllll}
+\toprule
+方法 & 前處理 & 比對（最壞） & 比對（期望或典型） & 額外空間 \\
+\midrule
+樸素比對 & 無 & $\Theta((n - m + 1)m)$ & 隨機文字約 $O(n)$ & $O(1)$ \\
+Rabin--Karp & $\Theta(m)$ & $\Theta((n - m + 1)m)$ & $O(n + m(v + n/q))$ & $O(1)$ \\
+比對自動機 & $\Theta(m|\Sigma|)$ & $\Theta(n)$ & $\Theta(n)$ & $\Theta(m|\Sigma|)$ \\
+KMP & $\Theta(m)$ & $\Theta(n)$ & $\Theta(n)$ & $\Theta(m)$ \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\section{本章常見錯誤}
+\label{sec:stm-pitfalls}
+
+\begin{center}
+\small
+\begin{tabular}{p{0.26\linewidth}p{0.50\linewidth}p{0.14\linewidth}}
+\toprule
+錯誤 & 例子 & 見 \\
+\midrule
+失敗函數的定義混用 & 題目要 Horowitz 的 $f$（從 $-1$ 開始），卻寫了 $\pi$；或把
+$\pi$ 的編號從 $0$ 開始，整排差一格 & 第~\ref{sec:stm-kmp}~節 \\
+失配時退錯格 & 虛擬碼寫成 $q \gets \pi[q - 1]$；C 從 $0$ 編號卻寫
+\texttt{q = pi[q]} & 第~\ref{sec:stm-kmp}~節 \\
+\textbf{while} 寫成 \textbf{if} & 只退一次就去比 $P[q + 1]$，$i = 20$ 那一步會停在
+$q = 2$ 而不是 $0$，之後的結果全錯 & 圖~\ref{fig:stm-kmp-align} \\
+找到之後把 $q$ 設成 $0$ & $P = \mathtt{AACAACAAAC}$ 在 $\mathtt{AACAACAAACAACAAAC}$
+裡只找到位移 $0$，漏掉位移 $7$ & 範例~\ref{ex:stm-kmp} \\
+以為 KMP 每個字元都是 $O(1)$ & 單一字元可能退 $\Theta(m)$ 次；$O(1)$ 是平攤，證明要
+寫出位能或總和 & 定理~\ref{thm:stm-kmp-time} \\
+Rabin--Karp 命中就輸出 & 沒有逐字確認，把偽命中當成出現位置 &
+第~\ref{sec:stm-rk}~節 \\
+滾動時出現負數 & C 的 \texttt{\%} 對負數得到負數，之後的雜湊值全錯；要先加 $q$ &
+範例~\ref{ex:stm-rk} \\
+$q$ 選成 $d$ 的次方 & $d = 4$、$q = 256$ 時，雜湊值只看最後 $4$ 個字元 &
+觀念題~\ref{q:stm-power-mod} \\
+把 \texttt{strlen} 寫在迴圈條件 & \texttt{for (i = 0; i < strlen(t); i++)} 每輪都
+重數一次，樸素比對憑空多出 $\Theta(n^2)$ & 第~\ref{sec:stm-naive}~節 \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\section{觀念題}
+\label{sec:stm-exercises}
+
+題型和研究所考試、期中期末考的筆試相近，有選擇、計算、追蹤、證明和設計。 除非題目
+另外說明，失敗函數用本章的 $\pi$，Rabin--Karp 的字元對應是 $\mathtt{A} = 0$、
+$\mathtt{C} = 1$、$\mathtt{G} = 2$、$\mathtt{T} = 3$，第一個字元是最高位。 解答在本章
+最後。
+
+\begin{enumerate}
+\item （選擇，可能不只一個答案）下列哪些敘述正確？
+\begin{enumerate}
+\item 樸素比對的最壞情況是 $\Theta((n - m + 1)m)$。
+\item Rabin--Karp 的最壞情況是 $\Theta(n + m)$。
+\item 對任何 $P$ 和 $1 \le q \le m$，$\pi[q] < q$。
+\item $P$ 的字元兩兩不同時，$\pi[q] = 0$ 對所有 $q$ 成立。
+\item KMP 讀進某一個 $T[i]$ 時，第 6 行最多執行 $O(1)$ 次。
+\end{enumerate}
+
+\item （計算）用樸素比對在 $T = \mathtt{GTAGTAGGTAGT}$ 裡找 $P = \mathtt{GTAGG}$。 寫
+出每個位移比較了幾次、總比較次數，以及有效位移。
+
+\item （計算）Rabin--Karp，$d = 4$、$q = 7$，$T = \mathtt{CTAGCTACGATAC}$，
+$P = \mathtt{TAC}$。
+\begin{enumerate}
+\item 求 $h$ 和 $p \bmod 7$。
+\item 用滾動的式子從 $t_0 \bmod 7$ 算出 $t_1 \bmod 7$，寫出中間的負數怎麼處理。
+\item 列出所有命中的位移，指出哪些是偽命中。
+\end{enumerate}
+
+\item （計算）$P = \mathtt{GTAGTGTAG}$。
+\begin{enumerate}
+\item 用 \proc{Compute-Failure} 求 $\pi[1..9]$，寫出 $q = 6$ 那一步的比較過程。
+\item 換算成 Horowitz 的 $f(0..8)$ 和 $\mathit{next}[1..9]$。
+\end{enumerate}
+
+\item （追蹤）用第 4 題的 $P$，以 \proc{KMP-Match} 掃描
+$T = \mathtt{GTAGTAGTGTAGTGTAG}$。 寫出每次失配時 $q$ 退到哪裡、所有有效位移，以及
+（照範例~\ref{ex:stm-kmp} 的數法）比對階段的字元比較次數。
+
+\item （選擇）下列陣列哪些可能是某個字串的失敗函數 $\pi[1..]$？ 說明理由。
+(A) $0, 0, 1, 2, 3, 1$ \quad (B) $0, 1, 0, 2$ \quad (C) $0, 1, 2, 3, 4$ \quad
+(D) $0, 0, 1, 0, 2$
+
+\item （證明）證明對 $2 \le q \le m$，$\pi[q] \le \pi[q - 1] + 1$。 等號何時成立？
+
+\item （證明）用位能法證明 \proc{Compute-Failure} 的第 6 行總共最多執行 $m - 1$ 次。
+寫出位能函數、它為什麼不會小於初始值，以及每一輪的平攤成本。
+
+\item （構造）給一個長度 $m$ 的模式和一段文字，使得 KMP 讀到某一個字元時，第 6 行連
+續執行 $m - 1$ 次。 再說明為什麼這不影響定理~\ref{thm:stm-kmp-time}。
+
+\item （證明與計算）令 $p = m - \pi[m]$。
+\begin{enumerate}
+\item 證明 $P[i] = P[i + p]$ 對 $1 \le i \le m - p$ 都成立（$p$ 是 $P$ 的一個週期）。
+\item 證明沒有比 $p$ 更小的正整數週期。
+\item $P = \mathtt{CAGCAGCAGCAG}$，求 $\pi[12]$ 和 $p$。 $p$ 整除 $m$ 時，$P$ 是
+$P[1..p]$ 重複 $m/p$ 次；這個 $P$ 是哪個字串重複幾次？
+\end{enumerate}
+
+\item （設計）改寫 \proc{KMP-Match}，改成數「彼此不重疊」的出現最多有幾次（例如
+$P = \mathtt{AA}$、$T = \mathtt{AAAAA}$ 時答案是 $2$）。 只改一行，並說明為什麼由左往
+右、能找到就算的做法會得到最多的個數。
+
+\item （計算）$P = \mathtt{ACAG}$，字母表 $\{\mathtt{A}, \mathtt{C}, \mathtt{G},
+\mathtt{T}\}$。
+\begin{enumerate}
+\item 求 $\pi$，再用 \proc{Build-Automaton} 填出完整的轉移表 $\delta(q, a)$，
+$q = 0..4$。
+\item 用自動機掃描 $T = \mathtt{CACACAGACAG}$，寫出每個字元之後的狀態和所有有效位
+移。
+\end{enumerate}
+
+\item \label{q:stm-power-mod}（說明）Rabin--Karp 用 $d = 4$，有人為了用位元運算算得
+快，取 $q = 256$。 證明這時 $t_s \bmod q$ 只和視窗的最後 $4$ 個字元有關。 $m = 10$ 時
+這會造成什麼問題？ 和第~12~章引理~\ref{lem:hash-gcd} 前後討論的「除法的 $m$ 不要選
+$2$ 的次方」比較。
+
+\item （是非）「Rabin--Karp 的 $q$ 選一個比 $nm$ 大的質數，底數 $x$ 從 $0$ 到 $q - 1$
+隨機挑，就保證不會有偽命中。」 這句話對嗎？ 如果不對，正確的敘述是什麼？
+\end{enumerate}
+
+\section{實作練習}
+\label{sec:stm-practice}
+
+下面是 Aki-Judge 上和本章相關的題目。 Rabin--Karp 目前沒有題目，可以用
+範例~\ref{ex:stm-rk} 搭配範例~\ref{ex:stm-naive}，對同一段文字比較兩者的輸出，自己驗
+證偽命中有沒有被濾掉。
+
+\begin{center}
+\begin{tabular}{llc}
+\toprule
+小節 & 題目 & 難度 \\
+\midrule
+樸素比對 & \akiref{brute-force-first-match}{暴力比對：第一次出現位置} & 暖身 \\
+樸素比對 & \akiref{count-overlapping-occurrences-brute-force}{暴力比對：計算出現次數} & 暖身 \\
+樸素比對 & \akiref{two-fragments-in-order}{先後出現的兩段字串} & 基本 \\
+KMP & \akiref{first-match-with-prefix-function}{以前綴函數找第一次出現位置} & 基本 \\
+KMP & \akiref{count-occurrences-with-prefix-function}{以前綴函數計算出現次數} & 基本 \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+幾題的提示：
+
+\begin{itemize}
+\item 前兩題把範例~\ref{ex:stm-naive} 的 \texttt{naive\_match} 改成找到第一個就回傳，或
+改成計數。 輸出的位置從 $0$ 開始，就是本章的位移 $s$。
+\item 「先後出現的兩段字串」要在每個單字裡找 $A$ 最早的出現，再從它結束的位置往後
+找 $B$。 把樸素比對改成「從某個起點開始找第一次出現」的函式，呼叫兩次就好。 為什麼
+只要看 $A$ 最早的那次，題目的說明已經講了。
+\item 後兩題照範例~\ref{ex:stm-kmp}。 計數那題的出現可以重疊，找到之後 $q$ 要設成
+\texttt{pi[m - 1]}，不是 $0$。
+\end{itemize}
+
+\section{讀完你應該會}
+\label{sec:stm-checklist}
+
+\begin{itemize}
+\item 用位移的語言寫出字串比對問題，算出樸素比對在給定輸入上的比較次數，並舉出達到
+$\Theta((n - m + 1)m)$ 的輸入。
+\item 用 Rabin--Karp 一個視窗一列算出 $t_s \bmod q$，處理滾動時的負數，分出有效位移
+和偽命中；說明期望時間的假設，以及隨機底數時偽命中機率 $(m - 1)/q$ 的證明。
+\item 用 \proc{Compute-Failure} 手算失敗函數，寫出每一步沿著邊界的鏈退到哪裡，並在
+$\pi$、C 的 \texttt{pi}、Horowitz 的 $f$、$\mathit{next}$ 之間換算。
+\item 手算 KMP 的比對過程（$q$ 的變化表或對齊圖），找出所有重疊的出現。
+\item 用位能法或聚合法證明 KMP 是線性時間，說明為什麼單一字元的最壞成本是
+$\Theta(m)$ 但平攤是 $O(1)$。
+\item 用失敗函數建出比對自動機的轉移表，比較自動機和 KMP 的前處理成本。
+\end{itemize}
+
+\textbf{延伸閱讀}（書末會整理完整的參考資料）
+
+\begin{itemize}
+\item Thomas H. Cormen 等，\textit{Introduction to Algorithms}，第 4 版，第 32 章
+（32.1--32.4 節）：樸素比對、Rabin--Karp、比對自動機和 KMP，自動機和失敗函數的正確
+性證明寫得比本章完整；32.5 節的後綴陣列是本章沒有講的另一條路。
+\item Donald E. Knuth、James H. Morris、Vaughan R. Pratt，``Fast Pattern Matching in
+Strings''，\textit{SIAM Journal on Computing} 6(2)，1977：KMP 的原始論文，也講了
+$\mathit{next}$ 的改良版。
+\item Richard M. Karp、Michael O. Rabin，``Efficient Randomized Pattern-Matching
+Algorithms''，\textit{IBM Journal of Research and Development} 31(2)，1987：
+Rabin--Karp 的原始論文，用隨機挑選的質數當模數。
+\item Robert S. Boyer、J Strother Moore，``A Fast String Searching Algorithm''，
+\textit{Communications of the ACM} 20(10)，1977：從模式的右邊往左比，實務上常比 KMP
+快，文字編輯器的搜尋常用它的變形。
+\item Steven S. Skiena，\textit{The Algorithm Design Manual}，第 3 版，6.7 節與 21.3
+節：Rabin--Karp 的直觀講法，以及實務上該選哪一種比對方法。
+\item Antti Laaksonen，\textit{Competitive Programmer's Handbook}，第 26 章：字串雜湊
+和 Z 演算法，後者是和 KMP 等價、但想法不同的線性時間方法。
+\item Dan Gusfield，\textit{Algorithms on Strings, Trees, and Sequences}，Cambridge
+University Press，1997：字串演算法的專書，從 Z 演算法一路講到後綴樹和生物序列的應用。
+\end{itemize}
+
+\addcontentsline{toc}{section}{觀念題解答}
+\section*{觀念題解答}
+
+\begin{enumerate}
+\item (a)、(c)、(d) 正確。 (a)：第~\ref{sec:stm-naive}~節的 $\mathtt{A}^n$ 和
+$\mathtt{A}^{m-1}\mathtt{C}$。 (b)：錯，$T = \mathtt{A}^n$、$P = \mathtt{A}^m$ 時每
+個位移都要逐字確認，是 $\Theta((n - m + 1)m)$。 (c)：邊界是真前綴。 (d)：長度 $r \ge 1$
+的邊界要有 $P[1] = P[q - r + 1]$，字元兩兩不同時只能 $q - r + 1 = 1$，即 $r = q$，不
+是真前綴。 (e)：錯，單一字元最多可以退 $m - 1$ 次（第 9 題）；$O(1)$
+是平攤的結果。
+
+\item 位移 $0$ 到 $7$ 的比較次數依序是 $5$、$1$、$1$、$5$、$1$、$1$、$2$、$5$，共 $21$ 次。 有效位移只有
+$s = 3$（$T[4..8] = \mathtt{GTAGG}$）。 $s = 0$ 對上前 $4$ 個字元，第 $5$ 個
+$T[5] = \mathtt{T} \ne \mathtt{G}$；$s = 6$ 對上 \texttt{G} 之後 $T[8] = \mathtt{G}
+\ne \mathtt{T}$，比 $2$ 次；$s = 7$ 是 \texttt{GTAGT}，前 $4$ 個相同，比 $5$ 次。
+
+\item
+\begin{enumerate}
+\item $h = 4^2 \bmod 7 = 16 \bmod 7 = 2$。 $p = 3 \cdot 16 + 0 \cdot 4 + 1 = 49$，
+$49 \bmod 7 = 0$。
+\item $t_0 = \mathtt{CTA} = 1 \cdot 16 + 3 \cdot 4 + 0 = 28$，$28 \bmod 7 = 0$。 離開的
+是 $T[1] = \mathtt{C} = 1$，進來的是 $T[4] = \mathtt{G} = 2$：
+$t_1 \equiv 4\,(0 - 1 \cdot 2) + 2 = -6 \equiv -6 + 7 = 1 \pmod 7$。 驗算：
+$\mathtt{TAG} = 48 + 0 + 2 = 50$，$50 \bmod 7 = 1$。
+\item 各位移的 $t_s \bmod 7$：
+\begin{center}
+\small
+\begin{tabular}{c*{11}{c}}
+\toprule
+$s$ & 0 & 1 & 2 & 3 & 4 & 5 & 6 & 7 & 8 & 9 & 10 \\
+視窗 & \texttt{CTA} & \texttt{TAG} & \texttt{AGC} & \texttt{GCT} & \texttt{CTA} & \texttt{TAC} & \texttt{ACG} & \texttt{CGA} & \texttt{GAT} & \texttt{ATA} & \texttt{TAC} \\
+$t_s \bmod 7$ & \textbf{0} & 1 & 2 & 4 & \textbf{0} & \textbf{0} & 6 & 3 & \textbf{0} & 5 & \textbf{0} \\
+\bottomrule
+\end{tabular}
+\end{center}
+命中的是 $s = 0, 4, 5, 8, 10$。 $s = 5$ 和 $s = 10$ 是 \texttt{TAC}，有效；$s = 0$、
+$s = 4$（\texttt{CTA}）和 $s = 8$（\texttt{GAT}）是偽命中，共 $3$ 次。
+\end{enumerate}
+
+\item
+\begin{enumerate}
+\item $\pi = 0,\ 0,\ 0,\ 1,\ 2,\ 1,\ 2,\ 3,\ 4$。 $q = 6$：開始時 $k = \pi[5] = 2$，$P[3] = \mathtt{A} \ne
+P[6] = \mathtt{G}$，退到 $k = \pi[2] = 0$；$P[1] = \mathtt{G} = P[6]$，$k = 1$，所以
+$\pi[6] = 1$。 其他各步都沒有退：$q = 2, 3$ 時 $P[1] = \mathtt{G}$ 不同，是 $0$；
+$q = 4, 5$ 接上 \texttt{G}、\texttt{T}；$q = 7, 8, 9$ 從 $k = 1$ 接上
+\texttt{T}、\texttt{A}、\texttt{G}。
+\item $f = -1,\ -1,\ -1,\ 0,\ 1,\ 0,\ 1,\ 2,\ 3$（每一項減 $1$）。 $\mathit{next} = 0,\ 1,\ 1,\ 1,\ 2,\ 3,\ 2,\ 3,\ 4$（$\mathit{next}[1] =
+0$，之後是前一格的 $\pi$ 加 $1$）。
+\end{enumerate}
+
+\item $q$ 的變化：$i = 1$ 到 $5$ 一路對上，$q = 5$。 $i = 6$ 讀到 \texttt{A}，
+$P[6] = \mathtt{G}$ 不同，退到 $\pi[5] = 2$，$P[3] = \mathtt{A}$ 相同，$q = 3$。 之後
+$i = 7$ 到 $12$ 全部對上，$i = 12$ 時 $q = 9$，輸出位移 $12 - 9 = 3$，$q \gets \pi[9]
+= 4$。 $i = 13$ 到 $17$ 又全部對上，$i = 17$ 時 $q = 9$，輸出位移 $8$，$q \gets 4$。
+有效位移是 $3$ 和 $8$，兩次出現重疊了 $4$ 個字元（\texttt{GTAG}）。 比較次數：每個字元
+比 $1$ 次，加上失配退一格的 $1$ 次，共 $17 + 1 = 18$ 次。 可以用範例~\ref{ex:stm-kmp}
+驗證，輸入 \texttt{1}、\texttt{GTAGTAGTGTAGTGTAG GTAGTGTAG}，程式印出
+\texttt{comparisons: 9 + 18 <= 52}。
+
+\item (A)、(C) 可能，(B)、(D) 不可能。 (A) 例如 \texttt{CGCGCC}：\texttt{CGCGC} 的最長邊界 \texttt{CGC} 後面是
+\texttt{G}，接不上 \texttt{C}；退到邊界 \texttt{C}，後面也是 \texttt{G}；退到空字
+串，$P[1] = \mathtt{C}$ 接上，得 $1$。 (C) 是 \texttt{AAAAA}。 (B) 的
+$\pi[4] = 2 > \pi[3] + 1 = 1$，違反第 7 題。 (D) 的 $\pi[5] = 2 > \pi[4] + 1 = 1$，也
+違反。
+
+\item 令 $r = \pi[q]$。 $r = 0$ 時顯然成立。 $r \ge 1$ 時，$P[1..r]$ 是 $P[1..q]$ 的邊
+界，拿掉兩邊的最後一個字元，$P[1..r - 1]$ 是 $P[1..q - 1]$ 的前綴也是後綴，而且
+$r - 1 < q - 1$，所以是 $P[1..q - 1]$ 的邊界，$r - 1 \le \pi[q - 1]$。 等號成立若且唯
+若 $P[\pi[q - 1] + 1] = P[q]$，也就是最長的邊界直接接得上，\proc{Compute-Failure} 第
+5 行一次都不用退。
+
+\item 位能取 $\Phi = k$。 一開始 $k = 0$；第 6 行把 $k$ 換成 $\pi[k] \ge 0$，第 8 行加
+一，$k$ 永遠不小於 $0$，所以 $\Phi \ge \Phi_0 = 0$。 第 $q$ 輪（$q = 2..m$）第 6 行執行
+$w_q$ 次，每次 $k$ 至少減 $1$，第 8 行最多加 $1$，所以 $\Delta\Phi \le 1 - w_q$。 把
+「第 6 行執行一次」的成本記成 $1$、其他不計，這一輪的平攤成本是
+$w_q + \Delta\Phi \le 1$。 由定理~\ref{thm:potential}，$m - 1$ 輪的總成本
+$\sum w_q \le m - 1$。
+
+\item $P = \mathtt{A}^{m-1}\mathtt{C}$，$\pi = 0, 1, 2, \ldots, m - 2, 0$；
+$T = \mathtt{A}^{m-1}\mathtt{G}$。 讀完前 $m - 1$ 個 \texttt{A} 時 $q = m - 1$；讀到
+\texttt{G}，$P[m] = \mathtt{C}$ 不同，退到 $\pi[m - 1] = m - 2$，$P[m - 1] =
+\mathtt{A}$ 也不同，再退……一直退到 $0$，共 $m - 1$ 次。 但要退 $m - 1$ 次，$q$ 之前
+得先加到 $m - 1$，這要讀 $m - 1$ 個字元，每個字元只付 $1$ 次比較。 平攤下來每個字元
+仍是 $O(1)$，定理~\ref{thm:stm-kmp-time} 的位能論證本來就容許某一輪很貴。
+
+\item
+\begin{enumerate}
+\item $k = \pi[m]$，$P[1..k]$ 是 $P$ 的後綴，所以 $P[i] = P[m - k + i] = P[i + p]$
+對 $1 \le i \le k = m - p$ 成立。
+\item 若 $p' < p$ 是週期，$P[i] = P[i + p']$ 對 $1 \le i \le m - p'$ 成立，等於說
+$P[1..m - p']$ 和 $P[p' + 1 .. m]$ 相同，也就是 $P$ 有長度 $m - p'$ 的邊界
+（$p' \ge 1$，所以是真前綴）。 但 $m - p' > m - p = \pi[m]$，和 $\pi[m]$ 是最長的矛盾。
+\item $\pi = 0,\ 0,\ 0,\ 1,\ 2,\ 3,\ 4,\ 5,\ 6,\ 7,\ 8,\ 9$，$\pi[12] = 9$，$p = 3$。 $3$ 整除 $12$，$P$ 是
+\texttt{CAG} 重複 $4$ 次。
+\end{enumerate}
+
+\item 把第 11 行的 $q \gets \pi[q]$ 改成 $q \gets 0$：找到一次以後，下一次出現只能從
+$i + 1$ 開始，前面的字元一個都不能共用。 由左往右、能找到就算是最好的，理由是第~19~章的
+交換論證：設某個最佳解選的第一次出現結束得比貪心選的晚（或一樣），把它換成貪心選的那
+次，結束位置只會更早，後面的出現都還能用，個數不變。 一直換下去，貪心的個數不少於最
+佳解。 $T = \mathtt{AAAAA}$、$P = \mathtt{AA}$ 時，貪心選位移 $0$、$2$，答案是 $2$。
+
+\item
+\begin{enumerate}
+\item $\pi = 0,\ 0,\ 1,\ 0$。 轉移表（列是 $q$，欄是讀到的字元）：
+\begin{center}
+\small
+\begin{tabular}{ccccc}
+\toprule
+$q$ & \texttt{A} & \texttt{C} & \texttt{G} & \texttt{T} \\
+\midrule
+0 & 1 & 0 & 0 & 0 \\
+1 & 1 & 2 & 0 & 0 \\
+2 & 3 & 0 & 0 & 0 \\
+3 & 1 & 2 & 4 & 0 \\
+4 & 1 & 0 & 0 & 0 \\
+\bottomrule
+\end{tabular}
+\end{center}
+例如 $\delta(3, \mathtt{C})$：$P[4] = \mathtt{G}$ 接不上，查 $\delta(\pi[3], \mathtt{C})
+= \delta(1, \mathtt{C}) = 2$。 $\delta(4, \cdot)$ 全部照抄 $\delta(\pi[4], \cdot) =
+\delta(0, \cdot)$。
+\item 狀態依序是 $0$、$1$、$2$、$3$、$2$、$3$、$4$、$1$、$2$、$3$、$4$。 到達狀態 $4$ 的是 $i = 7$ 和 $i = 11$，有效位移
+$3$ 和 $7$。
+\end{enumerate}
+
+\item $q = 256 = 4^4$。 視窗的值 $t_s = \sum_{j=1}^{m} T[s + j]\, 4^{m-j}$ 裡，
+$j \le m - 4$ 的項都含 $4^4$ 這個因數，除以 $256$ 的餘數是 $0$，所以
+$t_s \bmod 256$ 只由最後 $4$ 項，也就是最後 $4$ 個字元決定。 $m = 10$ 時，任何最後
+$4$ 個字元和 $P$ 相同的視窗都會命中，前 $6$ 個字元完全沒被檢查。 DNA 這類重複很多的
+資料，偽命中會大量出現，每次都要花 $O(m)$ 確認，時間退化成接近樸素比對。 這和第~12~章
+除法取 $m = 2^p$ 只用到鍵的最低 $p$ 個位元是同一件事：模數和底數有公因數時，高位的
+資訊全部丟掉。 所以 $q$ 要選質數，而且不要和 $d$ 有公因數。
+
+\item 不對。 定理~\ref{thm:stm-rk-random} 給的是機率的上界：每個不同的視窗偽命中的機
+率不超過 $(m - 1)/q < 1/n$，所以偽命中的\textbf{期望}次數小於 $(n - m + 1)/n \le 1$。
+運氣不好時還是可能發生，只是很少；正因為如此，第 10 行的逐字確認不能拿掉。 要拿掉確
+認，就得接受結果偶爾會錯（Monte Carlo 型）。
+\end{enumerate}
