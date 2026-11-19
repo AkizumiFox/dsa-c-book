@@ -772,7 +772,7 @@ $\sum c_i = 38 - \Phi(D_{16}) + \Phi(D_0) = 38 - 4 + 0 = 34$。
 
 程式把動態陣列包成一個結構，縮小的門檻寫成參數 \texttt{shrink\_den}：
 \texttt{num * shrink\_den < cap} 時減半。 \texttt{shrink\_den} 是 $4$ 就是
-虛擬碼~\ref{alg:table-pop}，是 $2$ 就是會來回換容量的做法。 成本照前面的算法記在
+虛擬碼~\ref{alg:table-pop}，是 $2$ 就是會來回換容量的做法。 成本照前面的方式記在
 \texttt{cost} 裡。 \texttt{realloc} 有時能原地變大，不用真的搬，但最壞情況要複製全部
 的元素，所以成本照搬 $\mathit{num}$ 個來算。
 
@@ -958,7 +958,7 @@ $1$ & 第~\ref{sec:amo-accounting}~節 \\
 驗證定理~\ref{thm:potential} 的等式。
 
 \item （計算）動態陣列一開始容量 $1$、沒有元素，放滿時把容量變成原來的 $3$ 倍（不
-縮小）。 成本照第~\ref{sec:amo-dynarray}~節的算法。
+縮小）。 成本照第~\ref{sec:amo-dynarray}~節的方式計算。
 \begin{enumerate}
 \item 連續放入 $82$ 個元素，總成本是多少？ 最後的容量是多少？
 \item 證明連續放入 $n$ 個的總成本小於 $2.5n$。
@@ -976,8 +976,8 @@ $1$ & 第~\ref{sec:amo-accounting}~節 \\
 \item 找一個位能函數，使每次加一的平攤成本都不超過 $3/2$，並驗證。
 \end{enumerate}
 
-\item （證明）一個堆疊保持「由下到上遞增」。 \proc{Insert}$(S, x)$ 先把頂端比 $x$
-大的元素一個一個 \proc{Pop} 掉，再 \proc{Push}$(x)$，成本是 \proc{Pop} 的次數加 $1$。
+\item （證明）一個堆疊保持「由下到上遞增」。 \proc{Insert}$(S, x)$ 先把頂端大於等於
+$x$ 的元素一個一個 \proc{Pop} 掉，再 \proc{Push}$(x)$，成本是 \proc{Pop} 的次數加 $1$。
 \begin{enumerate}
 \item 從空堆疊開始做 $n$ 次 \proc{Insert}，證明總成本不超過 $2n$。
 \item 舉一串 $n$ 次 \proc{Insert}，其中某一次的成本是 $n$。
@@ -989,7 +989,7 @@ $\mathit{num} = 5$、$\mathit{cap} = 8$。 依序做 $4$ 次刪除、$5$ 次加�
 - \mathit{cap}|$ 和 $\hat{c}_i$，並驗證定理~\ref{thm:potential} 的等式。
 
 \item （選擇，可能不只一個答案）下列動態陣列的規則中，哪些能讓「從空的開始任意 $n$
-次加入、刪除」的總成本是 $O(n)$？ 搬動的成本照本章的算法。
+次加入、刪除」的總成本是 $O(n)$？ 搬動的成本照本章的方式計算。
 \begin{enumerate}
 \item 放滿時加倍；刪除後少於一半時減半。
 \item 放滿時加倍；刪除後少於四分之一時減半。

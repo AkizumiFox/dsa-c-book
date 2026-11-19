@@ -364,7 +364,7 @@ int main(void)
 \end{example}
 \iosample{}{add 207: ok \\ add 115: ok \\ add 342: ok \\ add 160: ok \\ add 115: already in \\ add 101: ok \\ list: 101 115 160 207 342 \\ drop 115: ok \\ drop 300: not found \\ drop 342: ok \\ list: 101 160 207}
 
-幾個值得注意的地方：
+這支程式有幾點可以對照前面的說明：
 
 \begin{itemize}
 \item 加入 $115$ 時它插在最前面，$342$ 插在最後面，$160$ 插在中間，三種情況用的是
@@ -483,7 +483,7 @@ $\mathit{next}$，得先繞一圈找到它，反而變成 $\Theta(n)$。
 \end{center}
 
 下面的例子是實驗室的值日輪替：每天由環上的下一位值日；新加入的人排在這一輪的最後
-（也就是今天值日的人的前一位）；有人離開就從環上拿掉。 「過一天」只要把
+（也就是下一個要值日的人的前一位）；有人離開就從環上拿掉。 「過一天」只要把
 \texttt{last} 往前移一格，整個環就轉了一格，不用搬任何節點。
 
 \begin{example}[label=ex:ll-duty]{c}{(duty\_ring.c) 用環狀串列排值日}
@@ -566,10 +566,10 @@ int main(void)
 \end{example}
 \iosample{J Ming \\ J Hua \\ J Ting \\ N \\ N \\ J Wei \\ N \\ L Hua \\ N \\ N \\ L Ting \\ L Ming \\ L Ting \\ N \\ N \\ L Wei \\ N}{day 1: Ming \\ day 2: Hua \\ day 3: Ting \\ day 4: Ming \\ day 5: Wei \\ Ting is not on duty list \\ day 6: Wei \\ day 7: Wei \\ day 8: nobody}
 
-\texttt{J} 是加入，\texttt{L} 是離開，\texttt{N} 是過一天。 Wei 是在第 2 天之後加入的，那時 \texttt{last} 是 Hua、明天輪到 Ting，Wei 接在 Hua
-後面，也就是 Ting 的前一位，等 Ting、Ming、Hua 都輪過才輪到他；Hua 在第 5 天之前離開，
-所以第 5 天就是 Wei。 環上只剩 Wei 時，他的 \texttt{next} 指向自己，每
-天都是他。
+\texttt{J} 是加入，\texttt{L} 是離開，\texttt{N} 是過一天。 Wei 是在第 2 天之後加入
+的，那時 \texttt{last} 是 Hua，下一個輪到 Ting。 Wei 接在 Hua 後面、Ting 前面，輪替
+順序變成 Ting、Ming、Hua、Wei。 Hua 在第 3 天之後就離開了，所以第 4 天是 Ming，第 5
+天輪到 Wei。 環上只剩 Wei 時，他的 \texttt{next} 指向自己，每天都是他。
 
 \texttt{leave} 有三種情況要分開想：刪掉之後環變空了、刪掉的是 \texttt{last}（
 \texttt{last} 要退回前一個）、其他。 它的迴圈用 \textbf{do-while}，停止條件是「剛檢
@@ -1208,7 +1208,8 @@ $\lceil n/2 \rceil$ 步。 另一種做法只走一次：兩個指標一起從�
 \label{thm:ll-split}
 設 $h$ 是 $x_1 \to \cdots \to x_n$，$n \ge 1$。 \proc{Split-Half} 的迴圈跑
 $\lfloor (n-1)/2 \rfloor$ 輪，結束時 $s = x_{\lceil n/2 \rceil}$，所以前半是
-$x_1, \ldots, x_{\lceil n/2 \rceil}$。
+$x_1, \ldots, x_{\lceil n/2 \rceil}$。 $n \ge 2$ 時 $1 \le \lceil n/2 \rceil < n$，
+前後兩半都不是空的。
 \end{theorem}
 
 \begin{proof}
@@ -1677,11 +1678,11 @@ $x_2$。 第 5 行讓 $x_2.\mathit{next} = x_1$，第 6 行讓 $x_1.\mathit{next
 \item 這裡第 6 行指的是 $h.\mathit{next} \gets \NIL$。 拿掉之後，最外層呼叫結束時
 $x_1.\mathit{next}$ 仍然是 $x_2$，而 $x_2.\mathit{next} = x_1$，串列變成 $3 \to 2
 \to 1 \to 2 \to 1 \to \cdots$，$1$ 和 $2$ 互相指著，形成一個環。 走訪它的程式會停不
-下來。 （內層的呼叫不受影響，因為上一層的第 6 行會蓋掉它；只有最外層的
-$x_1$ 沒有人蓋。）
+下來。 （內層呼叫留下的 $x_i.\mathit{next} = x_{i+1}$ 不會出問題，因為上一層的第 5
+行會把它改成 $x_{i-1}$；只有最外層的 $x_1$ 沒有上一層來改。）
 
-\item 遞迴深度是 $n - 1$，每層 $\Theta(1)$，額外空間 $\Theta(n)$；迴圈版只要
-$\Theta(1)$。
+\item $n \ge 1$ 時呼叫最多同時疊了 $n$ 層（$x_1$ 到 $x_n$ 各一層），每層 $\Theta(1)$，
+額外空間 $\Theta(n)$；迴圈版只要 $\Theta(1)$。
 \end{enumerate}
 
 \item 用 \texttt{link} 指著「目前要檢查的節點的那個指標欄位」。 刪掉時

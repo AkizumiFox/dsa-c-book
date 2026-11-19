@@ -30,7 +30,8 @@ T(n) = 2T(n/2) + n .
 都要先寫出遞迴式才能分析。
 
 這一章用到《C 程式設計基礎》第~15~章的遞迴，用到時會先在框裡複習。 數學上用到
-第~1~章的漸近符號、等比級數和 $a^{\log_b n} = n^{\log_b a}$，以及數學歸納法。
+第~1~章的漸近符號、等比級數和 $a^{\log_b n} = n^{\log_b a}$，以及數學歸納法（附錄~A
+第~\ref{sec:mth-induction}~節整理了幾種寫法）。
 
 \section{從程式寫出遞迴式}
 \label{sec:rec-write}
@@ -165,7 +166,7 @@ $n = 5$ 時把每一次呼叫畫成一個節點，節點裡寫它處理的那一
 \node[rsum] at (6.0,-4.8) {第 3 層：0};
 \end{tikzpicture}
 \diagcaption{\proc{Audit-Sum} 處理 5 天的遞迴樹。 共 9 次呼叫、$5 + 5 + 2 = 12$ 次
-加法。 只有兩層是滿的，第 2 層只剩 $A[1..2]$ 還要往下分。}
+加法。 第 0、1 層各加 5 次；第 2 層只有 $A[1..2]$ 要加，其他都是基礎情況。}
 \label{fig:rec-audit5}
 \end{center}
 
@@ -364,7 +365,7 @@ T(n) \le \left\lceil \tfrac{n}{2} \right\rceil (\lceil \lg n \rceil - 1)
 = n(\lceil \lg n \rceil - 1) + n = n \lceil \lg n \rceil.
 \]
 下界：兩個 $\lfloor \lg \cdot \rfloor$ 都至少是
-$\lfloor \lg \lfloor n/2 \rfloor \rfloor = \lfloor \lg n \rfloor - 1$，同樣的算法得到
+$\lfloor \lg \lfloor n/2 \rfloor \rfloor = \lfloor \lg n \rfloor - 1$，同樣推導得到
 $T(n) \ge n \lfloor \lg n \rfloor$。
 
 最後，$n \ge 2$ 時 $\lfloor \lg n \rfloor \ge \frac{1}{2} \lg n$、$\lceil \lg n \rceil
@@ -586,7 +587,7 @@ T(n) \le d\,\frac{n}{4} \lg \frac{n}{4} + d\,\frac{3n}{4} \lg \frac{3n}{4} + n
 \]
 括號裡的數 $h = \frac{1}{2} + \frac{3}{4}\lg\frac{4}{3} \approx 0.811$ 是正的常數，
 只要 $d \ge 1/h$（大約 $1.23$），減掉的 $d h n$ 就蓋過加上的 $n$，得到
-$T(n) \le d\, n \lg n$。 $2 \le n < 8$ 時最多往下兩層就到基礎情況，$T(n)$ 不超過某個常數
+$T(n) \le d\, n \lg n$。 $2 \le n < 8$ 時最多往下三層就到基礎情況，$T(n)$ 不超過某個常數
 $M$，而 $n \lg n \ge 2$，所以 $d$ 再取大一點（$d \ge M/2$）就都成立。
 
 兩塊的比例換成任何固定的 $\alpha : (1 - \alpha)$（$0 < \alpha < 1$），結論都一樣是

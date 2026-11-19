@@ -249,7 +249,7 @@ NP 這個名字是 nondeterministic polynomial time（非決定性多項式時�
 在 NP 裡的問題所成的集合叫 \textbf{co-NP}。 $\mathrm{NP} = \text{co-NP}$ 是否成立也還不知道，所以
 「$A$ 在 NP 裡，所以 $A$ 的補問題也在 NP 裡」是不能用的推論。
 
-表裡的 \npcP{COMPOSITE} 是一個有趣的例子。 第~\ref{sec:ana-input-size}~節的試除法要 $\sqrt{x}$ 步，
+表裡的 \npcP{COMPOSITE} 說明了另一件事。 第~\ref{sec:ana-input-size}~節的試除法要 $\sqrt{x}$ 步，
 是位元數的指數；但給一個因數當憑證，驗證只要一次除法。 2002 年 Agrawal、Kayal、Saxena 證明了判斷
 質數（也就能判斷合數）其實在 P 裡；而真的把因數找出來（質因數分解）目前仍不知道有沒有多項式時間的演
 算法。 判斷「有沒有因數」和「把因數找出來」，難度可以差很多。
@@ -1245,7 +1245,8 @@ c(i, j) = \begin{cases} 1, & \{i, j\} \in E, \\ 2, & \{i, j\} \notin E, \end{cas
 成本只用了 $1$ 和 $2$，而 $1 + 1 \ge 2$，所以造出來的實例滿足三角不等式 $c(i, j) \le c(i, k) + c(k,
 j)$。 也就是說，即使限制成本滿足三角不等式（第~29~章的「度量 TSP」），\npcP{TSP} 仍是 NP 完備的。 許
 多課本改用 $0$ 和 $1$（邊的成本 $0$、非邊 $1$、門檻 $0$），證明完全一樣，但那樣造出來的實例不滿足三
-角不等式。
+角不等式。 第~20~章的 TSP 允許 $c(i, j) \ne c(j, i)$，對稱的實例是它的特殊情形，所以那個版本的決策
+問題也是 NP 完備的，求最佳路線是 NP 難的。
 
 \textbf{例子}。 圖~\ref{fig:npc-ham} 左邊的 $H_1$ 有哈密頓環 $1 \to 2 \to 5 \to 3 \to 4 \to 1$（粗線）。
 歸約出的成本矩陣如下，這條巡迴的成本是 $1 + 1 + 1 + 1 + 1 = 5 = B$，回答「是」。
@@ -1323,6 +1324,7 @@ NP 完備 & 相近但在 P 裡 \\
 \npcP{SUBSET-SUM}、\npcP{KNAPSACK} & 分數背包（第~19~章，貪心）\\
 最大割：把頂點分兩邊，跨兩邊的邊最多 & 最小割（第~26~章，最大流）\\
 \npcP{VERTEX-COVER}：一般圖的最小頂點覆蓋 & 二分圖的最小頂點覆蓋（大小等於最大匹配，可用第~26~章的最大流求）\\
+最小回饋邊集：最少刪幾條邊讓有向圖沒有環 & 判斷有向圖有沒有環（第~21~章的 DFS）\\
 \bottomrule
 \end{tabular}
 \end{center}
@@ -1408,7 +1410,7 @@ $n \lg M$ 位元。 再把時間寫成 $n$ 和 $\lg M$ 的函數。 $\Theta(nM)$
 \item \textbf{聰明一點的指數時間}。 第~20~章的回溯和分支限界靠剪枝讓實際試的組合少很多；\npcP{TSP} 用
 「子集合 $\times$ 終點」當狀態的動態規劃是 $O(n^2 2^n)$，比 $(n - 1)!$ 條路線少得多。
 \item \textbf{參數小時}。 頂點覆蓋問 $k$ 個頂點夠不夠：任取一條還沒被覆蓋的邊 $\{u, v\}$，$u$、$v$ 至少
-要選一個，分兩支遞迴，每支 $k$ 減 $1$，搜尋樹最多 $2^k$ 個葉子，時間 $O(2^k (n + m))$。 $k$ 很小時，
+要選一個，分兩支遞迴，每支 $k$ 減 $1$，搜尋樹最多 $2^k$ 個葉節點，時間 $O(2^k (n + m))$。 $k$ 很小時，
 即使 $n$ 很大也跑得動。
 \item \textbf{近似}。 不求最佳解，只求保證離最佳解不遠的解，例如頂點覆蓋的 2-近似，見第~29~章。
 \end{itemize}
@@ -1718,8 +1720,8 @@ $\npcP{TEAM} \le_{\mathrm{p}} \npcP{IND-SET}$，兩者一樣難。
 歸約到 2-SAT，而這做不到（除非 $\mathrm{P} = \mathrm{NP}$）。
 \item 對。 取 $f$ 為恆等函數，3-CNF 公式本身就是 CNF 公式，答案相同，這是 $\npcP{3-SAT} \le_{\mathrm{p}}
 \npcP{SAT}$。 一般化的問題至少和特殊情形一樣難。
-\item 錯。 那是 $B \le_{\mathrm{p}} \npcP{3-SAT}$，只說明 $B$ 不比 \npcP{3-SAT} 難（加上 $B$ 的驗證者，
-其實就是 $B \in \mathrm{NP}$ 的另一種說法）。 要證 $B$ 是 NP 難的，應該把 3-CNF 公式轉成 $B$ 的實例。
+\item 錯。 那是 $B \le_{\mathrm{p}} \npcP{3-SAT}$，只說明 $B$ 不比 \npcP{3-SAT} 難（由 $\npcP{3-SAT} \in
+\mathrm{NP}$，這個歸約可以推出 $B \in \mathrm{NP}$，但推不出 $B$ 是 NP 難的）。 要證 $B$ 是 NP 難的，應該把 3-CNF 公式轉成 $B$ 的實例。
 \item 錯。 理由同 (a)：特殊情形可能比較簡單，必須另外證 $\npcP{SAT} \le_{\mathrm{p}} \npcP{3-SAT}$
 （第~\ref{sec:npc-sat-3sat}~節）。
 \end{enumerate}
